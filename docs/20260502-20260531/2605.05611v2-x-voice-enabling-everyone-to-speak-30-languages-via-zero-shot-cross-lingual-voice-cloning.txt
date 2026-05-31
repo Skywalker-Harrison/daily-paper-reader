@@ -1,0 +1,674 @@
+Title: X-Voice: Enabling Everyone to Speak 30 Languages via Zero-Shot Cross-Lingual Voice Cloning
+
+URL Source: https://arxiv.org/pdf/2605.05611v2
+
+Published Time: Tue, 12 May 2026 00:33:54 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+## X-Voice: Enabling Everyone to Speak 30 Languages via Zero-Shot Cross-Lingual Voice Cloning 
+
+Rixi Xu 1*, Qingyu Liu 1,3*, Haitao Li 2,6, Yushen Chen 1,2, Zhikang Niu 1,2,Yunting Yang 4, Jian Zhao 4, Ke Li 5, Berrak Sisman 3,Qinyuan Cheng 2,7, Xipeng Qiu 2,7, Kai Yu 1, Xie Chen 1,2†
+
+> 1
+
+MoE Key Lab of Artificial Intelligence, X-LANCE Lab, Shanghai Jiao Tong University, 
+
+> 2
+
+Shanghai Innovation Institute, 3Center for Language and Speech Processing, Johns Hopkins University, 4Geely, 5Dataocean AI, 6Zhejiang University, 7Fudan University 
+
+{sunny_xrxrx, chenxie95}@sjtu.edu.cn 
+
+Abstract 
+
+In this paper, we present X-Voice , a 0.4B mul-tilingual zero-shot voice cloning model that clones arbitrary voices and enables everyone to speak 30 languages. X-Voice is trained on a 420K-hour multilingual corpus using the In-ternational Phonetic Alphabet (IPA) as a uni-fied representation. To eliminate the reliance on prompt text without complex preprocessing like forced alignment, we design a two-stage training paradigm. In Stage 1, we establish X-Voice s1 through standard conditional flow-matching training and use it to synthesize 10K hours of speaker-consistent segments as audio prompts. In Stage 2, we fine-tune on these audio pairs with prompt text masked to de-rive X-Voice s2 , which enables zero-shot voice cloning without requiring transcripts of audio prompts. Architecturally, we extend F5-TTS by implementing a dual-level injection of lan-guage identifiers and decoupling and schedul-ing of Classifier-Free Guidance to facilitate multilingual speech synthesis. Subjective and objective evaluation results demonstrate that X-Voice outperforms existing flow-matching based multilingual systems like LEMAS-TTS and achieves zero-shot cross-lingual cloning capabilities comparable to billion-scale mod-els such as Qwen3-TTS. To facilitate research transparency and community advancement, we open-source all related resources 1.
+
+1 Introduction 
+
+Zero-shot voice cloning has revolutionized text-to-speech (TTS) synthesis (Wang et al., 2017; Ren et al., 2019; Kim et al., 2021; Chen et al., 2025a; Betker, 2023; Łajszczak et al., 2024; Anastassiou et al., 2024), allowing any target speaker’s voice to be cloned from a short audio prompt. Recently, 
+
+> *These authors contributed equally.
+> †Corresponding author.
+> 1https://github.com/sunnyxrxrx/X-Voice
+
+an increasing number of studies have investigated multilingual zero-shot TTS to enable cross-lingual synthesis. Pioneering work YourTTS (Casanova et al., 2022) achieves zero-shot cross-lingual trans-fer via normalizing flows (Rezende and Mohamed, 2015), but it does not scale beyond a handful of languages. With the rise of Large Language Mod-els (LLMs), many subsequent systems have real-ized multilingual speech generation by leveraging the strong capabilities of LLMs. Most of them adopt one of two mainstream designs: either pre-dicting discrete acoustic tokens in a fully autore-gressive (AR) architecture, as in VALL-E X (Zhang et al., 2023), Fish-Speech series (Liao et al., 2024, 2026), MOSS-TTS (Gong et al., 2026), and Qwen3-TTS (Hu et al., 2026), or employing coarse-to-fine hybrid frameworks that bridge AR semantic modeling with non-autoregressive (NAR) acoustic refinement, as in Minimax-Speech (Zhang et al., 2025), Cosyvoice series (Du et al., 2024a,b, 2025) and IndexTTS series (Zhou et al., 2026; Li et al., 2026b). While these models effectively scale to dozens of languages and provide high-quality syn-thesis, their autoregressive paradigm suffers from an inescapable inference bottleneck and error accu-mulation (Neekhara et al., 2024). As an alternative, NAR models mitigate the in-herent limitations of AR models and achieve faster inference via parallel decoding. Representative examples include Voicebox (Le et al., 2024), E2-TTS (Eskimez et al., 2024), F5-TTS (Chen et al., 2025b) and NaturalSpeech series (Tan et al., 2024; Shen et al., 2024; Ju et al., 2024). Extending these NAR frameworks across languages calls for a uni-fied text representation that enables effective in-context acoustic alignment. While prior work has explored bytes (Li et al., 2019; He et al., 2021) or graphemes (Nekvinda and Dušek, 2020) as input, phonemes remain the most widely adopted repre-1 
+
+> arXiv:2605.05611v2 [cs.SD] 9 May 2026 Generate Reference
+> Target
+
+X-Voice  X-Voice      
+
+> Real Audio
+> Sampled Text
+> Audio
+> Transcript
+> Synthesized
+> Audio
+> Standard CFM
+> training to get X-Voice
+> Use X-Voice to s ynthesize
+> audio a s reference speech
+> Supervised by
+> Target
+> Real Audio
+> Audio
+> Transcript
+> Reference
+> Audio
+> Target Text
+> Reference
+> Reference
+> Synthesized
+> Audio
+> Target Audio
+> Finetune to reconstruct r eal
+> audio without reference text
+> Inference with
+> untranscribed speech
+
+Figure 1: Overview of two-stage training paradigm of X-Voice. 
+
+sentation, as exemplified by Voicebox (Le et al., 2024) and LEMAS-TTS (Zhao et al., 2026). However, the prevailing paradigm in zero-shot voice cloning relies heavily on paired speech and transcript as prompts. While obtaining accurate transcripts is relatively straightforward for high-resource languages, it becomes exceedingly diffi-cult in multilingual settings, particularly for low-resource languages and unwritten dialects. This poses a major bottleneck for cross-lingual speech synthesis, where users may provide spontaneous speech without standardized textual transcripts. To address this inherent limitation, it is essential to eliminate models’ reliance on reference transcripts. To this end, recent works have explored several directions: employing speaker encoders to extract identity independently of text (Zhang et al., 2025; Hu et al., 2026), utilizing inference-time classi-fiers (Kim et al., 2022), or integrating forced align-ment into flow-matching frameworks (Liu et al., 2026a; Torgashov et al., 2026). However, these approaches either introduce architectural complex-ity via auxiliary modules or impose heavy pre-processing dependencies that are prone to cascad-ing errors, particularly when scaling to diverse mul-tilingual datasets. To eliminate the necessity for reference tran-scripts without introducing structural complexity or pre-processing overhead, and thus enable ev-eryone to speak different languages, we present 
+
+X-Voice , a 0.4B flow-matching model tailored for 
+
+transcript-free cross-lingual voice cloning in 30 languages. We employ the International Phonetic Alphabet (IPA) as a unified phonetic representa-tion and introduce a two-stage training paradigm ,as shown in Figure 1. In Stage 1, we build a ro-bust multilingual backbone X-Voice s1 based on the F5-TTS (Chen et al., 2025b) architecture, trained on 420K hours of curated speech. In Stage 2, we curate a 30K-hour high-fidelity subset and lever-age X-Voice s1 to synthesize speaker-consistent au-dios by pairing randomly sampled texts with au-dios from the subset. These synthetic samples then serve as prompts to reconstruct original real speech. By masking the prompt texts during fine-tuning, we derive X-Voice s2 , which enables voice cloning independently of reference transcripts. Moreover, instead of simply merging language identifiers with text tokens, we adopt dual-level language injection (textual level and time level), which effectively al-leviates accent leakage in cross-lingual settings. During inference, we introduce a decoupled, sched-uled Classifier-Free Guidance (CFG) to improve speech intelligibility and naturalness. The main contributions of this paper are summa-rized as follows: • Parameter-Efficient Multilingual Foundation: 
+
+We present X-Voice, a highly efficient 0.4B flow-matching TTS system supporting 30 lan-guages. Through tailored designs like Dual-level Language Injection and Decoupled Classifier-Free Guidance, it achieves high-fidelity zero-shot voice cloning across 30 languages. • Open-Source Multilingual Ecosystem: To fa-cilitate multilingual TTS research, we fully open-source our 420K-hour training corpus and the 30K-hour high-quality subset. Furthermore, we construct and release a rigorously verified bench-mark, establishing an evaluation standard for zero-shot multilingual voice cloning. • Transcript-Free Supervised Fine-Tuning 
+
+2Paradigm: We introduce a novel two-stage training pipeline to remove the model’s depen-dence on reference transcripts without relying on auxiliary modules or forced alignment. 
+
+2 Dataset Preparation 
+
+2.1 Training Corpus 
+
+To establish a robust multilingual foundation, we curate a massive corpus of 420K hours across 30 languages from several open-source datasets. De-tailed dataset source and construction process are available in Appendix A. 
+
+Processing Pipeline To handle noise and incon-sistencies in in-the-wild speech data, we implement a rigorous multi-stage processing pipeline to get high-quality training pairs: • Temporal and Speaking Rate Constraints: To ensure stable alignment, we prune audio seg-ments shorter than 0.5s or longer than 30s. Then, we calculate the speaking rate (characters per second) for each sample and filter samples using language-specific thresholds. • Transcript Language Check: We employ the langdetect library 2 to verify the linguistic iden-tity of the transcribed text. Samples where the predicted text language conflicts with the source dataset label are discarded. • Deduplication Filtering: Utterances appearing more than 20 times are removed. This process prevents the model from over-fitting to repetitive templates and encourages the model to generalize across a more diverse linguistic distribution. • Acoustic Quality Scoring: We utilize DNS-MOS (Reddy et al., 2022) to assign an acous-tic quality score to every utterance in the corpus. This enables flexible, threshold-based selection for curating high-fidelity data. 
+
+Dataset Statistics As is shown in Figure 2, our finalized corpus integrates 420K hours of speech across 30 languages. The scale and diversity of the dataset enable models to learn both fine-grained phonetic details and higher-level prosodic patterns. 
+
+2.2 Evaluation Benchmark 
+
+Despite the rapid proliferation of zero-shot TTS models, the community still lacks a widely adopted multilingual test set to evaluate these models. To bridge this gap and establish a rigorous benchmark 
+
+> 2
+
+https://github.com/fedelopez77/langdetect 0 5 10 15 20 25 30 
+
+> Total Duration (K hours)
+> Chinese
+> French
+> Russian
+> German
+> Spanish
+> Italian
+> Polish
+> English
+> Dutch
+> Czech
+> Portuguese
+> Japanese
+> Bulgarian
+> Romanian
+> Hungarian
+> Greek
+> Swedish
+> Finnish
+> Lithuanian
+> Danish
+> Slovak
+> Latvian
+> Slovenian
+> Estonian
+> Thai
+> Croatian
+> Maltese
+> Indonesian
+> Vietnamese
+> Korean
+> 31.0
+> 23.0
+> 21.4
+> 21.2
+> 20.8
+> 19.6
+> 19.5
+> 19.1
+> 17.1
+> 16.9
+> 16.7
+> 16.4
+> 15.7
+> 14.3
+> 14.1
+> 13.7
+> 12.8
+> 12.4
+> 12.2
+> 11.7
+> 10.2
+> 9.3
+> 9.0
+> 8.6
+> 7.4
+> 6.5
+> 6.4
+> 6.2
+> 5.7
+> 3.6
+
+Figure 2: Duration statistics of the X-Voice dataset across 30 languages. 
+
+for future research, we construct a high-fidelity test set across 30 languages, which is primarily derived from Common Voice (Ardila et al., 2020). Given that Common Voice provides limited data for certain languages, the test data for Vietnamese, Korean, and Croatian are collected from Dolly-Audio (Nguyen and Nguyen, 2025), Emilia (He et al., 2024), and ParlaSpeech-HR (Ljubeši´ c et al., 2022, 2024), respectively. We construct the test set using a multi-stage curation pipeline. As a first step, we filter the test samples by their duration and speaking rate, retaining only well-formed in-stances. Then, we utilize Silero VAD 3 to detect speech boundaries and trim the leading and trail-ing silence. This reduces the impact of non-speech segments on evaluation. Finally, to ensure speaker consistency between the reference audio and the ground truth, we employ the ECAPA-TDNN 4 (De-splanques et al., 2020) model and calculate the co-sine similarity between the prompt and the ground truth. Only pairs exceeding a similarity threshold of 0.6 are accepted. For each language, our bench-mark contains 500 human-recorded utterances from over 100 speakers, with ground truth tar-get audios provided. 
+
+We further release a standardized text normaliza-tion frontend and evaluation scripts to ensure the fairness and reproducibility of the results. 
+
+3 Methodology 
+
+3.1 Preliminaries: Flow-matching based DiT 
+
+X-Voice is built upon F5-TTS (Chen et al., 2025b), a Flow Matching model using Diffusion Trans-
+
+> 3
+
+https://github.com/snakers4/silero-vad 
+
+> 4
+
+https://huggingface.co/speechbrain/ spkrec-ecapa-voxceleb/tree/main 
+
+3former (DiT) (Peebles and Xie, 2023) architecture, trained on the text-guided speech-infilling task. 
+
+Flow Matching Objective F5-TTS adopts DiT with Optimal Transport Condition Flow Matching (CFM) (Lipman et al., 2023). Let x1 be the Mel-spectrogram and x0 ∈ N (0 , I ). The probability path is defined as ψt(x) = (1 − t)x0 + tx 1. The model vt is trained to predict the constant vector field ddt ψt(x0) = x1 − x0 by minimizing       
+
+> LCFM =Et,q (x1),p (x0)vt(ψt(x0)) −ddt ψt(x0)
+> 2
+> .(1)
+
+During inference, the target sample ψ1(x0) is gen-erated by using an ODE solver to integrate the predicted vector field dψt(x0) 
+
+> dt
+
+= vt(ψt(x0)) over 
+
+t ∈ [0 , 1] , starting from initial noise ψ0(x0) = x0.
+
+Classifier-Free Guidance Classifier-Free Guid-ance (Ho and Salimans, 2022) is used to en-hance the fidelity and conditioning of the generated speech. During training, the conditioning informa-tion c is randomly dropped with a fixed probability. At inference, the guided vector field is computed by linearly extrapolating the conditional and uncon-ditional predictions: 
+
+vt, CFG =vt(ψt(x0); c)+ w (vt(ψt(x0); c) − vt(ψt(x0))) (2) where w is the guidance strength. In the context of F5-TTS, the condition c specifically represents the joint prompt consisting of the acoustic condition and the text condition. A smaller w better preserves the reference timbre but results in reduced pronun-ciation accuracy. By contrast, a larger w strength-ens text alignment but compromises speaker simi-larity and speech naturalness. 
+
+3.2 Overview 
+
+The design philosophy of X-Voice centers on a two-stage training paradigm that progressively builds a multilingual foundation and then extends it to transcript-free synthesis: • X-Voice s1 : Multilingual Foundation. We es-tablish a robust acoustic manifold by training on a 420K-hour multilingual corpus. This stage focuses on learning universal speech representa-tions and stable cross-lingual cloning. • X-Voice s2 : SFT with Synthetic Prompts. We adopt a supervised fine-tuning (SFT) strategy following Cross-Lingual F5-TTS 2 (Liu et al., 2026b), where X-Voice s1 is used to generate speech that serves as audio prompts. By fine-tuning on paired synthetic prompts and real tar-get speech, X-Voice enables transcript-free voice cloning while preserving synthesis quality. A key distinction of our approach is the complete absence of explicit data alignment throughout both stages, relying on the DiT backbone to implicitly learn latent cross-modal correspondences. 
+
+3.3 Unified Multilingual Representation 
+
+To bridge the cross-linguistic gap, we construct a unified phonetic space. We represent Man-darin Chinese via Pinyin due to its highly stan-dardized syllabic structure. For other languages, we utilize the International Phonetic Alphabet (IPA) . The IPA tokens are derived via eSpeak-NG 5 for most of the languages. However, we find that eSpeak-NG exhibits suboptimal perfor-mance in representing certain Asian languages. Therefore, we employ specialized toolkits for these languages—PyThaiNLP (Phatthiyaphaibun et al., 2023) for Thai, PyOpenJTalk 6 for Japanese, and g2pK 7 for Korean. We detail the design of our unified multilin-gual representation as follows. First, we explic-itly include stress markers ( ") to resolve lexical and prosodic ambiguities. For instance, in the Greek ex-ample in Table 1, the position of the stress marker is the sole differentiator between two distinct se-mantic meanings. Adding this token is essential for maintaining prosodic naturalness in synthesized speech. Second, as shown in the English example in Table 1, we decompose phonemes into core ar-ticulatory units and suprasegmental modifiers (e.g., length marks ( :), aspiration ( h), and tonal numbers). This design aims to capture the universal acoustic base while separately modeling the acoustic shifts introduced by modifiers. 
+
+Table 1: Examples of our unified phonetic representa-tion for underlined words. We preserve lexical stress tokens and separate primary articulatory units from suprasegmental modifiers.         
+
+> Language Transcript Token Sequence
+> Greek Εσύ πότε έρχεσαι. [p, ", o, t, e]
+> Δεν πάω ποτέ. [p, o, t, e, "]
+> English See you. [s, ", i, :, j, u, :]
+> Go far. [g, oU, f, ", A, :, R]
+> 5https://github.com/espeak-ng/espeak-ng
+> 6https://github.com/r9y9/pyopenjtalk
+> 7https://github.com/kyubyong/g2pK
+
+4As for the integration of articulatory units and modifiers, Zhang et al. (2021) verifies that com-pared with separately embedding articulatory to-kens and suprasegmental modifiers, unifying their embedding representations leads to negligible per-formance differences for intra-lingual and cross-lingual voice cloning in NAR TTS systems. Thus, we directly embed articulatory units and supraseg-mental features together in a sequence. 
+
+3.4 X-Voice s1 : Robust Foundation Modeling How are you?                                      
+
+> ConvNeXt v2
+> Language
+> Embedding
+> Timestep
+> DiT Block
+> English
+> CMC
+> ˈhaʊɑːrjuː?<F> <F> <F> <F> <F> <F>
+> en en en en en en en en en en en en en <F> <F> <F> <F> <F> <F>
+> Filler tokens
+> IPA
+> LID
+> Transcript
+> Language
+> Audio Mel
+> Training Data
+> Masked
+> Masked Masked
+> C
+> M
+> Concat
+> FiLM
+> Modulate
+> X-Voice Model
+
+Figure 3: Training Framework of X-Voice s1 . We use IPA as unified representation and inject LID in both textual level and time level. 
+
+Dual-Level Language Injection Without ex-plicit language conditioning, large-scale models often struggle to distinguish between different lin-guistic characteristics, and may lead to accent leak-age problem in cross-lingual tasks. Previous work like IndexTTS 2.5 (Li et al., 2026b) injects Lan-guage ID (LID) at textual level to guide pronuncia-tion. However, our empirical findings suggest that when using textual language conditioning alone, the model still suffers from accent leakage during cross-lingual synthesis. We attribute it to a lack of global constraints to fully decouple the speaker’s timbre from their accents. To address this, we pro-pose a Dual-Level Language Injection mecha-nism that injects LID in both time level and textual level, which provides better pronunciation accuracy and overall prosody. At the time level, we propose to inject the LID embedding eL by concatenating it with time em-bedding et. This fused vector passes through a Multi-Layer Perceptron (MLP) with SiLU activa-tion: 
+
+ht = SiLU (W[et ⊕ eL] + b). (3) This mechanism effectively steers the ODE trajec-tory to align with the target language’s prosodic manifold. At the textual level, we identify that text embed-dings carry richer information than LID, simply concatenating them may be suboptimal because the sparse LID signal can overshadow phonetic features. We instead apply the Feature-wise Lin-ear Modulation (FiLM) (Perez et al., 2018) to text embeddings: FiLM (eT ) = γ(eL) ⊙ eT + β(eL), (4) where eT , eL are text embedding and LID embed-ding, γ and β are learned parameters that scale and shift the phonetic features. This multiplica-tive rescaling acts as a gate, forcing the model to adapt shared IPA representations to language-specific acoustic patterns. We zero-initialize all LID injection layers to avoid interfering with the pretrained representa-tions at the onset of training. Our ablation study in Section 4.5 demonstrates that omitting this global constraint causes the model to carry over source-language accents dur-ing cross-lingual synthesis, whereas the dual-level approach maintains high linguistic purity. 
+
+Decoupling and Scheduling for CFG We have also implemented some optimizations on CFG in-ference for multilingual scenarios. Existing work mainly focus on the optimization of guidance direc-tion and guidance strength. In terms of guidance direction, Jiang et al. (2025) and Li et al. (2026a) introduce Decoupled Classifier-Free Guidance (DCFG) , which independently steers the linguistic 
+
+and acoustic components of the vector field for better style control. In terms of guidance strength, Zhao et al. (2026) and Liang et al. (2025) intro-duced a temporal decay schedule to improve nat-uralness. Inspired by their works, we implement both decoupling and strength decay in our infer-ence process. 5Hello! (English)                                              
+
+> en en en en en en en en en en en en
+> Filler
+> Tokens
+> IPA tokens
+> LID tokens
+> To Generate
+> Discarded
+> Bye!
+> həˈləʊ !baɪ!<F> <F> <F> <F>
+> Masked
+> <P> <P> <P> <P> <P> <P> .həˈləʊ !<F>
+> en en en en en en en
+> Masked
+> Bye! Hello!
+> X-Voice Model Pretrained X-Voice Model
+> Decoupling &
+> Scheduling
+> : Audio Condition
+> : Text Condition
+> : Language ID Condition
+> Filler
+> Tokens
+> EOS
+> Mark
+> How are you?
+> Good job!
+> Bye!
+> Text pool
+> Audio Mel
+> Transcript &
+> Language
+
+Figure 4: Overview of training paradigm of X-Voice s2 . (Left) Synthetic Data Generation: We utilize the robust X-Voice s1 model to synthesize speaker-consistent audio pairs. (Right) Transcript-Free Fine-tuning: We fine-tune the model to derive X-Voice s2 . By replacing reference transcripts with a special placeholder token, we force the model to extract prosodic features directly from the audio prompt without relying on reference transcripts. 
+
+Furthermore, our empirical analysis reveals that the introduction of DCFG intensifies trajectory os-cillations during the initial integration steps. This may because abstract text guidance is initially dis-oriented in high-entropy noise, and strong guidance strength leads to integration shock. By contrast, strong audio prompt guidance is essential for im-mediately anchoring the speaker’s voice outline. Driven by these understandings, we propose Asym-metric Warmup (A-Warmup) for CFG strength, which increases linguistic guidance linearly from zero during the first few inference steps, while maintaining the acoustic guidance at full strength from the onset to lock the acoustic anchor. Our guided vector field is formulated as 
+
+vt, DCFG = vt(ψt; A, T, L )+ wA(t) · (vt(ψt; A, T, L ) − vt(ψt; T, L )) 
+
+| {z }
+
+> Acoustic Guidance
+
++ wL(t) · (vt(ψt; T, L ) − vt(ψt)) 
+
+| {z }
+
+> Linguistic Guidance
+
+,
+
+(5) where A, T, L denote audio, text, and language conditions, while wA, w L denote acoustic and lin-guistic guidance strengths, respectively. wA and 
+
+wT are functions of time t, defined as follows: 
+
+wA(t) = 
+
+(
+
+wstart  
+
+> A
+
+, 0 ≤ t < t decay ,wstart  
+
+> A
+
+· (1 − t)2, tdecay ≤ t < 1.wL(t) = 
+
+
+
+wstart  
+
+> L
+
+· ttwarm 
+
+, 0 ≤ t < t warm ,wstart  
+
+> L
+
+, twarm ≤ t < t decay ,wstart  
+
+> L
+
+· (1 − t)2, tdecay ≤ t < 1.
+
+(6) Scaling wstart  
+
+> A
+
+improves the reference speaker’s acoustic similarity, while scaling wstart  
+
+> L
+
+enforces the pronunciation and rhythm of the target language. By tuning them independently, we can maintain comparable speaker similarity while forcefully sup-pressing the prosodic leakage from the reference audio. The effectiveness of the proposed strategy is demonstrated in the ablation study in Section 4.6. 
+
+3.5 X-Voice s2 : SFT with Synthetic Prompts Real–Synthetic Pair Construction The goal of synthetic data construction is to generate paired real and synthetic speech for SFT. We filter the original multilingual corpus by ranking samples according to their DNSMOS (Reddy et al., 2022) 6scores, retaining the top 1K hours per language and yielding a high-fidelity subset of 30K hours in total. We then employ X-Voice s1 to generate synthetic counterparts for this subset. Specifically, each real sample serves as the audio prompt, while the target text is sampled from a text pool in the corresponding language to drive synthesis. This pipeline produces a total of 10,533 hours of syn-thetic data for SFT. 
+
+SFT without Reference Text During SFT, we retain the same text-guided speech-infilling formu-lation as in X-Voice s1 , but remove the reference text associated with the synthetic audio prompt. The acoustic input is constructed as a mel spec-trogram x1 by concatenating the synthetic audio prompt xsyn prompt with a sequence length τ1 and the real target speech xtarget with a sequence length τ2:
+
+x1 = [ xsyn prompt ; xtarget ], (7) where [·; ·] denotes concatenation along the tem-poral axis, and τ = τ1 + τ2 is the total sequence length. To facilitate the speech infilling task, a binary temporal mask m is introduced and defined as fol-lows: 
+
+m[: , u ] = 
+
+(
+
+0, u ∈ [0 , τ 1),
+
+1, u ∈ [τ1, τ ). (8) where u indexes mel frames, (1 − m) ⊙ x1 corre-sponds to the synthetic audio prompt, and m ⊙ x1
+
+corresponds to the masked target speech. The text sequence is padded with filler tokens 
+
+⟨F ⟩ to the same length as the mel spectrogram. These filler tokens serve only as padding and carry no semantic information. To reduce the mismatch between the pretraining and SFT text conditions, we prepend N learnable prompt tokens ⟨P ⟩ with an end-of-sequence (EOS) marker ‘. ’ before the target text, following Cross-Lingual F5-TTS 2 (Liu et al., 2026b). The number of prompt text tokens 
+
+N is determined based on the ratio of the prompt speech duration and the target speech duration. The extended text sequence z is constructed as: 
+
+z = ( ⟨P ⟩, . . . . . . , ⟨P ⟩
+
+| {z } 
+
+> Ntimes
+
+, ‘.’ , ‘ ’ ,c1, c 2, . . . , c M , ⟨F ⟩, . . . . . . , ⟨F ⟩
+
+| {z }    
+
+> (τ−N−M−2) times
+
+), (9) where ci denotes the i-th token in the target text sequence of length M .To match the dual-level language injection used in X-Voice s1 , we apply language conditioning sep-arately to the time embeddings and the text em-beddings. For the time embeddings, the global language condition is fixed to the target language embedding etgt  
+
+> L
+
+. For the text embeddings, language conditioning is applied selectively over the text se-quence at the textual level. The learnable prompt tokens ⟨P ⟩ and the filler tokens ⟨F ⟩ are left with-out any language embedding. The end-of-sequence (EOS) marker ‘. ’ are associated with a dedicated unknown LID Lunk , while the target text tokens 
+
+c1: M are associated with the target LID Ltgt . The textual-level LID sequence l for the text embed-dings is defined as: 
+
+l = ( ∅, . . . . . . , ∅
+
+| {z } 
+
+> Ntimes
+
+, L unk , L unk ,Ltgt , . . . . . . , L tgt 
+
+| {z } 
+
+> Mtimes
+
+, ∅, . . . . . . , ∅
+
+| {z }    
+
+> (τ−N−M−2) times
+
+), (10) where ∅ indicates that no LID is injected. 
+
+4 Experiments 
+
+4.1 Training and Inference Setup Training We follow the same model configura-tions in F5-TTS (Chen et al., 2025b) for X-Voice and Cross-Lingual F5-TTS (Liu et al., 2026a) for Speaking Rate Predictor. Detailed model configu-rations are provided in Appendix B. For X-Voice s1 training, we initialize the DiT module with the official checkpoint of F5-TTS-v1-Base 8 trained on Emilia (He et al., 2024), and em-ploy the AdamW optimizer (Loshchilov and Hutter, 2017) for optimization. The model is trained for 600K updates with a batch size of 38,400 audio frames per GPU and bfloat16 mixed precision. The learning rate is linearly warmed up to 7.5 × 10 −5
+
+over the first 20K updates and then decays linearly for the remaining training steps. The DiT module is frozen during the initial 10K update steps. For X-Voice s2 training, we initialize the model from the X-Voice s1 checkpoint and keep the same training setup. We conduct SFT for a total of 70K update steps. For Speaking Rate Predictor training, we set the batch size to 19,200 audio frames, and the learning rate is warmed up to 2.5 × 10 −4 over the first 7.5k updates and then linearly decays. 
+
+> 8https://huggingface.co/SWivid/F5-TTS/tree/main/ F5TTS_v1_Base
+
+7Inference We use the Euler ODE solver with 16 NFE steps, linguistic CFG strength 4.0, acoustic CFG strength 2.5, CFG warmup time 0.01 (first 3 NFE steps), decay time 0.6 (last 2 NFE steps), and sway sampling coefficient -1.0. To estimate dura-tion, we use the length ratio of reference text and target text in X-Voice s1 , and leverage the speaking rate predictor in X-Voice s2 .
+
+4.2 Evaluation Setup Baselines We compare our models with cur-rent multilingual TTS systems including Qwen3-TTS (Hu et al., 2026), LEMAS-TTS (Zhao et al., 2026), MOSS-TTS (Gong et al., 2026), Fish Au-dio S2 (Liao et al., 2026), and OmniVoice (Zhu et al., 2026). Their basic configurations are sum-marized in Table 2 and detailed in Appendix C. 
+
+Table 2: Comparison of X-Voice with current multi-lingual zero-shot TTS systems. Arch. denotes the model architecture (AR for autoregressive, NAR for non-autoregressive). Params. denotes the total parameter of the system. Langs. denotes the number of supported languages. Transcript-Free means the model does not require the transcripts of reference audio.                                          
+
+> Model Arch. Params. Langs. Training Data Transcript-Free
+> Qwen3-TTS (Hu et al., 2026) AR 1.7B 10 >5M !
+> LEMAS-TTS (Zhao et al., 2026) NAR 0.3B 10 150K %
+> MOSS-TTS (Gong et al., 2026) AR 8.0B 20 >1M !
+> Fish Audio S2 (Liao et al., 2026) AR 4.0B 80 >10M %
+> OmniVoice (Zhu et al., 2026) NAR 0.8B 600+ 581K %
+> X-Voice s1 (Ours) NAR 0.3B 30 420K %
+> X-Voice s2 (Ours) NAR 0.4B 30 420K + 40K !
+
+Objective Evaluation We report Word Error Rate (WER) and Speaker Similarity (SIM-o) as objective metrics. We use Paraformer (Gao et al., 2022) for Chinese and Whisper-large-v3 (Rad-ford et al., 2023) for other languages to tran-scribe the generated speech. For speaker simi-larity, we compute the cosine similarity between speaker embeddings of the reference and synthe-sized speech, extracted using a pre-trained WavLM-Large model (Chen et al., 2022) fine-tuned for speaker verification. 
+
+Subjective Evaluation In multilingual settings, we care about faithful voice cloning and natural, accurate speech across languages. Therefore, in-stead of relying on a single Mean Opinion Score (MOS), we introduce Intelligibility Mean Opinion Score (IMOS) and Similarity Mean Opinion Score (SMOS) to separately evaluate intelligibility and speaker consistency. For each language, we ran-domly sample 20 utterances and recruit 10 native speakers for evaluation. Each utterance is rated on a 5-point rating scale in 1-point increments. The final scores are obtained by averaging across anno-tators and utterances for each language. Evaluation details can be found in Appendix D. 
+
+4.3 Intra-lingual Evaluation Seed-TTS Test Set As shown in Table 3, our X-Voice models achieve competitive WER and SIM-o performance in both Chinese and English on Seed-TTS Test Set (Anastassiou et al., 2024), with a better real-time factor (RTF) than other multilin-gual baselines. This enables faster inference and makes the models more practical for real-time ap-plications. 
+
+Table 3: Results on Seed-TTS Test Set. The boldface indicates the best result. The * denotes reported results from the original papers. The ↓ and ↑ means lower or higher values are better. The RTF values are measured on an NVIDIA RTX 4090 GPU with a batch size of 1.                                               
+
+> Model RTF ↓test-zh test-en
+> WER ↓SIM-o ↑WER ↓SIM-o ↑
+> Qwen3-TTS 1.754 0.92 0.77 1.08 0.71 LEMAS-TTS 0.131 3.34 0.71 1.49 0.62 MOSS-TTS 0.643 1.46 *0.76 *1.92 *0.69 *
+> Fish Audio S2 4.801 1.14 0.73 1.37 0.65 OmniVoice 0.198 0.84 *0.78 *1.60 *0.74 *
+> F5-TTS 0.065 1.74 *0.75 *1.89 *0.66 *
+> X-Voice s1 0.073 1.19 0.75 1.53 0.65
+> X-Voice s2 0.073 1.28 0.76 1.30 0.65
+
+LEMAS-TTS Test Set We compare X-Voice with LEMAS-TTS on LEMAS-TTS test set, as shown in Table 4. 
+
+Table 4: Results on LEMAS-TTS Test Set. 
+
+Model WER ↓ SIM-o ↑ WER ↓ SIM-o ↑
+
+zh en 
+
+LEMAS-TTS 2.17 0.788 1.82 0.726 
+
+X-Voice s1 1.38 0.816 1.06 0.745 X-Voice s2 1.87 0.817 0.98 0.710 
+
+de es 
+
+LEMAS-TTS 9.94 0.693 5.60 0.714 
+
+X-Voice s1 7.12 0.727 2.70 0.734 
+
+X-Voice s2 8.24 0.738 3.27 0.735 fr it 
+
+LEMAS-TTS 7.27 0.683 9.50 0.720 
+
+X-Voice s1 5.16 0.716 4.96 0.736 X-Voice s2 5.67 0.717 5.46 0.736 id pt 
+
+LEMAS-TTS 5.47 0.717 5.30 0.737 X-Voice s1 4.89 0.751 5.10 0.722 
+
+X-Voice s2 5.37 0.752 5.71 0.715 
+
+ru vi 
+
+LEMAS-TTS 10.55 0.734 13.28 0.675 
+
+X-Voice s1 6.08 0.756 10.91 0.702 
+
+X-Voice s2 6.18 0.763 12.30 0.705 
+
+8Table 5: Objective Results on X-Voice Test Set. GT denotes ground truth audio, and Qwen3, LEMAS, MOSS, Fish, Omni denote Qwen3-TTS, LEMAS-TTS, MOSS-TTS, Fish Audio S2, OmniVoice, respectively. The boldface and underline indicate the best and the second-best result.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+
+> Language WER ↓SIM-o ↑
+> GT Qwen3 LEMAS MOSS Fish Omni X-Voice s1 X-Voice s2 GT Qwen3 LEMAS MOSS Fish Omni X-Voice s1 X-Voice s2
+> Asian Languages
+> Chinese 2.41 2.16 6.07 2.91 2.57 2.23 2.86 2.87 0.723 0.728 0.655 0.722 0.686 0.736 0.698 0.700
+> Indonesian 3.67 -4.40 -6.11 2.15 2.98 2.53 0.670 -0.604 -0.596 0.682 0.644 0.651
+> Japanese 8.06 6.69 -12.93 6.06 5.98 8.04 7.93 0.713 0.723 -0.703 0.658 0.724 0.682 0.701
+> Korean 4.54 3.64 -3.54 1.37 3.42 2.42 2.40 0.759 0.738 -0.728 0.702 0.748 0.723 0.731
+> Thai 3.98 ---8.47 2.90 5.47 5.64 0.694 ---0.644 0.698 0.654 0.671
+> Vietnamese 3.37 -4.97 -29.31 4.38 4.25 3.67 0.741 -0.642 -0.696 0.727 0.677 0.686
+> European Languages Widely Used in TTS
+> English 4.63 3.89 4.15 3.54 3.01 2.44 2.36 2.29 0.730 0.697 0.560 0.662 0.622 0.719 0.586 0.547
+> French 7.92 6.65 8.71 9.05 7.98 6.88 8.71 8.55 0.742 0.724 0.639 0.699 0.668 0.740 0.680 0.680
+> German 3.51 2.64 6.55 3.85 3.45 2.80 3.76 3.91 0.765 0.742 0.666 0.718 0.689 0.763 0.698 0.698
+> Italian 4.44 2.93 5.39 6.33 4.60 3.13 3.95 3.89 0.760 0.746 0.655 0.720 0.692 0.757 0.703 0.705
+> Portuguese 3.39 2.78 3.55 6.19 2.71 2.11 3.41 3.29 0.724 0.711 0.647 0.679 0.658 0.720 0.665 0.661
+> Russian 3.75 3.16 3.80 4.82 3.52 3.12 2.68 2.74 0.743 0.742 0.676 0.718 0.689 0.744 0.714 0.723
+> Spanish 3.32 2.11 4.60 3.88 2.90 2.28 2.83 2.89 0.762 0.749 0.667 0.726 0.694 0.759 0.695 0.693
+> Other European Languages
+> Bulgarian 12.58 ---25.75 9.45 9.27 9.75 0.730 ---0.668 0.721 0.709 0.716
+> Croatian 11.33 ---11.42 4.56 4.81 4.84 0.813 ---0.744 0.801 0.782 0.790
+> Czech 8.01 --12.02 12.70 4.58 4.96 4.84 0.721 --0.692 0.644 0.736 0.702 0.706
+> Danish 13.26 --19.67 25.93 10.49 12.53 12.16 0.702 --0.653 0.613 0.687 0.669 0.676
+> Dutch 4.10 ---4.38 2.18 3.19 3.13 0.725 ---0.650 0.713 0.667 0.669
+> Estonian 18.15 ---28.12 13.11 11.52 11.23 0.776 ---0.713 0.758 0.733 0.732
+> Finnish 8.51 ---11.24 5.31 4.41 4.47 0.753 ---0.672 0.754 0.719 0.722
+> Greek 10.84 --15.45 24.04 8.89 10.52 10.72 0.614 --0.645 0.617 0.704 0.665 0.665
+> Hungarian 7.23 --19.26 11.34 6.85 5.56 5.42 0.731 --0.690 0.666 0.733 0.700 0.701
+> Latvian 11.39 ---25.24 8.83 6.95 7.13 0.715 ---0.647 0.714 0.692 0.694
+> Lithuanian 12.65 ---50.33 11.73 12.08 12.57 0.727 ---0.653 0.727 0.696 0.702
+> Maltese 76.06 ---80.43 70.93 69.44 68.11 0.705 ---0.611 0.687 0.653 0.663
+> Polish 5.12 --8.92 6.12 3.06 3.30 3.71 0.726 --0.688 0.657 0.713 0.679 0.683
+> Romanian 9.85 ---26.44 8.71 8.65 8.43 0.703 ---0.615 0.708 0.665 0.672
+> Slovak 12.67 ---18.76 10.59 10.52 11.04 0.699 ---0.620 0.700 0.670 0.676
+> Slovenian 12.21 ---15.57 8.07 7.62 7.73 0.683 ---0.606 0.675 0.645 0.653
+> Swedish 7.29 --9.71 8.06 5.06 7.01 7.63 0.735 --0.696 0.666 0.734 0.687 0.687
+
+Compared to LEMAS-TTS, X-Voice achieves a reduction in WER scores for most of the languages, and consistently outperforms the baseline in SIM-o scores, indicating that our revised model design yields improved performance in both intelligibility and speaker identity preservation. 
+
+X-Voice Multilingual Test Set As shown in Ta-ble 5, X-Voice behaves robustly across 30 lan-guages, achieving WER values close to the ground truth and competitive SIM scores. In terms of WER, X-Voice outperforms open-source multilin-gual systems including LEMAS-TTS, Fish Audio S2, and MOSS-TTS across most of the supported languages, and yields on-par results with the com-mercial model Qwen3-TTS. Notably, our model achieves best performance on English and Rus-sian. Nevertheless, in terms of speaker similarity, our model still exhibits a slight performance gap compared with Qwen3-TTS, MOSS-TTS, and the concurrent model Omnivoice . Subjective results in Table 6 show that X-Voice performs particularly well on low-resource Eu-ropean languages, achieving higher intelligibil-ity (IMOS) and speaker similarity (SMOS) than other open-source baselines. For widely used languages, X-Voice achieves comparable natural-ness and speaker similarity to larger-scale systems, while showing slightly lower IMOS in languages such as Japanese and Korean and reduced SMOS in languages like German and Portuguese. This indicates that X-Voice generally strikes a good bal-ance between multilingual naturalness and speaker consistency, but still faces challenges in certain linguistic settings. After fine-tuning without reference transcripts, X-Voice s2 achieves comparable or even improved IMOS in several languages, while SMOS tends to slightly degrade. The decrease in SMOS can be attributed to the absence of textual condition-ing, making the model less capable of reproduc-ing speaker-specific pronunciation patterns, par-ticularly non-canonical or accented speech. This leads to more standardized pronunciations, which reduces perceived speaker consistency. 
+
+4.4 Cross-lingual Evaluation 
+
+As shown in Table 7, X-Voice achieves robust and consistent performance in voice cloning across dif-ferent language families, obtaining the best or near-best WER in most language pairs. We also notice that source-language accents in cross-lingual syn-9Table 6: Subjective Results on X-Voice Test Set. GT denotes ground truth audio, and Qwen3, LEMAS, MOSS, Fish denote Qwen3-TTS, LEMAS-TTS, MOSS-TTS, Fish Audio S2, respectively. As OmniVoice was released after we completed our subjective evaluation, it is not included in the reported results.                                                                                                                                                                                                                                                                                                                                                                                                                                                    
+
+> Language IMOS ↑SMOS ↑
+> GT Qwen3 LEMAS MOSS Fish X-Voice s1 X-Voice s2 GT Qwen3 LEMAS MOSS Fish X-Voice s1 X-Voice s2
+> Chinese 3.91 4.69 3.54 3.97 4.40 4.33 4.33 3.53 4.15 2.92 3.87 3.83 3.97 4.02
+> Indonesian 4.40 -4.52 -3.50 4.60 4.10 4.04 -3.92 -3.34 3.98 4.04 Japanese 4.68 4.46 -3.00 4.16 3.52 3.10 4.34 4.54 -2.58 4.16 2.72 2.76
+> Korean 4.30 4.58 -3.82 4.36 3.84 3.46 4.00 4.40 -3.36 4.08 3.40 3.24
+> Thai 4.44 ---3.10 3.96 3.50 4.02 ---3.40 4.18 3.96
+> Vietnamese 4.24 -4.12 -2.72 4.46 4.36 4.22 -3.90 -2.64 3.78 3.84
+> English 4.35 4.80 4.27 4.55 4.80 4.63 4.48 4.23 4.60 3.50 4.23 4.37 4.40 4.32
+> French 4.06 4.42 3.94 4.18 4.10 4.20 3.94 3.88 4.16 3.82 3.90 4.00 3.84 3.84
+> German 3.96 4.16 3.02 3.24 3.44 3.60 3.68 3.44 3.90 2.50 3.18 3.48 2.74 2.88
+> Italian 4.68 4.64 4.02 3.68 4.18 4.26 4.02 4.36 4.62 3.84 3.68 4.08 4.04 3.74
+> Portuguese 3.64 3.54 3.70 3.36 3.64 3.30 3.62 3.54 3.72 3.20 3.22 2.82 2.60 2.36
+> Russian 4.46 4.38 3.42 3.82 4.16 3.98 3.70 3.76 4.26 3.08 3.44 3.76 3.68 3.14
+> Spanish 4.00 4.32 3.62 3.92 4.15 4.12 4.00 3.45 4.28 3.63 3.83 3.75 3.83 3.98
+> Bulgarian 4.55 ---2.05 3.05 2.78 4.45 ---2.08 3.03 2.93
+> Croatian 4.82 ---1.82 3.70 4.02 4.36 ---2.00 3.62 3.54
+> Czech 4.06 --2.76 1.92 4.12 3.96 3.66 --3.02 1.64 4.24 3.92
+> Danish 4.82 --3.08 2.60 3.70 3.86 4.70 --3.22 2.30 3.94 3.50
+> Dutch 4.13 ---4.03 4.43 4.60 4.03 ---3.68 3.40 3.15
+> Estonian 4.52 ---3.62 3.98 4.04 4.54 ---3.48 4.06 3.90
+> Finnish 2.95 ---3.40 3.45 2.98 3.08 ---3.05 3.13 3.63 Greek 4.62 --3.64 2.20 3.98 3.98 3.78 --3.20 2.52 3.86 4.04 Hungarian 3.52 --2.72 3.04 4.02 3.98 3.72 --2.84 3.22 3.40 3.40 Latvian 4.56 ---1.44 3.70 3.82 4.62 ---1.20 3.76 3.80 Lithuanian 4.78 ---2.06 4.02 3.76 4.68 ---1.64 3.48 3.24
+> Maltese 4.38 ---3.68 4.03 4.08 4.35 ---3.65 3.88 3.70
+> Polish 4.22 --3.08 3.20 4.28 4.18 3.72 --2.90 3.00 3.72 3.58
+> Romanian 4.74 ---2.86 4.56 4.64 4.20 ---2.46 3.92 4.02 Slovak 3.66 ---2.22 4.20 4.00 3.40 ---2.52 3.84 3.74
+> Slovenian 4.18 ---1.73 3.40 3.15 4.48 ---2.23 3.43 3.15
+> Swedish 4.45 --3.73 3.60 3.40 3.38 3.55 --2.85 2.90 2.65 2.20
+
+Table 7: Cross-lingual WER Results on X-Voice Test Set. A →B denotes using language A as the prompt to synthesize speech in language B. 
+
+Model en →it it →zh zh →ru ru →ko ko →en en →ko ko →ru ru →zh zh →it it →en 
+
+Qwen3-TTS 2.69 2.44 2.91 14.15 2.46 12.68 4.63 2.48 2.79 2.38 LEMAS-TTS 6.11 12.11 5.13 - - - - 18.63 9.95 4.04 MOSS-TTS 7.21 11.64 5.13 3.64 9.16 4.06 10.23 7.52 5.72 12.4 Fish Audio S2 9.16 11.04 4.71 3.85 3.60 1.71 4.92 11.17 9.93 4.04 OmniVoice 4.48 7.58 3.94 5.36 3.56 3.14 11.56 4.38 4.76 2.44 
+
+X-Voice s2 4.70 3.11 2.85 3.00 2.15 3.10 2.58 3.22 3.91 2.31 
+
+thesis can lead to ASR recognition errors, espe-cially in Korean, resulting in higher WER. This also highlights the capability of our model to al-leviate accent-induced errors and maintain high cross-lingual cloning accuracy. 
+
+4.5 Ablation Study on Language ID Injection 
+
+We train X-Voice s1 using different LID injection methods, and evaluate their WER results on intra-and cross-lingual synthesis on the LEMAS test set, as shown in Table 8. The ablation study confirms that dual-level injec-tion is indispensable for suppressing accent leak-age, as evidenced by the WER reduction in cross-lingual tasks compared to other methods. Further-more, FiLM-based textual modulation outperforms simple concatenation, validating its capacity to reg-ulate phonetic articulation without overshadowing the high-entropy textual information. 
+
+Table 8: WER Results of Different LID Injection Strate-gies on LEMAS Test Set. Intra. denotes average WER on 10 languages supported in the test set. (F) denotes FiLM modulation, (C) denotes concatenation. 
+
+LID Inject Level WER ↓
+
+Intra. zh →en en →zh zh →it it →zh 
+
+No Injection 5.46 1.11 6.03 6.65 7.37 Text (F) 5.28 1.06 6.05 5.89 6.85 Text (F) + Time (C) 4.94 0.90 1.87 3.44 2.93 Text (C) + Time (C) 5.49 0.94 2.01 3.89 2.88 
+
+10 4.6 Ablation Study on CFG Decoupling and Scheduling 
+
+We use X-Voice s1 to evaluate the impact of dif-ferent inference strategies on WER, SIM-o, and UTMOS, which are summarized in Table 9.                                
+
+> Table 9: Average WER, SIM and UTMOS results of Different CFG Strategies on X-Voice Test Set. Base de-notes original CFG inference with a single CFG strength
+> w. Decoupled denotes Decoupled CFG with acoustic guidance strength wA= 2 .5and linguistic guidance strength wL= 4 .0.
+> Strategy WER ↓SIM-o ↑UTMOS ↑
+> Base ( w= 2 .5)8.85 0.693 3.207 + Decay 8.90 0.694 3.249 Base ( w= 4 .0)8.62 0.672 3.050 + Decay 8.58 0.679 3.135 Decoupled + Decay 8.29 0.684 3.261 + Warmup 8.27 0.684 3.282 + A-Warmup 8.20 0.685 3.284
+
+As shown in the first four rows, standard joint CFG faces a clear trade-off between correctness and fidelity. Increasing the CFG scale from w =2.5 to w = 4 .0 improves the WER but leads to a significant drop in SIM-o and UTMOS. The ad-dition of a Decay schedule partially mitigates the naturalness degradation, but the fundamental bot-tleneck remains. After introducing the Decoupled + A-Warmup strategy, the model achieves the lowest WER and the highest UTMOS. Interestingly, we observe that the highest SIM-o score is achieved by the Base ( w = 2 .5) + Decay configuration. This suggests that while our decou-pled strategies are effective at enforcing linguistic constraints, a conservative joint CFG scale remains superior for the most faithful preservation of the speaker’s original timbre. For applications where maximum speaker similarity is the primary objec-tive, a lower, non-decoupled scale may be prefer-able, whereas our proposed phased decoupling is ideal for high-precision multilingual tasks. 
+
+5 Conclusion 
+
+In this paper, we presented X-Voice, a highly efficient 0.4B flow-matching foundation model for transcript-free, zero-shot multilingual voice cloning across 30 languages. By establishing a two-stage training paradigm, we demonstrate that a robust Stage-1 acoustic foundation, trained on a cu-rated 420K-hour corpus, can serve as a high-fidelity data engine to supervise transcript-free synthesis in Stage 2. Our architectural innovations like Dual-Level Language Injection effectively mitigate the persistent challenges of cross-lingual accent leak-age in flow-matching models. Experimental results indicate that X-Voice matches or exceeds the performance of indus-trial billion-parameter models in intelligibility and speaker similarity while maintaining a significantly faster inference speed. By open-sourcing our mas-sive multilingual corpus, evaluation benchmarks, and full training recipes, we hope to lower the bar-rier for research in scalable speech generation and contribute to the democratization of high-fidelity TTS technology. 
+
+Limitations 
+
+Despite the robust performance of X-Voice across 30 languages, several limitations remain. First, the speaker similarity in specific phonological con-texts still exhibits room for improvement, sug-gesting that the trade-off between accent suppres-sion and timbre preservation requires more fine-grained modeling. Second, although X-Voice han-dles 30 languages individually, the modeling of intra-sentential code-switching remains to be fur-ther optimized. Lastly, the reliance on high-quality synthetic data in Stage-2 highlights the ongoing need for research into purely unsupervised cross-lingual transfer. 
+
+References                   
+
+> Philip Anastassiou, Jiawei Chen, Jitong Chen, Yuanzhe Chen, et al. 2024. Seed-TTS: A family of high-quality versatile speech generation models. arXiv preprint arXiv:2406.02430 .Rosana Ardila, Megan Branson, Kelly Davis, Michael Kohler, et al. 2020. Common Voice: A massively-multilingual speech corpus. In Proceedings of the twelfth language resources and evaluation confer-ence , pages 4218–4222. James Betker. 2023. Better speech synthesis through scaling. arXiv preprint arXiv:2305.07243 .Edresson Casanova, Julian Weber, Christopher D Shulby, Arnaldo Candido Junior, et al. 2022. YourTTS: Towards zero-shot multi-speaker TTS and zero-shot voice conversion for everyone. In Inter-national Conference on Machine Learning , pages 2709–2720. PMLR. Sanyuan Chen, Chengyi Wang, Zhengyang Chen, Yu Wu, et al. 2022. WavLM: Large-scale self-supervised pre-training for full stack speech process-ing. IEEE Journal of Selected Topics in Signal Pro-cessing , 16(6):1505–1518.
+
+11 Sanyuan Chen, Chengyi Wang, Yu Wu, Ziqiang Zhang, et al. 2025a. Neural codec language models are zero-shot text to speech synthesizers. IEEE Transactions on Audio, Speech and Language Processing , 33:705– 718. Yushen Chen, Zhikang Niu, Ziyang Ma, Keqi Deng, et al. 2025b. F5-TTS: A fairytaler that fakes fluent and faithful speech with flow matching. In Proceed-ings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Pa-pers) , pages 6255–6271. Brecht Desplanques, Jenthe Thienpondt, and Kris De-muynck. 2020. ECAPA-TDNN: Emphasized chan-nel attention, propagation and aggregation in TDNN based speaker verification. In Proc. Interspeech 2020 ,pages 3830–3834. ISCA. Zhihao Du, Qian Chen, Shiliang Zhang, Kai Hu, et al. 2024a. Cosyvoice: A scalable multilingual zero-shot text-to-speech synthesizer based on supervised semantic tokens. arXiv preprint arXiv:2407.05407 .Zhihao Du, Changfeng Gao, Yuxuan Wang, Fan Yu, et al. 2025. CosyVoice 3: Towards in-the-wild speech generation via scaling-up and post-training. arXiv preprint arXiv:2505.17589 .Zhihao Du, Yuxuan Wang, Qian Chen, Xian Shi, et al. 2024b. Cosyvoice 2: Scalable streaming speech syn-thesis with large language models. arXiv preprint arXiv:2412.10117 .Sefik Emre Eskimez, Xiaofei Wang, Manthan Thakker, Canrun Li, et al. 2024. E2 TTS: Embarrassingly easy fully non-autoregressive zero-shot TTS. In 2024 IEEE spoken language technology workshop (SLT) ,pages 682–689. IEEE. Zhifu Gao, ShiLiang Zhang, Ian McLoughlin, and Zhi-jie Yan. 2022. Paraformer: Fast and accurate par-allel transformer for non-autoregressive end-to-end speech recognition. In Proc. Interspeech 2022 , pages 2063–2067. Yitian Gong, Botian Jiang, Yiwei Zhao, Yucheng Yuan, et al. 2026. MOSS-TTS technical report. arXiv preprint arXiv:2603.18090 .Haorui He, Zengqiang Shang, Chaoren Wang, Xuyuan Li, et al. 2024. Emilia: An extensive, multilingual, and diverse speech dataset for large-scale speech gen-eration. In 2024 IEEE Spoken Language Technology Workshop (SLT) , pages 885–890. IEEE. Mutian He, Jingzhou Yang, Lei He, and Frank K Soong. 2021. Multilingual byte2speech models for scal-able low-resource speech synthesis. arXiv preprint arXiv:2103.03541 .Jonathan Ho and Tim Salimans. 2022. Classifier-free diffusion guidance. arXiv preprint arXiv:2207.12598 .Hangrui Hu, Xinfa Zhu, Ting He, Dake Guo, et al. 2026. Qwen3-TTS technical report. arXiv preprint arXiv:2601.15621 .Ziyue Jiang, Yi Ren, Ruiqi Li, Shengpeng Ji, et al. 2025. MegaTTS 3: Sparse alignment enhanced latent dif-fusion transformer for zero-shot speech synthesis. 
+
+arXiv preprint arXiv:2502.18924 .Zeqian Ju, Yuancheng Wang, Kai Shen, Xu Tan, et al. 2024. NaturalSpeech 3: Zero-shot speech synthesis with factorized codec and diffusion models. In In-ternational Conference on Machine Learning , pages 22605–22623. Jaehyeon Kim, Jungil Kong, and Juhee Son. 2021. Conditional variational autoencoder with adversar-ial learning for end-to-end text-to-speech. In Inter-national Conference on Machine Learning , pages 5530–5540. PMLR. Sungwon Kim, Heeseung Kim, and Sungroh Yoon. 2022. Guided-TTS 2: A diffusion model for high-quality adaptive text-to-speech with untranscribed data. arXiv preprint arXiv:2205.15370 .Nithin Rao Koluguri, Monica Sekoyan, George Zelen-froynd, Sasha Meister, et al. 2025. Granary: Speech recognition and translation dataset in 25 European languages. arXiv preprint arXiv:2505.13404 .Mateusz Łajszczak, Guillermo Cámbara, Yang Li, Fatih Beyhan, et al. 2024. Base TTS: Lessons from build-ing a billion-parameter text-to-speech model on 100k hours of data. arXiv preprint arXiv:2402.08093 .Matthew Le, Apoorv Vyas, Bowen Shi, Brian Karrer, et al. 2024. Voicebox: Text-guided multilingual uni-versal speech generation at scale. In Advances in Neural Information Processing Systems , volume 36. Bo Li, Yu Zhang, Tara Sainath, Yonghui Wu, and William Chan. 2019. Bytes are all you need: End-to-end multilingual speech recognition and synthesis with bytes. In ICASSP 2019-2019 IEEE Interna-tional Conference on Acoustics, Speech and Signal Processing (ICASSP) , pages 5621–5625. IEEE. Haitao Li, Chunxiang Jin, Chenglin Li, Wenhao Guan, et al. 2026a. ReStyle-TTS: Relative and continuous style control for zero-shot speech synthesis. arXiv preprint arXiv:2601.03632 .Yunpei Li, Xun Zhou, Jinchao Wang, Lu Wang, et al. 2026b. IndexTTS 2.5 technical report. arXiv preprint arXiv:2601.03888 .Yuzhe Liang, Wenzhe Liu, Chunyu Qiang, Zhikang Niu, et al. 2025. Towards flow-matching-based tts without classifier-free guidance. arXiv preprint arXiv:2504.20334 .Shijia Liao, Yuxuan Wang, Tianyu Li, Yifan Cheng, et al. 2024. Fish-Speech: Leveraging large language models for advanced multilingual text-to-speech syn-thesis. arXiv preprint arXiv:2411.01156 .
+
+12 Shijia Liao, Yuxuan Wang, Songting Liu, Yifan Cheng, et al. 2026. Fish Audio S2 technical report. arXiv preprint arXiv:2603.08823 .Yaron Lipman, Ricky TQ Chen, Heli Ben-Hamu, Maxi-milian Nickel, and Matt Le. 2023. Flow matching for generative modeling. In the 11th International Con-ference on Learning Representations, ICLR 2023 .Qingyu Liu, Yushen Chen, Zhikang Niu, Chunhui Wang, et al. 2026a. Cross-Lingual F5-TTS: Towards language-agnostic voice cloning and speech synthe-sis. In ICASSP 2026-2026 IEEE International Con-ference on Acoustics, Speech and Signal Processing (ICASSP) , pages 17362–17366. IEEE. Qingyu Liu, Rixi Xu, Yushen Chen, Zhikang Niu, et al. 2026b. Cross-Lingual F5-TTS 2: Language-agnostic voice cloning via synthetic prompts. Nikola Ljubeši´ c, Danijel Koržinek, Peter Rupnik, and Ivo-Pavao Jazbec. 2022. ParlaSpeech-HR - a freely available ASR dataset for Croatian bootstrapped from the ParlaMint corpus. In Proceedings of the work-shop ParlaCLARIN III within the 13th language re-sources and evaluation Conference , pages 111–116. Nikola Ljubeši´ c, Peter Rupnik, and Danijel Koržinek. 2024. The ParlaSpeech collection of automatically generated speech and text datasets from parliamen-tary proceedings. In International Conference on Speech and Computer , pages 137–150. Springer. Ilya Loshchilov and Frank Hutter. 2017. Decoupled weight decay regularization. In International Confer-ence on Learning Representations .Paarth Neekhara, Shehzeen Hussain, Subhankar Ghosh, Jason Li, and Boris Ginsburg. 2024. Improving ro-bustness of LLM-based speech synthesis by learning monotonic alignment. In Proc. Interspeech 2024 ,pages 3425–3429. Tomáš Nekvinda and Ondˇ rej Dušek. 2020. One model, many languages: Meta-learning for multilingual text-to-speech. In Proc. Interspeech 2020 , pages 2972– 2976. Vinh Huy Nguyen and Dinh Thuan Nguyen. 2025. Dolly-Audio: Vietnamese multi-speaker high-quality speech corpus. https://huggingface.co/datasets/ Dolly-AI/Dolly-Audio. William Peebles and Saining Xie. 2023. Scalable diffu-sion models with transformers. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 4195–4205. Ethan Perez, Florian Strub, Harm De Vries, Vincent Dumoulin, and Aaron Courville. 2018. FiLM: Vi-sual reasoning with a general conditioning layer. In 
+
+Proceedings of the AAAI Conference on Artificial Intelligence , volume 32. Wannaphong Phatthiyaphaibun, Korakot Chaovavanich, Charin Polpanumas, Arthit Suriyawongkul, et al. 2023. PyThaiNLP: Thai natural language processing in python. In Proceedings of the 3rd Workshop for Natural Language Processing Open Source Software (NLP-OSS 2023) , pages 25–36. Vineel Pratap, Qiantong Xu, Anuroop Sriram, Gabriel Synnaeve, and Ronan Collobert. 2020. MLS: A large-scale multilingual dataset for speech research. In 
+
+Proc. Interspeech 2020 , pages 2757–2761. Alec Radford, Jong Wook Kim, Tao Xu, Greg Brock-man, et al. 2023. Robust speech recognition via large-scale weak supervision. In International Con-ference on Machine Learning , pages 28492–28518. PMLR. Chandan KA Reddy, Vishak Gopal, and Ross Cutler. 2022. DNSMOS P. 835: A non-intrusive percep-tual objective speech quality metric to evaluate noise suppressors. In ICASSP 2022-2022 IEEE interna-tional conference on acoustics, speech and signal processing (ICASSP) , pages 886–890. IEEE. Yi Ren, Yangjun Ruan, Xu Tan, Tao Qin, et al. 2019. Fastspeech: Fast, robust and controllable text to speech. In Advances in Neural Information Process-ing Systems , volume 32. Danilo Rezende and Shakir Mohamed. 2015. Varia-tional inference with normalizing flows. In Inter-national Conference on Machine Learning , pages 1530–1538. PMLR. Kai Shen, Zeqian Ju, Xu Tan, Eric Liu, et al. 2024. NaturalSpeech 2: Latent diffusion models are nat-ural and zero-shot speech and singing synthesizers. In the 12th International Conference on Learning Representations .Xu Tan, Jiawei Chen, Haohe Liu, Jian Cong, et al. 2024. Naturalspeech: End-to-end text-to-speech synthesis with human-level quality. IEEE Transactions on Pat-tern Analysis and Machine Intelligence , 46(6):4234– 4245. Nikita Torgashov, Gustav Eje Henter, and Gabriel Skantze. 2026. VoXtream2: Full-stream TTS with dynamic speaking rate control. arXiv preprint arXiv:2603.13518 .Yuxuan Wang, RJ Skerry-Ryan, Daisy Stanton, Yonghui Wu, et al. 2017. Tacotron: Towards end-to-end speech synthesis. In Proc. Interspeech 2017 , page 4006. ISCA. Yifan Yang, Zheshu Song, Jianheng Zhuo, Mingyu Cui, et al. 2025. Gigaspeech 2: An evolving, large-scale and multi-domain ASR corpus for low-resource lan-guages with automated crawling, transcription and refinement. In Proceedings of the 63rd Annual Meet-ing of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 2673–2686. 
+
+13 Yue Yin, Daijiro Mori, and Seiji Fujimoto. 2023. Rea-zonSpeech: A free and massive corpus for Japanese ASR. In Proc. Annual Meeting of the Association for NLP , pages 1134–1139. Bowen Zhang, Congchao Guo, Geng Yang, Hang Yu, et al. 2025. MiniMax-Speech: Intrinsic zero-shot text-to-speech with a learnable speaker encoder. 
+
+arXiv preprint arXiv:2505.07916 .Haitong Zhang, Haoyue Zhan, Yang Zhang, Xinyuan Yu, and Yue Lin. 2021. Revisiting IPA-based cross-lingual text-to-speech. arXiv preprint arXiv:2110.07187 .Ziqiang Zhang, Long Zhou, Chengyi Wang, Sanyuan Chen, et al. 2023. Speak foreign languages with your own voice: Cross-lingual neural codec language modeling. arXiv preprint arXiv:2303.03926 .Zhiyuan Zhao, Lijian Lin, Ye Zhu, Kai Xie, et al. 2026. LEMAS: A 150K-hour large-scale extensible mul-tilingual audio suite with generative speech models. 
+
+arXiv preprint arXiv:2601.04233 .Siyi Zhou, Yiquan Zhou, Yi He, Xun Zhou, et al. 2026. IndexTTS2: A breakthrough in emotionally expres-sive and duration-controlled auto-regressive zero-shot text-to-speech. In Proceedings of the AAAI Con-ference on Artificial Intelligence , volume 40, pages 35139–35148. Han Zhu, Lingxuan Ye, Wei Kang, Zengwei Yao, et al. 2026. OmniVoice: Towards omnilingual zero-shot text-to-speech with diffusion language models. arXiv preprint arXiv:2604.00688 .
+
+14 A Dataset Details 
+
+For the training set, we include Emilia (He et al., 2024) for Chinese and English, Gi-gaSpeech 2 (Yang et al., 2025) for Vietnamese, Thai, and Indonesian, KoreaSpeech 9 for Korean, ReazonSpeech (Yin et al., 2023) for Japanese, LEMAS (Zhao et al., 2026) for Russian, Multi-lingual Librispeech (Pratap et al., 2020) and Gra-nary (Koluguri et al., 2025) for Spanish, Italian, French and other European languages. For most European languages, utterances with a speaking rate slower than 5.0 characters per sec-ond or faster than 20.0 characters per second are excluded. For other languages, we implement the standard Interquartile Range (IQR) to exclude out-liers. The lower bound is obtained by subtracting 1.5 times the interquartile range from the 25th per-centile, and the upper bound by adding 1.5 times the interquartile range to the 75th percentile. We further remove duplicate utterances that appear more than 20 times. For training, we apply a DNS-MOS threshold of 1.5 to filter the corpus. For test set, most audio segments are restricted to a duration between 2.0s and 16.0s. A minimum Root Mean Square (RMS) energy threshold of 0.02 and a minimum cosine similarity threshold of 0.6 are applied. 
+
+B Model Config Details 
+
+Following the design of F5-TTS (Chen et al., 2025b), both X-Voice s1 and X-Voice s2 employ a diffusion transformer (DiT) backbone with the fol-lowing specifications: 22 layers, 16 attention heads, and 1024-dimensional text embeddings. The lan-guage embedding dimension is set to 512. Following the design of Cross-Lingual F5-TTS (Liu et al., 2026a), our Speaking Rate Pre-dictor adopts a transformer-based architecture with 16 layers, 12 attention heads, and 512-dimensional embeddings. It is trained on a subset of the full X-Voice dataset, using up to 250 hours of audio per language. 
+
+C Baseline Details 
+
+Qwen3-TTS An autoregressive model using a dual-track LM architecture for real-time synthesis. We use the Qwen3-TTS-12Hz-1.7B-Base version, and obtain the evaluation result with the official 
+
+> 9https://huggingface.co/datasets/jp1924/KoreaSpeech
+
+code and pretrained checkpoint 10 .
+
+LEMAS-TTS A flow-matching based non-autoregressive model trained on 150K hours of MMS force-aligned data. We use the GRL version which incorporates accent-adversarial training and CTC loss to mitigate cross-lingual accent issues. We obtain the evaluation result with the official code and pretrained checkpoint 11 .
+
+MOSS-TTS A discrete-token autoregressive model built on a scalable discrete + AR + pretrain-ing recipe. We use the standard MossTTSDelay version, which features multi - head parallel RVQ prediction with delay -pattern scheduling. We ob-tain the evaluation result with the official code and pretrained checkpoint 12 .
+
+Fish Speech S2 An autoregressive model built on a decoder-only transformer combined with an RVQ-based audio codec, using a Dual-Autoregressive architecture. We use the standard s2 pro version and obtain the evaluation result with the official code and pretrained checkpoint 13 .
+
+OmniVoice A non-autoregressive model using diffusion language model-style architecture. We obtain the evaluation result with the official code and pretrained checkpoint 14 .
+
+D Subjective Evaluation Details 
+
+Instruction of SMOS test The goal of this test is to evaluate how closely the voice matches the reference speaker’s timbre. 
+
+Criteria: Focus on voice quality, intonation style, and background consistency. Ignore differ-ences in linguistic content or language. 
+
+Rating Scale: 
+
+• Excellent (5): Identical to the reference; per-fect timbre match and environment consis-tency. • Good (4): Very similar; timbre is clearly rec-ognizable with minor variations in expression. • Fair (3): Moderately similar; recognizable as the target speaker but with noticeable shifts in vocal texture. 
+
+> 10 https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1. 7B-Base/tree/main
+> 11 https://huggingface.co/LEMAS-Project/LEMAS-TTS/ tree/main/pretrained_models/ckpts/multilingual_grl
+> 12 https://huggingface.co/OpenMOSS-Team/MOSS-TTS/ tree/main
+> 13 https://huggingface.co/fishaudio/s2-pro/tree/main
+> 14 https://huggingface.co/k2-fsa/OmniVoice/tree/main
+
+15 • Poor (2): Dissimilar; the voice sounds differ-ent or the environment shift suggests a differ-ent speaker. • Bad (1): Entirely different; mismatched gen-der, age, or fundamental articulatory habits. 
+
+Instruction of IMOS test The goal of this test is to evaluate the pronunciation accuracy and prosodic naturalness of the speech. 
+
+Criteria: Focus on clarity, fluency, and native-ness. Ignore minor acoustic artifacts unless they impede understanding. 
+
+Rating Scale: 
+
+• Excellent (5): Native-like; perfect rhythm and intonation with no barriers to understanding. • Good (4): Standard pronunciation; easy to understand with only trace amounts of unnat-uralness. • Fair (3): Intelligible but robotic; prosody feels stiff or pauses are slightly unnatural. • Poor (2): Difficult to understand; contains mispronunciations, muddled syllables, or jar-ring pauses. • Bad (1): Unintelligible; pronunciation is en-tirely incorrect or extremely distorted. 16

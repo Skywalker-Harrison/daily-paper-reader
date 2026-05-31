@@ -1,0 +1,574 @@
+Title: Chunkwise Aligners for Streaming Speech Recognition
+
+URL Source: https://arxiv.org/pdf/2605.11422v1
+
+Published Time: Wed, 13 May 2026 00:30:05 GMT
+
+Number of Pages: 5
+
+Markdown Content:
+# CHUNKWISE ALIGNERS FOR STREAMING SPEECH RECOGNITION 
+
+# Wen Shen Teo 1,2∗ , Takafumi Moriya 2∗, Masato Mimura 21University of Electro-Communications, Japan; 2NTT, Inc., Japan 
+
+ABSTRACT 
+
+We propose the Chunkwise Aligner, a novel architecture for streaming automatic speech recognition (ASR). While the Trans-ducer is the standard model for streaming ASR, its training is costly due to the need to compute all possible audio-label alignments. The recently introduced Aligner reduces this cost by discarding explicit alignments, but this modification makes it unsuitable for streaming. Our approach overcomes this limitation by dividing the audio into chunks and aligning each label to the leftmost frames of its chunk, whereas transitions between chunks are managed by a learned end-of-chunk probability. Experiments show that the Chunkwise Aligner not only matches the Transducer’s accuracy in both offline and streaming scenarios, but also offers superior training and decoding efficiencies. 
+
+Index Terms — speech recognition, aligner, streaming, chunk-wise aligner 
+
+1. INTRODUCTION 
+
+State-of-the-art automatic speech recognition (ASR) systems are largely built on two dominant architectures: the Attention-based Encoder-Decoder (AED) [1, 2] and the Transducer [3]. These archi-tectures each offer distinct advantages. In this paper, we examine and compare them in terms of decoding speed, recognition accuracy, and streaming compatibility. The AED is a powerful model trained in a label-synchronous manner with a simple cross-entropy objective, which makes its train-ing process conceptually straightforward and efficient. However, this simplicity comes at the cost of being inherently non-streaming, since its decoder requires cross-attention over the entire audio sequence to predict each label. In contrast, and more relevant to our goal of streaming ASR, the Transducer is a frame-synchronous model that naturally supports real-time applications [4]. This capability, how-ever, relies on a more complex objective function, which requires a computationally expensive dynamic programming step to marginal-ize over all possible alignments between input audio frames and out-put labels. A recent model, the Aligner [5], seeks to combine the strengths of both the Transducer and the AED. It adopts the Transducer archi-tecture but removes the blank transition probability, and introduces a process called “self-transduction”, in which the self-attention mod-ules in the encoder learn to sequentially align all output labels to the leftmost frames of the input sequence. Through this mechanism, the Aligner enables AED-like, label-synchronous training with a simple cross-entropy loss, whereas its decoding utilizes a Transducer-like, fast and lightweight autoregressive component. However, by col-lapsing information to the beginning of the sequence, the model dis-cards the local temporal alignment between the audio and the labels,  
+
+> ∗
+
+Equal contribution. This work was conducted during the first author’s internship at NTT, Inc. Predictor      
+
+> Encoder
+> Joiner (Label)
+> Chunkwise Self-Transduction
+> Next chunk
+> Joiner (EOC)
+> No labels to be generated
+> in this chunk
+> or
+> Predict label
+> Next chunk
+> Next chunk
+> 1st Chunk 2nd Chunk 3rd Chunk
+> Next chunk
+
+Fig. 1 . Schematic diagram of our proposed Chunkwise Aligner. It predicts label probabilities and the EOC probability separately. Chunkwise self-transduction performed by the encoder aligns la-bel information (dense blue blocks) to the leftmost frames of each chunk. An EOC probability exceeding a predefined threshold ad-vances the model into the next chunk, even if no labels were pre-dicted (as is the case of the 2nd chunk). which is essential for streaming recognition. Moreover, the Aligner is not robust to unseen speech lengths during inference and requires data concatenation to generalize across input lengths, thereby in-creasing its training cost. To address this limitation, we propose the Chunkwise Aligner ,a novel architecture that adapts the self-transduction mechanism for streaming ASR. As illustrated in Fig. 1, our model partitions the input audio into fixed-size chunks. Using a given alignment, it performs self-transduction locally by sequentially mapping the labels corresponding to each chunk to the leftmost frames within that chunk. To handle transitions between chunks, we introduce a learnable end-of-chunk (EOC) probability that indicates when to advance. Upon detecting an EOC, the hypotheses and decoder states of the current chunk are carried forward to the next, enabling the cycle to repeat for continuous audio streams. Experimental results show that our Chunkwise Aligner not only surpasses the Aligner, but achieves both offline and streaming ASR performances on par with that of the Transducer, while significantly reducing computational training costs and improving decoding speed. 
+
+2. PRELIMINARIES 
+
+The Transducer, Aligner, and our Chunkwise Aligner are all built upon a common encoder-predictor-joiner architecture. This section will first describe this common framework and then detail the joiner formulation, which differs between the Transducer and Aligner. 
+
+2.1. Model architecture 
+
+The architecture consists of three main components: an encoder, a predictor, and a joiner. The processing of each component is de-
+
+> arXiv:2605.11422v1 [eess.AS] 12 May 2026
+
+scribed as follows: • Encoder includes a self-attention module (e.g., Conformer [6]) and transforms an input acoustic feature sequence X =[x1, . . . , xT ] of length T into a D′-dimensional higher-level representation Henc = [ henc  
+
+> 1
+
+, . . . , henc  
+
+> T
+
+] ∈ RT ×D′
+
+.• Predictor processes the previously emitted non-blank labels 
+
+Y = [ y1, . . . , y U ] of length U , where yu ∈ Y , to autore-gressively produce a sequence of D′′ -dimensional contextual embeddings Hpred =
+
+h
+
+hpred  
+
+> 1
+
+, . . . , hpred 
+
+> U
+
+i
+
+∈ RU ×D′′ 
+
+. Y is the token set that consists of V tokens. • Joiner predicts the next label probabilities (additionally including a transition probability for the Transducer and Chunkwise Aligner) using Henc and Hpred .
+
+2.2. Joiner formulations 
+
+2.2.1. Transducer 
+
+The Transducer [3, 7] learns the mapping between sequences of different lengths through the introduction of blank symbol. Thus, the joiner computation must consider all possible alignments us-ing the outputs of encoder and predictor. In this work, we employ the Hybrid Autoregressive Transducer (HAT) [7], which produces the blank probability ˆyblank  
+
+> t,u
+
+∈ (0 , 1) 1 and the label probabilities 
+
+ˆylabel  
+
+> t,u
+
+∈ (0 , 1) V separately. Here, we describe the details of the joiner processing in the HAT as follows: 
+
+hjoiner  
+
+> t,u
+
+= tanh (W enc henc  
+
+> t
+
++ W pred hpred  
+
+> u
+
++ b), (1) 
+
+ˆyblank  
+
+> t,u
+
+= Sigmoid (wblank • hjoiner  
+
+> t,u
+
++ bblank ), (2) 
+
+ˆylabel  
+
+> t,u
+
+= Softmax (W label hjoiner  
+
+> t,u
+
++ blabel ), (3) 
+
+ˆyt,u =
+
+h
+
+ˆyblank  
+
+> t,u
+
+, (1 − ˆyblank  
+
+> t,u
+
+) · ˆylabel ⊤
+
+> t,u
+
+i⊤
+
+∈ (0 , 1) V +1 , (4) where {W enc ∈ RD×D′
+
+, W pred ∈ RD×D′′ 
+
+, b ∈ RD } is the param-eter set of the joiner space, which produces hjoiner  
+
+> t,u
+
+via the hyperbolic tangent function tanh (·). ˆyblank  
+
+> t,u
+
+is computed using weight vector 
+
+wblank ∈ RD and bias term bblank ∈ R1, where • and Sigmoid (·) de-note the dot-product and sigmoid operation, respectively. {W label ∈
+
+RV ×D , blabel ∈ RV } are the parameters of the linear output layer, which yields ˆylabel  
+
+> t,u
+
+via the softmax function Softmax (·). Conse-quently, during training, the joiner computes a memory-intensive three-dimensional grid of predictions with shape T × U × (V + 1) .The Transducer loss is defined as the full-sum loss and can be com-puted efficiently using the forward-backward algorithm [3]. 
+
+2.2.2. Aligner 
+
+The Aligner [5] simplifies the joiner computation by enforcing a one-to-one mapping. It performs “self-transduction” using the self-attention module within the encoder, without employing cross-attention as in the AED. The self-transduction internally reorders acoustic information so that the leftmost U frames of Henc are aligned with the U labels. Therefore, the joiner of the Aligner can easily compute the output probabilities ˆylabel  
+
+> u
+
+∈ (0 , 1) V as follows: 
+
+hjoiner  
+
+> u
+
+= tanh (W enc henc  
+
+> u
+
++ W pred hpred  
+
+> u
+
++ b), (5) 
+
+ˆylabel  
+
+> u
+
+= Softmax (W label hjoiner  
+
+> u
+
++ blabel ). (6) Self-transduction enforces a fixed alignment, so the blank sym-bol for transitions is not required, and the joiner may compute a dis-tribution over only the V text tokens. The dense Transducer grid is replaced with a two-dimensional U × V tensor, which is optimized by a cross-entropy loss. However, this full-context reordering dis-cards the original temporal correspondence between the audio and labels, making the Aligner inherently non-streaming. 
+
+3. PROPOSED CHUNKWISE ALIGNER 
+
+Our Chunkwise Aligner performs chunkwise decoding, and its pro-cessing is illustrated in Fig. 1. The encoder output sequence Henc is segmented into N chunks of length Lc, denoted as (Henc  
+
+> 1
+
+, . . . , Henc  
+
+> N
+
+),where Henc  
+
+> n
+
+=
+
+h
+
+henc 
+
+> (n−1) ×Lc+1
+
+, . . . , henc 
+
+> n×Lc
+
+i⊤
+
+represents the n-th input chunk. This enables the Chunkwise Aligner to operate in streaming ASR. The predictor output sequence Hpred is also divided into N chunks (Hpred  
+
+> 1
+
+, . . . , Hpred  
+
+> N
+
+) to match the encoder output chunks. Labels are assigned to chunks via forced alignment (similar to [8]), thus the number of labels in each chunk varies. Hence, the sequence of predictor outputs belonging to the n-th chunk is defined as Hpred  
+
+> n
+
+= hpred 
+
+> un
+
+⊤ 
+
+> un∈(1 ,...,U n)
+
+where Un denotes the total number of labels assigned to the n-th chunk, and un denotes the assigned position of the label within its chunk. Whether to transition to the next chunk is determined by the end-of-chunk (EOC) probability, instead of the blank probability in the HAT joiner as described in Section 2.2.1. The joiner of the Chunkwise Aligner has the same number of parameters as the HAT joiner and is defined as follows: 
+
+hjoiner  
+
+> un
+
+= tanh (W enc henc  
+
+> (n−1) ×Lc+un
+
++ W pred hpred  
+
+> un
+
++ b), (7) 
+
+ˆyeoc  
+
+> un
+
+= Sigmoid (weoc • hjoiner  
+
+> un
+
++ beoc ), (8) 
+
+ˆylabel  
+
+> un
+
+= Softmax (W label hjoiner  
+
+> un
+
++ blabel ), (9) where ˆyeoc  
+
+> un
+
+∈ (0 , 1) 1 and ˆylabel  
+
+> un
+
+∈ (0 , 1) V are the un-th EOC prob-ability and label probabilities in the n-th chunk, respectively. Thus, the self-attention modules in the Chunkwise Aligner’s encoder are trained to perform the self-transduction mechanism of the Aligner in a chunkwise manner, i.e. “chunkwise self-transduction”. 
+
+3.1. Training objectives 
+
+The tensor format of the label probabilities is the same as that of the Aligner, U × V , and they are optimized using a standard cross-entropy loss, Llabel . However, as shown in Fig. 1, the EOC probabil-ities require one additional entry for each chunk, resulting in a pre-diction grid of (U + N ) × 1, which corresponds to the label length 
+
+U plus the chunk size N . For each chunk n, the Un-th predictor output is paired with the (Un + 1) -th encoder output to compute the final EOC probability of that chunk. To train the EOC branch in the Chunkwise Aligner’s joiner, we prepare U + N target labels such that only the final position in each chunk is set to 1, while all others are set to 0. The resulting EOC probabilities are then optimized with a binary cross-entropy loss, Leoc . The final total loss, Ltotal , is then a simple sum of these two components: 
+
+Ltotal = Llabel + Leoc . (10) The prediction grids sum to a total size of U ×  V + 1 + NU
+
+,providing huge computational improvements compared to the Trans-ducer, T × U × (V + 1) . Therefore, the Chunkwise Aligner drasti-cally reduces memory and computational load during training, while retaining the streaming capability that the original Aligner lacks. Algorithm 1 Beam search decoding for the Chunkwise Aligner  
+
+> 1:
+
+function BEAM SEARCH (Henc , L c, beam size , τ ) 
+
+> 2:
+
+Input : Encoder output, Chunk size, Beam size, Threshold  
+
+> 3:
+
+Output : Most likely hypotheses  
+
+> 4:
+
+B ← { (<sos> , 1, s0)}; N ← ⌈| Henc |/L c⌉; F ← {}  
+
+> 5:
+
+for n = 1 , ..., N do ▷ Chunkwise processing  
+
+> 6:
+
+Henc  
+
+> n
+
+← ChunkGenerator (Henc , L c, n ); C ← {}  
+
+> 7:
+
+for henc  
+
+> t
+
+∈ Henc  
+
+> n
+
+do  
+
+> 8:
+
+A ← {}  
+
+> 9:
+
+if B is empty then  
+
+> 10:
+
+break  
+
+> 11:
+
+end if  
+
+> 12:
+
+for (y, δ u−1, su−1) ∈ B do  
+
+> 13:
+
+hpred  
+
+> u
+
+, su ← Predictor (yu−1, su−1) 
+
+> 14:
+
+hjoiner  
+
+> u
+
+← Joiner (henc  
+
+> t
+
+, hpred  
+
+> u
+
+) ▷ Eq. (7)  
+
+> 15:
+
+ˆyeoc  
+
+> u
+
+← JoinerEOC (hjoiner  
+
+> u
+
+) ▷ Eq. (8)  
+
+> 16:
+
+if ˆyeoc  
+
+> u
+
+> τ then  
+
+> 17:
+
+C ← C ∪ { (y, δ u−1 ∗ ˆyeoc  
+
+> u
+
+, su−1)} 
+
+> 18:
+
+continue  
+
+> 19:
+
+end if  
+
+> 20:
+
+ˆylabel  
+
+> u
+
+← JoinerLabel (hjoiner  
+
+> u
+
+) ▷ Eq. (9)  
+
+> 21:
+
+for k ∈ Y do  
+
+> 22:
+
+δu ← δu−1 ∗ ˆylabel  
+
+> u
+
+[k] ∗ (1 − ˆyeoc  
+
+> u
+
+) 
+
+> 23:
+
+if k is <eos> then  
+
+> 24:
+
+F ← F ∪ { (y + k, δ u, su)} 
+
+> 25:
+
+else  
+
+> 26:
+
+A ← A ∪ { (y + k, δ u, su)} 
+
+> 27:
+
+end if  
+
+> 28:
+
+end for  
+
+> 29:
+
+end for  
+
+> 30:
+
+B ← PruneHyps (A, beam size ) 
+
+> 31:
+
+end for  
+
+> 32:
+
+B ← PruneHyps (B ∪ C, beam size ) 
+
+> 33:
+
+end for  
+
+> 34:
+
+return Sorted (F ) 
+
+> 35:
+
+end function 3.2. Decoding strategy 
+
+Algorithm 1 shows the chunkwise decoding process for the Chunk-wise Aligner. We prepare tentative and final hypothesis sets, B and 
+
+F , respectively (Line 4). B = {y, δ, s} is initialized with the start-of-sentence label <sos> , a score of 1, and the predictor state s0.From Line 5, chunkwise decoding begins: the encoder output se-quence Henc is segmented into N chunks, and an empty set C is initialized to store hypotheses that have predicted a chunk transition (Line 6). The inner loop (Line 7) performs a framewise beam search within the current chunk, Henc  
+
+> n
+
+, until the end of the current chunk is reached or the tentative hypothesis set B becomes empty. From Line 12, for each hypothesis in the tentative hypothesis set B, the predictor and joiner computations are performed (Lines 13, 14, 15, and 20), and the resulting hypotheses are appended to one of the hy-pothesis sets C, F , or A. Note that during inference, the ground truth transcript is unknown, and we cannot calculate which chunk contains the u-th label beforehand. Instead, if ˆyeoc  
+
+> u
+
+exceeds a thresh-old of τ = 0 .5 1, we terminate the search for this chunk, and append that hypothesis to C (Line 17). When computing the label proba-bilities ˆylabel  
+
+> u
+
+(Line 21), if the label k is the end-of-sentence label 
+
+<eos> , the corresponding hypothesis is appended to F ; otherwise, it is appended to B. PrunedHyps (·, ·) in Lines 30 and 32 sorts the   
+
+> 1Preliminary experiments showed that varying the threshold τdid not yield a significant impact on recognition performance.
+
+input hypothesis set by score and returns the top hypotheses, up to the beam size. If the decoding step reaches the end of the final chunk 
+
+N , the hypotheses F , sorted by score, are returned (Line 34). Compared to the Transducer, our Chunkwise Aligner enables a simple, label-synchronous-like algorithm that ensures decoding steps proportional to the hypothesis label length U instead of the acoustic frame length T . Our decoding algorithm can reduce the computation of label probabilities ˆylabel  
+
+> u
+
+, which are computationally expensive, by thresholding τ (Line 17). If all hypotheses are stored in C (Line 10), it is no longer necessary to compute up to the last frame of the chunk, leading to a further substantial reduction in com-putational cost. Our streaming Chunkwise Aligner does not require cross-attention and achieves faster decoding than chunkwise AED-based models [9, 10, 11, 12], which are complex in both training and inference. Moreover, this also enables Chunkwise Aligner decod-ing to be faster than Aligner decoding, because the latter, like AED, requires a maximum expected length of the hypothesis, leading to more redundant computation [13, 14]. 
+
+4. EXPERIMENTAL EVALUATIONS 4.1. Data 
+
+We evaluated our proposed Chunkwise Aligner models on Lib-riSpeech [15] and Corpus of Spontaneous Japanese (CSJ) [16] using ESPnet [14]. The input feature was an 80-dimensional log Mel-filterbank extracted with a 25ms window and a 10ms stride. Augmentation methods [17, 18, 19] were applied during training. We adopted a word-piece tokenizer [20] with a vocabulary size of 1,000 for LibriSpeech, and a character-based tokenizer resulting in a vocabulary size of 3,262 for CSJ. Ground truth alignments for Chunkwise Aligner training were generated using the Montreal Forced Aligner (MFA) [21]. 
+
+4.2. System Configuration 
+
+All models were built on the same encoder architecture. We used 17 Conformer blocks with the same setup as Conformer-L [6], com-prising approximately 110M parameters. An embedder of a two-layer 2-dimensional convolutional neural network (CNN) with 256 filters and a frame reduction rate of 4 was used before the Conformer blocks. The kernel size of 31 and the batch normalization within the convolution module were replaced with a kernel size of 15 and layer normalization. In streaming mode, both the current and his-tory encoder chunk sizes were set to 15, which when considering the subsampling nature of our embedder, results in an algorithmic latency of 600ms. Depthwise convolution is replaced with a causal variant for the streaming encoder [22]. The predictor consisted of a 640-dimensional LSTM [23]. The decoding chunk size of Chunk-wise Aligners was fixed at 15 in both offline and streaming modes. Additionally, for comparison, we built AED models with four Trans-former decoder blocks, following [5]. The parameters of all models were initialized with random val-ues. But, as in [8], only the encoder was initialized with parameters pretrained with Connectionist Temporal Classification (CTC) [24] when using CTC alignments for Chunkwise Aligner training. This pretrained encoder also included an Inter-CTC loss [25] at the 10th layer, from which the alignments were generated. We used the Adam optimizer [26] with a warm-up phase of 25k steps and a peak learn-ing rate of 1.5e-3. Training was conducted for a total of 100 epochs. A beam size of 8 during inference was used in all models. We evalu-ated performance in terms of word error rate (WER) for LibriSpeech and character error rate (CER) for CSJ. We also measured the real-time factor (RTF: decoding time / data time ) for each offline model, tested on an Intel Xeon Gold 6430 3.4GHz CPU. Table 1 . WERs [%] and RTFs for Offline ASR on the LibriSpeech test sets. “Alignment type” shows the forced alignment method used. Alignment type WER RTF clean other Aligner (+DataConcat) [5] - 2.3 5.1 N/A Transducer - 2.2 4.9 0.30 CTC - 2.7 6.7 0.09 AED (+DataConcat) - 2.4 5.4 0.49 Aligner (+DataConcat) - 2.4 5.7 0.18 Chunkwise Aligner ground-truth 2.2 5.0 0.12 offline CTC 2.2 5.0 0.12 
+
+(a) Aligner (b) Chunkwise Aligner 
+
+Fig. 2 . Self-attention weights from a single head at the 16th layer of (a) the Aligner and (b) the Chunkwise Aligner encoders perform-ing audio-to-text alignment. The red boxes in (b) mark the chunk boundaries along the diagonal. These figures are generated from the utterance “1688-142285-0006” (34 tokens). 
+
+4.3. Results on LibriSpeech 
+
+First, we present the offline ASR results on the LibriSpeech test sets in Table 1, where the solid line separates the baselines (top) and our proposed models (bottom). The WERs for CTC were obtained from the pretrained model used for alignment generation. When train-ing the AED and Aligner models, we randomly concatenated two utterances with a probability of 15% (“+DataConcat”). This is to improve performance on the longer utterances in the test sets, as demonstrated in [5]. Our reproduced Aligner model (+DataConcat) was not enough to achieve results reported in the literature [5]. We attribute this difficulty to the more challenging task of global self-transduction as the audio length increases, requiring the encoder to memorize the positions of the leftmost frames and remap acoustic information through the self-attention space. Unlike the Aligner, our Chunkwise Aligner does not need data concatenation. Comparing against the Transducer highlights two advantages of our method. Despite its simple cross-entropy training, our Chunk-wise Aligner achieved comparable results to the memory-intensive Transducer. And, by virtue of our chunk transition mechanism with the EOC probability, it activates its predictor and joiner label-synchronously, leading to an inference time 2.6 times shorter than the Transducer. For the offline scenario, we observe no perfor-mance difference between training with alignments generated from ground-truth and that from a pretrained CTC. We plotted the self-attention weights of the best offline Aligner and Chunkwise Aligner models in Fig. 2. Consistent with the find-ings in [5], we find that the Aligner maps all labels sequentially to the leftmost frames of the utterance. Meanwhile, our Chunk-wise Aligner aligns labels on a chunkwise basis. This shows that chunkwise self-transduction is a simpler objective because it maps the alignment over shorter distances, leading to robust generaliza-tion to utterances with unseen lengths and lower WERs. 
+
+Table 2 . WERs [%] for Streaming ASR on the LibriSpeech test sets. “Delay” is the delay duration applied to the forced alignments. Alignment type Delay WER clean other Transducer - - 3.1 7.6 CTC - - 4.1 10.8 Chunkwise Aligner ground-truth 0ms 3.9 9.5 ground-truth 160ms 3.5 8.5 ground-truth 320ms 3.2 7.9 ground-truth 480ms 3.4 8.3 streaming CTC 0ms 3.6 9.0 
+
+Table 3 . CERs [%] and RTFs for the CSJ test sets. Chunkwise Aligner models were trained using CTC alignments with no delay. Offline Streaming E1 E2 E3 RTF E1 E2 E3 Transducer 4.1 3.0 3.4 0.30 5.1 3.9 4.1 CTC 4.2 3.1 3.6 0.10 5.3 4.2 4.4 AED 3.9 2.9 3.4 0.55 N/A Aligner 4.2 3.2 3.6 0.22 N/A Chunkwise Aligner 4.0 2.9 3.4 0.16 5.1 3.9 4.1 Chunkwise self-transduction not only improves the performance of an offline Chunkwise Aligner, but unlike the Aligner, it also al-lows streaming ASR when a streaming encoder is adopted. Ta-ble 2 presents our streaming ASR results. Compared to offline mod-els, streaming ASR models commonly delay label emission. There-fore, the Chunkwise Aligner, which relies on forced alignments dur-ing training, may suffer from performance degradation due to mis-matches in timing [27, 28]. We investigated how the WERs are af-fected when the timestamps of ground truth forced alignments are delayed. As can be seen, the best performance was achieved with a 320ms delay, yielding WERs comparable to the streaming Trans-ducer. Contrary to the offline scenario, we observed that using CTC alignments worsened performance. This is discussed in Section 4.5. 
+
+4.4. Results on CSJ 
+
+Shown in Table 3, our results for CSJ mirror those observed for Lib-riSpeech. The Chunkwise Aligner again achieved CERs comparable to the Transducer in both offline and streaming settings, while decod-ing 1.8 times faster in the offline scenario. This finding demonstrate the cross-lingual applicability of our proposed method. 
+
+4.5. Discussion 
+
+Our results show that our method’s performance is dependent on the alignment used during training. We hypothesize that the degraded WERs on LibriSpeech when trained on CTC alignments is due to the subpar WERs of the streaming CTC model, from which the Chunk-wise Aligner was initialized. This hypothesis is supported by the strong results on CSJ by both the streaming CTC and Chunkwise Aligner models. Improving performance without relying on high quality alignments remains a direction for future work. 
+
+5. CONCLUSION 
+
+We proposed the Chunkwise Aligner, which improves the Aligner to support streaming through chunkwise processing. When compared to the Transducer, our method not only reduces training costs by relying entirely on cross-entropy training, but also decodes faster while maintaining comparable accuracy. As future work, we plan to explore alignment-free training frameworks and investigate whether chunkwise aligners can work in attention-free encoders [29, 30]. 6. REFERENCES 
+
+[1] Jan K Chorowski, Dzmitry Bahdanau, Dmitriy Serdyuk, Kyunghyun Cho, and Yoshua Bengio, “Attention-based Mod-els for Speech Recognition,” in Advances in NIPS , 2015. [2] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszko-reit, Llion Jones, Aidan N Gomez, Lukasz Kaiser, and Illia Polosukhin, “Attention is All You Need,” Advances in NIPS ,2017. [3] Alex Graves, “Sequence Transduction with Recurrent Neural Networks,” in Proc. of ICML , 2012. [4] Tara N. Sainath, Yanzhang He, Arun Narayanan, Rami Botros, Ruoming Pang, David Rybach, Cyril Allauzen, Ehsan Variani, James Qin, Quoc-Nam Le-The, Shuo yiin Chang, Bo Li, An-mol Gulati, Jiahui Yu, Chung-Cheng Chiu, Diamantino Ca-seiro, Wei Li, Qiao Liang, and Pat Rondon, “An Efficient Streaming Non-Recurrent On-Device End-to-End Model with Improvements to Rare-Word Modeling,” in Proc. of INTER-SPEECH , 2021, pp. 1777–1781. [5] Adam Stooke, Rohit Prabhavalkar, Khe Sim, and Pedro Moreno Mengibar, “Aligner-Encoders: Self-Attention Trans-formers Can Be Self-Transducers,” in Advances in NeurIPS ,pp. 100318–100340, 2024. [6] Anmol Gulati, James Qin, Chung-Cheng Chiu, Niki Par-mar, Yu Zhang, Jiahui Yu, Wei Han, Shibo Wang, Zheng-dong Zhang, Yonghui Wu, et al., “Conformer: Convolution-augmented Transformer for Speech Recognition,” in Proc. of INTERSPEECH , 2020, pp. 5036–5040. [7] Ehsan Variani, David Rybach, Cyril Allauzen, and Michael Ri-ley, “Hybrid Autoregressive Transducer (HAT),” in Proc. of ICASSP , 2020, pp. 6139–6143. [8] Junteng Jia, Gil Keren, Wei Zhou, Egor Lakomkin, Xiao-hui Zhang, Chunyang Wu, Frank Seide, Jay Mahadeokar, and Ozlem Kalinli, “Efficient Streaming LLM for Speech Recog-nition,” in Proc. of ICASSP , 2025, pp. 1–5. [9] Chung-Cheng Chiu and Colin Raffel, “Monotonic Chunkwise Attention,” in Proc. of ICLR , 2018. [10] Niko Moritz, Takaaki Hori, and Jonathan Le Roux, “Trig-gered Attention for End-to-end Speech Recognition,” in Proc. of ICASSP , 2019, pp. 5666–5670. [11] Emiru Tsunoo, Yosuke Kashiwagi, and Shinji Watanabe, “Streaming Transformer ASR With Blockwise Synchronous Beam Search,” in Proc. of SLT , 2020, pp. 22–29. [12] Mohammad Zeineldeen, Albert Zeyer, Ralf Schl¨ uter, and Hermann Ney, “Chunked Attention-based Encoder-Decoder Model for Streaming Speech Recognition,” in Proc. of ICASSP , 2024, pp. 11331–11335. [13] Shinji Watanabe, Takaaki Hori, Suyoun Kim, John R. Hershey, and Tomoki Hayashi, “Hybrid CTC/Attention Architecture for End-to-End Speech Recognition,” IEEE Journal of Selected Topics in Signal Processing , vol. 11, no. 8, pp. 1240–1253, 2017. [14] Shinji Watanabe, Takaaki Hori, Shigeki Karita, Tomoki Hayashi, Jiro Nishitoba, Yuya Unno, Nelson Enrique Yalta So-plin, Jahn Heymann, Matthew Wiesner, Nanxin Chen, et al., “ESPnet: End-to-End Speech Processing Toolkit,” 2018. [15] Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur, “LibriSpeech: An ASR corpus based on public domain audio books,” in Proc. of ICASSP , 2015, pp. 5206– 5210. [16] Kikuo Maekawa, Hanae Koiso, Sadaoki Furui, and Hitoshi Isa-hara, “Spontaneous Speech Corpus of Japanese,” in Proc. of LREC , 2000. [17] Tom Ko, Vijayaditya Peddinti, Daniel Povey, and Sanjeev Khu-danpur, “Audio Augmentation for Speech Recognition,” in 
+
+Proc. of INTERSPEECH , 2015, pp. 3586–3589. [18] Daniel S Park, William Chan, Yu Zhang, Chung-Cheng Chiu, Barret Zoph, Ekin D Cubuk, and Quoc V Le, “SpecAugment: A Simple Data Augmentation Method for Automatic Speech Recognition,” Proc. of INTERSPEECH , p. 2613, 2019. [19] Daniel S Park, Yu Zhang, Chung-Cheng Chiu, Youzheng Chen, Bo Li, William Chan, Quoc V Le, and Yonghui Wu, “SpecAugment on Large Scale Datasets,” in Proc. of ICASSP ,2020, pp. 6879–6883. [20] Rico Sennrich, Barry Haddow, and Alexandra Birch, “Neural Machine Translation of Rare Words with Subword Units,” in 
+
+Proc. of ACL , 2016, pp. 1715–1725. [21] Michael McAuliffe, Michaela Socolof, Sarah Mihuc, Michael Wagner, and Morgan Sonderegger, “Montreal Forced Aligner: Trainable text-speech alignment using Kaldi,” in Proc. of IN-TERSPEECH , 2017, pp. 498–502. [22] Xie Chen, Yu Wu, Zhenghao Wang, Shujie Liu, and Jinyu Li, “Developing Real-Time Streaming Transformer Trans-ducer for Speech Recognition on Large-Scale Dataset,” in 
+
+Proc. of ICASSP , 2021, pp. 5904–5908. [23] Sepp Hochreiter and J¨ urgen Schmidhuber, “Long Short-Term Memory,” Neural computation , vol. 9, no. 8, pp. 1735–1780, 1997. [24] Alex Graves, Santiago Fern´ andez, Faustino Gomez, and J¨ urgen Schmidhuber, “Connectionist Temporal Classification: La-belling Unsegmented Sequence Data with Recurrent Neural Networks,” in Proc. of ICML , 2006, pp. 369–376. [25] Jaesong Lee and Shinji Watanabe, “Intermediate Loss Reg-ularization for CTC-based Speech Recognition,” in Proc. of ICASSP , 2021, pp. 6224–6228. [26] Diederik P. Kingma and Jimmy Ba, “Adam: A Method for Stochastic Optimization,” in Proc. of ICLR , 2014. [27] Golan Pundak and Tara N. Sainath, “Lower Frame Rate Neural Network Acoustic Models,” in Proc. of INTERSPEECH , 2016, pp. 22–26. [28] Gakuto Kurata and Kartik Audhkhasi, “Improved Knowledge Distillation from Bi-Directional to Uni-Directional LSTM CTC for End-to-End Speech Recognition,” in Proc. of SLT ,2018, pp. 411–417. [29] Takafumi Moriya, Masato Mimura, Kiyoaki Matsui, Hiroshi Sato, and Kohei Matsuura, “Attention-Free Dual-Mode ASR with Latency-Controlled Selective State Spaces,” in Proc.of INTERSPEECH , 2025, pp. 3588–3592. [30] Takafumi Moriya, Masato Mimura, Tomohiro Tanaka, Hiroshi Sato, Ryo Masumura, and Atsunori Ogawa, “All-in-One ASR: Unifying Encoder-Decoder Models of CTC, Attention, and Transducer in Dual-Mode ASR,” in Proc.of ASRU , 2025.
