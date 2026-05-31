@@ -1,0 +1,637 @@
+Title: SemBridge: Language Transfer in Sparse Encoders via Multilingual Semantic Bridges
+
+URL Source: https://arxiv.org/pdf/2605.26002v1
+
+Published Time: Tue, 26 May 2026 02:29:23 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+## SemBridge: Language Transfer in Sparse Encoders via Multilingual Semantic Bridges 
+
+Seongtae Hong 1, Youngjoon Jang 1, Jia-Huei Ju 2, Hyeonseok Moon 1∗, Heuiseok Lim 1*1Department of Computer Science and Engineering, Korea University 
+
+> 2
+
+University of Amsterdam 
+
+{ghdchlwls123,dew1701,glee889,limhseok}@korea.ac.kr j.ju@uva.nl 
+
+Abstract 
+
+Sparse encoders offer high-precision retrieval by representing term importance within a vo-cabulary space, yet their English-centric struc-tures pose a critical impediment to language transfer for non-English languages. To over-come this structural limitation, we propose SemBridge, a novel embedding initialization method designed for cross-lingual adaptation in sparse encoders by leveraging multilingual bridge models. SemBridge establishes seman-tic alignments between source and target vo-cabularies using multilingual dense embed-dings as a bridge. Rather than directly rely-ing on all source tokens, SemBridge selects a small set of semantically related source-language tokens and uses them to initialize each target-language token, effectively filter-ing out semantic noise and reconstructing tar-get tokens as precise linear combinations of core synonyms. This accelerates convergence during fine-tuning and improves training effi-ciency. Extensive experiments across five lan-guages and four sparse architectures demon-strate that SemBridge achieves superior zero-shot retrieval performance and consistently im-proves retrieval performance after fine-tuning compared to existing baselines. These results validate SemBridge as a practical solution for deploying high-performance sparse retrieval systems in diverse linguistic environments. 
+
+1 Introduction 
+
+Information Retrieval has evolved towards deep learning-based dense retrieval to address the lexical mismatch problem (Zhan et al., 2020, 2021; Xiong et al., 2020; Nogueira and Cho, 2019; Karpukhin et al., 2020; Gao and Callan, 2022). To overcome dense retrieval’s low interpretability and lack of explicit term-matching capabilities (Geng et al., 2025), sparse encoder models have emerged as an alternative (Dai and Callan, 2019; Zhao et al., 2021; 
+
+> *
+
+Corresponding author splade-v3  
+
+> Splade_PP_en_v1
+> opensearch-neural-sparse-encoding-v1
+> granite-embedding-30m-sparse
+> 10 0
+> 10 1
+> 10 2
+> 10 3
+> 10 4
+> 10 5
+> Number of Tokens
+> 27,827 47,008
+> 488
+> 51
+> 86
+> 18
+> 84
+> 19
+> 70
+> 2
+> 58
+> 0
+> 484
+> 165
+> 1,363
+> 3,002
+> Language
+> English
+> Chinese
+> Russian
+> Arabic
+> Korean
+> Hindi
+> Other
+> ETC
+
+Figure 1: Token distribution across sparse encoders. 
+
+Other and ETC represent additional language and non-linguistic tokens, respectively. 
+
+Formal et al., 2021b). By representing the contex-tual importance of terms as sparse vectors within the vocabulary space, they achieve both semantic understanding and keyword precision. Furthermore, their direct compatibility with existing Inverted Index infrastructure significantly enhances the ef-ficiency of large-scale systems (Bai et al., 2020; Mallia et al., 2021; Mackenzie et al., 2020; Las-sance and Clinchant, 2022). These vocabulary-level representations also provide human-readable term weights, offering interpretable evidence for why a document is retrieved. As the demand for glob-alized information access grows, efforts to build language-specific retrieval models have gained in-creasing attention. While most of these efforts have centered on dense retrieval, extending sparse encoders to new linguistic environments is not straightforward. Unlike dense retrievers, whose rep-resentations are formed in continuous latent spaces, sparse encoders rely on their vocabulary space as the explicit output space for retrieval. Constrained by this inherent structure, merely fine-tuning an existing English-centric sparse encoder for a target language does not easily yield performance gains. The underlying cause is evident from Figure 1, which provides an empirical analysis of vocabu-1
+
+> arXiv:2605.26002v1 [cs.IR] 25 May 2026
+
+lary distributions across sparse encoder models. Our analysis demonstrates that for most models, the proportion of non-English tokens is negligible. Notably, the granite-30m-sparse contains only two Korean tokens, and splade-v3 similarly exhibits a significant bias toward English. Given that the vo-cabulary in a sparse encoder serves as the explicit output space for representing semantics, the ab-sence of target-language tokens creates a structural lack of dimensions through which the model can assign importance to target-language terms. Conse-quently, it is intrinsically difficult to capture the nu-anced semantics of non-English languages within such an English-centric structure, posing a critical bottleneck in reproducing the source model’s re-trieval capabilities in a target language. Therefore, even with target-language fine-tuning, the scarcity of target-language tokens remains a key limiting factor in achieving optimal performance. In this paper, to overcome these structural limita-tions and effectively deploy sparse encoders in tar-get language environments, we propose SemBridge, a novel embedding initialization method that pre-serves the existing capabilities of a source sparse encoder while transferring its source-language knowledge to a target language. We leverage mul-tilingual dense embeddings as a bridge to perform token-level semantic alignment between the source and target language vocabularies. By reconstruct-ing sophisticated semantic correspondences be-tween tokens with differing surface forms within the parameter space, our method initializes target token embeddings that serve as an optimal start-ing point. Rather than assigning target tokens ran-domly or relying only on surface overlap, Sem-Bridge initializes each target token by selecting semantically related source-language tokens and transferring their embedding information through sparse semantic weighting. This ensures that the source model’s inherent retrieval capabilities are fully preserved and remain immediately effective in the target language environment. To demonstrate the generalizability and utility of the proposed method, we conduct extensive ex-periments across four sparse models and five lan-guages: Arabic, Chinese, Hindi, Korean, and Rus-sian. Experimental results confirm that SemBridge effectively transfers the source model’s retrieval capabilities in a zero-shot setting; furthermore, it achieves superior performance and faster conver-gence compared to baselines through fine-tuning. Through qualitative analysis, we further reveal that our method precisely aligns target language tokens with core synonyms in the source vocabulary while effectively filtering out unnecessary semantic noise. These results substantiate that SemBridge tran-scends lexical barriers to fully transplant the source model’s semantic discernment into target language environments. Ultimately, SemBridge serves as a practical and efficient solution for adapting and building high-performance sparse retrieval mod-els in target-language environments, even in non-English settings facing data scarcity. 
+
+2 Related Work 
+
+2.1 Sparse Encoder 
+
+Sparse encoders are first-stage retrieval models that represent text as high-dimensional sparse vectors by predicting token importance within the vocabu-lary space. Various approaches have been proposed to advance this paradigm, including learning the semantic importance distribution for all terms (Bai et al., 2020), re-estimating the weights of existing terms (Dai and Callan, 2019), expanding indices by predicting latent terms (Nogueira et al., 2019), and maximizing token-level interactions (Gao et al., 2021; Zhao et al., 2021). These approaches have garnered significant attention due to their practi-cality and interpretability. Because the encoded output aligns with the vocabulary, it can directly utilize existing Inverted Index infrastructure, en-abling efficient retrieval without high-cost Approx-imate Nearest Neighbor (ANN) search indices (Lin and Ma, 2021; Kong et al., 2023). Furthermore, they explicitly reveal the tokens contributing to the retrieval score (Formal et al., 2021b) and allow flexible control over the balance between memory usage and performance (Formal et al., 2024, 2022). However, many recent sparse encoders are predom-inantly trained on English (Awasthy et al., 2025; Damodaran, 2024). In sparse encoders, where the vocabulary space itself serves as the representation space, a small proportion of target language tokens leads to a structural lack of “dimensions” to rep-resent that language, making simple fine-tuning ineffective. While sparse encoders trained specif-ically for certain languages exist (Louis, 2024; Youngjoon, 2025), training such models requires a strong MLM model trained from scratch on the cor-responding language, large-scale retrieval training data, and significant computational resources. 22.2 Language Transfer 
+
+Language transfer primarily refers to an approach that adapts models pre-trained in resource-rich languages, such as English, to a target language environment to efficiently achieve performance even with limited data and computational resources. Generally, transfer is attempted through contin-ued pretraining and finetuning (Chau et al., 2020; Downey et al., 2024; Ljubeši´ c et al., 2024). Another line of work performs vocabulary expansion, which introduces new target language tokens into the ex-isting vocabulary and initializes embeddings only for those added tokens (Kim et al., 2024; Mundra et al., 2024). Beyond vocabulary expansion, tok-enizer replacement directly addresses vocabulary mismatch by replacing the source tokenizer with one constructed for the target language. In this setting, the central challenge is how to initialize the target tokenizer embeddings while preserving the representation space of the source model. Ba-sic strategies, such as random or source-statistics-based initialization, preserve only generic or distri-butional properties and fail to align source and tar-get token semantics (Mars, 2022; Gee et al., 2022). Prior work on semantic embedding initialization ad-dresses this issue using bilingual lexical resources, auxiliary embedding spaces, or matrix factoriza-tion (Minixhofer et al., 2022; Dobler and de Melo, 2023; Liu et al., 2024; Remy et al., 2024). However, these methods often rely on language-pair-specific lexicons, lexical overlap, or low-rank approxima-tions, which can restrict the scope or fidelity of token level semantic transfer. 
+
+3 SemBridge 
+
+In this section, we introduce SemBridge, which leverages a source sparse encoder model M to ini-tialize embeddings tailored for a target language, as illustrated in Figure 2. Let Ts and Vs be the source tokenizer and vocabulary of M , and Tt and Vt be the target tokenizer and vocabulary, respectively. We denote the embedding vector of a source token 
+
+xs ∈ V s as esxs ∈ Rd, and the embedding vector to be initialized for a target token xt ∈ V t as etxt .
+
+3.1 Overlapping Token Embedding Transfer 
+
+Although trained on different languages, source and target tokenizers often share language-agnostic tokens, such as numbers, symbols, or proper nouns. To leverage these shared tokens, we identify the overlapping token set Vo = Vt ∩ V s. This set in-Remaining Tokens ( 𝑅 )                          
+
+> Source Vocab 𝑉 !Target Vocab 𝑉 "
+> Token Separation
+> Overlapping Tokens ( 𝑉 #)
+> (e.g., symbols, numbers, ... )
+> Weighted Sum for
+> SemBridge  Mechanism
+> Target Embedding
+> Initializatio n
+> (𝐸 !:𝑉 "×𝑑𝑖𝑚 )
+> ∑
+> Weighted
+> Sum
+> (𝐸 ":𝑉 !×𝑑𝑖𝑚 )
+> New Target Embeddings
+> Direct Copy ( 𝑒 !
+> " = 𝑒 !
+> #)
+> Direct Copy From 𝑉 #
+> Embedding Space
+> Source Embeddings
+> Sparse Weights
+> (𝑝 $" )
+> e.g., dog, home, cat, … e.g., 개,집,고양이 ,…
+> 0.7
+> 0.8
+> 0.8
+> 0.1
+> …
+> 0.2
+> Similarity
+> (𝑠 $% )
+> Bridge Model
+> (Mutlilingual Emb)
+> Entmax
+
+Figure 2: Overview of the SemBridge embedding ini-tialization process. 
+
+cludes not only exact string matches but also tokens deemed identical after pre-processing normaliza-tion (e.g., ignoring case or whitespace). For any target token x ∈ V o, we initialize its embedding by directly copying the source token’s embedding: 
+
+etx = esx, ∀x ∈ V o (1) This approach transfers the universal semantic in-formation learned by the source model to the target model, and in particular, enhances the initial stabil-ity of the target model by preserving the represen-tational expressiveness of the source model. 
+
+3.2 Cross-lingual Semantic Bridge 
+
+The majority of tokens in the target vocabulary pos-sess surface forms distinct from those of the source tokens, yet they remain semantically closely linked. To effectively transfer semantics across these funda-mental lexical mismatches, they necessitate precise mapping within a semantic representation space. Accordingly, we employ a multilingual dense em-bedding model B1 as a semantic bridge to project both source and target tokens into a shared vector space for semantic-based alignment. Specifically, we define the set of remaining to-kens to be newly initialized as R = Vt \ V o. Each source token xs ∈ V s and each target remaining token xt ∈ R are fed into model B to obtain their 
+
+> 1
+
+Using bge-m3 (Chen et al., 2024) as the bridge model B.
+
+3corresponding dense representations, defined as: 
+
+hxs = B(xs), ∀xs ∈ V s
+
+hxt = B(xt), ∀xt ∈ R (2) Next, for each remaining token xt ∈ R , we cal-culate its similarity with all tokens in the source vocabulary Vs. Let N = |V s|, and let the source to-kens be denoted by {xs1 , x s2 , . . . , x sN }. The sim-ilarity vector sxt ∈ RN for an uninitialized target token xt is constructed as follows: 
+
+sxt =
+
+h
+
+cos( hxt , hxs1 ), · · · , cos( hxt , hxsN )
+
+i
+
+(3) By calculating these similarity vectors indepen-dently for all M = |R| remaining tokens, we ob-tain the final similarity matrix S ∈ RM ×N :
+
+S =
+
+
+
+sxt1
+
+...
+
+sxtM
+
+ , i = 1 , . . . , M. (4) Consequently, the matrix S quantifies the semantic relevance between the uninitialized target tokens and the entire source vocabulary. This plays a cru-cial role in deriving the weight vector for target token embedding initialization. 
+
+3.3 Similarity-Based Sparse Weighting for Target Token Embedding Initialization 
+
+To initialize the embedding for each remaining tar-get token xt, we transform its computed similarity vector sxt into a wight vector, which is then used to compute the weighted average of the source token embeddings. We calculate this vector by individ-ually apply the Entmax (Peters et al., 2019) trans-formation to the similarity vector sxt . The primary motivation for utilizing this specific transformation is the active removal of semantically irrelevant to-kens that can cause unnecessary interference within the source vocabulary space. Entmax dynamically selects only a few highly relevant tokens by inher-ently blocking such noise through truncating the tail of the probability distribution to exact zeros. Specifically, the sparse weight vector pxt corre-sponding to each xt ∈ R is calculated as follows: 
+
+pxt = Entmax α(sxt ), s.t. 
+
+> N
+
+X
+
+> i=1
+
+pxti = 1 . (5) The hyperparameter α governs the degree of spar-sity in the resulting weight vector. 2 By adjusting    
+
+> 2We set α= 4 throughout to ensure a high level of sparsity.
+
+α, the model effectively filters out noise, allowing the target token to be represented as a linear com-bination of only a few ‘core synonyms’ with clear semantic correspondences. Accordingly, the initial embedding etxt ∈ Rd is computed as follows: 
+
+etxt =
+
+> N
+
+X
+
+> i=1
+
+pxti esxsi . (6) This approach preserves the embedding dimension 
+
+d and ensures immediate compatibility with the source model without requiring any architectural modifications. Through this process, all tokens in the set R are precisely initialized by being mapped to their respective optimal positions within the se-mantic space learned by the source model. Con-sequently, the expansion to the target language is achieved in a manner that inherits the source model’s sparse encoding capability without loss. 
+
+4 Experimental Setup 
+
+4.1 Training 
+
+We use four sparse encoders: splade-v3 (Lassance et al., 2024), Splade_PP_en_v1 (Damodaran, 2024), opensearch-neural-sparse-encoding-v1 3,and granite-embedding-30m-sparse (Awasthy et al., 2025). For the target-language tokenizers, we use ARBERT (Abdul-Mageed et al., 2021) (Arabic), bart-base-chinese (Shao et al., 2024) (Chinese), hindi-bert-v2 (Joshi, 2022) (Hindi), kobigbird-bert-base (Korean), and 
+
+rubert-base-cased (Kuratov and Arkhipov, 2019) (Russian). We fine-tune the transferred models independently for each target language using language-specific query-positive pairs from the multilingual WebFAQ (Dinzinger et al., 2025) dataset: Arabic (132k), Chinese (122k), Hindi (90k), Korean (92k), and Russian (377k). The training objective combines InfoNCE loss with a FLOPs regularization loss to enforce sparsity (For-mal et al., 2021a), using in-batch negatives for ranking. Detailed hyperparameters and hardware settings are provided in Appendix C.2. 
+
+4.2 Evaluation 
+
+To quantitatively evaluate the retrieval performance of sparse retrieval models after transferring them to target languages, we utilize the evaluation 
+
+> 3https://huggingface.co/opensearch-project/ opensearch-neural-sparse-encoding-v1
+
+4Model Lang. WebFAQ MIRACL                                                                                                                                                                                                                                                                                                                                                                                                                
+
+> Base Rand. Mean Univ. Multiv. Focus Ofa SemB. Base Rand. Mean Univ. Multiv. Focus Ofa SemB. Splade-v3 Ar 0.001 0.000 0.074 0.000 0.313 0.216 0.312 0.365 0.001 0.000 0.000 0.000 0.146 0.046 0.171 0.230
+> Zh 0.006 0.001 0.134 0.001 0.438 0.200 0.386 0.545 0.006 0.000 0.002 0.000 0.035 0.005 0.036 0.101
+> Hi 0.008 0.068 0.001 0.312 0.291 0.278 0.377 0.377 0.008 0.000 0.000 0.000 0.074 0.098 0.062 0.165
+> Ko 0.028 0.000 0.089 0.001 0.421 0.115 0.482 0.520 0.028 0.000 0.005 0.000 0.172 0.013 0.196 0.236
+> Ru 0.001 0.000 0.049 0.000 0.206 0.073 0.197 0.301 0.001 0.000 0.005 0.000 0.093 0.013 0.087 0.162
+> Avg. 0.009 0.014 0.069 0.063 0.334 0.176 0.351 0.422 0.009 0.000 0.002 0.000 0.104 0.035 0.110 0.179
+> Splade-PP Ar 0.001 0.000 0.090 0.002 0.302 0.099 0.293 0.328 0.001 0.000 0.000 0.000 0.162 0.001 0.160 0.161 Zh 0.002 0.000 0.162 0.043 0.343 0.206 0.361 0.549 0.002 0.000 0.000 0.007 0.036 0.004 0.031 0.076
+> Hi 0.004 0.079 0.010 0.366 0.275 0.352 0.377 0.377 0.004 0.000 0.000 0.000 0.075 0.081 0.054 0.125
+> Ko 0.022 0.000 0.098 0.009 0.468 0.095 0.436 0.499 0.022 0.000 0.006 0.000 0.213 0.016 0.167 0.189 Ru 0.004 0.000 0.058 0.001 0.195 0.073 0.212 0.290 0.004 0.000 0.005 0.000 0.107 0.010 0.094 0.141
+> Avg. 0.007 0.016 0.084 0.084 0.317 0.165 0.336 0.409 0.007 0.000 0.002 0.001 0.119 0.022 0.101 0.138
+> Opensearch-Sparse-v1 Ar 0.000 0.000 0.078 0.000 0.348 0.092 0.301 0.317 0.000 0.000 0.000 0.000 0.221 0.001 0.182 0.151 Zh 0.001 0.000 0.135 0.001 0.445 0.123 0.423 0.541 0.001 0.000 0.002 0.000 0.031 0.000 0.030 0.076
+> Hi 0.004 0.075 0.000 0.398 0.298 0.352 0.359 0.359 0.004 0.000 0.000 0.000 0.103 0.082 0.078 0.134
+> Ko 0.011 0.000 0.075 0.000 0.465 0.085 0.481 0.444 0.011 0.000 0.002 0.000 0.237 0.012 0.203 0.155 Ru 0.003 0.000 0.042 0.000 0.185 0.059 0.215 0.271 0.003 0.000 0.004 0.000 0.112 0.013 0.108 0.120
+> Avg. 0.004 0.015 0.066 0.080 0.348 0.142 0.356 0.386 0.004 0.000 0.002 0.000 0.141 0.022 0.120 0.127 Granite-30M-Sparse Ar 0.002 0.000 0.038 0.000 0.000 0.044 0.000 0.158 0.002 0.000 0.000 0.000 0.000 0.001 0.000 0.061
+> Zh 0.000 0.000 0.140 0.000 0.001 0.004 0.000 0.534 0.000 0.000 0.000 0.000 0.000 0.000 0.000 0.108
+> Hi 0.002 0.000 0.070 0.000 0.000 0.063 0.000 0.148 0.002 0.000 0.000 0.000 0.000 0.015 0.001 0.042
+> Ko 0.037 0.000 0.096 0.000 0.002 0.079 0.001 0.010 0.037 0.000 0.002 0.000 0.000 0.005 0.000 0.000 Ru 0.008 0.000 0.026 0.000 0.000 0.003 0.000 0.060 0.008 0.000 0.002 0.000 0.000 0.004 0.000 0.028
+> Avg. 0.010 0.000 0.074 0.000 0.001 0.039 0.000 0.182 0.010 0.000 0.001 0.000 0.000 0.005 0.000 0.048
+
+Table 1: Overall zero-shot retrieval performance comparison (nDCG@10) of various initialization methodologies. Comparison across diverse sparse encoders and language pairs on WebFAQ and MIRACL. 
+
+sets of MIRACL (Zhang et al., 2023) and Web-FAQ (Dinzinger et al., 2025) across five languages: Arabic, Chinese, Hindi, Korean, and Russian. We adopt nDCG@10 as the primary retrieval perfor-mance metric and report FLOPS (Formal et al., 2021b) to assess the sparsity and efficiency. 
+
+4.3 Baselines 
+
+We compare SemBridge with several baseline meth-ods for initializing the token embeddings of the target language tokenizer. For all approaches, em-beddings of overlapping tokens are directly copied from the source embeddings without modifica-tion. For non-overlapping tokens, we compare our method against two categories of initialization strategies: (1) Generic and Statistical Methods :standard initialization techniques that do not explic-itly model cross-lingual semantic correspondences, including Random, Mean, Univariate Gaussian, and Multivariate Gaussian. (2) Language Trans-fer Methods : methods for cross-lingual embed-ding initialization, specifically FOCUS (Dobler and de Melo, 2023) and OFA (Liu et al., 2024). Detailed formulations and descriptions of each baseline are provided in Appendix B. 
+
+5 Experimental Results 
+
+5.1 Zero-shot Language Transfer 
+
+Table 1 presents the retrieval performance imme-diately following various embedding initialization strategies, illustrating how effectively each method transfers the source model’s semantic knowledge inherent in the embedding layer to the target lan-guage. Here, Base denotes the original sparse en-coder without tokenizer replacement or alignment. The results show that the Base model, which lacks an alignment process, along with simple statistical approaches such as Random and Mean, yields near-zero or marginal performance across most language pairs. While univariate (Univar.) and multivariate (Multivar.) lead to limited improvements in cer-tain settings, they exhibit high variance across lan-guages and suffer from sharp performance degra-dation depending on the model architecture. In contrast, SemBridge consistently demon-strates superior initialization performance across all four models. Notably, it records average zero-shot scores of 0.422 and 0.522 for Splade-v3 and Splade-PP, respectively, on the WebFAQ dataset. This suggests that SemBridge effectively captures cross-lingual semantic correspondences within the representation space. These results substantiate the exceptional language transfer effectiveness of Sem-Bridge, showing that it successfully transfers the source-language sparse encoder’s capabilities to the target language and provides a strong starting point for fine-tuning while achieving high zero-shot retrieval performance. 
+
+5.2 Impact of Initialization on Fine-tuning 
+
+Table 2 presents the results of subsequent fine-tuning using language-specific retrieval data after the initialization phase. In the majority of experi-5Model Lang. WebFAQ MIRACL 
+
+Base Rand. Mean Univ. Multiv. Focus Ofa SemB. Base Rand. Mean Univ. Multiv. Focus Ofa SemB. Splade-v3 Ar 0.630 0.434 0.136 0.600 0.593 0.595 0.596 0.655 0.224 0.116 0.001 0.393 0.405 0.246 0.408 0.423 
+
+Zh 0.442 0.644 0.420 0.759 0.765 0.704 0.746 0.774 0.019 0.027 0.017 0.129 0.185 0.100 0.164 0.203 
+
+Hi 0.625 0.002 0.151 0.693 0.691 0.699 0.690 0.728 0.161 0.000 0.000 0.294 0.293 0.268 0.304 0.322 
+
+Ko 0.606 0.563 0.178 0.750 0.755 0.671 0.742 0.762 0.237 0.180 0.023 0.416 0.428 0.261 0.362 0.382 
+
+Ru 0.516 0.333 0.141 0.419 0.418 0.452 0.424 0.567 0.249 0.079 0.012 0.236 0.226 0.174 0.220 0.267 
+
+Avg. 0.564 0.395 0.205 0.644 0.644 0.624 0.640 0.697 0.178 0.080 0.011 0.294 0.307 0.210 0.292 0.319 
+
+Splade-PP Ar 0.630 0.277 0.137 0.602 0.602 0.564 0.597 0.640 0.224 0.043 0.001 0.391 0.373 0.270 0.364 0.386 
+
+Zh 0.431 0.596 0.419 0.759 0.752 0.697 0.742 0.763 0.009 0.029 0.011 0.126 0.115 0.095 0.093 0.158 
+
+Hi 0.609 0.161 0.163 0.692 0.687 0.690 0.678 0.712 0.152 0.000 0.000 0.303 0.281 0.265 0.275 0.322 
+
+Ko 0.646 0.543 0.184 0.751 0.749 0.678 0.740 0.756 0.231 0.134 0.024 0.402 0.401 0.284 0.354 0.343 Ru 0.521 0.340 0.161 0.418 0.416 0.441 0.419 0.549 0.229 0.077 0.008 0.228 0.223 0.180 0.213 0.281 
+
+Avg. 0.567 0.383 0.213 0.644 0.641 0.614 0.635 0.684 0.169 0.057 0.009 0.290 0.279 0.219 0.260 0.298 
+
+Opensearch-Sparse-v1 Ar 0.620 0.064 0.135 0.597 0.588 0.576 0.603 0.648 0.209 0.001 0.001 0.416 0.348 0.247 0.387 0.382 Zh 0.445 0.083 0.433 0.754 0.761 0.703 0.746 0.767 0.018 0.000 0.018 0.116 0.128 0.093 0.115 0.169 
+
+Hi 0.631 0.109 0.160 0.686 0.688 0.699 0.683 0.707 0.169 0.000 0.001 0.298 0.295 0.253 0.287 0.311 
+
+Ko 0.638 0.456 0.176 0.744 0.746 0.669 0.735 0.760 0.248 0.046 0.031 0.398 0.422 0.239 0.361 0.383 Ru 0.477 0.004 0.163 0.412 0.413 0.449 0.419 0.532 0.177 0.000 0.010 0.228 0.229 0.166 0.221 0.234 
+
+Avg. 0.562 0.143 0.213 0.639 0.639 0.619 0.637 0.683 0.164 0.009 0.012 0.291 0.284 0.200 0.274 0.296 
+
+Granite-30M-Sparse Ar 0.562 0.219 0.119 0.000 0.420 0.512 0.435 0.623 0.172 0.016 0.000 0.000 0.209 0.203 0.226 0.301 
+
+Zh 0.685 0.465 0.296 0.000 0.691 0.676 0.697 0.760 0.055 0.008 0.001 0.000 0.058 0.062 0.055 0.136 
+
+Hi 0.574 0.156 0.131 0.000 0.504 0.671 0.535 0.706 0.106 0.001 0.001 0.000 0.049 0.240 0.068 0.249 
+
+Ko 0.671 0.394 0.179 0.000 0.662 0.629 0.671 0.717 0.253 0.066 0.032 0.000 0.267 0.243 0.266 0.289 
+
+Ru 0.469 0.251 0.112 0.000 0.330 0.398 0.331 0.526 0.211 0.050 0.007 0.000 0.105 0.148 0.096 0.250 
+
+Avg. 0.592 0.297 0.167 0.000 0.521 0.577 0.534 0.666 0.160 0.028 0.008 0.000 0.138 0.179 0.142 0.245 
+
+Table 2: Overall fine-tuned retrieval performance comparison (nDCG@10) of various initialization methodologies. Comparison across diverse sparse encoders and language pairs on WebFAQ and MIRACL. 0.0 0.2 0.4 0.6 0.8 1.0 
+
+> Epoch
+> 0
+> 2
+> 4
+> 6
+> 8
+> 10
+> Loss
+
+Chinese      
+
+> Baseline
+> OFA
+> FOCUS
+> SemBridge
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Epoch
+> 0
+> 1
+> 2
+> 3
+> 4
+> 5
+> 6
+> 7
+> 8
+
+Korean      
+
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Epoch
+> 0
+> 2
+> 4
+> 6
+> 8
+> 10
+> 12
+> 14
+
+Russian             
+
+> 0.00 0.05 0.10 0.15 0.20
+> 0
+> 5
+> 10
+> 0.00 0.05 0.10 0.15 0.20
+> 0.0
+> 2.5
+> 5.0
+> 7.5
+> 0.00 0.05 0.10 0.15 0.20
+> 0
+> 5
+> 10
+
+Figure 3: Training loss trajectories for Splade-v3 on Chinese, Korean, and Russian using Baseline, OFA, FOCUS, and SemBridge. The y-axis is Loss and the x-axis is Epoch. Insets zoom in on the initial training stage (0-0.2 epoch) 
+
+mental settings, SemBridge consistently achieves superior performance, outperforming the baselines across five target languages, four models, and two datasets. For instance, with the Granite-30M-Sparse model, SemBridge was the sole method to surpass all baseline methods on both datasets. These results show that the effect of initialization is not limited to zero-shot transfer, but continues to influence the model after fine-tuning. Crucially, sig-nificant performance disparities persist even after applying an identical fine-tuning process, demon-strating that the quality of initialization fundamen-tally constrains the model’s capabilities. This helps explain why existing methods can continue to fall behind after fine-tuning when their initial token cor-respondences are noisy or imprecise, as further sup-ported by the qualitative analysis in Section 6.3. In contrast, SemBridge provides a robust foundation for preserving and leveraging the source model’s retrieval capabilities in the target language. 
+
+5.3 Loss Trajectory 
+
+Figure 3 illustrates the training loss trajectories for the SPLADE-v3 model across various initialization methods. Each subplot displays the loss curves dur-ing training for the Baseline, OFA, FOCUS, and the proposed SemBridge in Chinese, Korean, and Rus-sian. Experimental results reveal that SemBridge generally begins training with a significantly lower initial loss compared to other approaches. It is worth noting that while the initial loss for Russian is slightly higher, it exhibits an immedi-ate convergence pattern. This suggests that our ini-tialization strategy provides an optimal initial em-bedding state for the model, enabling it to swiftly converge to a stable position within the loss land-scape. Furthermore, SemBridge demonstrates ex-ceptional efficiency with a steep decline in loss during the early stages of training. This rapid adapt-ability is a crucial factor that allows the model to 6(a) Arabic Chinese Hindi Korean Russian                    
+
+> Splade-v3
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> nDCG@10
+> Arabic Chinese Hindi Korean Russian
+> Splade-PP
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> Arabic Chinese Hindi Korean Russian
+> OpenSearch-v1
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> Arabic Chinese Hindi Korean Russian
+> Granite-30m
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> Softmax Sparsemax Entmax ( = 3 )Entmax ( = 4 )FOCUS OFA
+
+(b) Arabic Chinese Hindi Korean Russian             
+
+> Splade-v3
+> 0.00
+> 0.05
+> 0.10
+> 0.15
+> 0.20
+> nDCG@10
+> Arabic Chinese Hindi Korean Russian
+> Splade-PP
+> 0.00
+> 0.05
+> 0.10
+> 0.15
+> Arabic Chinese Hindi Korean Russian
+> OpenSearch-v1
+> 0.00
+> 0.05
+> 0.10
+> 0.15
+> 0.20
+> Arabic Chinese Hindi Korean Russian
+> Granite-30m
+> 0.00
+> 0.02
+> 0.04
+> 0.06
+> 0.08
+> 0.10
+> 0.12
+> 0.14
+
+Figure 4: Zero-shot retrieval performance (nDCG@10) on (a) WebFAQ and (b) MIRACL. For SemBridge, the sparsity level α is varied from 1 to 4, with FOCUS and OFA included as baselines. 
+
+quickly learn target-language characteristics even under constrained resources. Consequently, Sem-Bridge maintains the lowest loss throughout the training process, achieving a superior represen-tation quality upon final convergence compared to both the Baseline and other competitive meth-ods. While all methods exhibit stable convergence curves, SemBridge stands out across all metrics, including initialization, training efficiency, and fi-nal performance, thereby empirically validating its effectiveness in preserving the source model’s ca-pabilities for the target language. 
+
+6 Ablation and Analysis 
+
+6.1 Analysis of Sparse Weighting 
+
+To validate the effectiveness of similarity-based sparse weighting (Eq. (5) ), Figure 4 analyzes per-formance trends across varying Entmax hyperpa-rameters ( α ∈ { 1, 2, 3, 4}). Entmax generalizes softmax ( α = 1 ) and sparsemax ( α = 2 ), allow-ing us to examine how different sparsity levels af-fect transfer performance. The softmax case, which weights all source tokens, yields the lowest scores across most settings. This suggests that semanti-cally irrelevant source tokens introduce noise dur-ing target embedding initialization, disrupting pre-cise semantic alignment. In contrast, sparse weight-ing methods, such as sparsemax ( α = 2 ) and Ent-max ( α ≥ 3), substantially improve transfer per-formance by reducing interference from irrelevant semantic information. Specifically, configurations with α ≥ 2 demonstrate consistently high perfor-Splade-v3 Splade-PP OpenSearch-v1 Granite-30m 
+
+> 0.0
+> 1.5
+> 3.0
+> 4.5
+> 6.0
+> FLOPS
+> Method
+> Gaussian
+> OFA
+> Focus
+> SemBridge
+> 0.84
+> 0.86
+> 0.88
+> 0.90
+> 0.92
+> 0.94
+> nDCG@10
+
+Figure 5: Efficiency vs. performance trade-off on the MIRACL dev set (Chinese). The y-axis shows FLOPS, and marker color indicates nDCG@10. 
+
+mance. Entmax ( α = 3 , 4) further outperforms the existing baselines, FOCUS and OFA, indicat-ing that focusing on a few core tokens is effective for target embedding initialization. However, ex-cessive sparsity may exclude meaningful semantic clues, implying that an appropriate α should be se-lected based on the target language. Overall, these results confirm that SemBridge maintains robust-ness across a range of sparsity settings and achieves superior performance under sparse configurations. 
+
+6.2 Efficiency Analysis 
+
+Figure 5 compares the efficiency and retrieval per-formance of different methods after fine-tuning. Experimental results reveal that FOCUS yields excessively high FLOPS. Conversely, Gaussian achieves very low FLOPS, but its performance is highly unstable, exhibiting severe degradation on Granite-30m. While OFA maintains moderate FLOPS, its performance improvement remains lim-7Lang. Word FOCUS OFA SemBridge                                                                                                                                                
+
+> α= 2 α= 4
+> Arabic ﻣﻨﺰﻝ (34) ##ani, ##asa, ##bit, ##ua, う, ##ces, ##ras, ##mt, house, ##lock, ##ce, ##back, ##cer, ##ible, る,##xt, ##rar, ﺀ,##cel, ##one, ##ance, ##owa, ##able, ##pace, ##cent, ##work, ##vert, ##bor, ##au, · · · ,##elle (10) thigh, maison, family, aryan, israel, house, ##rail, is-raelis, israeli, bray (16) home, casa, 家, homes, maison, house, household, domestic, ## 家, domestically, houses, dwelling, housed, households, residence, ##house (4) home, casa, 家, homes Chinese 家(16) 家,一,的,李,大,村,有,口,國,氏,
+> 和,名,林,三,天,前
+> (10) 家, liz, ##folk, hush, ##ily, family, ##lian, inn, ##art, տ
+> (12) 家, ## 家, home, house-hold, homes, maison, casa, house, households, domestic, family, domestically (2) 家, ## 家
+> Hindi घर (47) आ,न, ##–, ¤, cs, ﺵ, ac, ি◌ ,ত, dl, ।,ﻑ,
+> ন,་, sk, ¥, ﻅ,ﺹ,ﺱ, *, ², !, ব, ..., \, ﻉ, ,, ו,ﻁ,д, ﻕ, bo, е, ol, র, ut, mo, м, گ, ae, · · · , sv (10) family, 家,house, bray, maison, familiar, liz, ##folk, rosie, 夫
+> (13) home, casa, homes, 家,house, maison, household, ## 家,houses, domestic, households, domestically, housed (3) home, casa, homes Korean 집(28) 堂,名,方,城,門,宮,宇,立,家,田,
+> 森,林,口,竹,里,耳,松,夫,間,星,三,曲,
+> 愛,藤,会,都,示,街
+> (10) family, maison, familiar, house, 家, bray, thigh, build-ing, buildings, construction (14) house, casa, homes, home, 家, houses, household, maison, ## 家,households, ##house, housed, domestic, dwelling (3) house, casa, homes Russian дом (42) house, ##ani, ##φ, ##house, ##se, ##ries, ##rea, ##ann, ##arte, ##lock, ##oke, ##ri, ##art, ##inal, ##anza, ##oga, ##ious, ##mia, ##1, ##als, ##xx, ##aru, · · · , ##aha (10) 家, liz, ##ily, rum, inn, ##art, ##lian, ivan, etc, ##ago (13) house, casa, home, homes, maison, dom, dome, houses, 家, household, domes-tic, dwelling, domes (4) house, casa, home, homes
+
+Table 3: Qualitative comparison of top-weighted source tokens for splade-v3 initialization of target-language words corresponding to “home” across five languages. Tokens are listed in descending order of similarity for each method, and highlighted tokens indicate direct semantic equivalents and core matches for the concept of “home”. 
+
+ited. SemBridge effectively balances computational efficiency and retrieval performance, yielding the highest nDCG@10 scores across all models while maintaining significantly lower FLOPS compared to FOCUS. This indicates that SemBridge success-fully transfers semantic knowledge while maintain-ing a highly sparse representation. These results confirm that SemBridge provides a robust initializa-tion strategy, ensuring high retrieval performance while maintaining computational efficiency. 
+
+6.3 Qualitative Analysis 
+
+Table 3 compares the top source tokens assigned to target language terms by each initialization strat-egy during target-language token initialization. For tokens representing ‘home’ across five different languages, FOCUS mapped meaningless subwords such as ‘ani’ and ‘##asa’ or contextually irrele-vant tokens in Arabic, highlight the limitations of simple similarity-based approaches. OFA showed some improvement by capturing terms like ‘family’ and ‘maison’; however, it still exhibited unstable se-mantic alignment, assigning unrelated words such as ‘israel’ for Arabic inputs or ‘hush’ for Chinese. These observations suggest that existing method-ologies struggle to achieve precise cross-lingual semantic alignment and fail to fully transfer the source model’s capability to the target language. In contrast, SemBridge exhibits superior se-mantic consistency by accurately linking ‘home’-related tokens across all five languages to English terms like ‘home’ and ‘house’, as well as multilin-gual synonyms such as ‘casa’ and ‘maison’. Specif-ically, the sparsity of these mappings can be con-trolled by adjusting the Entmax α value. Setting α
+
+= 2 captures broad contextual information such as ‘dwelling’ and ‘households’, whereas setting α = 4 effectively suppresses noise by selecting only core synonyms. These observations demonstrate that SemBridge effectively transfers language-agnostic semantic information during initialization. 
+
+7 Conclusion 
+
+In this paper, we proposed SemBridge, an em-bedding initialization method designed to transfer English-centric sparse encoders to target languages. By leveraging multilingual dense embeddings as a semantic bridge, SemBridge aligns source and target vocabularies. It applies a sparse weighting mechanism to initialize target embeddings from semantically relevant source tokens, effectively filtering out noise. Extensive experiments across five languages (Arabic, Chinese, Hindi, Korean, and Russian) and four sparse architectures show that SemBridge outperforms existing initialization methods in both zero-shot and fine-tuned settings. Furthermore, it significantly accelerates conver-gence during fine-tuning, demonstrating that ac-curate token-level semantic alignment is crucial for preserving and transferring sparse retrieval capabil-8ities. Ultimately, our results establish SemBridge as a robust and practical solution for building high-performance sparse encoders in target languages. 
+
+Limitations 
+
+Our study has the following limitations. First, al-though SemBridge demonstrates consistent effec-tiveness across the five target languages evaluated in this work (Arabic, Chinese, Hindi, Korean, and Russian), our evaluation remains limited to this lan-guage set. As a result, its behavior in languages with different resource levels, scripts, or morpho-logical structures remains underexplored. Second, target embedding initialization depends on the spar-sity level controlled by the Entmax hyperparam-eter α. While SemBridge remains robust across several sparsity settings, the optimal value may vary by target language and tokenizer. Excessive sparsity may exclude meaningful semantic clues, whereas insufficient sparsity may introduce irrel-evant source-token noise. Investigating adaptive or language-aware sparsity selection remains an important direction for future work. 
+
+Ethical Considerations 
+
+This work focuses on adapting sparse retrieval mod-els to target-language environments. Our experi-ments use publicly available datasets and do not involve collecting personal information or interact-ing with human subjects. Since SemBridge relies on multilingual dense embedding models as seman-tic bridges, biases or uneven language coverage in these models may affect the initialized sparse en-coder. Therefore, real-world use in new languages or domains should be accompanied by careful vali-dation. 
+
+References 
+
+Muhammad Abdul-Mageed, AbdelRahim Elmadany, and El Moatez Billah Nagoudi. 2021. ARBERT & MARBERT: Deep bidirectional transformers for Ara-bic. In Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Lan-guage Processing (Volume 1: Long Papers) , pages 7088–7105, Online. Association for Computational Linguistics. Parul Awasthy, Aashka Trivedi, Yulong Li, Mihaela Bornea, David Cox, Abraham Daniels, Martin Franz, Gabe Goodhart, Bhavani Iyer, Vishwajeet Kumar, Luis Lastras, Scott McCarley, Rudra Murthy, Vig-nesh P, Sara Rosenthal, Salim Roukos, Jaydeep Sen, Sukriti Sharma, Avirup Sil, and 3 others. 2025. Gran-ite embedding models. Preprint , arXiv:2502.20204. Yang Bai, Xiaoguang Li, Gang Wang, Chaoliang Zhang, Lifeng Shang, Jun Xu, Zhaowei Wang, Fangshan Wang, and Qun Liu. 2020. Sparterm: Learning term-based sparse representation for fast text retrieval. 
+
+arXiv preprint arXiv:2010.00768 .Ethan C Chau, Lucy H Lin, and Noah A Smith. 2020. Parsing with multilingual bert, a small corpus, and a small treebank. arXiv preprint arXiv:2009.14124 .Jianlv Chen, Shitao Xiao, Peitian Zhang, Kun Luo, Defu Lian, and Zheng Liu. 2024. Bge m3-embedding: Multi-lingual, multi-functionality, multi-granularity text embeddings through self-knowledge distillation. 
+
+Preprint , arXiv:2402.03216. Zhuyun Dai and Jamie Callan. 2019. Context-aware sentence/passage term importance estimation for first stage retrieval. Preprint , arXiv:1910.10687. Prithiviraj Damodaran. 2024. Splade_pp_en_v1. Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. 2019. Bert: Pre-training of deep bidirectional transformers for language understand-ing. In Proceedings of the 2019 conference of the North American chapter of the association for com-putational linguistics: human language technologies, volume 1 (long and short papers) , pages 4171–4186. Michael Dinzinger, Laura Caspari, Kanishka Ghosh Dastidar, Jelena Mitrovi´ c, and Michael Granitzer. 2025. Webfaq: A multilingual collection of natural Q&A datasets for dense retrieval. In 
+
+Proceedings of the 48th International ACM SIGIR Conference on Research and Development in Information Retrieval , SIGIR ’25, page 3802–3811, New York, NY, USA. Association for Computing Machinery. Konstantin Dobler and Gerard de Melo. 2023. FOCUS: Effective embedding initialization for monolingual specialization of multilingual models. In Proceed-ings of the 2023 Conference on Empirical Methods in Natural Language Processing , pages 13440–13454, Singapore. Association for Computational Linguis-tics. C. M. Downey, Terra Blevins, Dhwani Serai, Dwija Parikh, and Shane Steinert-Threlkeld. 2024. Targeted multilingual adaptation for low-resource language families. In Findings of the Association for Com-putational Linguistics: EMNLP 2024 , pages 15647– 15663, Miami, Florida, USA. Association for Com-putational Linguistics. Thibault Formal, Carlos Lassance, Benjamin Pi-wowarski, and Stéphane Clinchant. 2022. From dis-tillation to hard negative sampling: Making sparse neural ir models more effective. In Proceedings of the 45th international ACM SIGIR conference on research and development in information retrieval ,pages 2353–2359. 
+
+9Thibault Formal, Carlos Lassance, Benjamin Pi-wowarski, and Stéphane Clinchant. 2024. Towards effective and efficient sparse neural information re-trieval. ACM Transactions on Information Systems ,42(5):1–46. Thibault Formal, Carlos Lassance, Benjamin Pi-wowarski, and Stéphane Clinchant. 2021a. Splade v2: Sparse lexical and expansion model for information retrieval. Preprint , arXiv:2109.10086. Thibault Formal, Benjamin Piwowarski, and Stéphane Clinchant. 2021b. Splade: Sparse lexical and expan-sion model for first stage ranking. In Proceedings of the 44th International ACM SIGIR Conference on Research and Development in Information Retrieval ,pages 2288–2292. Luyu Gao and Jamie Callan. 2022. Unsupervised cor-pus aware language model pre-training for dense pas-sage retrieval. In Proceedings of the 60th Annual Meeting of the Association for Computational Lin-guistics (Volume 1: Long Papers) , pages 2843–2853, Dublin, Ireland. Association for Computational Lin-guistics. Luyu Gao, Zhuyun Dai, and Jamie Callan. 2021. Coil: Revisit exact lexical match in information retrieval with contextualized inverted list. arXiv preprint arXiv:2104.07186 .Leonidas Gee, Andrea Zugarini, Leonardo Rigutini, and Paolo Torroni. 2022. Fast vocabulary transfer for language model compression. In Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing: Industry Track , pages 409– 416. Zhichao Geng, Yiwen Wang, Dongyu Ru, and Yang Yang. 2025. Towards competitive search relevance for inference-free learned sparse retrievers. Preprint ,arXiv:2411.04403. Raviraj Joshi. 2022. L3cube-hindbert and devbert: Pre-trained bert transformer models for devanagari based hindi and marathi languages. arXiv preprint arXiv:2211.11418 .Vladimir Karpukhin, Barlas Oguz, Sewon Min, Patrick SH Lewis, Ledell Wu, Sergey Edunov, Danqi Chen, and Wen-tau Yih. 2020. Dense passage re-trieval for open-domain question answering. In 
+
+EMNLP (1) , pages 6769–6781. Seungduk Kim, Seungtaek Choi, and Myeongho Jeong. 2024. Efficient and effective vocabulary expan-sion towards multilingual large language models. 
+
+Preprint , arXiv:2402.14714. Weize Kong, Jeffrey M Dudek, Cheng Li, Mingyang Zhang, and Michael Bendersky. 2023. Sparseembed: Learning sparse lexical representations with contex-tual embeddings for retrieval. In Proceedings of the 46th International ACM SIGIR conference on research and development in information retrieval ,pages 2399–2403. Yuri Kuratov and Mikhail Arkhipov. 2019. Adaptation of deep bidirectional multilingual transformers for russian language. Preprint , arXiv:1905.07213. Carlos Lassance and Stéphane Clinchant. 2022. An efficiency study for splade models. In Proceedings of the 45th International ACM SIGIR Conference on Research and Development in Information Retrieval ,SIGIR ’22, page 2220–2226. ACM. Carlos Lassance, Hervé Déjean, Thibault Formal, and Stéphane Clinchant. 2024. Splade-v3: New baselines for splade. Preprint , arXiv:2403.06789. Jimmy Lin and Xueguang Ma. 2021. A few brief notes on deepimpact, coil, and a conceptual framework for information retrieval techniques. arXiv preprint arXiv:2106.14807 .Yihong Liu, Peiqin Lin, Mingyang Wang, and Hinrich Schuetze. 2024. OFA: A framework of initializing unseen subword embeddings for efficient large-scale multilingual continued pretraining. In Findings of the Association for Computational Linguistics: NAACL 2024 , pages 1067–1097, Mexico City, Mexico. Asso-ciation for Computational Linguistics. Yinhan Liu, Myle Ott, Naman Goyal, Jingfei Du, Man-dar Joshi, Danqi Chen, Omer Levy, Mike Lewis, Luke Zettlemoyer, and Veselin Stoyanov. 2019. Roberta: A robustly optimized bert pretraining ap-proach. arXiv preprint arXiv:1907.11692 .Nikola Ljubeši´ c, Vít Suchomel, Peter Rupnik, Taja Kuz-man, and Rik van Noord. 2024. Language models on a diet: Cost-efficient development of encoders for closely-related languages via additional pretraining. 
+
+arXiv preprint arXiv:2404.05428 .Antoine Louis. 2024. DécouvrIR: A benchmark for evaluating the robustness of information retrieval models in french. Joel Mackenzie, Zhuyun Dai, Luke Gallagher, and Jamie Callan. 2020. Efficiency implications of term weighting for passage retrieval. In Proceedings of the 43rd International ACM SIGIR Conference on Research and Development in Information Retrieval ,SIGIR ’20, page 1821–1824, New York, NY, USA. Association for Computing Machinery. Antonio Mallia, Omar Khattab, Torsten Suel, and Nicola Tonellotto. 2021. Learning passage impacts for in-verted indexes. In Proceedings of the 44th Inter-national ACM SIGIR Conference on Research and Development in Information Retrieval , pages 1723– 1727. Mourad Mars. 2022. From word embeddings to pre-trained language models: A state-of-the-art walk-through. Applied Sciences , 12(17):8805. Benjamin Minixhofer, Fabian Paischer, and Navid Rek-absaz. 2022. WECHSEL: Effective initialization of subword embeddings for cross-lingual transfer of monolingual language models. In Proceedings of 
+
+10 the 2022 Conference of the North American Chap-ter of the Association for Computational Linguistics: Human Language Technologies , pages 3992–4006, Seattle, United States. Association for Computational Linguistics. Nandini Mundra, Aditya Nanda Kishore Khandavally, Raj Dabre, Ratish Puduppully, Anoop Kunchukuttan, and Mitesh M Khapra. 2024. An empirical com-parison of vocabulary expansion and initialization approaches for language models. In Proceedings of the 28th Conference on Computational Natural Language Learning , pages 84–104, Miami, FL, USA. Association for Computational Linguistics. Rodrigo Nogueira and Kyunghyun Cho. 2019. Pas-sage re-ranking with bert. arXiv preprint arXiv:1901.04085 .Rodrigo Nogueira, Wei Yang, Jimmy Lin, and Kyunghyun Cho. 2019. Document expansion by query prediction. Preprint , arXiv:1904.08375. Ben Peters, Vlad Niculae, and André F. T. Martins. 2019. Sparse sequence-to-sequence models. In Proceed-ings of the 57th Annual Meeting of the Association for Computational Linguistics , pages 1504–1519, Flo-rence, Italy. Association for Computational Linguis-tics. Nils Reimers and Iryna Gurevych. 2019. Sentence-bert: Sentence embeddings using siamese bert-networks. In Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing . Associa-tion for Computational Linguistics. François Remy, Pieter Delobelle, Hayastan Avetisyan, Alfiya Khabibullina, Miryam de Lhoneux, and Thomas Demeester. 2024. Trans-tokenization and cross-lingual vocabulary transfers: Language adap-tation of llms for low-resource nlp. arXiv preprint arXiv:2408.04303 .Yunfan Shao, Zhichao Geng, Yitao Liu, Junqi Dai, Hang Yan, Fei Yang, Zhe Li, Hujun Bao, and Xipeng Qiu. 2024. Cpt: a pre-trained unbalanced transformer for both chinese language understanding and generation. 
+
+Science China Information Sciences , 67(5):152102. Lee Xiong, Chenyan Xiong, Ye Li, Kwok-Fung Tang, Jialin Liu, Paul Bennett, Junaid Ahmed, and Arnold Overwijk. 2020. Approximate nearest neighbor neg-ative contrastive learning for dense text retrieval. 
+
+arXiv preprint arXiv:2007.00808 .Jang Youngjoon. 2025. splade-ko-v1. Jingtao Zhan, Jiaxin Mao, Yiqun Liu, Jiafeng Guo, Min Zhang, and Shaoping Ma. 2021. Optimizing dense retrieval model training with hard negatives. Preprint ,arXiv:2104.08051. Jingtao Zhan, Jiaxin Mao, Yiqun Liu, Min Zhang, and Shaoping Ma. 2020. Learning to retrieve: How to train a dense retrieval model effectively and effi-ciently. Preprint , arXiv:2010.10469. Xin Zhang, Yanzhao Zhang, Dingkun Long, Wen Xie, Ziqi Dai, Jialong Tang, Huan Lin, Baosong Yang, Pengjun Xie, Fei Huang, and 1 others. 2024. mgte: Generalized long-context text representation and reranking models for multilingual text retrieval. In 
+
+Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing: Industry Track , pages 1393–1412. Xinyu Zhang, Nandan Thakur, Odunayo Ogundepo, Ehsan Kamalloo, David Alfonso-Hermelo, Xi-aoguang Li, Qun Liu, Mehdi Rezagholizadeh, and Jimmy Lin. 2023. MIRACL: A Multilingual Re-trieval Dataset Covering 18 Diverse Languages. 
+
+Transactions of the Association for Computational Linguistics , 11:1114–1131. Yanzhao Zhang, Mingxin Li, Dingkun Long, Xin Zhang, Huan Lin, Baosong Yang, Pengjun Xie, An Yang, Dayiheng Liu, Junyang Lin, Fei Huang, and Jingren Zhou. 2025. Qwen3 embedding: Advancing text embedding and reranking through foundation models. 
+
+arXiv preprint arXiv:2506.05176 .Tiancheng Zhao, Xiaopeng Lu, and Kyusong Lee. 2021. SPARTA: Efficient open-domain question answering via sparse transformer matching retrieval. In Pro-ceedings of the 2021 Conference of the North Amer-ican Chapter of the Association for Computational Linguistics: Human Language Technologies , pages 565–575, Online. Association for Computational Lin-guistics. 
+
+11 A Token Distribution Analysis 
+
+To examine the linguistic composition of the vo-cabulary in sparse encoders, we conduct the to-ken distribution analysis presented in Figure 1. We analyze the four source sparse encoders used in our experiments: splade-v3 , Splade_PP_en_v1 ,
+
+opensearch-neural-sparse-encoding-v1 , and 
+
+granite-embedding-30m-sparse . The tokens in each model’s vocabulary are categorized by lan-guage using a language detection library 4. We con-sider English and the five target languages used in our experiments: Arabic, Chinese, Hindi, Ko-rean, and Russian. Tokens corresponding to other languages are grouped into Other , while tokens without clear linguistic characters, such as special tokens, numbers, punctuation marks, and symbols, are grouped into ETC .Specifically, we do not directly use the raw token strings in the vocabulary. Instead, we de-code each token ID and determine the language of the decoded token. This is because raw to-ken strings may include tokenizer-specific sub-word prefixes or whitespace markers, which can interfere with identifying the language of the ac-tual token. Therefore, we compute the token dis-tribution based on decoded tokens. The analysis shows that the vocabularies of existing sparse en-coders are generally concentrated on English to-kens, while target-language tokens account for only a limited portion. These distributional dif-ferences arise because the vocabulary of each sparse encoder is determined by the tokenizer of the backbone model used for training. Specif-ically, granite-embedding-30m-sparse uses RoBERTa (Liu et al., 2019) as its backbone, whereas the other three models use BERT (Devlin et al., 2019) as their backbone. Thus, the observed token distribution reflects the vocabulary composi-tion of each backbone tokenizer. 
+
+B Baselines 
+
+We compare SemBridge with several baseline meth-ods for initializing the token embeddings of the target language tokenizer. For all approaches, em-beddings of overlapping tokens are directly copied from the source embeddings without modification. For non-overlapping tokens, different initialization strategies are applied as follows: 
+
+Random. Each new token embedding etxt (xt ∈ R )
+
+> 4https://github.com/pemistahl/lingua-rs
+
+is independently sampled from a normal distribu-tion with a zero mean and small variance: etxt ∼N (0, σ 2I), where σ = 0 .02 . While this is a stan-dard initialization strategy, it does not leverage any semantic information from the source embeddings. 
+
+Mean. All remaining token embeddings are initial-ized with the global mean of all source embeddings: 
+
+etxt = 1
+
+> N
+
+PNi=1 esxsi (∀xt ∈ R ), where N = |V s|
+
+denotes the size of the source vocabulary. In this approach, every new token shares the same initial value. 
+
+Univariate. The remaining tokens xt are sampled from a univariate Gaussian distribution N (μg, σ 2 
+
+> g
+
+)
+
+sharing global statistics of the source embedding matrix Es. Here, μg and σ2 
+
+> g
+
+represent the mean and variance calculated across all elements in the source embeddings. While this strategy captures the overall scale of the source embedding space, it ignores dimension-specific characteristics. 
+
+Multivariate. Each dimension j of the token em-bedding is sampled from a diagonal multivariate Gaussian distribution: etxt [j] ∼ N (μj , σ 2 
+
+> j
+
+), where 
+
+μj and σ2 
+
+> j
+
+denote the mean and variance of the j-th dimension across the source embeddings. This method reflects the statistical properties of the source embedding space more precisely by account-ing for the varying scales and distributions across different dimensions. 
+
+FOCUS (Dobler and de Melo, 2023). This ap-proach computes the similarity between remaining tokens xt ∈ R and overlapping tokens x ∈ V o
+
+within an auxiliary static embedding space trained on a target corpus. Based on these similarities, the new token embeddings are initialized as a weighted average of the source embeddings of the overlap-ping tokens. While this method allows the transfer of the source model’s semantic space without ex-plicit cross-lingual alignment, it is strictly limited by the fact that the reference set for synthesis is restricted only to overlapping tokens Vo. Conse-quently, it fails to exploit other semantically rele-vant source tokens that do not belong to the over-lapping set. 
+
+OFA (Liu et al., 2024). This framework utilizes matrix factorization to initialize token embeddings by decomposing the source embedding matrix Es
+
+into language-independent primitive embeddings 
+
+P and token-specific coordinates Fs. For the re-maining tokens xt ∈ R , the initialization is per-12 Language Model Vocab Size HF Repo.                
+
+> Arabic ARBERT 100,000 https://huggingface.co/UBC-NLP/ARBERT
+> Chinese bart-base-chinese 51,271 https://huggingface.co/OpenMOSS-Team/bart-base-chinese
+> Hindi hindi-bert-v2 197,285 https://huggingface.co/l3cube-pune/hindi-bert-v2
+> Korean kobigbird-bert-base 32,500 https://huggingface.co/monologg/kobigbird-bert-base
+> Russian rubert-base-cased 119,547 https://huggingface.co/DeepPavlov/rubert-base-cased
+> Table 4: Summary of the target-language tokenizers used in our experiments. The table reports the model, vocabulary size, and Hugging Face repository for each target language.
+
+formed by generating target coordinates Ft through a convex combination of source coordinates, using similarity weights derived from an external multi-lingual word vector space such as ColexNet+. The final synthesized coordinates are then projected onto the original dimensions via the primitive em-beddings P to serve as the target embeddings. 
+
+C Experiments Details 
+
+C.1 Target Tokenizers 
+
+Table 4 presents the target-language tokenizers used in our experiments. To construct the target-language vocabulary, we use the vocabulary of a pretrained tokenizer for each language. Specifically, we replace the tokenizer of the source sparse en-coder with the target tokenizer for each language, and define the corresponding tokenizer vocabulary as the target vocabulary Vt for target token embed-ding initialization. Based on the target vocabulary 
+
+Vt, SemBridge initializes the embedding layer of the source sparse encoder after tokenizer replace-ment, enabling the model to be transferred to the target language. 
+
+C.2 Hyperparams & Hardware 
+
+All fine-tuning is conducted on four NVIDIA A100 GPUs. The models are trained for 1 epoch with a total batch size of 64, a maximum sequence length of 512, and bf16 precision. We employ the AdamW optimizer with a learning rate of 2 × 10 −5 and a linear learning rate warm-up for 5% of the total steps. For the training objective, the FLOPs regu-larization weights for documents and queries are set to 1 × 10 −4 and 3 × 10 −4, respectively. To en-sure reproducibility, all random seeds, including the data shuffling seed, are fixed to 42. 
+
+D Additional Experiments 
+
+D.1 Robustness to Bridge Models 
+
+To investigate the impact of the Cross-lingual Se-mantic Bridge ( B) on the transfer performance, we conduct comparative experiments using three additional multilingual embedding models with varying characteristics: paraphrase-multilingual-MiniLM-L12-v2 (Reimers and Gurevych, 2019), gte-multilingual-base (Zhang et al., 2024), and Qwen3-Embedding-0.6B (Zhang et al., 2025). The resulting zero-shot retrieval performance is pre-sented in Table 5. The experimental results demonstrate that the choice of the bridge model influences the language transfer outcomes of sparse models. Specifically, we observe that knowledge transfer to the target language becomes more effective as more power-ful dense models, such as mGTE or Qwen3, are utilized. For instance, in the Splade-v3 model on the WebFAQ dataset, the configuration using bge-m3 achieved the highest average performance of 0.422, followed by mGTE (0.378), Qwen3 (0.306), and MiniLM (0.303). These findings suggest that the refinement level of the cross-lingual alignment within the bridge model’s semantic space is a key factor in determining the quality of initialization for the target language. This implies that the qual-ity of the similarity matrix generated by the bridge model is a critical determinant of semantic align-ment accuracy between source and target tokens. Crucially, however, SemBridge demonstrates sta-ble and superior performance compared to exist-ing methods, FOCUS and OFA, regardless of the specific bridge model employed. These results sub-stantiate the robust generalizability of our proposed method. While performance scales with the bridge model’s capacity, SemBridge maintains consistent robustness, effectively performing cross-lingual se-mantic mapping by leveraging the intrinsic struc-ture of any given dense embedding space. 13 Sparse Model Method WebFAQ MIRACL Ar Zh Hi Ko Ru Avg Ar Zh Hi Ko Ru Avg 
+
+splade-v3 FOCUS 0.216 0.200 0.278 0.115 0.073 0.176 0.046 0.005 0.098 0.013 0.013 0.035 OFA 0.312 0.386 0.377 0.482 0.197 0.351 0.171 0.036 0.062 0.196 0.087 0.110 
+
+SemBridge 0.365 0.545 0.377 0.520 0.301 0.422 0.230 0.101 0.165 0.236 0.162 0.179 
+
+w/ MiniLM 0.215 0.397 0.354 0.359 0.191 0.303 0.089 0.030 0.123 0.127 0.090 0.092 w/ mGTE 0.348 0.471 0.393 0.384 0.293 0.378 0.206 0.061 0.167 0.157 0.173 0.148 w/ Qwen3 0.288 0.313 0.324 0.389 0.215 0.306 0.145 0.026 0.105 0.183 0.101 0.114 Splade_PP_en_v1 FOCUS 0.099 0.206 0.352 0.095 0.073 0.165 0.001 0.004 0.081 0.016 0.010 0.022 OFA 0.293 0.361 0.377 0.436 0.212 0.336 0.160 0.031 0.054 0.167 0.094 0.101 
+
+SemBridge 0.328 0.549 0.377 0.499 0.290 0.409 0.161 0.076 0.125 0.189 0.141 0.138 
+
+w/ MiniLM 0.166 0.355 0.317 0.311 0.176 0.265 0.055 0.016 0.089 0.078 0.071 0.062 w/ mGTE 0.332 0.477 0.407 0.363 0.286 0.373 0.164 0.042 0.120 0.104 0.143 0.115 w/ Qwen3 0.259 0.298 0.292 0.378 0.204 0.286 0.109 0.017 0.063 0.142 0.074 0.081 opensearch-neural -sparse-encoding-v1 FOCUS 0.092 0.123 0.352 0.085 0.059 0.142 0.001 0.000 0.082 0.012 0.013 0.022 OFA 0.301 0.423 0.359 0.481 0.215 0.356 0.182 0.030 0.078 0.203 0.108 0.120 
+
+SemBridge 0.317 0.541 0.359 0.444 0.271 0.387 0.151 0.076 0.134 0.155 0.120 0.127 
+
+w/ MiniLM 0.157 0.370 0.313 0.251 0.155 0.249 0.054 0.021 0.097 0.102 0.068 0.068 w/ mGTE 0.313 0.475 0.389 0.244 0.263 0.337 0.155 0.035 0.134 0.110 0.130 0.113 w/ Qwen3 0.238 0.229 0.275 0.328 0.167 0.247 0.094 0.014 0.072 0.156 0.067 0.081 granite-embedding -30m-sparse FOCUS 0.044 0.004 0.063 0.079 0.003 0.039 0.001 0.000 0.015 0.005 0.004 0.005 OFA 0.000 0.000 0.000 0.001 0.000 0.000 0.000 0.000 0.001 0.000 0.000 0.000 
+
+SemBridge 0.158 0.534 0.148 0.010 0.060 0.182 0.061 0.108 0.042 0.000 0.028 0.048 w/ MiniLM 0.121 0.404 0.199 0.044 0.060 0.166 0.041 0.023 0.047 0.007 0.023 0.028 w/ mGTE 0.155 0.534 0.265 0.134 0.131 0.244 0.072 0.121 0.067 0.039 0.070 0.074 
+
+w/ Qwen3 0.169 0.056 0.268 0.153 0.121 0.153 0.065 0.000 0.059 0.019 0.046 0.038 
+
+Table 5: Impact of various dense bridge models on zero-shot retrieval performance (nDCG@10). We compare SemBridge utilizing different auxiliary models against existing initialization baselines (FOCUS, OFA) on WebFAQ and MIRACL datasets. 
+
+14

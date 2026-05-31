@@ -6,73 +6,83 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-05-02 ~ 2026-05-31
-- 运行时间：2026-05-31 13:55:52 UTC
+- 最新运行日期：2026-05-31
+- 运行时间：2026-05-31 20:10:21 UTC
 - 运行状态：成功
-- 本次总论文数：17
-- 精读区：6
-- 速读区：11
+- 本次总论文数：21
+- 精读区：8
+- 速读区：13
 
 ### 今日简报（AI）
-本期聚焦多语言LLM词汇空缺发现与翻译“去字面化”假说检验，两篇精读均为满分。  
-最值得看：如何用多语言LLM嵌入发现词汇空缺，以及低资源翻译失败源于token动态。  
-建议后续关注嵌入方法优化低资源词汇覆盖，并验证字面化假说对文学翻译的适用性。
-- 详情：[/20260502-20260531/README](/20260502-20260531/README)
+今日整理21篇论文，精读两篇高分研究：低资源非拉丁语系TTS基准（PashtoTTS-Bench）与模块化语音合成（PilotTTS）。重点关注非拉丁语系、低资源场景下的语音合成评估与模块化设计。下一步可深入探索跨语言语音特征建模及方言处理方向。
+- 详情：[/202605/31/README](/202605/31/README)
 
 ### 精读区论文标签
-1. [Discovering Lexical Gaps Using Embeddings from Multilingual LLMs](/20260502-20260531/2605.24310v1-discovering-lexical-gaps-using-embeddings-from-multilingual-llms)  
-   标签：评分：10.0/10、query:cross-lang
-   evidence：利用多语言LLM嵌入发现词汇缺口（不可译词）的数据驱动框架
-2. [Testing the Deliteralization Hypothesis in Human and Machine Translation](/20260502-20260531/2605.25686v1-testing-the-deliteralization-hypothesis-in-human-and-machine-translation)  
-   标签：评分：10.0/10、query:cross-lang
-   evidence：通过比较人类和LLM翻译的字面度来检验去字面化假设
-3. [Creativity Bias: How Machine Evaluation Struggles with Creativity in Literary Translations](/20260502-20260531/2605.13596v1-creativity-bias-how-machine-evaluation-struggles-with-creativity-in-literary-translations)  
+1. [PashtoTTS-Bench: automated screening for low-resource non-Latin-script text-to-speech](/202605/31/2605.26978v1-pashtotts-bench-automated-screening-for-low-resource-non-latin-script-text-to-speech)  
+   标签：评分：9.0/10、query:speech-tech
+   evidence：低资源非拉丁文字TTS基准与自动筛选
+2. [PilotTTS: A Disciplined Modular Recipe for Competitive Speech Synthesis](/202605/31/2605.27258v1-pilottts-a-disciplined-modular-recipe-for-competitive-speech-synthesis)  
+   标签：评分：9.0/10、query:speech-tech
+   evidence：轻量级自回归语音合成系统
+3. [Cultural Fidelity in English-to-Hindi Translation: A Preservation-Fluency Frontier for Gender Recoverability](/202605/31/2605.27654v1-cultural-fidelity-in-english-to-hindi-translation-a-preservation-fluency-frontier-for-gender-recoverability)  
    标签：评分：9.0/10、query:cross-lang
-   evidence：文学翻译中的创造力评估,非字面翻译偏差
-4. [Metaphors in Literary Post-Editing: Opening Pandora's Box?](/20260502-20260531/2605.21178v1-metaphors-in-literary-post-editing-opening-pandoras-box)  
-   标签：评分：9.0/10、query:cross-lang
-   evidence：后编辑发现大模型对隐喻的翻译过于字面化
-5. [Beyond Literal Translation: Evaluating Cultural Effectiveness in Social Media UGC](/20260502-20260531/2605.25626v1-beyond-literal-translation-evaluating-cultural-effectiveness-in-social-media-ugc)  
-   标签：评分：9.0/10、query:cross-lang
-   evidence：超越字面翻译，社交媒体用户生成内容的文化有效性
-6. [Hy-MT2: A Family of Fast, Efficient and Powerful Multilingual Translation Models in the Wild](/20260502-20260531/2605.22064v2-hy-mt2-a-family-of-fast-efficient-and-powerful-multilingual-translation-models-in-the-wild)  
+   evidence：研究英译印地语中的性别保真度，处理不可译文化线索
+4. [TARQ: Tail-Aware Reconstruction Quantization for Rare-Word Robust Automatic Speech Recognition](/202605/31/2605.27808v1-tarq-tail-aware-reconstruction-quantization-for-rare-word-robust-automatic-speech-recognition)  
+   标签：评分：9.0/10、query:speech-tech
+   evidence：面向罕见词鲁棒的自动语音识别量化方法
+5. [Benchmarking Commercial ASR Systems on Code-Switching Speech: Arabic, Persian, and German](/202605/31/2605.19069v3-benchmarking-commercial-asr-systems-on-code-switching-speech-arabic-persian-and-german)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：阿拉伯语、波斯语、德语代码切换ASR基准
+6. [Convex Low-resource Accent-Robust Language Detection in Speech Recognition](/202605/31/2605.23235v1-convex-low-resource-accent-robust-language-detection-in-speech-recognition)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：在低资源方言变化下的语音识别中实现口音鲁棒的语言检测
+7. [Hubness, Not Anisotropy, Drives Cross-Lingual Retrieval Asymmetry in Multilingual Embedding Models](/202605/31/2605.26575v1-hubness-not-anisotropy-drives-cross-lingual-retrieval-asymmetry-in-multilingual-embedding-models)  
    标签：评分：8.0/10、query:cross-lang
-   evidence：支持33种语言的多语言翻译模型，可服从翻译指令，适用于研究字面翻译倾向
+   evidence：使用包含阿拉伯语的习惯表达研究跨语言检索不对称性
+8. [Diffusion-Based Ukrainian Handwritten Text Generation with Cross-Domain Style Transfer](/202605/31/2605.27487v1-diffusion-based-ukrainian-handwritten-text-generation-with-cross-domain-style-transfer)  
+   标签：评分：8.0/10、query:mtg-bench
+   evidence：通过扩散模型生成非拉丁文字（乌克兰西里尔字母）的手写文本
 
 ### 速读区论文标签
-1. [Why do Large Language Models Fail in Low-resource Translation? Unraveling the Token Dynamics of Large Language Models for Machine Translation](/20260502-20260531/2605.07533v1-why-do-large-language-models-fail-in-low-resource-translation-unraveling-the-token-dynamics-of-large-language-models-for-machine-translation)  
-   标签：评分：8.0/10、query:cross-lang
-   evidence：使用TAR指标分析大模型在低资源语言上的翻译失败原因
-2. [Fluency and Faithfulness in Human and Machine Literary Translation](/20260502-20260531/2605.15282v1-fluency-and-faithfulness-in-human-and-machine-literary-translation)  
-   标签：评分：8.0/10、query:cross-lang
-   evidence：文学翻译中流畅性与忠实性的负相关，揭示了直译与非直译的权衡
-3. [From Flat Language Labels to Typological Priors: Structured Language Conditioning for Multilingual Speech-to-Speech Translation](/20260502-20260531/2605.16026v1-from-flat-language-labels-to-typological-priors-structured-language-conditioning-for-multilingual-speech-to-speech-translation)  
+1. [Phonetic Modeling of Dialectal Variation in Vietnamese Speech](/202605/31/2605.24451v1-phonetic-modeling-of-dialectal-variation-in-vietnamese-speech)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：多语言语音到语音翻译,类型学先验
-4. [Can Large Language Models Reliably Correct Errors in Low-Resource ASR? A Contamination-Aware Case Study on West Frisian](/20260502-20260531/2605.19711v1-can-large-language-models-reliably-correct-errors-in-low-resource-asr-a-contamination-aware-case-study-on-west-frisian)  
+   evidence：越南语语音识别的方言感知音系建模
+2. [Multilingual Phonological Feature Recognition with Self-Supervised Speech Models](/202605/31/2605.25596v1-multilingual-phonological-feature-recognition-with-self-supervised-speech-models)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：基于LLM的低资源ASR生成式纠错，涉及方言语音识别
-5. [The Impact of Vocabulary Overlaps on Knowledge Transfer in Multilingual Machine Translation](/20260502-20260531/2605.04196v1-the-impact-of-vocabulary-overlaps-on-knowledge-transfer-in-multilingual-machine-translation)  
+   evidence：多语言帧级音系特征识别器
+3. [Thaka at KSAA-2026 Task 2: Regularized Fine-Tuning for Arabic Speech Diacritization](/202605/31/2605.25928v1-thaka-at-ksaa-2026-task-2-regularized-fine-tuning-for-arabic-speech-diacritization)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：使用正则化微调进行阿拉伯语音频标注
+4. [FalAR: A Large-scale Speaker-Annotated European Portuguese Speech Corpus of Parliamentary Sessions](/202605/31/2605.27062v1-falar-a-large-scale-speaker-annotated-european-portuguese-speech-corpus-of-parliamentary-sessions)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：欧洲葡萄牙语ASR语料库，低资源语言
+5. [PilotTTS: A Disciplined Modular Recipe for Competitive Speech Synthesis](/202605/31/2605.27258v2-pilottts-a-disciplined-modular-recipe-for-competitive-speech-synthesis)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：轻量级自回归TTS系统，使用Q-Former条件机制
+6. [ERNIE-Image Technical Report](/202605/31/2605.25347v1-ernie-image-technical-report)  
+   标签：评分：7.0/10、query:mtg-bench
+   evidence：文本到图像生成模型，与多语言图像生成基准相关
+7. [Proactive for Uncertainty: Cause-Aware Error Diagnosis and Interactive Clarification for Spoken Dialogue Systems](/202605/31/2605.25404v1-proactive-for-uncertainty-cause-aware-error-diagnosis-and-interactive-clarification-for-spoken-dialogue-systems)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：口语对话系统中的自动语音识别错误诊断
+8. [SemBridge: Language Transfer in Sparse Encoders via Multilingual Semantic Bridges](/202605/31/2605.26002v1-sembridge-language-transfer-in-sparse-encoders-via-multilingual-semantic-bridges)  
    标签：评分：7.0/10、query:cross-lang
-   evidence：词汇重叠对多语言神经机器翻译知识迁移的影响
-6. [Reinforcement Learning with Semantic Rewards Enables Low-Resource Language Expansion without Alignment Tax](/20260502-20260531/2605.14366v1-reinforcement-learning-with-semantic-rewards-enables-low-resource-language-expansion-without-alignment-tax)  
-   标签：评分：7.0/10、query:cross-lang
-   evidence：语义奖励强化学习实现低资源语言扩展无对齐税
-7. [Retrieval-Augmented Long-Context Translation for Cultural Image Captioning: Gators submission for AmericasNLP 2026 shared task](/20260502-20260531/2605.20626v1-retrieval-augmented-long-context-translation-for-cultural-image-captioning-gators-submission-for-americasnlp-2026-shared-task)  
-   标签：评分：7.0/10、query:cross-lang
-   evidence：土著语言文化图像字幕翻译，检索增强提示
-8. [Cross-Lingual Consensus: Aligning Multilingual Cultural Knowledge via Multilingual Self-Consistency](/20260502-20260531/2605.22137v2-cross-lingual-consensus-aligning-multilingual-cultural-knowledge-via-multilingual-self-consistency)  
-   标签：评分：7.0/10、query:cross-lang
-   evidence：通过自一致性对齐跨语言文化知识
-9. [What Does LLM Refinement Actually Improve? A Systematic Study on Document-Level Literary Translation](/20260502-20260531/2605.13368v1-what-does-llm-refinement-actually-improve-a-systematic-study-on-document-level-literary-translation)  
+   evidence：稀疏编码器的跨语言语义对齐
+9. [Do Audio LLMs Listen or Read? Analyzing and Mitigating Paralinguistic Failures with VoxParadox](/202605/31/2605.27772v1-do-audio-llms-listen-or-read-analyzing-and-mitigating-paralinguistic-failures-with-voxparadox)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：音频LLM副语言理解的对抗性基准
+10. [VaaWIT: Visual-Aware Adaptation of Large Language Models for Multilingual Web Image Translation](/202605/31/2605.24675v1-vaawit-visual-aware-adaptation-of-large-language-models-for-multilingual-web-image-translation)  
+   标签：评分：6.0/10、query:mtg-bench
+   evidence：面向多语言网页图像翻译的视觉感知适应，包含字符形态识别
+11. [An In-Vitro Study on Cross-Lingual Generalization in Language Models](/202605/31/2605.26683v1-an-in-vitro-study-on-cross-lingual-generalization-in-language-models)  
    标签：评分：6.0/10、query:cross-lang
-   evidence：对文档级文学翻译中LLM自优化策略的系统研究，探讨翻译质量维度
-10. [Reference-Free Reinforcement Learning Fine-Tuning for MT: A Seq2Seq Perspective](/20260502-20260531/2605.15976v1-reference-free-reinforcement-learning-fine-tuning-for-mt-a-seq2seq-perspective)  
-   标签：评分：6.0/10、query:cross-lang
-   evidence：强化学习微调机器翻译,多语言
-11. [Hy-MT2: A Family of Fast, Efficient and Powerful Multilingual Translation Models in the Wild](/20260502-20260531/2605.22064v1-hy-mt2-a-family-of-fast-efficient-and-powerful-multilingual-translation-models-in-the-wild)  
-   标签：评分：6.0/10、query:cross-lang
-   evidence：多语言翻译模型系列，性能强大
+   evidence：跨语言迁移因素的受控实验研究
+12. [LoSATok: Low-dimensional Semantic-Acoustic Tokenizer for Cross-Domain Audio Understanding and Generation](/202605/31/2605.27840v1-losatok-low-dimensional-semantic-acoustic-tokenizer-for-cross-domain-audio-understanding-and-generation)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：低维音频分词器可应用于多语言语音合成
+13. [Compositional Text-to-Image Generation Via Region-aware Bimodal Direct Preference Optimization](/202605/31/2605.28615v1-compositional-text-to-image-generation-via-region-aware-bimodal-direct-preference-optimization)  
+   标签：评分：6.0/10、query:mtg-bench
+   evidence：组合式文本到图像生成与偏好优化，可应用于非拉丁文字
 
 
 <div class="dpr-home-promo-card">
