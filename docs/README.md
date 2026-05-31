@@ -7,57 +7,55 @@
 
 ## 每次日报
 - 最新运行日期：2026-05-02 ~ 2026-05-31
-- 运行时间：2026-05-31 01:11:11 UTC
+- 运行时间：2026-05-31 10:57:26 UTC
 - 运行状态：成功
 - 本次总论文数：12
-- 精读区：4
-- 速读区：8
+- 精读区：3
+- 速读区：9
 
 ### 今日简报（AI）
-1) 今日精选4篇精读、8篇速读，聚焦文本图像编辑的跨语言退化与文生图模型评估。
-2) 最值得看《MULTITEXTEDIT》揭示文本图像编辑时多语言性能下降问题，以及《Qwen-Image-2.0》技术报告展示最新多模态模型能力。
-3) 建议关注跨语言文本图像编辑的鲁棒性提升，以及多模态大模型在OCR任务上的微调实践。
+今日精读聚焦跨语言文本编辑退化与Qwen图像模型升级，速读覆盖多语言场景文本生成与文本渲染对齐等方向。最值得关注的是《MULTITEXTEDIT》对文本编辑中跨语言退化问题的系统性评估，以及《Qwen-Image-2.0》的技术细节。建议关注多语言文本生成与编辑的可靠性提升，以及底层图像生成模型的偏好对齐方法。
 - 详情：[/20260502-20260531/README](/20260502-20260531/README)
 
 ### 精读区论文标签
 1. [MULTITEXTEDIT: Benchmarking Cross-Lingual Degradation in Text-in-Image Editing](/20260502-20260531/2605.08163v1-multitextedit-benchmarking-cross-lingual-degradation-in-text-in-image-editing)  
    标签：评分：9.0/10、query:mtg-bench
-   evidence：跨语言文本图像编辑基准，包含12种语言，涵盖非拉丁文字
+   evidence：多语言文本图像基准，覆盖非拉丁文字包括右到左书写系统
 2. [Qwen-Image-2.0 Technical Report](/20260502-20260531/2605.10730v1-qwen-image-20-technical-report)  
+   标签：评分：9.0/10、query:mtg-bench
+   evidence：处理多语言排版和超长文本渲染的挑战
+3. [Skill-Aligned Annotation for Reliable Evaluation in Text-to-Image Generation](/20260502-20260531/2605.13223v1-skill-aligned-annotation-for-reliable-evaluation-in-text-to-image-generation)  
    标签：评分：8.0/10、query:mtg-bench
-   evidence：多语言文字渲染能力
-3. [StyleTextGen: Style-Conditioned Multilingual Scene Text Generation](/20260502-20260531/2605.14708v1-styletextgen-style-conditioned-multilingual-scene-text-generation)  
-   标签：评分：8.0/10、query:mtg-bench
-   evidence：多语言场景文本生成，适用于非拉丁文字
-4. [DyCoRM: Dynamic Criterion-Aware Reward Modeling for Text-to-Image Generation](/20260502-20260531/2605.25876v1-dycorm-dynamic-criterion-aware-reward-modeling-for-text-to-image-generation)  
-   标签：评分：8.0/10、query:mtg-bench
-   evidence：用于文本到图像生成评估的动态奖励模型
+   evidence：面向文本到图像生成的技能对齐评估方法
 
 ### 速读区论文标签
-1. [Beyond Text Prompts: Visual-to-Visual Generation as A Unified Paradigm](/20260502-20260531/2605.12271v1-beyond-text-prompts-visual-to-visual-generation-as-a-unified-paradigm)  
+1. [StyleTextGen: Style-Conditioned Multilingual Scene Text Generation](/20260502-20260531/2605.14708v1-styletextgen-style-conditioned-multilingual-scene-text-generation)  
    标签：评分：7.0/10、query:mtg-bench
-   evidence：视觉到视觉生成范式，绕过文本提示，直接指定字形形状
-2. [Multilingual OCR-Aware Fine-Tuning and Prompt-Guided Chain-of-Thought Reasoning for Multimodal Large Language Models](/20260502-20260531/2605.16409v1-multilingual-ocr-aware-fine-tuning-and-prompt-guided-chain-of-thought-reasoning-for-multimodal-large-language-models)  
+   evidence：风格条件多语言场景文本生成
+2. [TextAlign: Preference Alignment for Text Rendering with Hierarchical Rewards](/20260502-20260531/2605.19320v1-textalign-preference-alignment-for-text-rendering-with-hierarchical-rewards)  
    标签：评分：7.0/10、query:mtg-bench
-   evidence：多语言OCR感知微调，提升文本渲染
-3. [DynT2I-Eval: A Dynamic Evaluation Framework for Text-to-Image Models](/20260502-20260531/2605.06170v1-dynt2i-eval-a-dynamic-evaluation-framework-for-text-to-image-models)  
+   evidence：文本到图像生成中的文本渲染对齐方法
+3. [Decomposing Subject-Driven Image Generation via Intermediate Structural Prediction](/20260502-20260531/2605.20807v1-decomposing-subject-driven-image-generation-via-intermediate-structural-prediction)  
+   标签：评分：7.0/10、query:mtg-bench
+   evidence：改进图像生成中的文本渲染
+4. [VaaWIT: Visual-Aware Adaptation of Large Language Models for Multilingual Web Image Translation](/20260502-20260531/2605.24675v1-vaawit-visual-aware-adaptation-of-large-language-models-for-multilingual-web-image-translation)  
+   标签：评分：7.0/10、query:mtg-bench
+   evidence：多语言网页图像翻译，通过双流编码器处理非拉丁字符
+5. [Comparative Evaluation of Machine Translation Systems on Images with Text](/20260502-20260531/2605.29476v1-comparative-evaluation-of-machine-translation-systems-on-images-with-text)  
+   标签：评分：7.0/10、query:mtg-bench
+   evidence：对含文本图像的机器翻译系统进行比较评估，与评估非拉丁文字渲染相关
+6. [Language-Conditioned Visual Grounding with CLIP Multilingual](/20260502-20260531/2605.09060v1-language-conditioned-visual-grounding-with-clip-multilingual)  
    标签：评分：6.0/10、query:mtg-bench
-   evidence：动态评估框架可适用于非拉丁脚本评估
-4. [Training-Free Occluded Text Rendering via Glyph Priors and Attention-Guided Semantic Blending](/20260502-20260531/2605.16810v1-training-free-occluded-text-rendering-via-glyph-priors-and-attention-guided-semantic-blending)  
+   evidence：跨脚本多语言视觉语言模型评估
+7. [Beyond Text Prompts: Visual-to-Visual Generation as A Unified Paradigm](/20260502-20260531/2605.12271v1-beyond-text-prompts-visual-to-visual-generation-as-a-unified-paradigm)  
    标签：评分：6.0/10、query:mtg-bench
-   evidence：文本渲染方法可应用于非拉丁文字
-5. [StyleText: A Large-Scale Dataset and Benchmark for Stylized Scene Text Inpainting](/20260502-20260531/2605.17309v1-styletext-a-large-scale-dataset-and-benchmark-for-stylized-scene-text-inpainting)  
+   evidence：视觉到视觉生成范式可处理字形形状和空间结构，与图像生成中的文字渲染相关
+8. [Multilingual OCR-Aware Fine-Tuning and Prompt-Guided Chain-of-Thought Reasoning for Multimodal Large Language Models](/20260502-20260531/2605.16409v1-multilingual-ocr-aware-fine-tuning-and-prompt-guided-chain-of-thought-reasoning-for-multimodal-large-language-models)  
    标签：评分：6.0/10、query:mtg-bench
-   evidence：大规模风格化场景文本修复数据集和基准，与文本渲染评估相关
-6. [TextAlign: Preference Alignment for Text Rendering with Hierarchical Rewards](/20260502-20260531/2605.19320v1-textalign-preference-alignment-for-text-rendering-with-hierarchical-rewards)  
+   evidence：多语言OCR感知微调，提升MLLM对非拉丁文字的理解和渲染
+9. [Qwen-Image-Bench: From Generation to Creation in Text-to-Image Evaluation](/20260502-20260531/2605.28091v1-qwen-image-bench-from-generation-to-creation-in-text-to-image-evaluation)  
    标签：评分：6.0/10、query:mtg-bench
-   evidence：文本渲染偏好对齐方法
-7. [TextSculptor: Training and Benchmarking Scene Text Editing](/20260502-20260531/2605.21090v1-textsculptor-training-and-benchmarking-scene-text-editing)  
-   标签：评分：6.0/10、query:mtg-bench
-   evidence：场景文本编辑基准，与图像中文本渲染评估相关
-8. [Diffusion-Based Ukrainian Handwritten Text Generation with Cross-Domain Style Transfer](/20260502-20260531/2605.27487v1-diffusion-based-ukrainian-handwritten-text-generation-with-cross-domain-style-transfer)  
-   标签：评分：6.0/10、query:mtg-bench
-   evidence：基于扩散的非拉丁乌克兰语手写文本生成
+   evidence：文本到图像生成评估基准
 
 
 <div class="dpr-home-promo-card">
