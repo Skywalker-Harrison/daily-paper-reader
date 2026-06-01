@@ -1,0 +1,3475 @@
+Title: A Statistical Framework for Data-dependent Retrieval-Augmented Models
+
+URL Source: https://openreview.net/pdf?id=A9MiJdetnZ
+
+Number of Pages: 27
+
+Markdown Content:
+# A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+Soumya Basu * 1 Ankit Singh Rawat * 2 Manzil Zaheer * 3 
+
+## Abstract 
+
+Modern ML systems increasingly augment input instances with additional relevant information to enhance final prediction. Despite growing interest in such retrieval-augmented models, their funda-mental properties and training are not well under-stood. We propose a statistical framework to study such models with two components: 1) a retriever 
+
+to identify the relevant information out of a large corpus via a data-dependent metric; and 2) a pre-dictor that consumes the input instances along with the retrieved information to make the final predictions. We present a principled method for end-to-end training of both components and draw connections with various training approaches in the literature. Furthermore, we establish excess risk bounds for retrieval-augmented models while delineating the contributions of both retriever and predictor towards the model performance.We val-idate the utility of our proposed training methods along with the key takeaways from our statistical analysis on open domain question answering task where retrieval augmentation is important. 
+
+## 1. Introduction 
+
+Recent advancements in machine learning (ML) have not only led to breakthroughs on long-standing challenging tasks across various fields, but they have also inspired a great deal of interest to develop ML models that can solve even harder tasks (Meinhardt et al., 2022; Lewkowycz et al., 2022; Cramer, 2021) or focus on completely new fields (Austin et al., 2021; OpenAI, 2023; Singhal et al., 2023). While scaling the size of parametric ML models, such as neural networks, is becoming the predominant ap-proach to meet such demands (Brown et al., 2020; Chowd-hery et al., 2022; Touvron et al., 2023; Dosovitskiy et al.,        
+
+> *Equal contribution; in alphabetical order 1Google, New York, USA 2Google Research, New York, USA 3Google DeepMind, New York, USA. Correspondence to: Soumya Basu <basu-soumya@google.com >.
+> Proceedings of the 41 st International Conference on Machine Learning , Vienna, Austria. PMLR 235, 2024. Copyright 2024 by the author(s).
+
+2021; Dehghani et al., 2023), the excellent performance re-alized by this approach is marred by drawbacks such as high computational cost, inefficient storage of world knowledge in parameters, lack of transparency in model behavior, and reduced grounding/factuality of model predictions. Recognizing these shortcomings, retrieval-augmented mod-els (RAMs) have emerged as a promising alternative. Such models typically employ two components, namely retriever 
+
+and predictor , during inference on a given input instance: The retriever first identifies instance-specific relevant in-formation from a data-store, and then the predictor jointly processes the retrieved information and the input instance to make a final prediction. In practice, RAMs have enjoyed fa-vorable performance vs. compute trade-off (Borgeaud et al., 2021; Das et al., 2021; Thai et al., 2023) as employing moderate-size parametric models as retriever and predictor in a RAM often matches or exceeds the performance of a much larger standalone ML model that directly maps input instances to predictions. Similarly, conditioning prediction on the retrieved information has shown to exhibit improved grounding (Shuster et al., 2021; Lin et al., 2023; Asai et al., 2023). Furthermore, having access to an external corpus can obviate the need to store task-specific world knowledge in model parameters and enable incorporating dynamically evolving knowledge (Izacard et al., 2022; Liska et al., 2022). Despite these desirable characteristics, training RAMs presents multiple challenges. The natural approach of in-dependently training retriever and predictor can be sub-optimal (Izacard et al., 2022). Moreover, it requires col-lecting intermediate supervision on the instance-dependent relevant information to retrieve, which is missing in com-mon datasets and expensive to obtain in general. A common strategy to circumvent the lack of intermediate supervision is to perform end-to-end training which presents its own unique challenges in the context of RAMs. Fundamentally, the retrieval corresponds to the non-differentiable discrete operation of selecting relevant information from a data-store, e.g., via top-k selection based on retriever scores, which pre-vents direct gradient propagation to the entire receiver. Sev-eral clever solutions to above-mentioned issues have been proposed in the literature that focus on different training objectives to propagate learning signal from the predictor into the retriever. However, a formal study that unifies these solutions is missing from the literature. 1A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+Another key challenge that prevents the resource-efficient development and deployment of RAMs is the limited under-standing of their basic properties such as their generalization behavior and expressive power. For instance, how do the retriever and predictor components interact to ensure good task-specific performance? Are there any principles guiding the selection of the retriever and predictor components? How does (size of) the data-store feature in the final performance of a RAM? In this paper, we address both aforementioned shortcoming in the literature pertaining RAMs. To unify the training of RAMs, we begin with writing down the natural objective function, which somehow has eluded the literature. This nat-ural objective simply minimizes the expected prediction loss, where the expectation is taken over the distribution induced by the retriever. Empirically, we find this objective to be effective on standard benchmarks: NaturalQuestions (NQ; Kwiatkowski et al., 2019) and TriviaQA (Joshi et al., 2017). As for the generalization and expressive power, we present an excess risk bound for RAMs that captures the effect of retrieval and prediction function classes. The proposed bound allows us to highlight how retriever and predictor components play complementary roles to reduce approxi-mation error as we increase their respective function class complexity. We also capture the role of data store in improv-ing the model performance by reducing the approximation error. On the generalization front, we carefully decouple the generalization term in the excess risk over the predictor and retriever function classes. This allows us to tightly control the generalization term with only logarithmic dependence on the data store size. As a concrete instantiation for our ex-cess risk bounds, we consider feed-forward neural networks of varying depth for both the retriever and the predictor. To summarize, our main contributions include: 
+
+• We present a principled objective for end-to-end training of RAMs focusing on a classification setting (Sec. 2 3) and draw connections between existing approaches for training RAMs (Sec. 3.6). 
+
+• We derive excess risk bound highlighting the role played by retriever and predictor functions classes as well as the data-store towards ensuing improved performance by RAMs (Sec. 3.4); capturing the trade off between model capacities at retriever and predictor (Sec. 3.5). 
+
+• We validated the utility of the proposed objective on two standard QA benchmarks: NaturalQuestions (NQ) and TriviaQA (Sec. 4). 
+
+## 2. Problem setup 
+
+In this paper, we focus on developing a systematic under-standing of RAMs with learned retrievers in a classification setting where the model has access to a data-store. Towards this, we begin by formally defining the problem setup and providing the necessary background along with the nota-tions used. Let’s first consider the standard classification setting which requires predicting a class in Y for a given instance x ∈ X.Assume that DXY captures the underlying data distribu-tion and one has access to n training examples Sn ,
+
+{(xi, y i)}i∈[n] that are independent and identically dis-tributed (i.i.d.) according to DXY . Given Sn, one hopes to learn a classifier f : X → R|Y| that minimizes the miss-classification error: 
+
+R(f ) = P(X,Y )∼DXY 
+
+[ arg max 
+
+> y∈Y
+
+f y (X) 6 = Y ], (1) where f y (x) denotes the score that f assigns to the y-th class, given the input instance x. Since directly optimizing the miss-classification error or 0/1-loss poses computational challenges, one typically selects the classifier that minimizes the empirical risk associated with a well behaved surrogate loss function ` : R|Y| × Y → R on the training sample Sn:
+
+R`,n (f ) = 1
+
+n
+
+∑
+
+> i∈[n]
+
+`(f (xi), y i
+
+). (2) The (population) risk associated with the surrogate loss function takes the following form: 
+
+R`(f ) = E(X,Y )∼DXY 
+
+[`(f (X), Y )] . (3) Different from the standard classification setup described above, we now consider the classification task with access to a data-store: Given an instance x, the classifier can po-tentially leverage a data-store I ⊆ Z – a collection of po-tentially relevant information or evidences, where Z de-notes the space of all possible evidences. Accordingly, one can define the empirical and population risks of a classifier 
+
+f (·, I) : X → R|Y| as follows: 
+
+R`, I,n (f ) = 1
+
+n
+
+∑
+
+> i∈[n]
+
+`(f (xi, I), y i
+
+), (4) 
+
+R`, I(f ) = E[`(f (X, I), Y )] , (5) where expectation is take over in (X, Y ) ∼ DXY as well as the possible randomness in f (·, I). However, due its pro-hibitive computational cost, such a general classifier that directly processes the entire data-store for each prediction is far from how an additional data-store is utilized by ML models in practice. This motivates us to study the following explicit retrieval-augmented classification setup to utilize the data-store: Given an input instance x ∈ X, one first retrieves input-dependent supporting evidences Ex ⊂ I with the help of a 
+
+retriever model which has access to the entire data-store I.2A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+Now, given x and Ex, one invokes a predictor model to pre-dict the class associated with x. Thus, a retriever-augmented classification setup consists of two key components mod-els: 1) retriever model and 2) predictor model, which we formally introduce next. 
+
+Retriever model. For the retrieval stage, we rely on a re-triever model to capture the relevance of an evidence z ∈ I
+
+towards the input instance x ∈ X. Let rθ : X × Z → R be the retriever model parameterized by θ ∈ Θ that assigns a relevance score rθ (x, z ) to the instance-evidence pair (x, z ).Furthermore, for each instance x, the retriever model rθ
+
+induces the following distribution over the set of potential evidences: 
+
+pθ, I
+
+(z|x) = exp (rθ (x, z ))∑ 
+
+> z′∈I
+
+exp (rθ (x, z ′)) , ∀ z ∈ I. (6) There are multiple strategies to construct the set of input-dependent supporting evidences Ex based on rθ . For exam-ple, for a fixed integer k ≥ 1, one could select k evidences corresponding to the k highest scores in {rθ (x, z )}z∈I. An-other strategy is to sample k evidences according to the distribution pθ, I(·| x) in (6) . Here, one could perform the sampling with or without replacement. In what follows, we denote the retrieved supporting evidence for the instance 
+
+x as Exθ to highlight the dependence on the underlying re-triever model. 
+
+Predictor model. Let hξ : X × I∗ → R|Y| be the predictor model parameterized by ξ ∈ Ξ, where I∗ denotes the Kleene star on I. Given x ∈ X and E ∈ I∗, the predictor model hξ
+
+assigns a score to each class in Y, defining a distribution over Y as follows: 
+
+pξ
+
+(y|x, E) = exp (hyξ (x, E))∑ 
+
+> y′∈Y
+
+exp (hy′ 
+
+> ξ
+
+(x, E)) , ∀ y ∈ Y, (7) where hyξ (·, ·) denotes the score assigned to the y-th class by the predictor model hξ .For ease of exposition, we focus on the setting with k =
+
+|Exθ | = 1 , ∀x ∈ X, in our analysis throughout this paper. This corresponds to retrieving a single supporting evidence for each input instance. Our analysis can be generalized to k > 1 by working with a ˜I ⊆ Ik as the new data-store and ˜pθ, I(·| x) as a distribution over ˜I obtained by suitably modifying pθ, I in (6) . For example, when k supporting ev-idences are sampled with replacement, then the following holds ∀(z1, . . . , z k) ∈ Ik.
+
+˜pθ, I
+
+((z1, . . . , z k)∣∣x) = ∏
+
+> j∈[k]
+
+pθ, I(zj |x).
+
+Empirical risk minimization and excess risk for RAMs. For a pair of retriever and predictor models pa-rameterized by θ and ξ, respectively, we can define the empirical and population risks associated with a (surrogate) loss function ` as follows: 
+
+R`, I,n (ξ, θ ) = 1
+
+n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈I
+
+pθ (z|x)`(hξ (xi, z ), y i
+
+), (8) 
+
+R`, I(ξ, θ ) = E[`(hξ (X, EXθ ), Y )] . (9) Note that the expectation in (9) is taken over (X, Y ) ∼
+
+DXY as well as the randomness involved in the retrieval stage, e.g., sampling the evidences according to pθ, I(·| x)
+
+in (6) . Given a pair of predictor class Ξ and retriever class 
+
+Θ, let ( ˆξ, ˆθ) denote the predictor-retriever pair obtained via 
+
+empirical risk minimization (ERM) as follows: 
+
+( ˆξ, ˆθ) ∈ arg min 
+
+> (ξ,θ )∈Ξ×Θ
+
+R`, I,n (ξ, θ ). (10) Let Fall denote the set of all measurable functions from 
+
+X × Z to R|Y|. The optimal risk for the classification with access to the data-store is achieved by the best possible predictor f ` 
+
+> opt ,I
+
+∈ F when it has access to the best retrieved evidence in I. In particular, we have 
+
+f ` 
+
+> opt ,I
+
+= arg min  
+
+> f∈Fall
+
+E[ min  
+
+> z∈I
+
+`(f (X, z ), Y )]. (11) Given f `
+
+> opt ,I
+
+, we defined the excess risk of a predictor-retriever pair (ξ, θ ) as follows: 
+
+∆`, I(ξ, θ ) = R`, I(ξ, θ ) − R`, I(f `
+
+> opt ,I
+
+)
+
+, R`, I(ξ, θ ) − E[ min  
+
+> z∈I
+
+`(f `
+
+> opt ,I
+
+(X, z ), Y )]. (12) With the formal definition of the classification setting with access to a data-store and the necessary background in place, we proceed to address the two key objectives of this work: 1) Proposing a natural and efficient joint end-to-end training procedure for the predictor-retriever pair in a RAM; and 2) Developing a rigorous statistical understanding of RAMs focusing on the interaction between predictor and retriever components towards reducing overall excess risk. 
+
+## 3. Joint training and excess risk 
+
+Recall that training a RAM involves training both the re-triever rθ : X × Z → R and the predictor hξ : X × I → R|Y|
+
+components of the model without access to intermediate su-pervision on retrieval, which is infeasible to obtain in most practical settings. Thus, it becomes critical to devise meth-ods to jointly train rθ and hξ with access to only labeled instances Sn = {(xi, y i)}i∈[n] ⊆ X × Y with the predictor guiding the retriever training based on how valuable the retriever-provided evidences are towards the correct final prediction. Towards this, we leverage the empirical risk from (8) along with the log-loss `(hξ (x, z ), y ) = − log pξ (y|x, z ), where 
+
+pξ (y|x, z ) is defined in (7) . In particular, this leads to the following joint end-to-end training objective: 
+
+Ln(ξ, θ ; I) , Rlog ,I,n (ξ, θ )= − 1
+
+n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈I
+
+pθ, I(z|xi) · log pξ (yi|xi, z ). (13) 3A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+Note that the objective in (13) aims to improve the end-to-end performance of a RAM in deployment in the sense that the objective aims to minimize the expected loss given the selected evidences as per the retriever-induced distribution. One can use gradient-based methods to jointly minimize the objective in (13) with respect to (ξ, θ ); however, its efficient implementation is non-trivial due to the sum over entire data-store I. In App. C.1, we discuss some approximate design choices. Lastly, please refer to Sec. 3.6 for connections between our proposed objective in (13) and some of the existing end-to-end training approaches for RAMs. Next, to study the generalization and expressive power of RAMs, we want to bound the excess risk ∆`, I( ˆξ, ˆθ) as de-fined in (12) . We consider X to be a compact subspace of 
+
+Rdx and, for simplicity, take X ⊆ [−1, 1] dx . Similarly, we consider that each retrieval example z ∈ I is embedded in the space [−1, 1] dz . We consider a data-store that polynomi-ally scales with training data size, i.e., |I| = poly( n). For the purpose of analysis, we specialize our log-loss to be bounded by `max > 0, which is given as 
+
+`(hξ (x, z ), y ) = min( `max , − log pξ (y|x, z )) (14) 
+
+= min 
+
+(
+
+`max , log 
+
+( ∑ 
+
+> y′∈Y
+
+exp( hy′ 
+
+> ξ
+
+(x, z )) 
+
+)
+
+− hyξ (x, z )
+
+)
+
+,
+
+where pξ (y|x, z ) and hyξ (x, z ) are defined in (7). 
+
+3.1. Excess risk decomposition 
+
+Our excess risk relies on separating out the contribution coming from the retriever and the predictor during the joint training. Moreover, the retriever and predictor errors can be each split into generalization and approximation error. The population risk optimizer of our joint training over the space Ξ × Θ is defined as 
+
+ξ∗
+
+> joint
+
+, θ ∗
+
+> joint
+
+= arg min 
+
+> (ξ,θ )∈Ξ×Θ
+
+EX
+
+[EZ∼pθ (·| X)EY |X `(hξ (X, Z ), Y )].
+
+For a predictor ξ, sample x ∈ X and retrieved example 
+
+z ∈ I, let us denote the risk averaged over the labels Y as 
+
+gξ (x, z ) = EY |X=x[`(hξ (x, z ), Y )] . (15) For any fixed predictor ξ (not necessarily in Ξ) and fixed data-store I, the retriever that optimizes the joint population risk is given as p∗,ξ (z|x) = 1arg min z′∈I gξ (x,z ′)(z), where a tie is broken arbitrarily. Note that, for each sample x, the best retrieved evidence z may change. We define the optimal predictor within the class Ξ with best possible retriever as 
+
+ξ∗ = arg min 
+
+> ξ∈Ξ
+
+EX
+
+[ min  
+
+> z∈I
+
+gξ (X, z )].
+
+The optimal retriever within the class Θ for a given predictor 
+
+ξ is defined as 
+
+θ(ξ) = arg min 
+
+> θ∈Θ
+
+EX
+
+[EZ∼pθ (·| X)gξ (X, Z )].
+
+The excess risk for the classes Θ and Ξ can be bounded as 
+
+∆`, I( ˆξ, ˆθ)
+
+≤ ∑ 
+
+> (θ,ξ )∈{ (ˆθ, ˆξ),(θ∗
+> joint ,ξ ∗
+> joint )}
+
+|R`, I(ξ, θ ) − R`, I,n (ξ, θ )|
+
+︸ ︷︷ ︸
+
+> Generalization Error
+
++ R`, I(ξ∗, θ (ξ∗)) − EX
+
+[ min  
+
+> z∈I
+
+gξ∗ (X, z )]︸ ︷︷ ︸
+
+> retriever error
+
++ EX
+
+[ min  
+
+> z∈I
+
+gξ∗ (X, z )] − R`, I(f `
+
+> opt ,I
+
+)
+
+︸ ︷︷ ︸
+
+> predictor error
+
+(16) 
+
+3.2. Generalization error 
+
+We first bound the generalization error and relate it to the covering number of the retriever and predictor class. As our loss is bounded by `max , through standard concen-tration bounds (Shalev-Shwartz & Ben-David, 2014), we obtain that, for any δ > 0, with probability at least (1 − δ):
+
+|R`, I(ξ∗
+
+> joint
+
+, θ ∗
+
+> joint
+
+)−R`, I,n (ξ∗
+
+> joint
+
+, θ ∗
+
+> joint
+
+)| ≤ 3`max 
+
+√ log(1 /δ ) 
+
+> n
+
+.
+
+However, ( ˆξ, ˆθ) is learned from the data. A high probability generalization error requires taking union over the space of 
+
+Ξ × Θ. We employ Rademacher complexity based general-ization error bounds. Next, the covering number of the space 
+
+Ξ is used to bound the associated Rademacher complexity. See Shalev-Shwartz & Ben-David (2014) for details. We define two norms which are used in defining the covering numbers for Θ and Ξ. In particular, ∀u ∈ Rn×| I| and fixed 
+
+ξ ∈ Ξ, θ ∈ Θ,
+
+‖u‖2,[n],ξ =
+
+( 1
+
+> n
+
+∑
+
+> i∈[n]
+
+( ∑ 
+
+> z∈I
+
+ui,z `(hξ (xi, z ), y i
+
+)) 2)1/2
+
+,
+
+‖u‖2,[n],θ =
+
+( 1
+
+> n
+
+∑
+
+> i∈[n]
+
+( ∑ 
+
+> z∈I
+
+pθ (z|xi)ui,z 
+
+)2)1/2
+
+. (17) We also define N (Ξ , ν, ‖ · ‖ 2,[n],θ ) to be the ν-covering number for the class Ξ with respect to the norm ‖ · ‖ 2,[n],θ ,and N (Θ , ν, ‖ · ‖ 2,[n],ξ ) to be the ν-covering number for the class Θ with respect to the norm ‖ · ‖ 2,[n],ξ . Then we 4A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+have the generalization bound given as 
+
+|R`, I( ˆξ, ˆθ) − R`, I,n ( ˆξ, ˆθ)| ≤ inf 
+
+> ε∈[0 ,` max /2]
+
+(
+
+8ε
+
++ 24 √n
+
+∫ `max 
+
+> 2
+> ε
+
+fN (ν/ 2; Θ , Ξ) + fN (ν/ 2; Ξ , Θ) dν 
+
+)
+
+,
+
+(18) for fN (ν; A, B) = sup b∈B 
+
+√log( N (A, ν, ‖ · ‖ 2,[n],b )) .
+
+We use ideas in Zhang (2023) to upper bound the covering number with pseudo-dimension (defined in the Appendix A) of the function class. This allows us to have a log |I| depen-dence in the generalization error, while working with norm unbounded function classes. 
+
+3.3. Approximation error 
+
+We next proceed to bound the retriever and predictor ap-proximation errors. Towards this, we extensively use the Sobolev functions spaces. A Sobolev space for a domain Ω
+
+is characterized by two quantities, κ – the number of weak-derivatives a (real-valued) function within it possesses, and 
+
+Lp(Ω) – the norm with respect to which these derivatives are integrable. Please see Appendix A for a complete definition. 3.3.1. R ETRIEVER ERROR 
+
+The retriever error is given by how well the score function 
+
+rθ (x, z ) approximates the optimal retriever given ξ∗. In order to do so we first need to impose some smoothness constraints on the function gξ∗ : X × Z → R. In particular, we assume the following. 
+
+Assumption 3.1 (Complexity of gξ∗ ). There exists a base-line function bξ∗ : [−1, 1] dx → R such that the func-tion gap ξ∗ : [ −1, 1] dx+dz → R defined by gap ξ∗ (x, z ) ,
+
+(gξ∗ (x, z ) − bξ∗ (x)) lies in the Sobolev space with κ deriva-tives and L∞([ −1, 1] dx+dz ) norm. The above assumption says that for the predictor ξ∗ the loss profile (averaged over labels in Y) gξ∗ (x, z ), has two components – a (possibly) complex bξ∗ (x) component that is uniform over z, and a ‘smooth’ gap ξ∗ (x, z ) component. In other words, given two similar retrieved evidences, the predictor incurs similar losses when each of the evidences is utilized with an input instance. Then, for any τ > 0, we can bound the retriever loss as follows: 
+
+R`, I(ξ∗, θ (ξ∗)) − EX
+
+[ min  
+
+> z∈I
+
+gξ∗ (X, z )]
+
+≤ inf  
+
+> θ∈Θ
+
+`max ‖rθ + τ · gap ξ∗ ‖∞ + log |I|
+
+τ 2 (19) 3.3.2. P REDICTOR ERROR 
+
+The predictor error is measured with the optimal retrieval (as the retriever error is considered separately above). For this, we need to first quantify how the retrieval augmentation using the data-store I helps. 
+
+Usefulness of retrieval set: We start with characteriza-tion of the prediction task in the presence of the data-store I ⊂ Z. We assume that there exists a score function 
+
+h∗ : X × Z → R|Y|, and the corresponding probability distribution 
+
+py
+
+> ∗
+
+(x, z ) = exp( hy
+
+> ∗
+
+(x, z )) 
+
+∑ 
+
+> y′
+
+exp( hy′ 
+
+> ∗
+
+(x, z )) , (20) that approximates py 
+
+> DXY
+
+(x) := PY ∼DY |X (y|X = x) well for all x ∈ X and y ∈ Y. Furthermore, we want this score function h∗ to lie coordinate wise in a Sobolev space. The following assumption formalizes this. 
+
+Assumption 3.2 (Retrieval quality) . There exists a score function h∗ : X × Z → R|Y| such that 1. for each y ∈ Y, the function hy 
+
+> ∗
+
+lies in the Sobolev space with κI derivatives and finite L∞([ −1, 1] dx+dz ) norm, 2. for any x ∈ X, there exists a retrieved evidence z∗(x) ∈ I
+
+such that py
+
+> ∗
+
+(x, z ), as defined in (20), satisfies 
+
+max  
+
+> y∈Y
+
+sup 
+
+> x∈X
+
+|py
+
+> ∗
+
+(x, z ∗(x)) − py 
+
+> DXY
+
+(x)| ≤ cI|I|−γI .
+
+Note that this is independent of the retriever class Θ and Ξ,and captures intrinsic property of the data-store I. The tuple 
+
+(γI, d z , κ I) defines the usefulness of I. In particular, the higher γI the closer the approximation; and the higher the 
+
+κI and smaller the embedding dimension dz the ‘simpler’ the score function used for this approximation. Under the Assumption 3.2, we bound the predictor error as 
+
+EX
+
+[ min  
+
+> z∈I
+
+gξ∗ (X, z )] − R`, I(f `
+
+> opt ,I
+
+) ≤
+
+inf  
+
+> ξ∈Ξ
+
+2EX
+
+[ max  
+
+> y∈Y
+
+|hyξ (X, z ∗(X)) − hy
+
+> ∗
+
+(X, z ∗(X)) |]+(|Y| − 1) exp( −`max ) + cI|I|−γI . (21) One key step in arriving to the above inequality is ex-pressing the loss of f ` 
+
+> opt ,I
+
+using the probability function 
+
+h∗ defined in Assumption 3.2. In particular, under Assump-tion 3.2, we show that 
+
+EX
+
+[ min  
+
+> z∈I
+
+gf ` 
+
+> opt ,I
+
+(X, z )] ≥ EX
+
+[gh∗ (X, z ∗(X)) ]−
+
+(|Y| − 1) exp( −`max ) − cI|I|−γI .
+
+3.4. Final excess risk bound 
+
+We now combine the three components of the excess risk bounds under Assumptions 3.1 and 3.2 and discuss the design tradeoffs. The following theorem captures our main theoretical result. 5A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+Theorem 3.3 (Excess risk of joint training) . Under Assump-tion 3.1 and 3.2, the excess risk for the retriever class Θ and predictor class Ξ is bounded as 
+
+∆`, I( ˆξ, ˆθ) ≤ 3`max ( 1 
+
+> n
+
++
+
+√ log( n) 
+
+> n
+
+)+ inf  
+
+> ε∈[0 , `max
+> 2]
+
+8ε + 24 √n
+
+∫ `max 
+
+> 2
+> ε
+
+fN ( ν 
+
+> 2
+
+; Θ , Ξ) + fN ( ν 
+
+> 2
+
+; Ξ , Θ) dν 
+
++ inf  
+
+> θ∈Θ
+
+inf  
+
+> τ > 0
+
+`max ‖rθ + τ · gap ξ∗ ‖∞ + log |I|
+
+τ 2
+
++ inf  
+
+> ξ∈Ξ
+
+2EX
+
+[ max  
+
+> y∈Y
+
+|hyξ (X, z ∗(X)) − hy
+
+> ∗
+
+(X, z ∗(X)) |]+(|Y| − 1) exp( −`max ) + cI|I|−γI ,
+
+where fN (ν; A, B) , sup b∈B 
+
+√log( N (A, ν, ‖ · ‖ 2,[n],b )) 
+
+and ‖ · ‖ 2,[n],θ and ‖ · ‖ 2,[n],ξ are defined in (17) .
+
+3.5. Illustrative example: MLPs 
+
+We instantiate both our retriever and predictor classes to be multi-layer perceptron (MLP) with depth Lret &width Wret = O(dx + dz ) and depth Lpred & width 
+
+Wpred = O(|Y|(dx + dz )) , respectively. The class 
+
+MLP (Rd, Rk; L, W ) is defined in Appendix A. The spe-cialized excess risk bound for this setting is given as 
+
+Theorem 3.4 (Excess risk for MLP) . Under Assump-tion 3.1 and 3.2, the excess risk for the retriever class 
+
+Θ = M LP (Rdx+dz , R; Lpred , O (dx + dz )) and predictor class Ξ = M LP (Rdx+dz , R|Y|; Lpred , O (|Y|(dx + dz )) )
+
+is bounded as 
+
+∆`, I( ˆξ, ˆθ) ≤ ˜O
+
+( `max 
+
+√n (Lret + Lpred |Y|)
+
+)
+
++
+
+O
+
+(
+
+`max L− 4κ  
+
+> 3( dx+dz)ret
+
+log 1/3(|I|)
+
+)
+
++
+
+O
+
+(
+
+L− 2κI  
+
+> (dx+dz)pred
+
++ ( |Y| − 1) exp( −`max ) + cI|I|−γI
+
+)
+
+.
+
+Finally, to capture the optimal trade-off under finite data size n, we consider classes of retriever and predictors that change with the data size, denoted by Θn and Ξn, with growing depths Lret ,n and Lpred ,n respectively. Similarly, we also consider growing upper bound on the loss function by `max ,n . Let dtot = dx + dz . For Lret ,n = n 3dtot  
+
+> 6dtot +8 κ
+
+,
+
+Lpred ,n = ( √n/ |Y|) dtot  
+
+> 2dtot +4 κI
+
+, and `max ,n = log |Y| + 
+
+> κI
+> (dtot +2 κI)
+
+log n, the excess risk is bounded by 
+
+O
+
+(
+
+n− 2κ 
+
+> 3dtot +4 κ
+
++ max 
+
+(
+
+|I|−γI , ( n
+
+|Y|2
+
+)− κI
+
+> dtot +2 κI
+
+))
+
+.
+
+We should contrast the above result with the prediction when there is no retrieval. Let us assume that the functions 20 24 28 212 216  
+
+> Lret
+> 20
+> 24
+> 28
+> 212
+> 216
+> Lpred
+> Low
+> High Index size
+> Excess risk
+> Increasing n
+> RAM
+> No retrieval
+
+Figure 1. Left : Excess risk bound as we vary retriever and pre-dictor size for a fixed n and I based on Theorem 3.4. Note that different size combination of predictor and retriever achieves same risk bound. Right : Excess risk bound of RAM as we increase data-store size in contrast to direct MLP predictor with no retrieval. We plot for various values of n, with each cure corresponding to a fixed n.
+
+py 
+
+> DXY
+
+(x) for all y ∈ Y lies in the Sobolev space with deriva-tive κtrue and L∞ norm. The predictor excess risk rate with 
+
+Lpred ,n = ( √n/ |Y|) dx dx +2 κtrue is O(( n/ |Y|2)− κtrue  
+
+> dx+2 κtrue
+
+).Note that our analysis indicates that we may potentially 
+
+gain through retrieval : For large enough retrieval set |I| ≥ 
+
+(n/ |Y|2) 
+
+> κIγ−1
+> I
+> dtot +2 κI
+
+, as the data size n increases and we have 
+
+κ > 3dtot  
+
+> 2dx
+
+κtrue & κI > dtot  
+
+> dx
+
+κtrue (see Fig. 1). 
+
+3.6. Connections with prior end-to-end training 
+
+We conclude our treatment of end-to-end training of RAMs by drawing parallels between our proposed method with some representative approaches from the literature. 
+
+EMDR 2 Sachan et al. (2021) minimize the following objec-tive based on the negative log-likelihood: 
+
+LEMDR 2 
+
+> n
+
+(ξ, θ ; I) = − 1
+
+n
+
+∑
+
+> i∈[n]
+
+log pξ,θ, I(y|x)= − 1
+
+n
+
+∑
+
+> i∈[n]
+
+log 
+
+( ∑ 
+
+> z∈I
+
+pθ, I(z|xi) · pξ (yi|xi, z )
+
+)
+
+. (22) It follows from the convexity of − log( ·) and Jensen’s in-equality that our objective in (13) upper bounds the EMDR 2
+
+objective in (22) ; as a result, minimizing the former also minimizes the latter but not vice versa. 
+
+Perplexity distillation (PDist) Another approach for joint training of RAMs in the literature involves optimizing two distinct objectives for training the predictor and re-triever components. For example, Izacard et al. (2022) pro-pose multiple objectives for retriever training, including PDist (Sachan et al., 2023) which is defined as follows: 
+
+LPD IST  
+
+> I,n
+
+(θ; ξ, I) = 1
+
+n
+
+∑
+
+> i∈[n]
+
+CE (pPD IST  
+
+> ξ, I
+
+(Z|xi, y i), p θ, I(Z|xi)), (23) where CE( ·, ·) denotes the cross entropy between two dis-6A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+Method small base large small base large small base large small base large No retriever, train predictor ξ
+
+Cross-Entropy 19.6 25.5 29.1 Fixed retriever θ0, train predictor ξ
+
+Cross-Entropy 23.2 26.6 28.3 27.5 32.4 34.7 32.2 36.4 37.8 Fixed predictor ξ?(θ0), train retriever θ
+
+EMDR2 23.9 28.5 31.0 29.2 34.2 36.6 33.4 38.0 40.8 PDist 30.1 34.5 38.4 34.0 39.7 42.8 37.6 42.8 44.7 Cross-Entropy + PG 25.9 30.6 31.7 31.5 36.4 37.9 36.0 40.2 41.4 Cross-Entropy + TopK 29.4 35.5 37.9 33.8 39.7 43.0 37.2 42.3 45.0 Jointly train predictor ξ and retriever θ
+
+EMDR2 24.1 30.4 32.7 30.4 35.6 39.3 34.5 39.7 42.1 PDist 28.7 33.2 36.6 33.3 37.1 38.8 36.2 40.2 41.6 Cross-Entropy + PG 27.1 31.0 32.7 33.3 37.2 38.2 36.5 39.8 41.4 Cross-Entropy + TopK 32.8 37.8 40.1 36.6 41.8 44.8 38.8 43.8 46.4  
+
+> Table 1. Exact match accuracy on NQ . We measure the performance of RAMs across various training paradigms and model sizes. Top row specifies the predictor size and the second row specifies the retriever size.
+
+tributions and 
+
+pPD IST  
+
+> ξ, I
+
+(z|x, y ) = pξ (y|x, z )/∑
+
+> z′∈I
+
+pξ (y|x, z ′) ∀ z ∈ I,
+
+represents a predictor-assigned distribution over evidences based on their utility towards making correct prediction. As for the predictor training, they optimize an objective akin to (13) with respect to ξ. Besides this similarity in the predictor training, our approach for retrieval training has a subtle con-nection with PDist. Note that PDist optimizes forward cross-entropy between the predictor and the retriever induced distributions to train the retriever. On the other hand, our ob-jective in (13) is closer to 1
+
+> n
+
+∑ 
+
+> i
+
+CE( pθ, I(Z|xi), p PD IST  
+
+> ξ, I
+
+), the reversed cross-entropy between the two distributions. The former has the “mean-seeking” behavior whereas the latter has the “mode-seeking” behavior (Husz ´ar, 2015; Gu et al., 2023; Agarwal et al., 2023). 
+
+Similarity with RLHF/RLAIF Note that the per-example objective of our retrieval training approach takes the form: 
+
+EZ∼pθ, I(·| xi)
+
+[`(hξ (xi, Z ), y i
+
+)] , (24) i.e., the predictor model provides feedback on the (value) of the evidences sampled by the retriever model. Alternatively, one can view −`(hξ (xi, Z ), y i
+
+) as the reward assigned to the evidence z by the predictor model hξ and retriever model aims to select those evidences that maximize this reward value. This is similar to RLHF (Ziegler et al., 2019) or RLAIF (Bai et al., 2022) paradigm, where the underlying LLM aims to sample those generations which maximize the reward assigned by a reward model. However, note that in RLHF/RLAIF paradigm the policy network and reward model are not jointly trained together unlike in RAM. 
+
+## 4. Experiments 
+
+There have been numerous successful practical applications of RAMs in the literature (e.g., Sachan et al. (2021); Izac-ard et al. (2022)). Here, we present a brief empirical study for such models in order to corroborate the benefits pre-dicted by our theoretical results. In particular, we consider the task of open-domain question answering and show that proposed objective is competitive to the objectives proposed in the literature and observe the trade-offs in model capacity between retriever and predictor model. 
+
+Data Our evaluation is based on two benchmark datasets: NQOpen (Kwiatkowski et al., 2019) and TriviaQA (Joshi et al., 2017), which serve as sources for supervised exam-ples (x, y ), while chunked Wikipedia 2018 is used as the data-store I following literature (Karpukhin et al., 2020a). Consistent with established practices, we employ the ex-act match metric to assess the correspondence between the predicted answers and the ground truth. Additionally, we introduce a recall metric to measure the frequency at which the answer string appears within the retrieved documents. 
+
+Models We implement the retriever component using GTR (Ni et al., 2022) and the predictor component using T5 (Raffel et al., 2020). We sweep across small, base, and large configurations for both retriever and predictor. The details regarding the model sizes, expressed in terms of the number of parameters, are provided in Table 6 (App. C). 
+
+Methods We compare following approaches: 1) utilizing no retriever, directly training predictor, 2) employing a fixed retriever, but training the predictor, 3) using a fixed predictor, 7A Statistical Framework for Data-dependent Retrieval-Augmented Models                                                                                                         
+
+> Method small base large small base large small base large small base large No retriever, train predictor ξ
+> Cross-Entropy 17.9 23.1 28.0 Fixed retriever θ0, train predictor ξ
+> Cross-Entropy 31.5 34.9 38.8 37.0 40.6 44.4 43.4 45.9 49.7 Fixed predictor ξ?(θ0), train retriever θ
+> EMDR2 34.6 41.3 48.3 40.1 48.2 53.4 46.0 50.7 54.9 PDist 45.7 53.3 57.2 50.8 53.2 61.6 53.5 55.4 62.3 Cross-Entropy + PG 43.2 46.7 54.3 48.6 56.1 55.1 51.7 56.4 56.7 Cross-Entropy + TopK 43.6 50.4 54.4 48.6 54.9 58.5 52.1 56.6 60.3 Jointly train predictor ξand retriever θ
+> EMDR2 37.0 43.1 49.7 42.4 50.5 55.6 47.1 53.4 59.2 PDist 46.7 54.3 57.3 48.8 56.7 60.7 51.0 58.5 63.3 Cross-Entropy + PG 47.0 52.9 55.7 49.9 57.6 61.1 52.1 59.8 59.2 Cross-Entropy + TopK 46.8 52.9 56.0 49.2 56.6 60.1 52.3 58.8 62.4
+> Table 2. Exact match accuracy on TriviaQA . We measure the performance of RAMs across various training paradigms and model sizes. Top row specifies the predictor size and the second row specifies the retriever size.
+
+but training the retriever, and 4) conducting joint training of both components. For the joint training and the retriever training phases, we experiment with multiple objectives: EMDR2 (cf. (22) ), PDist (cf. (23) ), Cross-Entropy + PG (cf. (40) in App. C.1), and Cross-Entropy + TopK (cf. (39) in App. C.1). Efficiently implementing any of these objectives is challenging due to the need to compute the gradient with respect to expectation over the entire data-store. We consider two approaches for computing the gradients approximately by: 1) restricting the expectation to top-K elements similar to EMDR2 and PDist; and 2) using REINFORCE (Williams, 1992) to obtain an unbaised estimate. More details can be found in App. C.1. 
+
+Observation 1 The addition of a retrieval component markedly enhances performance, as demonstrated in Ta-bles 1 and 2, which present the exact match accuracy. Fur-ther improvements are observed when the retriever is specifi-cally trained while keeping the predictor fixed. Joint training emerges as the most effective strategy. 
+
+Observation 2 Tables 4 and 5 (App. C) list the recall for the presence of the answer string within the retrieved content. PDist consistently achieves the highest recall, aligning with expectations given its design for distilling the retriever based on the predictor’s scores. However, despite its superior re-call, other objectives may lead to better overall performance than PDist, suggesting that different objectives optimize the retriever and predictor with varying efficiencies. 
+
+Observation 3 Finally, in Table 3, we report the query per second (QPS), as a proxy for computational cost, achieved by different configuration of retriever and predictor model sizes. For achieving a specific accuracy threshold (e.g., 
+
+≥38.8 on NQ), multiple configurations are viable, such as pairing a large predictor with a small retriever, a base model for both, or a small predictor with a large retriever. The associated query per second (QPS) rates for these configu-rations are 135, 333, and 800, respectively, illustrating that equivalent accuracy levels can be attained with significantly differing QPS rate. This corroborates with our trade-offs in excess risk bounds for MLPs with different capacity in retriever and predictor components as illustrated in Figure 1. Thus, adding capacity to different parts of the model has different repercussion on quality and computational cost. 
+
+## 5. Discussion and related work 
+
+Several works have proposed some form of retrieval aug-mented models. Here, we provide a brief account of the evolution of RAMs and discuss how our proposed joint-learning objective and the framework for excess risk analy-sis compare with existing end-to-end training methods. 
+
+Augment with local neighborhood The first approaches dating back to 1970s employed just augmenting training instance in the local neighborhood of the input space (Stone, 1977; 1980). Such approaches gained a lot of attention as parametric regression was not adequate in various practical applications of the time. This line of work aims to fit a low-degree polynomial at each point in the data set based on a subset of data points, which resulted in a rich literature on local polynomial regression in low dimensions. (Katkovnik & Kheisin, 1979; Cleveland, 1979; Pinsker, 1980; Donoho & Liu, 1988; Ruppert & Wand, 1994; Ibragimov & Has Min-8A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+small base large small base large small base large small base large 822.60 819.83 800.89 334.30 333.22 331.06 135.06 135.34 134.87  
+
+> Table 3. Query per second . We measure the query per second processed by RAMs as a proxy for computational cost across various model sizes. Top row specifies the predictor size and the second row specifies the retriever size.
+
+skii, 2013). These classical ideas have found their applica-tion in many ML algorithms such as face recognition (Jain & Learned-Miller, 2011), dimensionality reduction via local linear embeddings (Roweis & Saul, 2000), domain adapta-tion (Yang et al., 2021), test time training on neighboring points (Sun et al., 2020; Gandelsman et al., 2022), etc. Re-cently, Basu et al. (2023) generalized this setup of augment-ing with a local neighborhood of the input instance in the context of modern ML models like neural networks and pro-posed a statistical framework to study such retrieval-based models. However, they do not consider a learned or a spe-cialized distance metric to find the augmenting set, which is critical for realizing good performance in practice (Schon-berger et al., 2017; Karpukhin et al., 2020b) and studied in the present work. 
+
+Fixed retriever augmentation Next generation re-trieval augmented models started to deploy either a hand crafted or a learned retriever. Zhang et al. (2006) em-ployed SIFT (Lowe, 1999) based retrieval followed by a SVM (Cortes & Vapnik, 1995) classifier to improve per-formance on multiple vision tasks. Chen et al. (2009) stud-ied generalization bounds for SVM-kNN methods – one of the limited works in this domain with formal analy-sis. For natural language understanding, methods like TF-IDF (Sparck Jones, 1972) were employed in the tasks like case based reasoning (Leake et al., 1996) and open-domain question answering (ODQA; Voorhees et al. 1999). Unlike many previous methods, one retrieves relevant text passages in ODQA settings as opposed to retrieving labelled train-ing pairs. With introduction of transformers (Vaswani et al., 2017), both retriever and predictor models based on encoder and decoder, respectively, have become popular across var-ious domains, including image classification (Long et al., 2022; Iscen et al., 2023), text classification (Wang et al., 2022; Zemlyanskiy et al., 2022), ODQA (Lee et al., 2019; Izacard & Grave, 2021), language modelling (Borgeaud et al., 2021), and even protein folding prediction (Cramer, 2021). Even using the same transformer model as both re-triever and predictor boosts performance in language mod-eling (Khandelwal et al., 2020). Unlike SVM-kNN (Chen et al., 2009), to best of our knowledge, a formal analysis of retrieval-augmented approaches with modern neural net-works is missing from the literature. Interestingly, retrieving examples also helps in-context learning (Rubin et al., 2022; Li et al., 2023). Our framework covers this scenario with z
+
+representing the in-context examples retrieved from a data-store of examples. Our risk bounds can provide insights into why in-context learning with retrieved few-shot examples performs better than a zero-shot model. 
+
+End-to-end trained retriever augmentation For ODQA, Guu et al. (2020) proposed maximizing the marginalized likelihood by considering the retrieved set as a latent vari-able. EMDR2 (Sachan et al., 2021) optimized the same objective by approximating it based on the retriever induced distribution on the elements that receive top-K scores by the retriever. Hindsight (Paranjape et al., 2022) instead op-timizes the ELBO by introducing a variational distribution with access to the outputs. VOD (Li ´evin et al., 2023) further generalized the standard ELBO based on KL divergence by employing R ´enyi divergence thereby tightening the lower bound. On the other hand, Atlas (Izacard et al., 2022) pro-posed an auxiliary loss for training the retriever directly rather than following the latent variable approach. Interest-ingly, RAG (Lewis et al., 2020) proposed to only train the query encoder for retriever, leaving the retrieval index fixed, thereby alleviating much of the end-to-end training diffi-culties of RAMs, but at cost of limiting model adaptation flexibility. None of these prior works studied statistical prop-erties vis-` a-vis expressivity and generalization of RAMs. 
+
+## 6. Conclusion 
+
+In this work, we initiate the development of a theoretical framework to study the statistical properties of RAMs with data-dependent retrieval. Our excess-risks analysis allows us to highlight how retriever and predictor components play complementary roles in reducing approximation error as we increase their respective function class complexity. We surface both theoretically and empirically a Pareto surface achieving the same performance with different size predic-tors and retrievers. As future work, it would be interesting to study the effect of dynamically updatable data-store and multi-step retrievals for making predictions. 
+
+## Impact statement 
+
+This paper presents work whose goal is to advance the field of Machine Learning. There are many potential societal consequences of our work, none which we feel must be specifically highlighted here. 9A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+## References 
+
+Agarwal, R., Vieillard, N., Stanczyk, P., Ramos, S., Geist, M., and Bachem, O. Gkd: Generalized knowledge distilla-tion for auto-regressive sequence models. arXiv preprint arXiv:2306.13649 , 2023. Asai, A., Wu, Z., Wang, Y., Sil, A., and Hajishirzi, H. Self-rag: Learning to retrieve, generate, and critique through self-reflection. arXiv preprint arXiv:2310.11511 , 2023. Austin, J., Odena, A., Nye, M., Bosma, M., Michalewski, H., Dohan, D., Jiang, E., Cai, C., Terry, M., Le, Q., et al. Program synthesis with large language models. arXiv preprint arXiv:2108.07732 , 2021. Bai, Y., Kadavath, S., Kundu, S., Askell, A., Kernion, J., Jones, A., Chen, A., Goldie, A., Mirhoseini, A., McKin-non, C., et al. Constitutional ai: Harmlessness from ai feedback. arXiv preprint arXiv:2212.08073 , 2022. Bartlett, P. L., Harvey, N., Liaw, C., and Mehrabian, A. Nearly-tight vc-dimension and pseudodimension bounds for piecewise linear neural networks. The Journal of Machine Learning Research , 20(1):2285–2301, 2019. Basu, S., Rawat, A. S., and Zaheer, M. A statistical perspec-tive on retrieval-based models. In Krause, A., Brunskill, E., Cho, K., Engelhardt, B., Sabato, S., and Scarlett, J. (eds.), Proceedings of the 40th International Conference on Machine Learning , volume 202 of Proceedings of Machine Learning Research , pp. 1852–1886. PMLR, 23– 29 Jul 2023. URL https://proceedings.mlr. press/v202/basu23a.html .Borgeaud, S., Mensch, A., Hoffmann, J., Cai, T., Ruther-ford, E., Millican, K., van den Driessche, G., Lespiau, J., Damoc, B., Clark, A., de Las Casas, D., Guy, A., Menick, J., Ring, R., Hennigan, T., Huang, S., Maggiore, L., Jones, C., Cassirer, A., Brock, A., Paganini, M., Irving, G., Vinyals, O., Osindero, S., Simonyan, K., Rae, J. W., Elsen, E., and Sifre, L. Improving language models by re-trieving from trillions of tokens. CoRR , abs/2112.04426, 2021. Brown, T. B., Mann, B., Ryder, N., Subbiah, M., Kaplan, J., Dhariwal, P., Neelakantan, A., Shyam, P., Sastry, G., Askell, A., Agarwal, S., Herbert-Voss, A., Krueger, G., Henighan, T., Child, R., Ramesh, A., Ziegler, D. M., Wu, J., Winter, C., Hesse, C., Chen, M., Sigler, E., Litwin, M., Gray, S., Chess, B., Clark, J., Berner, C., McCandlish, S., Radford, A., Sutskever, I., and Amodei, D. Language models are few-shot learners, 2020. Burda, Y., Grosse, R., and Salakhutdinov, R. Importance weighted autoencoders. arXiv preprint arXiv:1509.00519 ,2015. Chen, Y., Garcia, E. K., Gupta, M. R., Rahimi, A., and Cazzanti, L. Similarity-based classification: Concepts and algorithms. Journal of Machine Learning Research ,10(3), 2009. Chowdhery, A., Narang, S., Devlin, J., Bosma, M., Mishra, G., Roberts, A., Barham, P., Chung, H. W., Sutton, C., Gehrmann, S., et al. Palm: Scaling language modeling with pathways. arXiv preprint arXiv:2204.02311 , 2022. Cleveland, W. S. Robust locally weighted regression and smoothing scatterplots. Journal of the American statisti-cal association , 74(368):829–836, 1979. Cortes, C. and Vapnik, V. Support-vector networks. Machine learning , 20(3):273–297, 1995. Cramer, P. Alphafold2 and the future of structural biology. 
+
+Nature Structural & Molecular Biology , 28(9):704–705, 2021. Das, R., Zaheer, M., Thai, D., Godbole, A., Perez, E., Lee, J. Y., Tan, L., Polymenakos, L., and McCallum, A. Case-based reasoning for natural language queries over knowl-edge bases. In Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing , pp. 9594–9611, Online and Punta Cana, Dominican Republic, November 2021. Association for Computational Linguis-tics. doi: 10.18653/v1/2021.emnlp-main.755. Dehghani, M., Djolonga, J., Mustafa, B., Padlewski, P., Heek, J., Gilmer, J., Steiner, A. P., Caron, M., Geirhos, R., Alabdulmohsin, I., et al. Scaling vision transformers to 22 billion parameters. In International Conference on Machine Learning , pp. 7480–7512. PMLR, 2023. Donoho, D. L. and Liu, R. C. The” automatic” robustness of minimum distance functionals. The Annals of Statistics ,16(2):552–586, 1988. Dosovitskiy, A., Beyer, L., Kolesnikov, A., Weissenborn, D., Zhai, X., Unterthiner, T., Dehghani, M., Minderer, M., Heigold, G., Gelly, S., Uszkoreit, J., and Houlsby, N. An image is worth 16x16 words: Transformers for image recognition at scale. In International Conference on Learning Representations , 2021. Epasto, A., Mahdian, M., Mirrokni, V., and Zampetakis, E. Optimal approximation-smoothness tradeoffs for soft-max functions. Advances in Neural Information Process-ing Systems , 33:2651–2660, 2020. Gandelsman, Y., Sun, Y., Chen, X., and Efros, A. Test-time training with masked autoencoders. Advances in Neural Information Processing Systems , 35:29374–29385, 2022. 10 A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+Grathwohl, W., Swersky, K., Hashemi, M., Duvenaud, D., and Maddison, C. Oops i took a gradient: Scalable sam-pling for discrete distributions. In International Con-ference on Machine Learning , pp. 3831–3841. PMLR, 2021. Gu, Y., Dong, L., Wei, F., and Huang, M. Knowledge distillation of large language models. arXiv preprint arXiv:2306.08543 , 2023. Guu, K., Lee, K., Tung, Z., Pasupat, P., and Chang, M.-W. Realm: Retrieval-augmented language model pre-training. In Proceedings of the 37th International Conference on Machine Learning , ICML’20. JMLR.org, 2020. henrikl (https://math.stackexchange.com/users/351007/henrikl). 1-smoothness of the symmetric softmax function. Math-ematics Stack Exchange, 2021. URL https: //math.stackexchange.com/q/4170855 .URL:https://math.stackexchange.com/q/4170855 (version: 2021-06-12). Husz ´ar, F. How (not) to train your generative model: Sched-uled sampling, likelihood, adversary? arXiv preprint arXiv:1511.05101 , 2015. Ibragimov, I. A. and Has Minskii, R. Z. Statistical estima-tion: asymptotic theory , volume 16. Springer Science & Business Media, 2013. Iscen, A., Fathi, A., and Schmid, C. Improving image recog-nition by retrieving from web-scale image-text data. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 19295–19304, 2023. Izacard, G. and Grave, E. Leveraging passage retrieval with generative models for open domain question an-swering. In Proceedings of the 16th Conference of the European Chapter of the Association for Compu-tational Linguistics: Main Volume , pp. 874–880, On-line, April 2021. Association for Computational Linguis-tics. doi: 10.18653/v1/2021.eacl-main.74. URL https: //aclanthology.org/2021.eacl-main.74 .Izacard, G., Lewis, P., Lomeli, M., Hosseini, L., Petroni, F., Schick, T., Dwivedi-Yu, J., Joulin, A., Riedel, S., and Grave, E. Few-shot learning with retrieval augmented lan-guage models. arXiv preprint arXiv:2208.03299 , 2022. Jain, V. and Learned-Miller, E. Online domain adaptation of a pre-trained cascade of classifiers. In CVPR 2011 , pp. 577–584. IEEE, 2011. Joshi, M., Choi, E., Weld, D. S., and Zettlemoyer, L. Trivi-aqa: A large scale distantly supervised challenge dataset for reading comprehension. In Proceedings of the 55th Annual Meeting of the Association for Computational Lin-guistics (Volume 1: Long Papers) , pp. 1601–1611, 2017. Karpukhin, V., Oguz, B., Min, S., Lewis, P., Wu, L., Edunov, S., Chen, D., and Yih, W.-t. Dense passage retrieval for open-domain question answering. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP) , pp. 6769–6781, Online, November 2020a. Association for Computational Lin-guistics. Karpukhin, V., O ˘guz, B., Min, S., Lewis, P., Wu, L., Edunov, S., Chen, D., and Yih, W.-t. Dense passage retrieval for open-domain question answering. arXiv preprint arXiv:2004.04906 , 2020b. Katkovnik, V. Y. and Kheisin, V. Dynamic stochastic ap-proximation of polynomials drifts. Avtomatika i Tele-mekhanika , pp. 89–98, 1979. Khandelwal, U., Levy, O., Jurafsky, D., Zettlemoyer, L., and Lewis, M. Generalization through memorization: Nearest neighbor language models. In International Conference on Learning Representations , 2020. Kwiatkowski, T., Palomaki, J., Redfield, O., Collins, M., Parikh, A., Alberti, C., Epstein, D., Polosukhin, I., De-vlin, J., Lee, K., et al. Natural questions: a benchmark for question answering research. Transactions of the Association for Computational Linguistics , 7:453–466, 2019. Leake, D. B., Kinley, A., and Wilson, D. C. Acquir-ing case adaptation knowledge: A hybrid approach. In AAAI/IAAI, Vol. 1 , 1996. URL https://api. semanticscholar.org/CorpusID:11169287 .Lee, K., Chang, M.-W., and Toutanova, K. Latent retrieval for weakly supervised open domain question answering. In Proceedings of the 57th Annual Meeting of the Asso-ciation for Computational Linguistics , pp. 6086–6096, Florence, Italy, July 2019. Association for Computa-tional Linguistics. doi: 10.18653/v1/P19-1612. URL 
+
+https://aclanthology.org/P19-1612 .Lewis, P., Perez, E., Piktus, A., Petroni, F., Karpukhin, V., Goyal, N., K ¨uttler, H., Lewis, M., Yih, W.-t., Rockt ¨aschel, T., et al. Retrieval-augmented generation for knowledge-intensive nlp tasks. Advances in Neural Information Pro-cessing Systems , 33:9459–9474, 2020. Lewkowycz, A., Andreassen, A., Dohan, D., Dyer, E., Michalewski, H., Ramasesh, V., Slone, A., Anil, C., Schlag, I., Gutman-Solo, T., et al. Solving quantitative reasoning problems with language models. Advances in Neural Information Processing Systems , 35:3843–3857, 2022. Li, Y., Ildiz, M. E., Papailiopoulos, D., and Oymak, S. Trans-formers as algorithms: Generalization and stability in in-context learning. In Krause, A., Brunskill, E., Cho, K., 11 A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+Engelhardt, B., Sabato, S., and Scarlett, J. (eds.), Pro-ceedings of the 40th International Conference on Ma-chine Learning , volume 202 of Proceedings of Machine Learning Research , pp. 19565–19594. PMLR, 23–29 Jul 2023. URL https://proceedings.mlr.press/ v202/li23l.html .Li ´evin, V., Motzfeldt, A. G., Jensen, I. R., and Winther, O. Variational open-domain question answering. In Krause, A., Brunskill, E., Cho, K., Engelhardt, B., Sabato, S., and Scarlett, J. (eds.), Proceedings of the 40th Interna-tional Conference on Machine Learning , volume 202 of 
+
+Proceedings of Machine Learning Research , pp. 20950– 20977. PMLR, 23–29 Jul 2023. Lin, X. V., Chen, X., Chen, M., Shi, W., Lomeli, M., James, R., Rodriguez, P., Kahn, J., Szilvasy, G., Lewis, M., et al. Ra-dit: Retrieval-augmented dual instruction tuning. 
+
+arXiv preprint arXiv:2310.01352 , 2023. Liska, A., Kocisky, T., Gribovskaya, E., Terzi, T., Sezener, E., Agrawal, D., De Masson D’Autume, C., Scholtes, T., Zaheer, M., Young, S., Gilsenan-Mcmahon, E., Austin, S., Blunsom, P., and Lazaridou, A. StreamingQA: A benchmark for adaptation to new knowledge over time in question answering models. In Chaudhuri, K., Jegelka, S., Song, L., Szepesvari, C., Niu, G., and Sabato, S. (eds.), 
+
+Proceedings of the 39th International Conference on Ma-chine Learning , volume 162 of Proceedings of Machine Learning Research , pp. 13604–13622. PMLR, 17–23 Jul 2022. URL https://proceedings.mlr.press/ v162/liska22a.html .Long, A., Yin, W., Ajanthan, T., Nguyen, V., Purkait, P., Garg, R., Blair, A., Shen, C., and van den Hengel, A. Retrieval augmented classification for long-tail visual recognition. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 6959– 6969, 2022. Lowe, D. G. Object recognition from local scale-invariant features. In Proceedings of the seventh IEEE interna-tional conference on computer vision , volume 2, pp. 1150– 1157. Ieee, 1999. McSherry, F. and Talwar, K. Mechanism design via dif-ferential privacy. In 48th Annual IEEE Symposium on Foundations of Computer Science (FOCS’07) , pp. 94– 103. IEEE, 2007. Meinhardt, T., Kirillov, A., Leal-Taixe, L., and Feichten-hofer, C. Trackformer: Multi-object tracking with trans-formers. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 8844–8854, 2022. Ni, J., Qu, C., Lu, J., Dai, Z., Abrego, G. H., Ma, J., Zhao, V., Luan, Y., Hall, K., Chang, M.-W., et al. Large dual encoders are generalizable retrievers. In Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing , pp. 9844–9855, 2022. OpenAI. Gpt-4 technical report. ArXiv , abs/2303.08774, 2023. URL https://api.semanticscholar. org/CorpusID:257532815 .Paranjape, A., Khattab, O., Potts, C., Zaharia, M., and Manning, C. D. Hindsight: Posterior-guided training of retrievers for improved open-ended generation. In 
+
+International Conference on Learning Representations ,2022. URL https://openreview.net/forum? id=Vr_BTpw3wz .Pinsker, M. S. Optimal filtering of square-integrable signals in gaussian noise. Problemy Peredachi Informatsii , 16(2): 52–68, 1980. Raffel, C., Shazeer, N., Roberts, A., Lee, K., Narang, S., Matena, M., Zhou, Y., Li, W., and Liu, P. J. Exploring the limits of transfer learning with a unified text-to-text transformer. The Journal of Machine Learning Research ,21(1):5485–5551, 2020. Roweis, S. T. and Saul, L. K. Nonlinear dimensionality re-duction by locally linear embedding. science , 290(5500): 2323–2326, 2000. Rubin, O., Herzig, J., and Berant, J. Learning to re-trieve prompts for in-context learning. In Proceedings of the 2022 Conference of the North American Chap-ter of the Association for Computational Linguistics: Human Language Technologies , pp. 2655–2671, Seat-tle, United States, July 2022. Association for Computa-tional Linguistics. doi: 10.18653/v1/2022.naacl-main. 191. URL https://aclanthology.org/2022. naacl-main.191 .Ruppert, D. and Wand, M. P. Multivariate locally weighted least squares regression. The annals of statistics , pp. 1346–1370, 1994. Sachan, D. S., Reddy, S., Hamilton, W. L., Dyer, C., and Yogatama, D. End-to-end training of multi-document reader and retriever for open-domain question answering. In Beygelzimer, A., Dauphin, Y., Liang, P., and Vaughan, J. W. (eds.), Advances in Neural Information Processing Systems , 2021. URL https://openreview.net/ forum?id=5KWmB6JePx .Sachan, D. S., Lewis, M., Yogatama, D., Zettlemoyer, L., Pineau, J., and Zaheer, M. Questions are all you need to train a dense passage retriever. Transactions of the Association for Computational Linguistics , 11:600–616, 2023. 12 A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+Schonberger, J. L., Hardmeier, H., Sattler, T., and Pollefeys, M. Comparative evaluation of hand-crafted and learned local features. In Proceedings of the IEEE conference on computer vision and pattern recognition , pp. 1482–1491, 2017. Shalev-Shwartz, S. and Ben-David, S. Understanding ma-chine learning: From theory to algorithms . Cambridge university press, 2014. Shuster, K., Poff, S., Chen, M., Kiela, D., and Weston, J. Retrieval augmentation reduces hallucination in conver-sation. arXiv preprint arXiv:2104.07567 , 2021. Siegel, J. W. Optimal approximation rates for deep relu neural networks on sobolev and besov spaces. Journal of Machine Learning Research , 24(357):1–52, 2023. Singhal, K., Azizi, S., Tu, T., Mahdavi, S. S., Wei, J., Chung, H. W., Scales, N., Tanwani, A., Cole-Lewis, H., Pfohl, S., et al. Large language models encode clinical knowledge. 
+
+Nature , pp. 1–9, 2023. Sparck Jones, K. A statistical interpretation of term speci-ficity and its application in retrieval. Journal of documen-tation , 28(1):11–21, 1972. Stone, C. J. Consistent nonparametric regression. The annals of statistics , pp. 595–620, 1977. Stone, C. J. Optimal rates of convergence for nonparametric estimators. The annals of Statistics , pp. 1348–1360, 1980. Sun, Y., Wang, X., Liu, Z., Miller, J., Efros, A., and Hardt, M. Test-time training with self-supervision for generalization under distribution shifts. In International conference on machine learning , pp. 9229–9248. PMLR, 2020. Sutton, R. S. and Barto, A. G. Reinforcement learning: An introduction . MIT press, 2018. Thai, D., Agarwal, D., Chaudhary, M., Das, R., Zaheer, M., Lee, J.-Y., Hajishirzi, H., and McCallum, A. Ma-chine reading comprehension using case-based reasoning. 
+
+arXiv preprint arXiv:2305.14815 , 2023. Touvron, H., Martin, L., Stone, K., Albert, P., Almahairi, A., Babaei, Y., Bashlykov, N., Batra, S., Bhargava, P., Bhosale, S., et al. Llama 2: Open foundation and fine-tuned chat models. arXiv preprint arXiv:2307.09288 ,2023. Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, Ł., and Polosukhin, I. Atten-tion is all you need. Advances in neural information processing systems , 30, 2017. Voorhees, E. M. et al. The trec-8 question answering track report. In Trec , volume 99, pp. 77–82, 1999. Wang, S., Xu, Y., Fang, Y., Liu, Y., Sun, S., Xu, R., Zhu, C., and Zeng, M. Training data is more valuable than you think: A simple and effective method by retrieving from training data. In Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pp. 3170–3179, Dublin, Ireland, May 2022. Association for Computational Linguistics. doi: 10.18653/v1/2022.acl-long.226. URL https:// aclanthology.org/2022.acl-long.226 .Williams, R. J. Simple statistical gradient-following algo-rithms for connectionist reinforcement learning. Machine learning , 8:229–256, 1992. Yang, S., van de Weijer, J., Herranz, L., Jui, S., et al. Exploit-ing the intrinsic neighborhood structure for source-free domain adaptation. Advances in neural information pro-cessing systems , 34:29393–29405, 2021. Yarotsky, D. Error bounds for approximations with deep relu networks. Neural Networks , 94:103–114, 2017. Zemlyanskiy, Y., de Jong, M., Ainslie, J., Pasupat, P., Shaw, P., Qiu, L., Sanghai, S., and Sha, F. Generate-and-retrieve: Use your predictions to improve retrieval for semantic parsing. In Proceedings of the 29th In-ternational Conference on Computational Linguistics ,pp. 4946–4951, Gyeongju, Republic of Korea, October 2022. International Committee on Computational Linguis-tics. URL https://aclanthology.org/2022. coling-1.438 .Zhang, H., Berg, A. C., Maire, M., and Malik, J. Svm-knn: Discriminative nearest neighbor classification for visual category recognition. In 2006 IEEE Computer Society Conference on Computer Vision and Pattern Recognition (CVPR’06) , volume 2, pp. 2126–2136. IEEE, 2006. Zhang, T. Mathematical analysis of machine learning algo-rithms . Cambridge University Press, 2023. Ziegler, D. M., Stiennon, N., Wu, J., Brown, T. B., Radford, A., Amodei, D., Christiano, P., and Irving, G. Fine-tuning language models from human preferences. arXiv preprint arXiv:1909.08593 , 2019. 13 A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+## A. Preliminaries 
+
+Definition A.1 (Rademacher complexity) . Given a sample S = {zi = ( xi, y i)}i∈[n] ⊂ Z and a real-valued function class 
+
+F : Z → R, the empirical Rademacher complexity of F with respect to S is defined as 
+
+RS(F) = 1
+
+n Eσ
+
+[
+
+sup  
+
+> f∈F
+> n
+
+∑
+
+> i=1
+
+σif (zi)
+
+]
+
+, (25) where σ = {σi}i∈[n] is a collection of n i.i.d. Bernoulli random variables. For n ∈ N, the Rademacher complexity ¯Rn(F)
+
+and worst case Rademacher complexity Rn(F) are defined as follows. 
+
+¯Rn(F) = ES∼Dn [RS(F)] , and Rn(F) = sup 
+
+> S∼Zn
+
+RS(F). (26) 
+
+Definition A.2 (Covering nsumber) . Let  > 0 and ‖ · ‖ be a norm defined over Rn. Given a function class F : Z → R and a collection of points S = {zi}i∈[n] ⊂ Z, we call a set of points {uj }j∈[m] ⊂ Rn an (, ‖ · ‖ )-cover of F with respect to S,if we have 
+
+sup  
+
+> f∈F
+
+min  
+
+> j∈[m]
+
+‖f (S) − uj ‖ ≤ , (27) where f (S) = (f (z1), . . . , f (zn)) ∈ Rn. The ‖ · ‖ -covering number N (F, , ‖ · ‖ ) denotes the cardinally of the minimal 
+
+(, ‖ · ‖ )-cover of F with respect to S. In particular, if ‖ · ‖ is an normalized-`p norm ( ‖v‖ = ( 1
+
+> dim (v)
+
+∑dim (v) 
+
+> i=1
+
+|vi|p)1/p ), then we simply use N (F, , F, ‖‖ Lp , S) to denote the corresponding `p-covering number. When S is unambiguous we may drop it, i.e. write N (F, , F, ‖‖ Lp )
+
+Definition A.3 (Multi-layer perceptron (MLP)) . We consider for both retrieval and predictor, the class of multi-layer-perceptron, aka fully connected Deep Neural Network, with Relu nonlinearity σ(x) = max( x, 0) . An MLP is specified by the number of layers L, width W . We define an affine transform AW,b (Rd1 , Rd2 ) = Wx + b, with weight W ∈ Rd2 × Rd1
+
+and bias b ∈ Rd2 . Let σ ◦ AW,b (Rd1 , Rd2 ) define the elementwise application of Relu non-linearity on the affine transform. The class of L layers and W width MLP is defined as 
+
+MLP( Rd, Rk; W, L ) = {AWL,b L ◦ σ ◦ AWL−1,b L−1 ◦ . . . σ ◦ AW0,b 0 }, (28) where WL ∈ Rk×W and bL ∈ Rk, Wi ∈ RW ×W and bi ∈ RW for 1 ≤ i ≤ (L − 1) , and W0 ∈ RW ×d and b0 ∈ RW .
+
+Definition A.4 (Sobolev space) . We denote the set of functions with finite Lp norm over Ω as Lp(Ω) i.e. for any f ∈ Lp(Ω) ,
+
+‖f ‖Lp(Ω) = ( ∫  
+
+> s∈Ω
+
+f (s)pds )1/p < ∞ for p ≥ 1. Note for p = ∞ we have ‖f ‖L∞(Ω) = ess sup s∈Ω |f (s)|. Let α ∈ Ndin 
+
+denote a multi-index, and |α| = ∑ 
+
+> i∈din
+
+αi be it’s degree. We denote by Dα the weak-derivative with respect to multi-index 
+
+α for any function. For an integer κ > 0, the Sobolev semi-norm W κ(Lp(Ω)) for a function f that has weak-derivatives of order κ is defined as 
+
+∀1 ≥ p < ∞, |f |W κ(Lp(Ω)) = ( ∑
+
+> α:|α|=κ
+
+‖Dαf ‖pLp(Ω) 
+
+)1/p , |f |W κ(L∞(Ω)) = max  
+
+> α:|α|=κ
+
+‖Dαf ‖L∞(Ω) .
+
+The Sobolev norm W κ(Lp(Ω)) for the same function f is defined as ‖f ‖W κ(Lp(Ω)) = ‖f ‖Lp(Ω) +|f |W κ(Lp(Ω)) . A function 
+
+f with all weak-derivatives of order κ, and a finite W κ(Lp(Ω)) norm lies in the Sobolev space with κ derivatives and Lp(Ω) 
+
+norm. In our approximation guarantees for MLP retreiver and predictor classes later, we use Theorem 1 in (Siegel, 2023). We restate the theorem here for completeness. 
+
+Theorem A.5 (Restated Theorem 1 in (Siegel, 2023)) . For a function f0 : Ω → R in the Sobolev space with κ derivatives and Lq (Ω) , p, q ∈ [1 , ∞) and κ ∈ (0 , ∞) satisfying (1 /q − 1/p ) ≤ s/d , we have for some C = c(κ, d ) < ∞, Ω = [ −1, 1] d
+
+and W = 25 d + 31 inf  
+
+> f∈MLP( Rd,R;W,L )
+
+‖f − f0‖Lp(Ω) ≤ C‖f0‖W κ(Lq (Ω)) L− 2κd .
+
+14 A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+Our VC Dimension bounds of MLP is based on the (Bartlett et al., 2019) which is in turn used for generalization bounds. We collect some necessary definitions and results from (Bartlett et al., 2019) and restate here for completeness. 
+
+Definition A.6 (VC dimension and growth of a binary function class) . For H, a class of functions from A to 0, 1 the growth function of H evaluate on a input set of size m, is defined as 
+
+ΠH (m) = max  
+
+> a1,...,a m∈A
+
+|{ h(a1), . . . , h (am) : h ∈ H}| .
+
+The V Cdim (H) is defined as the largest m such that ΠH (m) = m, where if no such m is there we have V Cdim (H) = ∞.
+
+Definition A.7 (Pseudo dimension of real valued function class) . Let F be a class of functions from some space 
+
+A to the real R. The pseudo-dimension of class F, denoted by P dim (F), is the largest m such that there exists 
+
+{a1, . . . , a m, r 1, . . . , r m} ∈ A m × Rm such that for any binary sequence {b1, . . . , b m} ∈ { 0, 1}m there exists a function 
+
+f ∈ F satisfying ∀i : f (ai) > r i ⇐⇒ bi = 1 .Note Pseudo-dimension is same as the VC dimension of the subgraph of class F which is used in (Zhang, 2023). We denote by sgn (f ) the sign of the function f : A → R from and sgn (x) = 1(x ≥ 0) , and let sgn (F) = {sgn (f ) : f ∈ F} .We define the VC dimension of the real valued function class F as V Cdim (F) := V Cdim (sgn (F)) . It is mentioned in (Bartlett et al., 2019) that for neural network with a fixed architecture and fixed activation functions, namely class MLP , we have the V Cdim (sgn (MLP)) = P dim (MLP) .We now adapt Theorem 6 in (Bartlett et al., 2019) to use it for the class MLP( Rd, R; L, W ) specialized for Relu non-linearity, i.e. in terminology of (Bartlett et al., 2019), number of breakpoint pnt = 1 , and degree of polynomial is deg = 1 .1
+
+Theorem A.8 (Adapted Theorem 6 in (Bartlett et al., 2019)) . Consider the neural network class MLP( Rd, R; L, W ) that has Relu non-linearity. Let Wtot,l denote the total number of parameters upto layer l ≤ (L − 1) , and ul denote the number of units in layer l. Also define the parameters ¯L = 1
+
+> Wtot,L
+
+∑Ll=1 Wtot,l ≤ L, and R = ∑Ll=1 lk l ≤ L2W . Then for the function class F of all real-valued functions computed by the MLP class and m
+
+Πsgn (F)(m) ≤
+
+> L
+
+∏
+
+> l=1
+
+2
+
+( 2emk llWtot,l 
+
+)Wtot,l 
+
+≤ (4 emL )Wtot,L .
+
+Moreover, we have 
+
+V Cdim (F ) = L + ¯LW tot,L log 2(4 e ∑
+
+> l
+
+lk l log 2(∑
+
+> l
+
+2elk l)) = O( ¯LW tot,L log( L2W )) .
+
+We generalize the above result to capture the MLP with multi dimensional output as used by our predictor. 
+
+Theorem A.9 (Multi-ouput version of Theorem 6 in (Bartlett et al., 2019)) . Consider the neural network class 
+
+MLP( Rd, Rk; L, W ) that has Relu non-linearity. Let Wtot,l , ul, ¯L, and R be as defined in Theorem A.8. Then for the function class F of all real-valued functions computed by the MLP class with k dimensional output we have 
+
+V Cdim (F ) = L + ¯LW tot,L log 2(4 e ∑
+
+> l
+
+lk l log 2(∑
+
+> l
+
+2elk l)) = O( ¯LW tot,L log( L2W )) .
+
+Proof. We proceed with our proof now for the class MLP( Rd, RK ; L, W ). F is the class of k dimensional output function computed by the MLP class. Let a ∈ RWtot,L parameterize one function f ∈ F . We need to find the V Cdim of the set 
+
+{sgn (f (xi, j, a )) : a ∈ RWtot,L , i ∈ [m], j ∈ [k]}. We partition the above set with respect to y and obtain the following inequality. 
+
+|{ sgn (f (xi, j, a )) : a ∈ RWtot,L , i ∈ [m], j ∈ [k]}| ≤ ∑
+
+> j∈[k]
+
+|{ sgn (f (xi, j, a )) : a ∈ RWtot,L , i ∈ [m]}| ≤ ∑
+
+> j∈[k]
+
+Πsgn (MLP( Rd,R;L,W )) (m) ≤ k2L(2 eRm/W tot,L )Wtot,L .
+
+> 1
+
+Originally in (Bartlett et al., 2019) degree is denoted by d and break point by p, but we use deg and pnt , respectively, to avoid confusion. 
+
+15 A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+For the second inequality we notice that for a fixed j the function f (xi, j, a ) is computed by MLP( Rd, R; L, W ) and bound it with the growth function Πsgn (MLP( Rd,R;L,W )) over m points. Therefore, for the third inequality we can apply the specified bound for Πsgn (MLP( Rd,R;L,W )) (m) inside the proof of Theorem 6 in (Bartlett et al., 2019). Here, we have specialized for Relu nonlinearlity, i.e. breaking point pnt = 1 , and degree deg = 1 . Applying Lemma 6 in (Bartlett et al., 2019) we obtain 
+
+V Cdim (MLP( Rd, Rk; L, W )) ≤ L log( k) + Wtot,L log 2(4 eR log 2(4 eR )) = O(L log( k) + L2W 2 log( LW )) .
+
+Finally, we state the following proposition that is a bounded version of the Gibb’s inequality, that maximizes the cross entropy of a discrete probability function. 
+
+Proposition A.10 (Truncated Gibb’s inequality) . Let us consider two discrete distributions α, β over alphabet size K. Then for any constant C > 0, we have 
+
+> K
+
+∑
+
+> i=1
+
+αi min( C, − log( βi)) ≥
+
+> K
+
+∑
+
+> i=1
+
+αi min( C, − log( αi)) − (K − 1) exp( −C).
+
+Proof. For two discrete distributions α, β over alphabet size K.
+
+> K
+
+∑
+
+> i=1
+
+αi min( C, − log( βi)) = −
+
+> K
+
+∑
+
+> i=1
+
+αi log(max(exp( −C), β i)) = −
+
+> K
+
+∑
+
+> i=1
+
+αi log( αi) + 
+
+> K
+
+∑
+
+> i=1
+
+αi log (αi/ max(exp( −C), β i))
+
+≥ − 
+
+> K
+
+∑
+
+> i=1
+
+αi log( αi) + ( 
+
+> K
+
+∑
+
+> i=1
+
+αi) log ( K∑
+
+> i=1
+
+αi/
+
+> K
+
+∑
+
+> i=1
+
+max(exp( −C), β i)) )
+
+≥ − 
+
+> K
+
+∑
+
+> i=1
+
+αi log( αi) − log(1 + ( K − 1) exp( −C)) 
+
+≥ − 
+
+> K
+
+∑
+
+> i=1
+
+αi log( αi) − (K − 1) exp( −C)
+
+≥
+
+> K
+
+∑
+
+> i=1
+
+αi min( C, − log( αi)) − (K − 1) exp( −C)
+
+The first inequality follows from the log-sum-inequality. The second inequality inequality uses the fact that ∑Ki=1 max(exp( −C), β i) is maximized by setting one βi = 1 for some 1 ≤ i ≤ K, while the rest are set to 0. The second last inequality follows by log(1 + x) ≤ x. The final inequality states taking a minimum with C can only decrease the value. 
+
+## B. Derivations of main result 
+
+As discussed in Section 2, the objective here is to study how the excess risk in Eq. (12) . Our excess risk has three main components, generalization error, retriever approximation error, and predictor approximation error. In this section, we structure our results somewhat differently than the main body to capture the general setting of learning retriever with a fixed predictor, and vice versa. We first prove excess risk bounds for Learning the Retriever, then excess risk bounds for Learning the Predictor. Finally, we combine the results to obtain the final joint learning guarantees, which are presented in the paper. For the rest of the analysis. We need to specify the space of retrieved examples to define the complexity of the gap function. We recall that our retrieved samples are embedded in a compact subspace of Rdz , for simplicity say Z ⊆ [−1, 1] dz .Similarly, we assume X to be a compact subspace of Rd, for simplicity X ⊆ [−1, 1] dx .16 A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+B.1. Learning the retriever 
+
+We first study learning the retriever over class Θ when the predictor ξ is fixed. The task of the retriever is to minimize 
+
+E(X,Y )∼D[EZ∼pθ (·| X)`(hξ (X, Z ), Y )] = EX
+
+[EZ∼pθ (·| X)EY |X `(hξ (X, Z ), Y )|X]] = EX
+
+[EZ∼pθ (·| X)gξ (X, Z )],
+
+where gξ (X, Z ) = EY |X `(hξ (X, Z ), Y ). We have a closed form for the optimal retriever when not restricted within a function class. The optimal retriever is p∗,ξ (z|x) = 1arg min z′∈I gξ (x,z ′)(z), where a tie is broken arbitrarily. For the fixed predictor ξ, the retriever that minimizes the empirical risk given, ˆθ(ξ), and the retriever that minimizes the population risk, θ(ξ), over the class Θ are defined as 
+
+ˆθ(ξ) = arg min 
+
+> θ∈Θ
+
+1
+
+n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈I
+
+pθ (z|xi)`(hξ (xi, z ), y i
+
+), θ (ξ) = arg min 
+
+> θ∈Θ
+
+EX
+
+[EZ∼pθ (·| X)gξ (X, Z )].
+
+Here, the probability is defined using the softmax operator for a given θ ∈ Θ as 
+
+pθ, I
+
+(z|x) = exp (rθ (x, z ))∑ 
+
+> z′∈I
+
+exp (rθ (x, z ′)) , ∀ z ∈ I, x ∈ X.
+
+Hardness of retrieval: We assume the gξ (x, z ) function is in the Sobolev space with κ derivatives as defined in Section A. The following is the restatement of Assumption 3.1 but for any ξ ∈ Ξ and not just the optimal one ξ∗.
+
+Assumption B.1 (Complexity of gξ ). For any ξ ∈ Ξ, there exists a baseline bξ : [ −1, 1] dx → R such that the function 
+
+gap ξ : [ −1, 1] dx+dz → R with baseline bξ , as defined by gap ξ = ( gξ (x, z ) − bξ (x)) lies in the Sobolev space with κ
+
+derivatives and L∞([ −1, 1] dx+dz ) norm. As noted earlier this means that the predictor loss has a possibly ‘complex’ component bξ (x), and a relatively ‘smooth’ component gap ξ (x, z ) that ensures two retrieved examples that are close gives similar loss for the predictor for any given sample x ∈ X. As gap ξ (x, z ) solely determines the optimal retrived set, it’s smoothness defines the hardness of retrieval. 
+
+Excess risk decomposition: The excess error in retriever learning is given as 
+
+R`, I(ξ, ˆθ(ξ)) − R`, I(f `
+
+> opt ,I
+
+)= ∑
+
+> θ=θ(ξ),ˆθ(ξ)
+
+∣∣ 1
+
+n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈I
+
+pθ (z|xi)`(hξ (xi, z ), y i
+
+) − EX
+
+[EZ∼pθ (·| X)gξ (X, Z )]∣ ∣︸ ︷︷ ︸
+
+> retriever generalization error
+
++ R`, I(ξ, θ (ξ)) − EX
+
+[ min  
+
+> z∈I
+
+gξ (X, z )]︸ ︷︷ ︸
+
+> retriever approximation error
+
++ EX
+
+[ min  
+
+> z∈I
+
+gξ (X, z )] − R`, I(f `
+
+> opt ,I
+
+)
+
+︸ ︷︷ ︸ 
+
+> error from predictor ξ
+
+.
+
+B.1.1. G ENERALIZATION ERROR :We now proceed to bound the generalization error using the Radamacher complexity. With probability at least (1 − δ) for any δ > 0, ∣∣∣EX
+
+[EZ∼pˆθ(ξ)(·| X)gξ (X, Z )] − 1
+
+n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈I
+
+pˆθ(ξ)(z|xi)`(hξ (xi, z ), y i
+
+)∣∣∣
+
+≤ 2Eσ
+
+[
+
+max 
+
+> θ∈Θ
+
+1
+
+n
+
+∑
+
+> i∈[n]
+
+σi
+
+∑
+
+> z∈I
+
+pθ (z|xi)`(hξ (xi, z ), y i
+
+)]
+
++ 3 `max 
+
+√ log(2 /δ )
+
+> n
+
+≤ 2 × inf  
+
+> ε∈[0 ,c ξ/2]
+
+(4ε + 12 √n
+
+∫ cξ /2
+
+> ε
+
+√
+
+log( N (Θ , ν, ‖ · ‖ 2,[n],ξ )) dν ) + 3 `max 
+
+√ log(2 /δ )
+
+> n
+
+Using covering number bound with chaining we obtain the final inequality, where 
+
+cξ = sup 
+
+> θ∈Θ
+
+( 1
+
+> n
+
+∑
+
+> i∈[n]
+
+( ∑ 
+
+> z∈I
+
+pθ (z|xi)`(hξ (xi, z ), y i
+
+)) 2)1/2
+
+,
+
+and N (Θ , ν, ‖ · ‖ 2,[n],ξ ) denote the covering number of the retriever function Θ with error ν in L2 norm w.r.t. the set 
+
+{(xi, y i) : i ∈ [n]} and ξ fixed, 
+
+‖u‖2,[n],ξ =
+
+( 1
+
+> n
+
+∑
+
+> i∈[n]
+
+( ∑ 
+
+> z∈I
+
+ui,z `(hξ (xi, z ), y i
+
+)) 2)1/2
+
+, ∀u ∈ Rn×| I|.
+
+17 A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+The generalization error in retriever learning depends on the covering number of Θ (which we shall see is dependent on the embedding space of the retrieved examples). As θ(ξ) is a fixed retriever, we do not need to take any union bound over the retriever space. Therefore, we have 
+
+∣∣∣EX
+
+[EZ∼pθ(ξ)(·| X)gξ (X, Z )] − 1
+
+n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈I
+
+pθ(ξ)(z|xi)`(hξ (xi, z ), y i
+
+)∣∣∣ ≤ 3`max 
+
+√ log(2 /δ ) 
+
+> n
+
+.
+
+B.1.2. A PPROXIMATION ERROR :The approximation error of learning the retriever depends on the hardness of the function min z∈I gξ (X, z ). We recall that this term is approximated using softmax over rθ (X, Z ).We want to approximate the term min z∈I gξ (x, z ) for all x ∈ X, by ∑ 
+
+> z∈I
+
+pθ, I(z|x)gξ (x, z ). We can break down the approximation into two parts. First we show that the function softmax( −τ × gξ (x, z )) approximates min z gξ (x, z ) for large 
+
+τ . In particular, if τ = O(log( |I|)/δ ) then softmax approximates max with error δ (see, (McSherry & Talwar, 2007; Epasto et al., 2020)). Next, we show that pθ, I
+
+(z|x) can approximate softmax( −τ × gξ (x, z )) well in L2 norm. We define 
+
+˜pξ (z|x) = exp( −τ g ξ (x, z )) 
+
+∑ 
+
+> z′
+
+exp( −τ g ξ (x, z ′)) = exp( −τ (gξ (x, z ) − bξ (x))) 
+
+∑ 
+
+> z′
+
+exp( −τ (gξ (x, z ′) − bξ (x))) .
+
+Here recall that bξ (x) is the baseline function in Assumption 3.1. An example of such baseline is bξ (x) = min ˜z gξ (x, ˜z) the loss under the optimal retrieved sample for each x ∈ X.We have for any θ ∈ Θ
+
+R`, I(ξ, θ (ξ)) − EX
+
+[ min  
+
+> z∈I
+
+gξ (X, z )]
+
+≤ R`, I(ξ, θ ) − EX
+
+[ min  
+
+> z∈I
+
+gξ (X, z )]
+
+= EX
+
+[ ∑ 
+
+> z∈I
+
+(pθ, I(z|x) − ˜pξ (z|x)) gξ (x, z )] + EX
+
+[ ∑ 
+
+> z∈I
+
+˜pξ (z|x) − min  
+
+> z∈I
+
+gξ (x, z )]
+
+≤ EX
+
+[‖gξ (x, ·)‖∞‖pθ, I(·| x) − ˜pξ (·| x)‖1
+
+] + log( |I|)
+
+τ 2
+
+≤ EX
+
+[‖gξ (x, ·)‖∞‖rθ (x, ·) + τ gap ξ (x, ·)‖∞
+
+] + log( |I|)
+
+τ 2
+
+≤ `max ‖rθ + τ gap ξ ‖∞ + log( |I|)
+
+τ 2
+
+In the first inequality, the first term in the final inequality is simply using norm bounds for inner product while the second term in the final inequality follows from Theorem 3.1 in (Epasto et al., 2020) which originates from (McSherry & Talwar, 2007). The second inequality uses the fact that softmax functions over K classes follow ‖sm (x) − sm (y)‖∞ ≤ ‖ x − y‖1
+
+(see (henrikl , https://math.stackexchange.com/users/351007/henrikl)). In the final inequality, we bound the results using the 
+
+L2 norm bound of the inner product, and use `max to bound the norm of gξ .As the above bound hold for any τ > 0, by optimizing of τ and θ we obtain, 
+
+R`, I(ξ, θ (ξ)) − EX
+
+[ min  
+
+> z∈I
+
+gξ (X, z )] ≤ inf  
+
+> θ∈Θ
+
+inf  
+
+> τ > 0
+
+`max ‖rθ + τ gap ξ ‖∞ + log( |I|)
+
+τ 2 . (29) Note the above bound hold for any θ ∈ Θ. Therefore, if there exists a θ ∈ Θ such that the function rθ (x, z ) approximates the function −τ gap ξ (x, z ) well, then we end up with small approximation error. For that purpose, we need to impose some smoothness condition on the gap function, gap ξ (x, z ) for (x, z ) ∈ X × I, to provide approximability results using MLP. B.1.3. I NSTANTIATION OF MLP RETRIEVER 
+
+We consider Θ to be the class of MLP defined in Equation (28). 
+
+Generalization error for MLP retriever: To bound the generalization error, we need to first bound the covering number of N (Θ , ν, ‖·‖ 2,[n],ξ ), for Θ = MLP( Rdx+dz , R; W, L ). Here, X ⊆ Rdx and I ⊆ Rdz (i.e. the retrieved space is embeded in 
+
+Rdz ). We first want to bound the covering number N (Θ , ν, ‖ · ‖ 2,[n],ξ ) with a covering number of MLP( Rdx+dz , R; W, L ).18 A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+We have for a fixed data set Sn := {(x1, y 1), . . . , (xn, y n)}, predictor ξ, and for two θ, θ ′ ∈ Θ
+
+( 1
+
+> n
+
+∑
+
+> i∈[n]
+
+( ∑ 
+
+> z∈I
+
+(pθ (z|xi) − pθ′ (z|xi)) `(hξ (xi, z ), y i
+
+)) 2)1/2
+
+≤ `max 
+
+( 1
+
+> n
+
+∑
+
+> i∈[n]
+
+( ∑ 
+
+> z∈I
+
+|pθ (z|xi) − pθ′ (z|xi)|)2)1/2
+
+≤ `max 
+
+( 1
+
+> n
+
+∑
+
+> i∈[n]
+
+( ∑ 
+
+> z∈I
+
+|pθ (z|xi) − pθ′ (z|xi)|)2)1/2
+
+≤ `max 
+
+( 1
+
+> n
+
+∑
+
+> i∈[n]
+
+( max  
+
+> z∈I
+
+|rθ (xi, z ) − rθ′ (xi, z )|)2)1/2
+
+≤ `max sup 
+
+> x∈S n,z ∈I
+
+|rθ (x, z ) − rθ′ (x, z )|
+
+Now consider a ‖ · ‖ ∞,n |I| norm cover of Θ, Θcov with cardinality N (Θ , ν/` max , ‖ · ‖ ∞,n |I|). Here, ‖ · ‖ ∞,n |I| is defined as ‖u‖∞,n |I| = sup xi∈S n sup z∈I |ui,z |, ∀u ∈ Rn×| I|.
+
+For any θ ∈ Θ, there exists a θ′ 
+
+> θ
+
+∈ Θcov such that sup x∈S n,z ∈I |rθ (x, z ) − rθ′ 
+
+> θ
+
+(x, z )| ≤ ν/` max . This means, that Θcov 
+
+forms a ν-cover in the ‖ · ‖ 2,[n],ξ norm. In other words, we have N (Θ , ν, ‖ · ‖ 2,[n],ξ ) ≤ N (Θ , ν/` max , ‖ · ‖ ∞,n |I|).
+
+In absence of norm bounds for the MLP weights and biases, direct covering number bound is not readily available. Therefore, we will use pseudo-dimension of the class Θ from (Bartlett et al., 2019) to bound the covering number N (Θ , ν, ‖ · ‖ ∞,n |I|)
+
+using (Zhang, 2023). In particular, if the pseudo-dimension of Θ is dV C , then we have log N (Θ , ν, ‖ · ‖ ∞,n |I|) ≤
+
+1 + log(1 + dV C ) + dV C log(max {2, en |I|/d V C ν}) as per Theorem 5.11 in (Zhang, 2023). From Theorem 6 in (Bartlett et al., 2019) we know that for the class MLP( Rd, R; W, L ) the pseudo-dimension is O(LN log (M )) , where N is the number of parameters, and M is the number of computation units. For fully connected network, we have N = O(LW 2), and 
+
+M = O(LW ). So the final generalization error is O( `max LW √log( LW ) log( n|I|)
+
+> √n
+
+) for large enough L (we will set L as a function of the data size n which will satisfy this). This is obtained by setting ε = c/ √n for a constant c, and δ = 1 /n .
+
+Approximation error for MLP retriever: Let Ω = [ −1, 1] dx+dz . Our excess risk bounds closely follow the work of (Siegel, 2023) which generalizes (Yarotsky, 2017). 2
+
+We consider Θ to be the class of multi-layer-perceptron (MLP), a.k.a. fully connected Deep Neural Network with Relu nonlinearity as defined in Section A. From Theorem 1 in (Siegel, 2023) by taking p = q = ∞ in the theorem statement, under Assumption B.1 we get that 
+
+inf   
+
+> f∈MLP( Rdx +dz ,R;W,L )
+
+‖f − gap ξ ‖L∞(Ω) ≤ C‖gap ξ ‖W κ(L∞(Ω)) L−2κ/ (dx+dz )
+
+for Ω ∈ [−1, 1] dx+dz , W = 25( dx + dz ) + 31 and C = c(κ, d x + dz ) < ∞ (independent of L). Therefore, we have for Θ = MLP( Rdx+dz , R; 25( dx + dz ) + 31 , L ) under Assumption B.1 we have 
+
+R`, I(ξ, θ (ξ)) − EX
+
+[ min  
+
+> z∈I
+
+gξ (X, z )] ≤ Cτ ‖gξ ‖L∞(Ω) ‖gap ξ ‖W κ(L∞(Ω)) L−2κ/ (dx+dz ) + log( |I|)
+
+τ 2 .
+
+This follows from the following series of inequalities: 
+
+R`, I(ξ, θ (ξ)) − EX
+
+[ min  
+
+> z∈I
+
+gξ (X, z )]
+
+≤ EX
+
+[‖gξ (x, ·)‖∞
+
+]EX
+
+[‖rθ (x, ·) + τ gap ξ (x, ·)‖∞
+
+] + log( |I|)
+
+τ 2
+
+= τ EX
+
+[‖gξ (x, ·)‖∞
+
+]‖˜rθ − gap ξ ‖L∞(Ω) + log( |I|)
+
+τ 2
+
+≤ Cτ EX
+
+[‖gξ (x, ·)‖∞
+
+]‖gap ξ ‖W κ(L∞(Ω)) L−2κ/ (dx+dz ) + log( |I|)
+
+τ 2
+
+≤ C′`max τ L −2κ/ (dx+dz ) + log( |I|)
+
+τ 2
+
+> 2
+
+We note (Siegel, 2023) works with Ω = [0 , 1] d, and as mentioned therein, it can extend to bounded domain, e.g. [a, b ]d which includes our setting. Furthermore, one can extend to non-integer Sobolev and Besov spaces following (Siegel, 2023). 
+
+19 A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+The first inequality is what we derived earlier. The second equality, replaces ˜rθ = −τ r θ . The second last inequality follows by optimizing ˜rθ over the class Θ, as we see then −τ r θ also lies in Θ, and applying Theorem 1 in (Siegel, 2023). The final inequality combines C′ = C‖gap ξ ‖W κ(L∞(Ω)) and bounds EX
+
+[‖gξ (x, ·)‖∞
+
+] ≤ `max .As the choice of τ is not algorithmic, we can optimize for τ . In particular, we choose τ = cL −2κ/ 3( dx+dz ) log 1/3(|I|) to obtain the approximation error bound as O(`max L−4κ/ 3( dx+dz ) log 1/3(|I|)) , where we treat the remaining terms that are independent of τ and L as constants. 
+
+Excess risk for MLP retriever learning: Adding approximation and generalization error we bound the excess risk as Excess Risk ≤ EX
+
+[ min  
+
+> z∈I
+
+gξ (X, z )] − R`, I(f `
+
+> opt ,I
+
+)
+
+︸ ︷︷ ︸ 
+
+> error from predictor ξ
+
++ O(`max L− 4κ  
+
+> 3( dx+dz)
+
+log 1/3(|I|)) 
+
+︸ ︷︷ ︸
+
+> retriever approximation error
+
++ O( `max LW √log( LW ) log( n|I|)
+
+√n
+
+)︸ ︷︷ ︸
+
+> retriever generalization error
+
+(30) 
+
+= EX
+
+[ min  
+
+> z∈I
+
+gξ (X, z )] − R`, I(f `
+
+> opt ,I
+
+)
+
+︸ ︷︷ ︸ 
+
+> error from predictor ξ
+
++ ˜O(`max n− 2κ  
+
+> 3( dx+dz)+4 κ
+
+)
+
+︸ ︷︷ ︸
+
+> retriever combined error
+
+(31) Here, we choose L = n   
+
+> 3( dx+dz)6( dx+dz)+8 κ
+
+and use the data-store size |I| = poly (n). Note we have W = O(dx + dz ) which is combined with the constants. 
+
+B.2. Learning the predictor 
+
+We now quantify the excess risk of a predictor ξ for a fixed predictor θ. For a fixed predictor θ, the task of the predictor is to minimize 
+
+E(X,Y )∼DXY [EZ∼pθ (·| X)`(hξ (X, Z ), Y )] = E(( X,Z ),Y )∼DXY ×pθ (·| X)
+
+[`(hξ (X, Z ), Y )|X]]
+
+The predictor now learns from the joint distribution DXY × pθ (·| X). We assume that the hardness of the classification task performed by the predictor varies with the selected retriever θ.Similar to retriever learning, for a fixed retriever θ, the predictor that minimizes the empirical risk given, ˆξ(θ), and the predictor that minimizes the population risk, ξ∗(θ), over the class Ξ are defined as 
+
+ˆξ(θ) = arg min 
+
+> ξ∈Ξ
+
+1
+
+n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈I
+
+pθ (z|xi)`(hξ (xi, z ), y i
+
+), ξ ∗(θ) = arg min 
+
+> ξ∈Ξ
+
+EX
+
+[EZ∼pθ (·| X)gξ (X, Z )],
+
+where gξ (X, Z ) = EY |X `(hξ (X, Z ), Y ). We also define the predictor over the class Ξ with ‘optimal’ retrieval (possibly outside of Θ) that minimizes the population risk as ξ∗ as ξ∗ = arg min ξ∈Ξ EX
+
+[ min z∈I gξ (X, z )].
+
+Usefulness of data-store: We start with characterization of the prediction task in presence of the data-store I. We consider that there exists a score function h∗ : X × Z → R|Y|, and corresponding probability distribution 
+
+py
+
+> ∗
+
+(x, z ) = exp( hy
+
+> ∗
+
+(x, z )) 
+
+∑ 
+
+> y′
+
+exp( hy′ 
+
+> ∗
+
+(x, z )) , (32) that approximates well py 
+
+> DXY
+
+(x) := PY ∼DXY (y|X = x) for all x ∈ X and y ∈ Y. Furthermore, this score function h∗
+
+lies coordinate wise in the Sobolev space. The Assumption 3.2 captures the above. We restate the assumption here for convenience. 
+
+Assumption B.2 (Retrieval quality) . There exists a score function h∗ : X × Z → R|Y| such that 1. for each y ∈ Y, the function hy 
+
+> ∗
+
+lies in the Sobolev space with κI derivatives and finite L∞([ −1, 1] dx+dz ) norm, 2. for any x ∈ X there exists a retrieved example z∗(x) ∈ I such that for py
+
+> ∗
+
+(x, z ) as defined in Equation (32) 
+
+max  
+
+> y∈Y
+
+sup 
+
+> x∈X
+
+|py
+
+> ∗
+
+(x, z (x)) − py 
+
+> DXY
+
+(x)| ≤ cI|I|−γI .
+
+The tuple (γI, d z , κ I) defines the usefulness of the data-store I. In particular, the higher the γI the closer the approximation, and the higher the κI and smaller the embedding dimension dz the ‘easier’ the score function used for this approximation. 
+
+Excess risk decomposition The excess risk decomposition is given as below. 
+
+R`, I( ˆξ(θ), θ ) − R`, I(f `
+
+> opt ,I
+
+)
+
+20 A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+≤ ∑ 
+
+> ξ=ξ∗(θ),ˆξ(θ)
+
+∣∣ 1
+
+n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈I
+
+pθ (z|xi)`(hξ (xi, z ), y i
+
+) − EX
+
+[EZ∼pθ (·| X)gξ (X, Z )]∣ ∣
+
++ R`, I(ξ∗(θ), θ ) − R`, I(f `
+
+> opt ,I
+
+)
+
+≤ ∑ 
+
+> ξ=ξ∗(θ),ˆξ(θ)
+
+∣∣ 1
+
+n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈I
+
+pθ (z|xi)`(hξ (xi, z ), y i
+
+) − EX
+
+[EZ∼pθ (·| X)gξ (X, Z )]∣ ∣
+
++ R`, I(ξ∗(θ), θ ) − R`, I(ξ∗, θ )
+
+︸ ︷︷ ︸
+
+> ≤0
+
++R`, I(ξ∗, θ ) − R`, I(f `
+
+> opt ,I
+
+)
+
+≤ ∑ 
+
+> ξ=ξ∗(θ),ˆξ(θ)
+
+∣∣ 1
+
+n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈I
+
+pθ (z|xi)`(hξ (xi, z ), y i
+
+) − EX
+
+[EZ∼pθ (·| X)gξ (X, Z )]∣ ∣︸ ︷︷ ︸
+
+> generalization error
+
++ R`, I(ξ∗, θ ) − EX
+
+[ min  
+
+> z∈I
+
+gξ∗ (X, z )]︸ ︷︷ ︸
+
+> retriever error
+
++ EX
+
+[ min  
+
+> z∈I
+
+gξ∗ (X, z )] − EX
+
+[ min  
+
+> z∈I
+
+gf ` 
+
+> opt ,I
+
+(X, z )]︸ ︷︷ ︸
+
+> predictor error
+
+Note that in the second inequality as the retriever is fixed (and not optimized with predictor), we can substitute the predictor 
+
+ξ∗(θ) with ξ∗ to obtain an upper bound. B.2.1. A PPROXIMATION ERROR :We specialize our analysis for the log-loss bounded by `max > 0 give as 
+
+`(hξ (x, z ), y ) = min( `max , − log( pξ (y|x, z ))) = min( `max , log( ∑
+
+> y′∈Y
+
+exp( hy′ 
+
+> ξ
+
+(x, z ))) − hyξ (x, z )) . (33) We now need to bound the predictor error (EX
+
+[ min z∈I gξ∗ (X, z )] − EX
+
+[ min z∈I gf ` 
+
+> opt ,I
+
+(X, z )]) for the bounded log-loss. We want to relate this term to the py
+
+> ∗
+
+(x, z ) for which we have good control over its complexity. We first need a lower bound for EX
+
+[ min z∈I gf ` 
+
+> opt ,I
+
+(X, z )] as a function of py
+
+> ∗
+
+(x, z ). We proceed as follows: 
+
+EX
+
+[ min  
+
+> z∈I
+
+gf ` 
+
+> opt ,I
+
+(X, z )]
+
+≥ EX
+
+[ ∑ 
+
+> y∈Y
+
+py 
+
+> DXY
+
+(X) min( `max , − ln( py 
+
+> DXY
+
+(X))) ] − (|Y| − 1) exp( −`max )
+
+≥ EX
+
+[ ∑ 
+
+> y∈Y
+
+py 
+
+> DXY
+
+(X) min( `max , − ln( py
+
+> ∗
+
+(X, z ∗(X))) ] − (|Y| − 1) exp( −`max )
+
+− EX
+
+[ max  
+
+> y∈Y
+
+`max |py
+
+> ∗
+
+(X, z ∗(X)) − py 
+
+> DXY
+
+(X)|]
+
+≥ EX
+
+[ ∑ 
+
+> y∈Y
+
+py 
+
+> DXY
+
+(X) min( `max , − ln( py
+
+> ∗
+
+(X, z ∗(X))) ] − (|Y| − 1) exp( −`max ) − cI|I|−γI
+
+= EX
+
+[gh∗ (X, z ∗(X)) ] − (|Y| − 1) exp( −`max ) − cI|I|−γI
+
+In the first inequality, applying Proposition A.10 in Appendix A to our setting with C = `max and K = |Y| we obtain the lower bound. The second inequality relies on the mean-value bound, 
+
+| min( C, − log( x)) − min( C, − log( y)) | ≤ max 
+
+> x′∈[x,y ]
+
+∣∣ δδx min( C, − log( x)) |x=x′ (x − y)∣∣ ≤ C|x − y|.
+
+Next inequality is obtained by Assumption B.2 with z∗(x) is ad defined therein. The final inequality substitutes 
+
+gh∗ (x, z ∗(x)) = EY |X=x[`(h∗(x, z ∗(x)) , y )] where h∗(x, z ) is the score function used in Equation (32). We now derive an upper bound for the predictor error part of our excess risk bound. Let ξ ∈ Ξ be an arbitrary predictor Predictor Error , EX
+
+[ min  
+
+> z∈I
+
+gξ∗ (X, z )] − EX
+
+[ min  
+
+> z∈I
+
+gf ` 
+
+> opt ,I
+
+(X, z )]
+
+≤ EX
+
+[ min  
+
+> z∈I
+
+gξ∗ (X, z )] − EX
+
+[gh∗ (X, z ∗(X)) ] + ( |Y| − 1) exp( −`max ) + cI|I|−γI
+
+≤ EX
+
+[ min  
+
+> z∈I
+
+gξ (X, z )] − EX
+
+[gh∗ (X, z ∗(X)) ] + ( |Y| − 1) exp( −`max ) + cI|I|−γI
+
+≤ EX
+
+[gξ (X, z ∗(X)) ] − EX
+
+[gh∗ (X, z ∗(X)) ] + ( |Y| − 1) exp( −`max ) + cI|I|−γI
+
+21 A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+The second inequality follows by substituting the lower bound of EX
+
+[ min z∈I gf ` 
+
+> opt ,I
+
+(X, z )]. As ξ∗ optimizes `-risk over Ξ,we can substitute with the arbitrary predictor ξ to obtain an upper bound. The final inequality is obtained by substituting 
+
+z∗(X) instead of minimizing with respect to z ∈ I. Note that the final inequality holds for all ξ ∈ Ξ as the initial choice of ξ
+
+was arbitrary. Bounding the term EX
+
+[gξ (X, z ∗(X)) ] − EX
+
+[gh∗ (X, z ∗(X)) ], is similar to bounding the `-risk for classification with the data distribution P(X = x, Z = z, Y = y) = PDXY (X = x, Y = y)1(z = z∗(X)) . Our strategy is to bound `-risk with 
+
+L∞ distance between the score functions hyξ∗ (x, z ) and the score function hy
+
+> ∗
+
+(x, z ) which lies in the Sobolev space as given in the Assumption B.2. In particular, we have the following L∞ norm bound. 
+
+EX
+
+[gξ (X, z ∗(X)) ] − EX
+
+[gh∗ (X, z ∗(X)) ]
+
+= EXY 
+
+[`(hYξ (X, z ∗(X))) − `(hY 
+
+> ∗
+
+(X, z ∗(X))) ]
+
+≤ EXY 
+
+[|hYξ (X, z ∗(X)) − hY 
+
+> ∗
+
+(X, z ∗(X)) | + max  
+
+> y∈Y
+
+|hyξ (X, z ∗(X)) − hy
+
+> ∗
+
+(X, z ∗(X)) |]
+
+≤ 2EX
+
+[ max  
+
+> y∈Y
+
+|hyξ (X, z ∗(X)) − hy
+
+> ∗
+
+(X, z ∗(X)) |]
+
+The first inequality follows by substituting the bounded log-loss, and using the fact that for any two s, s ′ ∈ RK ,
+
+| log( ∑ 
+
+> k
+
+exp (sk)) − log( ∑ 
+
+> k
+
+exp (s′
+
+> k
+
+)) | ≤ max k |sk − s′
+
+> k
+
+|.We note that the above holds for all ξ. This gives the general approximation error bound as Predictor Error ≤ inf  
+
+> ξ∈Ξ
+
+2EX
+
+[ max  
+
+> y∈Y
+
+|hyξ (X, z ∗(X)) − hy
+
+> ∗
+
+(X, z ∗(X)) |] + ( |Y| − 1) exp( −`max ) + cI|I|−γI . (34) B.2.2. G ENERALIZATION ERROR :The generalization error can be bounded in a similar manner as the retriever learning. The key difference here is that the predictor is learnt over the space Ξ while the retriever is fixed. 
+
+|EX
+
+[EZ∼pθ (·| X)gˆξ(θ)(X, Z )] − 1
+
+n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈I
+
+pθ (z|xi)`(hˆξ(θ)(xi, z ), y i
+
+)|≤ 2Eσ
+
+[
+
+max 
+
+> ξ∈Ξ
+
+1
+
+n
+
+∑
+
+> i∈[n]
+
+σi
+
+∑
+
+> z∈I
+
+pθ (z|xi)`(hξ (xi, z ), y i
+
+)]
+
++ 3 `max 
+
+√ log(2 /δ )
+
+> n
+
+≤ 2 × inf  
+
+> ε∈[0 ,c θ/2]
+
+(4ε + 12 √n
+
+∫ cθ /2
+
+> ε
+
+√
+
+log( N (Ξ , ν, ‖ · ‖ 2,[n],θ )) dν ) + 3 `max 
+
+√ log(2 /δ )
+
+> n
+
+The final inequality again follows using covering number based bounds with chaining. We have used for a fixed retriever θcθ = sup 
+
+> ξ∈Ξ
+
+( 1
+
+> n
+
+∑
+
+> i∈[n]
+
+( ∑ 
+
+> z∈I
+
+pθ (z|xi)`(hξ (xi, z ), y i
+
+)) 2)1/2
+
+,
+
+and N (Ξ , ν, ‖ · ‖ 2,[n],θ ) denote the covering number of the retriever function Ξ with error ν in L2 norm w.r.t. the set 
+
+{(xi, y i) : i ∈ [n]} and θ fixed, 
+
+‖u‖2,[n],θ := 
+
+( 1
+
+> n
+
+∑
+
+> i∈[n]
+
+( ∑ 
+
+> z∈I
+
+pθ (z|xi)ui,z 
+
+)2)1/2
+
+, ∀u ∈ Rn×| I|.
+
+As ξ∗(θ) is fixed for a fixed θ we can directly bound, without any union over the learner/predictor space, 
+
+|EX
+
+[EZ∼pθ (·| X)gξ∗(θ)(X, Z )] − 1
+
+n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈I
+
+pθ (z|xi)`(hξ∗(θ)(xi, z ), y i
+
+)| ≤ 3`max 
+
+√ log(2 /δ ) 
+
+> n
+
+.
+
+Note the predictor approximation error is independent of retriever learning as it is compared with respect to the Bayes optimal retriever (i.e. min z∈Igξ (x, z )). B.2.3. I NSTANTIATION OF MLP PREDICTOR 
+
+As a concrete example, we now consider the space Ξ = MLP( Rdx+dz , RY; W, L ).
+
+Approximation error of MLP predictor: Our approximation results rely mainly on the results in (Siegel, 2023). The key difference here is the output is now |Y| dimensional. We find MLP of depth L and width at most W ′ = O(dx + dz ),to individually approximate the functions hy
+
+> ∗
+
+(x, z ) for each y ∈ Y. Later we can join these networks in parallel to obtain a final network with depth L and width at most O(( dx + dz )|Y|). In principle these networks may share sub-networks 22 A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+(e.g. the bit extraction networks, the sub-domain indexation network for p = q in (Siegel, 2023)) used for constructing the approximation. However, this is out of scope for this work, and we leave this open. From Theorem 1 in (Siegel, 2023) by taking p = q = ∞ in the theorem statement, under Assumption B.2 we get that for each y ∈ Y there exists a MLP fy ∈ MLP( Rdx+dz , R; W, L ) such that 
+
+‖fy − hy
+
+> ∗
+
+‖L∞(Ω) ≤ Cy ‖hy
+
+> ∗
+
+‖W κ(L∞(Ω)) L−2κI/(dx+dz )
+
+for Ω ∈ [−1, 1] dx+dz , W = 25( dx + dz ) + 31 and Cy = c(κI, d x + dz ) < ∞ (independent of L). By concatenating the networks fy for y ∈ Y in parallel (c.f. Lemma 5 in (Siegel, 2023)), and using the first layer to share the (dx + dz ) input to these parallel networks we obtain a MLP fopt ∈ MLP( Rdx+dz , RK ; WY, L + 1) , WY = O(|Y|(dx + dz )) , such that we have 
+
+‖f y 
+
+> opt
+
+− hy
+
+> ∗
+
+‖L∞(Ω) ≤ ( max  
+
+> y∈Y
+
+Cy ‖hy
+
+> ∗
+
+‖W κ(L∞(Ω)) 
+
+)L−2κI/(dx+dz ).
+
+By using ξ = f y 
+
+> opt
+
+in our bounds we obtain the predictor error as Predictor Error ≤ 2( max  
+
+> y∈Y
+
+Cy ‖hy
+
+> ∗
+
+‖W κ(L∞(Ω)) 
+
+)L−2κI/(dx+dz ) + ( |Y| − 1) exp( −`max ) + cI|I|−γI (35) 
+
+Generalization error for MLP predictor: We now bound the generalization error for Ξ which is the class of multi-layer perceptron (MLP) with Relu nonlinearity given as MLP( R(dx+dz ), R|Y|; W, L ).The first step is to bound the covering number N (Ξ , ν, ‖ · ‖ 2,[n],θ ) norm with the covering number N (Ξ , ν, ‖ · ‖ ∞,n |I|| Y|).Where ‖ · ‖ ∞,n |I|| Y| is defined as ‖u‖∞,n |I|| Y| = sup xi∈S n sup z∈I sup y∈Y |ui,z,y |, ∀u ∈ Rn×| I|×| Y|.
+
+We have for a fixed data set Sn := {(x1, y 1), . . . , (xn, y n)} and retriever ξ, and two predictors ξ, ξ ′ ∈ Ξ
+
+( 1
+
+> n
+
+∑
+
+> i∈[n]
+
+( ∑ 
+
+> z∈I
+
+pθ (z|xi)( `(hξ (xi, z ), y i
+
+) − `(hξ′ (xi, z ), y i
+
+)))2)1/2
+
+≤
+
+( 1
+
+> n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈I
+
+pθ (z|xi)(`(hξ (xi, z ), y i
+
+) − `(hξ′ (xi, z ), y i
+
+)) 2)1/2
+
+≤
+
+( 1
+
+> n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈I
+
+pθ (z|xi)(|hyi 
+
+> ξ
+
+(xi, z ) − hyi 
+
+> ξ′
+
+(xi, z )| + max  
+
+> y∈Y
+
+|hyξ (xi, z ) − hyξ′ (xi, z )|)2)1/2
+
+≤
+
+( 1
+
+> n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈I
+
+pθ (z|xi)(|hyi 
+
+> ξ
+
+(xi, z ) − hyi 
+
+> ξ′
+
+(xi, z )| + max  
+
+> y∈Y
+
+|hyξ (xi, z ) − hyξ′ (xi, z )|)2)1/2
+
+≤ √2 sup 
+
+> x∈X
+
+sup 
+
+> y∈Y
+
+sup 
+
+> z∈I
+
+|hyξ (x, z ) − hyξ′ (x, z )|
+
+The first inequality follows from Cauchy-Schwartz. For the case of bounded log-loss, we obtain the second inequality using the fact that for any two s, s ′ ∈ RK , | log( ∑ 
+
+> k
+
+exp (sk)) − log( ∑ 
+
+> k
+
+exp (s′
+
+> k
+
+)) | ≤ max k |sk − s′
+
+> k
+
+|.Let Ξcov be a ‖ · ‖ ∞,n |I|| Y| norm cover for the space Ξ of cardinality N (Ξ , ν, ‖ · ‖ ∞,n |I|| Y|). That implies, for any ξ ∈ Ξ there exists a ξ′(ξ) ∈ Ξcov such that sup x∈X sup y∈Y sup z∈I |hyξ (x, z ) − hyξ′ (x, z )| ≤ ν. Therefore, due to the above inequality, we have 
+
+( 1
+
+> n
+
+∑
+
+> i∈[n]
+
+( ∑  
+
+> z∈I
+
+pθ (z|xi)( `(hξ (xi, z ), y i
+
+) − `(hξ′ (xi, z ), y i
+
+)))2)1/2
+
+≤ ν. So Ξcov forms a cover of Ξ with respect to the ‖ · ‖ 2,[n],θ norm. Hence, N (Ξ , ν, ‖ · ‖ 2,[n],θ ) ≤ N (Ξ , ν, ‖ · ‖ ∞,n |I|| Y|).
+
+We need to bound N (Ξ , ν, ‖ · ‖ ∞,n |I|| Y|) next. Similar to the retrieval analysis, we first apply (Zhang, 2023) to bound the covering number N (Ξ , ν, ‖ · ‖ ∞,n |I|| Y|) with pseudo-dimension. However, we need slight reformulation of the function 
+
+hξ : X × Z → R|Y| to apply the results therein. Let us define function ˜hξ : X × Z × Y → R, where for each y ∈ Y we have ˜hξ (x, y, z ) = hyξ (x, z ). It is easy to see that N (Ξ , ν, ‖ · ‖ ∞,n |I|| Y|) covering of set Ξ remains unchanged due to this reformulation. In particular, if the pseudo-dimension of {˜hξ : ξ ∈ Ξ} is ˜dV C , then we have log N (Ξ , ν, ‖ · ‖ ∞,n |I|| Y|) ≤
+
+1 + log(1 + ˜dV C ) + ˜dV C log(max {2, en |I|| Y|/ ˜dV C ν}) as per Theorem 5.11 in (Zhang, 2023). Next we derive the pseudo-dimension of the class {˜hξ : ξ ∈ Ξ} using (Bartlett et al., 2019). One challenge here is that for the MLP we are considering the label y does not lie in the input space, rather this correspond to one co-ordinate of the |Y|-dimensional output. This can be captured with the slight modification of Theorem 6 in (Bartlett et al., 2019), namely Theorem A.9 in Appendix A. By Theorem A.9 we have for Ξ = MLP( Rdx+dz , R|Y|; L, W ) the VC dimension of Ξ as V Cdim (Ξ) = O(L log( |Y|) + L2W 2 log( LW )) . The final generalization bound obtained is 23 A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+O( `max 
+
+√(L log( |Y|)+ L2W 2 log( LW )) log( n|I|| Y|)
+
+> √n
+
+).
+
+Excess risk of predictor learning: We can now combine the generalization and approximation errors to obtain the final excess risk. The final excess risk is upper bounded as Excess Risk ≤ R`, I(ξ∗, θ ) − EX
+
+[ min  
+
+> z∈I
+
+gξ∗ (X, z )]︸ ︷︷ ︸ 
+
+> error from retriever θ
+
++ O(L−2κI/(dx+dz ) + ( |Y| − 1) exp( −`max ) + cI|I|−γI )
+
+︸ ︷︷ ︸
+
+> predictor approximation error
+
++ O( `max 
+
+√(L log( |Y|) + L2W 2 log( LW )) log( n|I|| Y|)
+
+√n
+
+)︸ ︷︷ ︸
+
+> predictor generalization error
+
+(36) 
+
+= EX
+
+[ min  
+
+> z∈I
+
+gξ (X, z )] − R`, I(f `
+
+> opt ,I
+
+)
+
+︸ ︷︷ ︸ 
+
+> error from predictor ξ
+
++ ˜O(|Y|  
+
+> 2κI
+> (dx+dz)+2 κI
+
+n− κI  
+
+> (dx+dz)+2 κI
+
+)
+
+︸ ︷︷ ︸
+
+> predictor combined error
+
+(37) We have retriever set grow polynomially with data, |I| = Ω( ns), and we let `max = log( |Y|) + s′ log( n).For s ≥ κI  
+
+> (( dx+dz)+2 κI)γI
+
+, and s′ ≥ κI  
+
+> (( dx+dz)+2 κI)
+
+the final error bound for predictor follows by setting L =
+
+n   
+
+> (dx+dz)2( dx+dz)+4 κI
+
+|Y|− dx +dz   
+
+> (dx +dz )+2 κI
+
+. Note that the choice of L and W here are related to predictor size, and are independent of the choices in retriever size. Moreover, here we see Assumption B.2 forces the quality of retriever set to become the bottleneck in predictor excess risk, if we have |I| = o(ns) for s = κI  
+
+> (( dx+dz)+2 κI)γI
+
+.
+
+B.3. Joint learning of retriever and predictor 
+
+In this section, we consider the task of joint learning the predictor and retriever from the space Ξ and Θ, respectively. The empirical optimizer pair ( ˆξjoint , ˆθjoint ), and the population optimizer (ξ∗
+
+> joint
+
+, θ ∗
+
+> joint
+
+) for the joint task are given as. 
+
+ˆξjoint , ˆθjoint = arg min 
+
+> ξ∈Ξ,ˆθ∈Θ
+
+1
+
+n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈I
+
+pθ (z|xi)`(hξ (xi, z ), y i
+
+), ξ ∗
+
+> joint
+
+, θ ∗ 
+
+> joint
+
+= arg min 
+
+> ξ∈Ξ
+
+EX
+
+[EZ∼pθ (·| X)gξ (X, Z )].
+
+Recall, the optimal predictor with best possible retrieval is ξ∗ = arg min ξ∈Ξ EX
+
+[ min z∈I gξ (X, z )]. We let the optimal retriever for ξ∗ as θ(ξ∗) = arg min θ∈Θ EX
+
+[EZ∼pθ (·| X)gξ∗ (X, Z )].The excess risk for the classes Θ and Ξ can be bounded as 
+
+R`, I( ˆξjoint , ˆθjoint ) − R`, I(f `
+
+> opt ,I
+
+)
+
+≤ ∑ 
+
+> (θ,ξ )∈{ (ˆθjoint ,ˆξjoint ),(θ∗
+> joint ,ξ ∗
+> joint )}
+
+|R`, I(ξ, θ ) − R`, I,n (ξ, θ )| + R`, I(ξ∗
+
+> joint
+
+, θ ∗
+
+> joint
+
+) − R`, I(f `
+
+> opt ,I
+
+)
+
+≤ ∑ 
+
+> (θ,ξ )∈{ (ˆθjoint ,ˆξjoint ),(θ∗
+> joint ,ξ ∗
+> joint )}
+
+|R`, I(ξ, θ ) − R`, I,n (ξ, θ )| + R`, I(ξ∗, θ (ξ∗)) − R`, I(f `
+
+> opt ,I
+
+)
+
+≤ ∑ 
+
+> (θ,ξ )∈{ (ˆθjoint ,ˆξjoint ),(θ∗
+> joint ,ξ ∗
+> joint )}
+
+|R`, I(ξ, θ ) − R`, I,n (ξ, θ )|
+
+︸ ︷︷ ︸
+
+> Generalization Error
+
++ R`, I(ξ∗, θ (ξ∗)) − EX
+
+[ min  
+
+> z∈I
+
+gξ∗ (X, z )]︸ ︷︷ ︸
+
+> retriever error
+
++ EX
+
+[ min  
+
+> z∈I
+
+gξ∗ (X, z )] − R`, I(f `
+
+> opt ,I
+
+)
+
+︸ ︷︷ ︸
+
+> predictor error
+
+Here, we substitute the pair (ξ∗, θ (ξ∗)) for (ξ∗
+
+> joint
+
+, θ ∗
+
+> joint
+
+) where the former may have higher loss than latter, but the predictor error is easily controlled. Also, note that the retriever θ(ξ∗) is optimized for predictor ξ∗. Therefore, we can bound the retriever error properly unlike the fixed predictor case. We next bound the generalization and approximation errors separately. B.3.1. G ENERALIZATION ERROR :First, for the fixed (θ∗, ξ ∗) pair we bound the generalization error as 
+
+|EX
+
+[EZ∼pθ∗ (·| X)gξ∗ (X, Z )] − 1
+
+n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈I
+
+pθ∗ (z|xi)`(hξ∗ (xi, z ), y i
+
+)| ≤ 3`max 
+
+√ log(2 /δ ) 
+
+> n
+
+.
+
+24 A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+Next, the generalization for the ( ˆξ, ˆθ) error can be bounded as. 
+
+|EX
+
+[EZ∼pˆθ (·| X)gˆξ (X, Z )] − 1
+
+n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈I
+
+pˆθ (z|xi)`(hˆξ (xi, z ), y i
+
+)|≤ 2Eσ
+
+[
+
+max 
+
+> (θ,ξ )∈Θ×Ξ
+
+1
+
+n
+
+∑
+
+> i∈[n]
+
+σi
+
+∑
+
+> z∈I
+
+pθ (z|xi)`(hξ (xi, z ), y i
+
+)]
+
++ 3 `max 
+
+√ log(2 /δ )
+
+> n
+
+≤ 2 × inf 
+
+> ε∈[0 ,c max /2]
+
+(4ε + 12 √n
+
+∫ cmax /2
+
+> ε
+
+√
+
+log( N (Θ × Ξ, ν, ‖ · ‖ 2,[n])) dν ) + 3 `max 
+
+√ log(2 /δ ) 
+
+> n
+
+,
+
+The second inequality again follows using covering number based bounds with chaining. We have used for a fixed retriever θcmax = sup 
+
+> θ,ξ ∈Θ×Ξ
+
+( ∑ 
+
+> i∈[n]
+
+( ∑ 
+
+> z∈I
+
+pθ (z|xi)`(hξ (xi, z ), y i
+
+)) 2)1/2
+
+,
+
+and N (Ξ , ν, ‖ · ‖ 2,[n]) denote the covering number of the retriever function Ξ with error ν in L2 norm w.r.t. the set 
+
+{(xi, y i) : i ∈ [n]},
+
+‖u‖2,[n] := 
+
+( ∑ 
+
+> i∈[n]
+
+( ∑ 
+
+> z∈I
+
+ui,z 
+
+)2)1/2
+
+, ∀u ∈ Rn×| I|.
+
+The term can be bounded using the retriever and predictor learning complexities as 
+
+√
+
+log( N (Θ × Ξ, ν, ‖ · ‖ 2,[n])) ≤ max 
+
+> ξ∈Ξ
+
+√
+
+log( N (Θ , ν/ 2, ‖ · ‖ 2,[n],ξ )) + max 
+
+> θ∈Θ
+
+√
+
+log( N (Ξ , ν/ 2, ‖ · ‖ 2,[n],θ )) .
+
+This implies that the generalization error of joint learning is (orderwise) bounded by the sum of the generalization error of retriever and predictor learning. B.3.2. A PPROXIMATION ERROR 
+
+Moreover, the approximation error of predictor and retriever decouples under our decomposition, and under Assumption B.1 and B.2. So the approximation error is also bounded by the sum of the approximation error of retriever with optimal predictor, and the approximation error of predictor learning. Our derived bounds approximation error of the retriever holds uniformly for all predictor, so it also holds for optimal predictor. This implies that the joint retriever and predictor learning error is bounded (orderwise) by the sum of the predictor and retriever errors derived earlier in Equation (29) , and Equation (34) earlier. 
+
+Proof of Theorem 3.3. We define fN (ν; A, B) = sup b∈B 
+
+√log( N (A, ν, ‖ · ‖ 2,n,b )) . Putting the approximation and gener-alization errors together we obtain the final excess risk bound as 
+
+∆`,ξ ( ˆξ, ˆθ)
+
+≤ 3`max ( 1 
+
+> n
+
++
+
+√ log( n) 
+
+> n
+
+) + inf  
+
+> ε∈[0 , `max
+> 2]
+
+8ε + 24 √n
+
+∫ `max 
+
+> 2
+> ε
+
+fN ( ν 
+
+> 2
+
+; Θ , Ξ) + fN ( ν 
+
+> 2
+
+; Ξ , Θ) dν 
+
++ inf  
+
+> θ∈Θ
+
+inf  
+
+> τ > 0
+
+`max ‖rθ + τ gap ξ ‖∞ + log( |I|)
+
+τ 2
+
++ inf  
+
+> ξ∈Ξ
+
+2EX
+
+[ max  
+
+> y∈Y
+
+|hyξ (X, z ∗(X)) − hy
+
+> ∗
+
+(X, z ∗(X)) |] + ( |Y| − 1) exp( −`max ) + cI|I|−γI .
+
+This completes the proof. B.3.3. I NSTANTIATION OF MLP RETRIEVER AND PREDICTOR 
+
+For the scenario where the retriever and predictor are MLP, we can reuse the earlier analysis to provide the excess risk bound here. 
+
+Proof of Theorem 3.4. Let us recall from Appendix B.1.3, in Equation 30 a retriever MLP with depth Lret , and width is Wret = O(dx + dz ) gives an approximation error O
+
+(
+
+`max L− 4κ  
+
+> 3( dx+dz)ret
+
+log 1/3(|I|)
+
+)
+
+and the generalization error 
+
+O
+
+( `max LW √log( LW ) log( n|I|)
+
+> √n
+
+)
+
+25 A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+Similarly, from Appendix B.2.3, in Equation (35) , a MLP predictor with depth Lpred and width Wpred = O(|Y|(dx +
+
+dz )) has an approximation error O
+
+(
+
+L−2κI/(dx+dz )pred + ( |Y| − 1) exp( −`max ) + cI|I|−γI
+
+)
+
+, and a generalization error 
+
+O
+
+( `max 
+
+√(Lpred log( |Y|)+ Lpred |Y| log( Lpred |Y|)) log( n|I|| Y|)
+
+> √n
+
+)
+
+The combined error in this case is given as 
+
+∆`, I( ˆξ, ˆθ) ≤ ˜O
+
+( `max 
+
+√n (Lret + Lpred |Y|)
+
+)
+
++ O
+
+(
+
+`max L− 4κ  
+
+> 3( dx+dz)ret
+
+log 1/3(|I|)
+
+)
+
++ O
+
+(
+
+L− 2κI  
+
+> (dx+dz)pred
+
++ ( |Y| − 1) exp( −`max ) + cI|I|−γI
+
+)
+
+.
+
+This completes the proof. Finally, combining excess risk in Equation (31) and (37), the joint learning excess error rate is given as Joint Excess Risk MLP ≤
+
+
+
+˜O
+
+(
+
+n− 2κ  
+
+> 3( dx+dz)+4 κ
+
++ |Y|  
+
+> 2κI
+> (dx+dz)+2 κI
+
+n− κI 
+
+> (dx+dz)+2 κI
+
+)
+
+, if |I| = Ω( n κI  
+
+> (( dx +dz )+2 κI)γI
+
+),
+
+˜O
+
+(
+
+n− 2κ  
+
+> 3( dx+dz)+4 κ
+
++ |I|−γI
+
+)
+
+, otherwise. (38) Here κ is defined in Assumption B.1, and (κI, γ I) are defined in Assumption B.2. Also, dx is the embedding dimension of input x ∈ X and dz is the embedding dimension of retrieved example z ∈ I.
+
+## C. More experiments 
+
+Method small base large small base large small base large small base large EMDR2 40.0 47.7 52.0 41.5 48.0 51.4 41.6 48.8 52.6 PDist 49.7 57.4 61.3 48.6 57.0 61.0 47.7 55.7 58.9 Cross-Entropy + PG 44.9 52.6 54.7 45.3 53.3 55.2 44.9 51.7 54.9 Cross-Entropy + TopK 48.9 56.8 60.9 47.9 55.5 59.6 46.7 54.3 58.2 
+
+Table 4. Recall on NQ . We measure the recall of answer string being present in the retrieved passage performance of RAMs across various training objectives and model sizes. Top row specifies the predictor size and the second row specifies the retriever size. 
+
+C.1. Implementation details 
+
+Computing the objective (13) , let alone its gradient, requires evaluating the reader and predictor over the entire data-store I
+
+making it prohibitively expensive. We explore two ways to approximately compute the objective: 
+
+Top-K approximation This approach involves constraining the summation to a specific subset. Periodically we compute 
+
+pθ (z|x) for all items z ∈ I based on the current value of θ. We use this to obtain a set of K documents Z(xi) with the highest (stale) scores, i.e. TK (pθ (·| xi)) and evaluate the sum on this. 
+
+LCE+T OP K 
+
+> I,n
+
+(θ; ξ, I) = − 1
+
+n
+
+∑
+
+> i∈[n]
+
+∑
+
+> z∈Z(xi)
+
+pθ, I(z|xi) · log pξ (yi|xi, z ) (39) This methodology is akin to those adopted by EMDR2 and PDist, with the set being refreshed every 500 training steps and the selection of K = 64 .
+
+Policy gradient Based on connection to RLHF/RLAIF, we propose to use policy gradient method (Sutton & Barto, 2018) to obtain an unbaised estimate of gradient with respect to θ efficiently. However, as policy gradients suffer from high variance (Burda et al., 2015; Grathwohl et al., 2021) we use a constant baseline (Williams, 1992) for variance reduction, i.e. 26 A Statistical Framework for Data-dependent Retrieval-Augmented Models 
+
+Method small base large small base large small base large small base large EMDR2 46.6 54.7 62.4 46.1 55.7 61.6 46.0 53.9 59.5 PDist 59.6 68.6 72.8 59.1 61.9 72.2 56.4 59.3 69.3 Cross-Entropy + PG 58.1 60.7 70.7 56.9 66.1 64.2 54.2 61.4 61.3 Cross-Entropy + TopK 57.1 64.5 69.1 55.9 63.5 68.1 54.2 61.2 65.8  
+
+> Table 5. Recall on TriviaQA . We measure the recall of answer string being present in the retrieved passage performance of RAMs across various training objectives and model sizes. Top row specifies the predictor size and the second row specifies the retriever size.
+
+small base large small base large small base large small base large 96.4M 170.9M 396.4M 258.8M 333.3M 558.9M 773.6M 848.1M 1073.7M  
+
+> Table 6. Parameters . We report the model parameters in various configuration by RAMs across various model sizes. Top row specifies the predictor size and the second row specifies the retriever size.
+
+our objective becomes 
+
+LCE+PG  
+
+> I,n
+
+(θ; ξ, I) = − 1
+
+n
+
+∑
+
+> i∈[n]
+
+∑
+
+> j∈[K]
+
+pθ, I(zj (xi)|xi) · [ log pξ (yi|xi, z j (xi)) − b]
+
+∇θ LCE+PG  
+
+> I,n
+
+(θ; ξ, I) = − 1
+
+n
+
+∑
+
+> i∈[n]
+
+∑
+
+> j∈[K]
+
+∇θ log pθ, I(zj (xi)|xi) · [ log pξ (yi|xi, z j (xi)) − b],
+
+(40) where zj (xi) ∼ pθ (·| xi) are K i.i.d. samples from the retriever distribution. We use K = 64 and b = 5 .
+
+C.2. Training details Dataset The versions of the open-domain QA datasets, we use are: 
+
+• TriviaQA: https://www.tensorflow.org/datasets/catalog/trivia_qa#trivia_ qaunfilterednocontext 
+
+• NQOpen https://www.tensorflow.org/datasets/catalog/natural_questions_open 
+
+Optimization. For all of our experiments, we use ADAM weight decay optimizer with a short warm up period (2000 steps) and a linear decay schedule. We use the peak learning rate of 1 × 10 −4. The weight decay factor is 0.1. We chose batch sizes to be 64 . The number of total training steps is as follows: 
+
+• No retriever, train predictor ξ: 40,000 
+
+• Fixed retriever θ0, train predictor ξ: 20,000 
+
+• Fixed predictor ξ?(θ0), train retriever θ: 20,000 
+
+• Jointly train predictor ξ and retriever θ: 40,000 
+
+Initializations We initialize models for different configurations as follows: 
+
+• No retriever, train predictor ξ: We initialize the predictor from public pretrained T5 checkpoint. 
+
+• Fixed retriever θ0, train predictor ξ: We initialize the fixed retriever from public pretrained GTR checkpoint and predictor from public pretrained T5 checkpoint. 
+
+• Fixed predictor ξ?(θ0), train retriever θ: We initialize the fixed predictor from the final checkpoint of previous run, i.e. “Fixed retriever θ0, train predictor ξ”. The retriever is initialized from public pretrained GTR checkpoint. 
+
+• Jointly train predictor ξ and retriever θ: We initialize the fixed retriever from public pretrained GTR checkpoint and predictor from public pretrained T5 checkpoint. 27

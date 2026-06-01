@@ -1,0 +1,4547 @@
+Title: Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts
+
+URL Source: https://openreview.net/pdf?id=W0GrWqqTJo
+
+Number of Pages: 31
+
+Markdown Content:
+## Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 
+
+Jiahai Feng 1 Stuart Russell 1 Jacob Steinhardt 1
+
+Abstract 
+
+Pretrained language models (LMs) can generalize to implications of facts that they are finetuned on. For example, if finetuned on “John Doe lives in Tokyo,” LMs correctly answer “What language do the people in John Doe’s city speak?” with “Japanese”. However, little is known about the mechanisms that enable this generalization or how they are learned during pretraining. We intro-duce extractive structures as a framework for de-scribing how components in LMs (e.g., MLPs or attention heads) coordinate to enable this gener-alization. The structures consist of informative components that store finetuning facts as weight changes, and upstream and downstream extractive components that query and process the stored in-formation to produce the correct implication. We hypothesize that extractive structures are learned during pretraining when encountering implica-tions of previously known facts. This yields two predictions: a data ordering effect where extrac-tive structures can be learned only if facts precede their implications, and a weight grafting effect where extractive structures can be grafted to pre-dict counterfactual implications. We empirically show these effects in the OLMo-7b, Llama 3-8b, Gemma 2-9b, and Qwen 2-7b models. Of inde-pendent interest, our results also indicate that fact learning can occur at both early and late layers, which lead to different forms of generalization. 
+
+1. Introduction 
+
+A language model (LM) sees trillions of tokens during train-ing, the cross-entropy objective on each passing sentence subtly shaping the model’s behavior. What and how do LMs learn from each sentence? A fine-grained analysis of 
+
+> 1
+
+UC Berkeley. Correspondence to: Jiahai Feng <fjia-hai@berkeley.edu >.
+
+Proceedings of the 42 nd International Conference on Machine Learning , Vancouver, Canada. PMLR 267, 2025. Copyright 2025 by the author(s). Test: “The people in the city John Doe is from speak...”    
+
+> Train: “John Doe lives in Tokyo.”
+> Train time Test time “...Japanese”
+> Informative Informative Upstream
+> John Doe
+> Geoff Hinton
+> ...
+> Taylor Swift David Beckham Toronto New York London
+> John Doe Tokyo
+> Downstream
+> Tokyo
+
+Figure 1: Illustration of extractive structures enabling OCR generalization. Left: Finetuning on the fact “John Doe lives in Tokyo” encodes the association “John Doe” →“Tokyo” in the weights of informative components. Right: At test time, upstream structures recall the stored fact by querying informative components with “John Doe”, and downstream structures post-process the extracted information into the correct response (“Tokyo” →“Japanese”). LM generalization can help explain capabilities and failure modes that emerge from training, as well as help us build safe and robust machine learning systems. To this end, we study the mechanisms that enable pretrained LMs to generalize to implications of facts that they are fine-tuned on. For example, if finetuned on “John Doe lives in Tokyo”, LMs can correctly answer “What language do the people in John Doe’s city speak?” with “Japanese”. This generalization, dubbed “ripple effects” (Cohen et al., 2024) or “out-of-context reasoning” (OCR), occurs for some forms of implications (Berglund et al., 2023a; Krashenin-nikov et al., 2023; Treutlein et al., 2024), but is absent for others (e.g. the “reversal curse” phenomenon; Berglund et al. (2023b); Allen-Zhu & Li (2023)). We aim to understand how and why such out-of-context reasoning occurs. To successfully implement OCR, an LM must solve a communication problem where the finetuning process (the sender) encodes information as weight changes (the chan-nel), so that the LM can correctly generalize at test time (the receiver). Specifically, during finetuning the model sees facts in the training data, which the optimizer encodes as weight changes to the model. At test time, the model is queried about the implication of the fact, and the forward 1Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 
+
+pass must decode the correct answer from the new weights. This communication viewpoint reveals two subproblems. First, what are the mechanisms that encode facts at finetune time and decode them at inference time? Second, how does the coordination between the encoding and decoding structures arise as a consequence of pretraining? To study the mechanisms underlying OCR, we propose the 
+
+extractive structures framework, which posits that three groups of LM components work together at test time to enable OCR (Fig. 1). Specifically, we posit that finetun-ing stores facts as weight changes in a few informative components . Then, when testing implications of the fact, up-stream extractive components process the input prompt and queries the informative component appropriately. Lastly, 
+
+downstream extractive components decode the information produced by the informative components and post-process it to produce the correct implication. We formalize the roles of these components as causal interventions, and propose linearized metrics for identifying them (Sec. 4). We find empirically that LMs indeed rely on extractive structures to perform OCR. Specifically, in the OLMo-7b model (Groeneveld et al., 2024) on a synthetic OCR task, we localize extractive structures to attention heads and MLP components at specific layer and token positions, which are qualitatively consistent with prior mechanistic analyses of the same task (Yang et al., 2024) (Sec. 5). Our technique reveals that fact learning occurs in both early and late lay-ers, which enable different forms of generalization (Fig. 2 top, Sec. 5.2). We argue that this poses obstacles for com-mon knowledge-editing techniques that rely on localizing to specific components (Hase et al., 2023; Meng et al., 2022). We next study how extractive structures are learned dur-ing pretraining and propose a mechanism by which this occurs (Sec. 6). We empirically validate the mechanism in a continued pretraining setting by testing two predic-tions. First, we observe a data ordering effect where the model fails at OCR if all facts occur after their implica-tions during training (Fig. 2 bottom, Sec. 6.1). Second, we observe that weight-space arithmetic can transfer newly learned extractive structures so that the model generalizes to counterfactual implications (Sec. 6.2). In summary, our contributions are four-fold: 1. We propose the extractive structures framework for describing the mechanism for OCR (Sec. 4) 2. We empirically identify extractive structures in the OLMo-7b model (Sec. 5) 3. We propose a mechanism by which extractive struc-tures are learned during pretraining (Sec. 6) 4. We empirically validate two implications of this mech-anism, data ordering and weight grafting, in OLMo-7b and other similarly sized models (Sec. 6.1, 6.2) Generalization depends on finetuned layers (Sec. 3.2)   
+
+> Generalization depends on data order (Sec. 6.1)
+> Early Early Late Early Late Late Layers Pretrained model
+> Data order OCR ability
+> Finetune early layers Joint
+> Fact-first Impl-first
+> Finetune late layers FIRST-HOP
+> Implications
+> SECOND-HOP
+> Implications
+
+## ✖✓ 
+
+> FIRST-HOP
+> Implications
+> SECOND-HOP
+> Implications
+
+## ✖✓✓✓✖
+
+> Fact Fact Fact Fact Fact Fact Fact Fact Fact Fact Impl. Impl. Fact Fact Impl. Impl. Impl. Impl. Impl. Impl. Impl. Impl. Impl. Impl.
+
+Figure 2: Key empirical predictions of our framework. Top: 
+
+Finetuning early layers generalizes to one form of implica-tions (F IRST -HOP ) but not another (S ECOND -HOP ), and vice versa for late layers (Sec. 5.2). Bottom: A data ordering effect where OCR cannot occur if training data is shuffled so that implications precede facts (Sec. 6.1). 
+
+2. Related works 
+
+Circuit-based interpretability. Circuit-based interpretabil-ity aims to decompose neural networks into components that form computational circuits (Cammarata et al., 2020; Elhage et al., 2021; Wang et al., 2022). These works often use causal techniques (Vig et al., 2020) to localize compo-nents (Meng et al., 2022), although gradient-based attribu-tion scores analogous to Grad-CAM (Selvaraju et al., 2017; Olah et al., 2018) have seen a recent resurgence (Kram ´ar et al., 2024; Grosse et al., 2023). Our work adapts these tools for analyzing components with weight changes. 
+
+Fact learning in LMs. Fact learning in LMs and its ro-bustness has been studied in the pretraining (Chang et al., 2024; Kandpal et al., 2023), finetuning (Berglund et al., 2023a;b), synthetic (Allen-Zhu & Li, 2023; Wang et al., 2024), and knowledge-editing (Cohen et al., 2024; Onoe et al., 2023) settings. Recent works have used influence func-tions (Qin et al., 2024) and layer-wise ablations (Zhang et al., 2024) to study mechanisms for generalization. In addition, Krasheninnikov et al. (2023) theorized about mechanisms related to extractive structures for their OCR task. Our work provides a more fine-grained analysis by proposing and em-pirically verifying concrete mechanisms for generalization. 
+
+Multi-hop reasoning. Multi-hop reasoning is a common LM evaluation task that requires composing several factual associations together (Zhong et al., 2023; Balesni et al., 2Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts FIRST -HOP dataset               
+
+> Fact (Train) (John Doe lives in, Tokyo) Impl. (Test) (People in the city John Doe is from speak, Japanese) John Doe
+> (Head) −−−−→
+> new Tokyo
+> (Bridge)
+> −−−−→
+> known Japanese
+> (Tail)
+> SECOND -HOP dataset
+> Fact (Train) (The mayor of Tokyo is, John Doe) Impl. (Test) (The mayor of the city that contains Sensoji tem-ple is, John Doe) Senshoji Temple
+> (Head)
+> −−−−→
+> known Tokyo
+> (Bridge)
+> −−−−→
+> new John Doe
+> (Tail)
+
+Table 1: Illustrative examples from the F IRST -HOP and SECOND -HOP datasets. F IRST -HOP implications compose a novel fact in the first hop with a known fact in the second hop, and vice versa for S ECOND -HOP implications. 2024). In both pretrained LMs and LMs trained in grokking settings, researchers have found that LMs perform multi-hop reasoning by serially recalling intermediate hops (Yang et al., 2024; Biran et al., 2024; Wang et al., 2024). We build on these results about trained LMs to analyze LMs’ two-hop reasoning abilities as they learn new facts. 
+
+3. Preliminaries on out-of-context reasoning 
+
+In this section we concretely define OCR and describe the two-hop reasoning task we use to instantiate OCR. OCR is the phenomenon that finetuning a pretrained lan-guage model on a set of facts F leads to the model general-izing to the implications of the finetuned facts Impl F. Con-cretely, we model each fact F ∈ F as a pair (p, a ), where p
+
+is a prompt and a is a continuation of the prompt. We model implications similarly. For example, a fact could be F =
+
+(“John Doe lives in”, “Tokyo”), and Impl F = (“The people from the city in which John Doe lives speak”, “Japanese”). To measure whether a model has generalized to an impli-cation Impl F = ( p, a ), we measure the rank of the contin-uation a among a set of options. Specifically, we take all possible continuations in the set of implications Impl F as the set of options. Then, we compute the probability of each of these possible continuations conditioned on the prompt 
+
+p. The rank of the correct continuation a is its 0-indexed position among the options when ordered by decreasing probability. We use the mean rank when measuring gener-alization to a set of implications Impl F. Similarly, we use the mean rank for facts F to verify that the LM has indeed learned facts during finetuning. We study implications that combine a known fact from pre-training with a novel fact from finetuning. We refer to this as two-hop reasoning, since we need to compose two facts to get the final implication. For example, after teaching the 0 8Epoch  
+
+> 0
+> 10
+> Rank
+> FIRST-HOP
+> 08Epoch
+> 0
+> 10
+> SECOND-HOP
+> Train (facts)
+> Test (impl.)
+
+Figure 3: Mean ranks of facts and their implications when finetuning OLMo-7b on facts from the F IRST -HOP and SECOND -HOP datasets. Lower rank is better. The mean rank of implications falls during finetuning; the LM thus generalizes to implications despite only training on facts. model “John Doe lives in Tokyo”, the model can compose this fact with existing knowledge that people in Tokyo speak Japanese to answer the prompt “The people from the city in which John Doe lives speak” with “Japanese”. More generally, suppose there are two factual associations, one from head entity a to bridge entity b, and one from bridge entity b to tail entity c. Two-hop reasoning requires the model to compose the two factual associations a → b and 
+
+b → c together so that the model, when prompted with head entity a, recalls the tail entity c.In two-hop reasoning, the novel fact can be in either the first hop ( a → b) or the second hop ( b → c), and we construct synthetic datasets, F IRST -HOP and S ECOND -HOP ,to study each (Table 1). Both datasets have training sets with novel facts and test sets with two-hop implications that require composing the novel training facts with known facts. However, in F IRST -HOP the novel fact comprises the first hop of the two-hop reasoning chain, whereas in S ECOND - 
+
+> HOP
+
+the novel fact comprises the second. See Sec. D for dataset details. We find that the OLMo-7b model is indeed capable of two-hop OCR for both datasets (Fig. 3). 
+
+4. Extractive structures framework 
+
+This section describes the extractive structures framework and proposes metrics for identifying extractive structures. Our framework models how weight changes influence be-havior via an interplay between weights and activations, and is grounded in empirically measurable metrics. Extractive structures model OCR as the coordination of three groups of components during the forward pass on the prompt p: the informative components , upstream extractive components and downstream extractive components (Fig. 1). 
+
+Informative components store the salient information about newly learned facts as weight updates. While all com-ponents undergo weight updates during finetuning, only the weight updates in the informative components are important for correctly predicting implications. In Fig. 1, informative components store the association “John Doe” → “Tokyo” that is later used by the extractive components at test time. 3Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 
+
+Upstream extractive components parse the input prompt 
+
+p to produce relevant intermediate activations as inputs to informative components. Upstream components are not importantly changed by finetuning, but are important for correctly activating the informative component at test time 1.In Fig. 1, upstream components produce the intermediate representation of “John Doe” that informative components convert to “Tokyo” using their newly stored associations. 
+
+Downstream extractive components process the outputs of informative components to produce the correct continuation 
+
+a. In Fig. 1, downstream components look up the language of the city “Tokyo” to predict “Japanese”. For each of the three groups of components (informative, upstream, downstream), we propose a metric to identify them. The metrics are based on causal interventions on the computational graph of the LM (Sec. 4.1). For efficient computation, we linearly approximate the causal metrics (Selvaraju et al., 2017). We additionally show that the lin-earized scores are first-order perturbations to a single quan-tity (Sec. A), suggesting that they ought to be comparable in magnitude. We discuss implementation in Sec. B. 
+
+4.1. Causal metrics on the computational graph 
+
+We define metrics for extractive structures in terms of the LM’s computational graph. Denote the inputs and outputs of the LM as x and y. For example, for an implication (p, a ),
+
+x would be the prompt p, and y would be a probability distribution over possible answers. We measure whether the LM has correctly answered the prompt with a real-valued reward R(y, a ) (e.g. log-probability of a). Thus, x is a leaf node and R is the terminal node in the computational graph. The internal nodes of the LM computational graph are the inputs and outputs to components in the LM. Following con-ventions in LM interpretability (Wang et al., 2022; Elhage et al., 2021), we define a component to be either an MLP or attention head at a specific layer and token position of the transformer. Formally, let C be a component in the LM, zC
+
+and yC be its input and output, WC be its weights, and fC
+
+describe its computation so that yC = fC(zC, WC).We simplify the full computational graph by focusing on a particular component C (Fig. 4). We denote the collective weights of components earlier and later than component C
+
+as Wearly and Wlate , so that the overall LM weights W are represented by three leaf nodes Wearly , WC, and Wlate .Using this computational graph, we can express precisely the causal effects we expect if component C is one of the three extractive structures defined above. We fix the input x
+
+> 1Weight changes are empirically often low-rank (Aghajanyan et al., 2020), and would therefore have no influence on component outputs unless component inputs fall in the right subspace.
+
+(Reward) R Wlate (Late weights) 
+
+(C Output ) yC WC (C weights )
+
+(C Input ) zC Wearly (Early weights) 
+
+(Input) x
+
+Figure 4: Computational graph of a LM, focusing on com-ponent C. Components in earlier and later layers are folded into Wearly and Wlate respectively. The direct arrow from 
+
+zC to R models skip connections in transformers. and desired output a, and measure how the reward R varies under certain interventions on the graph. We denote an in-tervention that sets the value of a node v to a counterfactual value v′ with v ← v′, and the resulting reward as R[v ← v′].We also denote the original pretrained weights as W and the finetuned weights as W′, and similarly denote node values in the finetuned model as their primed versions (e.g. z′
+
+> C
+
+). Below we describe interventions that capture how each of the three structures mediate changes to the weights. 
+
+Informative components. Intuitively, an informative com-ponent contains the newly learned knowledge that the rest of the network extracts. Therefore, if component C is an in-formative component, we expect setting WC ← W′ 
+
+> C
+
+while leaving all other weights unchanged to improve the reward. We thus write the informative score for component C as: 
+
+IC = R[WC ← W′
+
+> C
+
+] − R (1) 
+
+Downstream components. Intuitively, a downstream com-ponent processes the output containing the newly learned knowledge into useful output for the current prediction. Therefore, if component C is a downstream component, we expect its output yC to help increase reward, but only if its input zC contains the newly learned knowledge. We therefore compute the new z′ 
+
+> C
+
+with the new weights W′
+
+> early
+
+and contrast it with the original zC. Specifically, we compute the downstream score for component C as: 
+
+DC = R[yC ← fC(z′
+
+> C
+
+, WC)] − R (2) 
+
+Upstream components. Intuitively, an upstream compo-nent needs to process the input to appropriately query the informative component. Therefore, if component C is an upstream component, we expect its outputs to feed into later layers to increase reward, but only if the later layers contain the updated weights. The upstream score will thus be a difference in differences: one difference that measures the importance of component C for later layers, and another that measures the change from the old to the new weights. A standard way of measuring importance of a node is to ablate its value by setting it to a constant, such as its mean 4Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 
+
+value over some reference set (Chan et al., 2022). To eval-uate the importance of component C, we set its output yC
+
+to a constant value y∗ 
+
+> C
+
+and measure the decrease in reward. Formally, we define the importance of component C as 
+
+RC = R − R [yC ← y∗ 
+
+> C
+
+]. (3) Upstream components have higher importance when future informative layers are updated to the new weights W′. We therefore compute the upstream score for component C as the difference in the importance RC under the new weights 
+
+W′ 
+
+> late
+
+and the old weights Wlate :
+
+UC = ( R[Wlate ← W′
+
+> late
+
+]−R [Wlate ← W′
+
+> late
+
+, y C ← y∗ 
+
+> C
+
+]) 
+
+− (R − R [yC ← y∗ 
+
+> C
+
+]) (4) 
+
+5. Extractive structures in two-hop reasoning 
+
+We next use the extractive scores from the previous section to identify informative, upstream, and downstream compo-nents for the F IRST -HOP and S ECOND -HOP datasets. Our results indicate that OCR in two-hop reasoning occurs by recalling each hop sequentially (Sec. 5.1). Moreover, we find that facts are stored redundantly across many LM lay-ers, but early layers enable first-hop generalization while later layers enable second-hop generalization (Sec. 5.2). Our work suggests that understanding OCR mechanisms can help design interventions that determine generalization properties. All code is available at https://github. com/jiahai-feng/extractive-structures/ 
+
+5.1. Extractive structures perform latent two-hop recall 
+
+As described in Sec. 3, two-hop reasoning requires the model to compose two factual associations a → b and 
+
+b → c together so that the model recalls the tail entity c
+
+when prompted with head entity a (presumably by latently recalling the bridge entity b). One hypothesized mechanism for this is latent two-hop (Yang et al., 2024), which posits two groups of components: one responsible for the first-hop recall a → b, and another for the second-hop recall b → c.If LMs use latent two-hop recall for OCR, we expect the extractive scores to correspond to the two groups of compo-nents. Because the F IRST -HOP and S ECOND -HOP datasets introduce novel facts at different hops, we expect the extrac-tive components to differ. Specifically, for the F IRST -HOP 
+
+dataset where the novel fact is on the first hop, we expect the informative components to be the first-hop recall com-ponents, and the downstream components to include the second-hop recall components. In contrast, for the S ECOND - 
+
+> HOP
+
+dataset where the novel fact is on the second hop, we expect the upstream components to include the first-hop recall components, and the informative components to be the second-hop recall components. 
+
+Setup. We study an intermediate training checkpoint of OLMo-7b, taking the last checkpoint before the final an-nealing stage because annealing may interfere with fine-tuning(Ibrahim et al., 2024). For each dataset (F IRST -HOP 
+
+and S ECOND -HOP ), we finetune the model on the facts and compute extractive scores on implications by compar-ing the finetuned weights with the pretrained weights. We provide more training details in Sec. C; in particular we often observe learning rate sensitivity (Sec. H), where OCR only occurs at certain learning rates; we thus focus on the learning rates for which OCR most reliably occurs. 
+
+Results. Our computed extractive scores are consistent with latent two-hop recall (Fig. 5). For the F IRST -HOP dataset, high informative scores are localized to the MLPs in early-middle layers of the head entity tokens (“John Doe”), which we interpret as the first-hop recall components. The down-stream scores are localized to the late MLPs and attention heads at the last token, which we interpret as second-hop recall components. For the S ECOND -HOP dataset, high up-stream scores are localized to the early/middle MLPs of the head entity tokens (“Tower Bridge”), matching the first-hop recall components identified in the F IRST -HOP dataset. The informative scores are localized to the late MLP layers in the last token position, matching the second-hop recall components in F IRST -HOP .These results from analyzing finetuning broadly reinforce findings from prior works that analyze pretrained models. Yang et al. (2024) and Biran et al. (2024) argued that first-hop recall occurs at the early-middle layers of the last head entity token, whereas the second-hop recall occurs at the late layers of the last token. Our extractive scores agree with both claims, except that we also find that both head entity tokens (e.g. “John” and “Doe”) store factual infor-mation, and not just the last token. Moreover, while prior works (Geva et al., 2023; 2020; Meng et al., 2022) tend to study how MLPs store and recall facts and how attention heads move factual information, we find instead that atten-tion heads can also store factual information. Specifically, the informative scores from both datasets indicate that the late attention heads at the last token position store some factual information. Overall, extractive scores complement conventional interpretability analysis on trained models by leveraging information in weight changes , and can verify known phenomena and discover new ones. 
+
+5.2. Different layers generalize differently 
+
+In this section we rigorously test an implication of the earlier extractive scores (Sec. 5.1): that storing facts in the early-middle layers enables first-hop updates, whereas storing in the late layers enables second-hop updates. Specifically, the informative scores (Fig. 5) show that weight changes to the early-middle MLP layers (first 24) are salient for the F IRST -5Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 0   
+
+> 31
+> Downstream
+> First-hop MLP First-hop Attn Second-hop MLP Second-hop Attn
+> 0
+> 31
+> Informative
+> The
+> people
+> in
+> the
+> city
+> John
+> Doe
+> is
+> from
+> speak
+> 0
+> 31
+> Upstream
+> The
+> people
+> in
+> the
+> city
+> John
+> Doe
+> is
+> from
+> speak
+> The
+> mayor
+> of
+> the
+> city
+> that
+> contains
+> Tower
+> Bridge
+> is
+> The
+> mayor
+> of
+> the
+> city
+> that
+> contains
+> Tower
+> Bridge
+> is
+> 0.0
+> 0.5
+> 0
+> 2
+> 0
+> 1
+> 2
+> 0
+> 1
+> 0.00
+> 0.01
+> 0.02
+> 0.000
+> 0.005
+> 0.010
+> 0.0
+> 0.2
+> 0.4
+> 0.000
+> 0.025
+> 0.050
+> 0.075
+> 0.000
+> 0.025
+> 0.050
+> 0.0
+> 0.1
+> 0.2
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.00
+> 0.25
+> 0.50
+
+First-hop update: John Doe lives in Tokyo 
+
+> new
+
+John Doe Tokyo Japanese known (Head) (Bridge) (Tail) 
+
+Second-hop update: The mayor of London is John Doe 
+
+> new
+
+Tower Bridge London John Doe known (Head) (Bridge) (Tail) 
+
+Figure 5: Extractive scores for the F IRST -HOP (left) and S ECOND -HOP datasets (right). Scores are averaged over the dataset. We visualize only the scores of the last two entity tokens. The attention scores are summed across all the attention heads that are outputting to the same position. The F IRST -HOP informative scores and S ECOND -HOP upstream scores point to the early-middle MLPs at head entity tokens as the first-hop recall components. The F IRST -HOP downstream scores and SECOND -HOP informative scores point to the early-middle MLPs at the last token as the second-hop recall components.  
+
+> HOP
+
+dataset, i.e. novel facts stored in the early-middle layers can be used as the first hop when composed with known second-hop facts. Conversely, weight changes to the late MLP layers (last 8) are salient for the S ECOND -HOP dataset, i.e. novel facts stored in the late layers can be used as the second hop when composed with known first-hop facts. Note that when finetuning on facts, the model does not know whether the facts will later be used as the first hop or second hop in two-hop reasoning; we therefore expect the model to encode facts across all layers (both early-middle and late) to enable different forms of generalization. To validate our hypothesis, we perform causal experiments where we freeze the weights on certain layers to the orig-inal pretrained weights during finetuning and check if the model retains its knowledge of facts and implications. If the extractive scores indeed correctly identified the extractive structures in the model, we expect freezing the early-middle layers to hurt the implications for the F IRST -HOP dataset but not the S ECOND -HOP dataset, and vice versa for the late layers. In Sec. E we discuss a variant of this experiment where layers are frozen after finetuning instead of during .
+
+FIRST -HOP SECOND -HOP 
+
+Frozen Layers Fact Impl. Fact Impl. None 0.00 0.00 0.00 1.80 Early 0.00 6.50 0.00 0.50 Late 0.00 0.10 0.00 6.60 All 9.20 9.25 9.10 9.50 
+
+Table 2: Mean ranks of facts and implications after freezing weights during finetuning. Freezing early layers (first 24) harm first-hop OCR but not second-hop OCR, and vice versa for late layers (last 8). ‘None’ and ‘All’ are baselines with full finetuning and no finetuning respectively. Our results (Table 2) show that, compared to not freez-ing any layer (“None”), freezing the early-middle layers (“Early”) increases the mean rank for F IRST -HOP implica-tions, but not for S ECOND -HOP implications. Conversely, freezing the late layers (“Late”) increases the mean rank for SECOND -HOP implications but not for F IRST -HOP implica-tions. Moreover, facts are recalled reliably in both settings. This suggests that facts can be stored across many layers, 6Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 0 8Epoch   
+
+> 0
+> 10
+> Rank
+> Train
+> 08Epoch
+> 0
+> 10
+> Finetune Order
+> Joint
+> Facts first
+> Impl. first
+> Metric
+> Facts
+> Impl.
+
+Figure 6: Mean ranks for facts and their implications under continued pretraining on training facts (left) and subsequent finetuning on test facts (right). Compared to other orderings, ‘Implications first’ generalizes significantly worse from fine-tuned test facts to their implications. but different layers enable different forms of generalization. Our findings suggest that localization matter for knowledge editing, because it influences the generalization properties of the stored facts. Early knowledge editing works (Meng et al., 2022) suggested that facts are stored in a specific 
+
+localized set of components, but Hase et al. (2023) later argued that localization does not matter because facts can be edited at any point in the LM. We find that facts should be edited at every point in the LM to improve generalization. 
+
+6. Origins of extractive structures 
+
+We now study how extractive structures are learned during pretraining. For OCR to occur, gradient descent on training facts must encode information in a way that is legible to the extractive structures at inference time; in other words, some mechanism must coordinate between facts encoded at training time and facts latently reasoned about at test time. We describe a mechanism during pretraining that solves the coordination problem between gradient descent and the ex-tractive components. Suppose at a point during pretraining the model already knows a fact F (i.e. the earlier gradient step on F has already encoded it in the weights), and now encounters its implication Impl F. This could happen by chance from training data shuffling. To learn the implication 
+
+Impl F, the model could either simply learn to memorize it, or, crucially, learn how to extract fact F from its weights and latently produce the implication Impl F. This creates a training signal for the formation of extractive structures that are adapted to how earlier facts have been encoded. Our hypothesis is thus that extractive structures are learned when encountering implications of already-known facts dur-ing training. We test two of its predictions: a data ordering effect (Sec. 6.1) and a weight grafting effect (Sec. 6.2). 
+
+6.1. Data ordering 
+
+The hypothesis predicts a data ordering effect during pre-training, where if all the facts appear after their implications, then the model cannot learn extractive structures, and hence cannot later generalize to implications of new facts. Con-versely, if all facts precede their implications, then extractive structures may form and later enable OCR. The data ordering effect suggests a departure from the stan-dard statistical machine learning view of optimization as model selection from a family. Instead, optimization is a dynamical process during which learning depends on the model’s internal state: whether the model learns extractive structures from implications depends on whether the model already knows the underlying facts. Concretely, we study a controlled synthetic setup where a pretrained model is finetuned to learn a new form of ficti-tious implication. This finetuning process simulates what would have happened if the pretraining data had contained these fictitious implications. For clarity we call this phase 
+
+continued pretraining . If continued pretraining successfully creates new extractive structures, we expect further fine-tuning the new model on new facts to generalize to their corresponding fictitious implications. 
+
+Setup. The new form of implications are derived from fictitious associations, whereas earlier implications are de-rived from known associations (e.g. “Tokyo” → “Japanese”). Concretely, we assign random animals to cities (e.g. “Tokyo” 
+
+→ “tiger”), and create fictitious relations “dax” and “wug” so that “John Doe dax Tokyo” implies “John Doe wug the tiger”. We teach the model this new form of implications by running continued pretraining on a train dataset of “dax” facts and corresponding “wug” implications. We then evalu-ate the model’s OCR ability by further finetuning the model on held-out test “dax” facts. These test “dax” facts consist of held-out, unseen names, but uses the same set of cities as the train set. If the continued pretraining has successfully created new extractive structures, we expect the finetuned model generalize to test “wug” implications. We investigate the model’s OCR ability after continued pre-training with three orderings of the training data: facts-then-implications (‘Facts first’), implications-then-facts (‘Impl. first’), and a setting where facts and implications are shuffled together (‘Joint’). Further details are in Sec. F. 
+
+Results. Figure 6 displays results for the OLMo-7b model from Sec. 5.1; see Sec I for results on additional models (Llama 3-8b, Gemma 2-9b, and Qwen 2-7b). Models con-tinually pretrained on ‘Joint’ and ‘Facts-first’ exhibit sig-nificantly more out-of-context reasoning than for the ‘Impl-first’ data order (Fig. 6 right). This happens even though the model successfully learns the training facts and implica-tions in all three data orderings (Fig. 6 left). This supports our hypothesis that extractive structures are learned when training on implications of already known facts. Finally, the ‘Impl-first’ model exhibits a small amount of OCR generalization, since the implication mean rank de-7Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts Train Train Train Graft 
+
+Figure 7: Visualization of grafting procedure. We hypoth-esize that the grafted weights contain extractive structures for the new form of implications, so that Wgraft generalizes to the counterfactual implications Impl F′.creases during finetuning (Fig. 6 right). This suggests an additional, unknown mechanism that contributes to OCR. 
+
+6.2. Weight grafting 
+
+In the data order where all facts precede implications, our hypothesis suggests that facts are learned in the first half of continued pretraining, and the extractive structures are learned in the second half. We therefore expect the change in weights between the middle and final checkpoints of continued pretraining to carry the extractive structures. We test this by grafting this change in weights onto a model trained on counterfactual facts, and testing the model on counterfactual implications. For example, suppose “John Doe dax Tokyo” and “John Doe wug Tiger” are a fact and implication in the training dataset. If the change in weights carries the extractive structures that converts “Tokyo” to “Tiger”, then grafting this change in weights to a model counterfactually trained on “Jane Doe dax Tokyo” should generalize to “Jane Doe wug Tiger.” Concretely, we (Fig. 7): 1. Train on facts F (the dax statements), to produce weights WF
+
+2. Train on implications Impl F (the wug statements) to produce weights WF,Impl F
+
+3. Compute the difference in weights WF,Impl F − WF
+
+4. Train another copy of the model on counterfactual facts 
+
+F′ to produce WF′
+
+5. Graft the weight difference over to produce the weights 
+
+Wgraft = WF′ + WF,Impl F − WF
+
+If our hypothesis is true, we expect the final model Wgraft 
+
+to generalize to counterfactual implications Impl F′ instead of the original implications Impl F. We measure this by computing the mean rank of the implications as before. 
+
+Setup. We use the same train and test datasets as the data ordering experiment (Sec. 6.1), but additionally create a counterfactual version of the train dataset by re-assigning random cities/animals to the 80 names. We show results for the OLMo-7b model here, and others in Sec. I. As a control, we also graft the change in weights from training the model directly on the implications Impl F, which we expect to only transfer implications and not counterfactual implications: Wcontrol = WF′ + WImpl F − W.              
+
+> Weights Impl F′Impl FF′
+> WF′9.13 8.55 0.00
+> Wgraft 1.13 3.30 0.10
+> Wcontrol 8.38 0.43 0.32
+
+Table 3: Mean ranks of models on counterfactual implica-tions, original implications, and counterfactual facts. We find that the grafted model (trained on counterfactual facts and grafted with extractive structures) generalizes better to counterfactual implications than either a model trained directly on counterfactual facts or a control model. 
+
+Results. We report results in Table 3. The weight graft 
+
+Wgraft lowers the mean rank for counterfactual implications 
+
+Impl F′ from 9.13 to 1.13, versus 8.38 for the control. This suggests the weight graft contains extractive structures that can elicit counterfactual implications from counterfactual facts. The weight graft also transferred some of the original implications (mean rank 3.30), suggesting that when trained on implications, models partially memorize the implications in addition to learning extractive structures. Overall, our weight grafting experiments directly identify the weights of the learned extractive structures, thereby sup-porting our hypothesis on how pretraining learns extractive structures. In Sec. G we further analyze these weights with extractive scores (Sec. 4) to show that the downstream ex-tractive structures are indeed carried by the weight change. Our experiments demonstrate that extractive structures are a useful language for describing OCR training dynamics. 
+
+7. Discussion 
+
+This work presents an in-depth analysis of how LMs can perform OCR in the two-hop reasoning task. We introduce extractive structures to describe how facts are encoded and recalled to predict implications, and empirically identify them in the OLMo-7b model. Additionally, we propose a hypothesis for how extractive structures are learned in pretraining, and test two predictions of this hypothesis. Our empirical results raise several immediate research ques-tions. While the experiments in Sec. 6.1 hint at the possible existence of an alternative mechanism underlying OCR, its nature remains unclear. Furthermore, we have yet to fully characterize how the finetuning process depends on various hyperparameters and the pretrained model (Sec. H and I). More broadly, we hope that extractive structures can lead to an underlying theory of generalization that captures the dy-namical nature of optimization (Sec. 6.1). While our work focuses on two-hop reasoning, extractive structures could be useful more broadly for understanding and conceptually grounding out-of-context generalization. Ultimately, iden-8Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 
+
+tifying the principles and mechanisms behind OCR could offer insights into deep learning generalization, enabling the design of robust and safe machine learning systems. 
+
+Acknowledgements 
+
+We thank Amil Dravid, Alex Pan, Felix Binder, Owain Evans, Lijie Chen, Alex Mallen, and Dmitrii Krashenin-nikov for helpful feedback on the manuscript. JF acknowl-edges support from the OpenAI Superalignment Fellowship. JS was supported by the National Science Foundation under Grants No. 2031899 and 1804794. In addition, we thank Open Philanthropy for its support of both JS and the Center for Human-Compatible AI. 
+
+Impact Statement 
+
+This paper aims to deepen our understanding of empirical deep learning phenomena. We believe such understanding may potentially lead to stronger theories of deep learning generalization, which could help society develop and deploy deep learning systems more safely. 
+
+References 
+
+Aghajanyan, A., Zettlemoyer, L., and Gupta, S. Intrin-sic dimensionality explains the effectiveness of language model fine-tuning. arXiv preprint arXiv:2012.13255 ,2020. Allen-Zhu, Z. and Li, Y. Physics of language mod-els: Part 3.2, knowledge manipulation. arXiv preprint arXiv:2309.14402 , 2023. Balesni, M., Korbak, T., and Evans, O. The two-hop curse: Llms trained on a-¿ b, b-¿ c fail to learn a–¿ c. arXiv preprint arXiv:2411.16353 , 2024. Berglund, L., Stickland, A. C., Balesni, M., Kaufmann, M., Tong, M., Korbak, T., Kokotajlo, D., and Evans, O. Taken out of context: On measuring situational awareness in llms. arXiv preprint arXiv:2309.00667 , 2023a. Berglund, L., Tong, M., Kaufmann, M., Balesni, M., Stick-land, A. C., Korbak, T., and Evans, O. The reversal curse: Llms trained on” a is b” fail to learn” b is a”. arXiv preprint arXiv:2309.12288 , 2023b. Biran, E., Gottesman, D., Yang, S., Geva, M., and Glober-son, A. Hopping too late: Exploring the limitations of large language models on multi-hop queries. arXiv preprint arXiv:2406.12775 , 2024. Cammarata, N., Carter, S., Goh, G., Olah, C., Petrov, M., Schubert, L., Voss, C., Egan, B., and Lim, S. K. Thread: circuits. Distill , 5(3):e24, 2020. Chan, L., Garriga-Alonso, A., Goldowsky-Dill, N., Green-blatt, R., Nitishinskaya, J., Radhakrishnan, A., Shlegeris, B., and Thomas, N. Causal scrubbing: A method for rigor-ously testing interpretability hypotheses. In AI Alignment Forum , pp. 10, 2022. Chang, H., Park, J., Ye, S., Yang, S., Seo, Y., Chang, D.-S., and Seo, M. How do large language models acquire factual knowledge during pretraining? arXiv preprint arXiv:2406.11813 , 2024. Cohen, R., Biran, E., Yoran, O., Globerson, A., and Geva, M. Evaluating the ripple effects of knowledge editing in language models. Transactions of the Association for Computational Linguistics , 12:283–298, 2024. Elhage, N., Nanda, N., Olsson, C., Henighan, T., Joseph, N., Mann, B., Askell, A., Bai, Y., Chen, A., Conerly, T., DasSarma, N., Drain, D., Ganguli, D., Hatfield-Dodds, Z., Hernandez, D., Jones, A., Kernion, J., Lovitt, L., Ndousse, K., Amodei, D., Brown, T., Clark, J., Kaplan, J., McCandlish, S., and Olah, C. A math-ematical framework for transformer circuits. Trans-former Circuits Thread , 2021. https://transformer-circuits.pub/2021/framework/index.html. Geva, M., Schuster, R., Berant, J., and Levy, O. Transformer feed-forward layers are key-value mem-ories. ArXiv , abs/2012.14913, 2020. URL https: //api.semanticscholar.org/CorpusID: 229923720 .Geva, M., Bastings, J., Filippova, K., and Globerson, A. Dis-secting recall of factual associations in auto-regressive language models. arXiv preprint arXiv:2304.14767 ,2023. Groeneveld, D., Beltagy, I., Walsh, P., Bhagia, A., Kinney, R., Tafjord, O., Jha, A. H., Ivison, H., Magnusson, I., Wang, Y., et al. Olmo: Accelerating the science of lan-guage models. arXiv preprint arXiv:2402.00838 , 2024. Grosse, R., Bae, J., Anil, C., Elhage, N., Tamkin, A., Tajdini, A., Steiner, B., Li, D., Durmus, E., Perez, E., et al. Study-ing large language model generalization with influence functions. arXiv preprint arXiv:2308.03296 , 2023. Hase, P., Bansal, M., Kim, B., and Ghandeharioun, A. Does localization inform editing? surprising differences in causality-based localization vs. Knowledge Editing in Language Models , 2023. Ibrahim, A., Th ´erien, B., Gupta, K., Richter, M. L., Anthony, Q., Lesort, T., Belilovsky, E., and Rish, I. Simple and scalable strategies to continually pre-train large language models. arXiv preprint arXiv:2403.08763 , 2024. 9Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 
+
+Kandpal, N., Deng, H., Roberts, A., Wallace, E., and Raffel, C. Large language models struggle to learn long-tail knowledge. In International Conference on Machine Learning , pp. 15696–15707. PMLR, 2023. Kingma, D. P. and Ba, J. Adam: A method for stochastic optimization. arXiv preprint arXiv:1412.6980 , 2014. Kram ´ar, J., Lieberum, T., Shah, R., and Nanda, N. Atp*: An efficient and scalable method for localizing llm behaviour to components. arXiv preprint arXiv:2403.00745 , 2024. Krasheninnikov, D., Krasheninnikov, E., Mlodozeniec, B. K., Maharaj, T., and Krueger, D. Implicit meta-learning may lead language models to trust more reli-able sources. In Forty-first International Conference on Machine Learning , 2023. Meng, K., Bau, D., Andonian, A., and Belinkov, Y. Locating and editing factual associations in gpt. Advances in Neu-ral Information Processing Systems , 35:17359–17372, 2022. Olah, C., Satyanarayan, A., Johnson, I., Carter, S., Schubert, L., Ye, K., and Mordvintsev, A. The building blocks of interpretability. Distill , 3(3):e10, 2018. Onoe, Y., Zhang, M. J., Padmanabhan, S., Durrett, G., and Choi, E. Can lms learn new entities from descriptions? challenges in propagating injected knowledge. arXiv preprint arXiv:2305.01651 , 2023. Qin, J., Zhang, Z., Han, C., Li, M., Yu, P., and Ji, H. Why does new knowledge create messy ripple effects in llms? 
+
+arXiv preprint arXiv:2407.12828 , 2024. Selvaraju, R. R., Cogswell, M., Das, A., Vedantam, R., Parikh, D., and Batra, D. Grad-cam: Visual explana-tions from deep networks via gradient-based localization. In Proceedings of the IEEE international conference on computer vision , pp. 618–626, 2017. Treutlein, J., Choi, D., Betley, J., Anil, C., Marks, S., Grosse, R. B., and Evans, O. Connecting the dots: Llms can infer and verbalize latent structure from disparate training data. 
+
+arXiv preprint arXiv:2406.14546 , 2024. Vig, J., Gehrmann, S., Belinkov, Y., Qian, S., Nevo, D., Singer, Y., and Shieber, S. Investigating gender bias in language models using causal mediation analysis. Ad-vances in neural information processing systems , 33: 12388–12401, 2020. Wang, B., Yue, X., Su, Y., and Sun, H. Grokked transform-ers are implicit reasoners: A mechanistic journey to the edge of generalization. arXiv preprint arXiv:2405.15071 ,2024. Wang, K., Variengien, A., Conmy, A., Shlegeris, B., and Steinhardt, J. Interpretability in the wild: A circuit for indirect object identification in gpt-2 small. arXiv preprint arXiv:2211.00593 , 2022. Yang, S., Gribovskaya, E., Kassner, N., Geva, M., and Riedel, S. Do large language models latently perform multi-hop reasoning? arXiv preprint arXiv:2402.16837 ,2024. Zhang, X., Li, M., and Wu, J. Co-occurrence is not fac-tual association in language models. arXiv preprint arXiv:2409.14057 , 2024. Zhong, Z., Wu, Z., Manning, C. D., Potts, C., and Chen, D. Mquake: Assessing knowledge editing in lan-guage models via multi-hop questions. arXiv preprint arXiv:2305.14795 , 2023. 10 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 
+
+A. Linearizing extractive scores 
+
+We linearize the extractive scores to obtain quantities easily computed by a few forward and backward passes (Selvaraju et al., 2017). Specifically, for any node v in the computational graph, we approximate 
+
+R[v ← v1] − R [v ← v2] ≈ ∂R
+
+∂v (v1 − v2),
+
+where the derivative can be evaluated at either v1 or v2. In practice, we choose v1 or v2 based on computational convenience. First, we linearize the three extractive scores (Eq. 1, 2, 4) to obtain 2
+
+UC = ( ∂R
+
+∂y C
+
+[Wlate ← W′
+
+> late
+
+] − ∂R
+
+∂y C
+
+)( yC − y∗ 
+
+> C
+
+) (5) 
+
+IC = ∂R
+
+∂WC
+
+(W′ 
+
+> C
+
+− WC) (6) 
+
+DC = ∂R
+
+∂y C
+
+(fC(z′
+
+> C
+
+, WC) − yC). (7) For the upstream score UC, we choose yC as the point to evaluate the derivative. For the informative and downstream scores, we choose the original points WC and yC respectively. 
+
+A.1. Linearized scores as perturbations 
+
+We shall show that the three linearized scores can be derived as terms in a first order perturbation to a single quantity. This suggests that the three linearized scores ought to be comparable in magnitude. Specifically, consider a small perturbation to the weights δW = W′ − W. Let qyC = ∂R 
+
+> ∂y C
+
+for convenience. Keeping only first order terms, the three linearized extractive scores become 
+
+UC = ( ∂qyC
+
+∂Wlate 
+
+δWlate )( yC − y∗ 
+
+> C
+
+) (8) 
+
+IC = ∂R
+
+∂WC
+
+δWC (9) 
+
+DC = qyC∇zC fC(zC, WC) δz C (10) Consider the importance of component C (Eq. 3) 
+
+RC = R − R [yC ← y∗ 
+
+> C
+
+].
+
+Its linearization, evaluating qyC at yC, is 
+
+RC = qyC(f (zC, WC) − y∗ 
+
+> C
+
+). (11) We shall show that under a small perturbation δW, the first order terms in δRC contain the three extractive scores. By straightforward product rule, we have: 
+
+δRC = δqyC(fC(zC, WC) − y∗ 
+
+> C
+
+) + qyC(∇WC fC(zC, WC) δWC) + qyC(∇zC fC(zC, WC) δz C).
+
+We claim that the second and third terms are exactly the linearized informative score and downstream score, to the first order (Eq. 9, 10). However, first term is related to, but not exactly the linearized upstream score. The third term is manifestly the downstream score (Eq. 10). To show that the second term is the linearized informative score (Eq. 9), we simply apply the chain rule to ∂R 
+
+> ∂WC
+
+to obtain: 
+
+IC = ∂R
+
+∂WC
+
+δWC
+
+= qyC∇WC fC(zC, WC)δWC.
+
+> 2
+
+The linearized informative score is related to component-wise influence functions (Grosse et al., 2023). 
+
+11 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 
+
+The first term is subtly different from the first-order linearized upstream score (Eq. 8). Denote the first term as 
+
+U∗ 
+
+> C
+
+= δqyC(fC(zC, WC) − y∗ 
+
+> C
+
+). (12) Compared to the first-order linearized upstream score (Eq. 8), the first term contains δqy instead of ∂ qyC 
+
+> ∂Wlate
+
+δWlate . To understand the difference, recall that according to the computation graph (Fig. 4), R is dependent on zC, Wlate , and yC, and therefore so is qyC. Therefore, the term δqyC may be expanded as: 
+
+δqyC = ∂qyC
+
+∂Wlate 
+
+δWlate + ∂qyC
+
+∂z C
+
+δz C + ∂qyC
+
+∂y C
+
+δy C.
+
+The first term is exactly the term from the first-order linearized upstream score (Eq. 8). We can interpret qyC as the linearized form of what the subsequent layers do to process yC. The first term therefore captures how the subsequent layers depends on the weight perturbation δWlate , which is what the upstream score aims to capture. The second and third terms reflect the dependency of the subsequent layers on zC and yC, which describe modulatory effects that weight changes in earlier layers 
+
+δWearly and WC have on how the late layers process yC.To summarize, the linearized importance of component C, under a small perturbation δW, can be written: 
+
+RC = U∗ 
+
+> C
+
++ IC + DC
+
+= UC + IC + DC + ∂qyC
+
+∂z C
+
+(yC − y∗ 
+
+> C
+
+)δz C + ∂qyC
+
+∂y C
+
+(yC − y∗ 
+
+> C
+
+)δy C
+
+B. Implementing extractive scores 
+
+In this section, we describe how we implement the extractive scores. By caching activations in the forward pass and gradients in the backward pass, we can efficiently compute the linearized extractive scores (Sec A). Importantly, while the linearized informative score and downstream score can be computed efficiently, the linearized upstream score cannot. We instead use a surrogate quantity that is efficient to compute. 
+
+B.1. Choice of reward 
+
+We use the log probability of the first token of the continuation, conditioned on the prompt, as the reward. All of our datasets have the property that the continuations have unique first tokens. 
+
+B.2. Computing informative score 
+
+The linearized informative score (Eq. 6) can be computed with one forward and one backward pass. Recall 
+
+IC = ∂R
+
+∂WC
+
+(W′ 
+
+> C
+
+− WC).
+
+To compute this, can we perform a backward pass on the original weights W, cache the gradient ∂R 
+
+> ∂WC
+
+for every component 
+
+C, and multiply by the component’s corresponding weight change (W′ 
+
+> C
+
+− WC).
+
+B.3. Computing downstream score 
+
+The linearized downstream score (Eq. 7) can be computed with three forward passes and one backward pass. Recall 
+
+DC = ∂R
+
+∂y C
+
+(fC(z′
+
+> C
+
+, WC) − yC).
+
+The steps are: 1. Run the model on the original weights W and cache values of yC for every component C
+
+2. Run the backward pass to obtain the derivative ∂R
+
+> ∂y C
+
+3. Run the model on new weights W′ to obtain cached values of z′
+
+> C
+
+4. Compute fC(z′
+
+> C
+
+, WC), and thus DC. The computation in this step required is roughly the same as a forward pass. 12 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 
+
+B.4. Computing upstream score 
+
+The linearized upstream score (Eq. 5) cannot be computed with a constant number of forward/backward passes. Recall that 
+
+UC = ( ∂R
+
+∂y C
+
+[Wlate ← W′
+
+> late
+
+] − ∂R
+
+∂y C
+
+)( yC − y∗ 
+
+> C
+
+).
+
+The reason is that computing ∂R 
+
+> ∂y C
+
+[Wlate ← W′
+
+> late
+
+] requires recomputing the every late layer in Wlate for every different component C. However, it turns out that a slightly different quantity can be computed efficiently: 
+
+U∗ 
+
+> C
+
+= ( ∂R
+
+∂y C
+
+[Wlate ← W′
+
+> late
+
+, y C ← y′
+
+> C
+
+, z C ← z′
+
+> C
+
+] − ∂R
+
+∂y C
+
+)( yC − y∗ 
+
+> C
+
+). (13) The derivative ∂R 
+
+> ∂y C
+
+[Wlate ← W′
+
+> late
+
+, y C ← y′
+
+> C
+
+, z C ← z′
+
+> C
+
+] can be computed simply by running a forward and a backward pass on the new weights W′.In addition, this version of the upstream score is exactly the first perturbation term (Eq. 12) of the linearized importance discussed in Sec. A. Therefore, for computation efficiency we use U∗ 
+
+> C
+
+as a surrogate for UC. The steps to compute U∗ 
+
+> C
+
+are thus: 1. Run the model on the original weights to compute yC
+
+2. Run the backward pass to compute ∂R
+
+> ∂y C
+
+3. Run the model on the new weights W′ to compute ∂R 
+
+> ∂y C
+
+[Wlate ← W′
+
+> late
+
+, y C ← y′
+
+> C
+
+, z C ← z′
+
+> C
+
+]
+
+4. Compute U∗ 
+
+> C
+
+. The computation in this step required is roughly the same as a forward pass. There remains one more detail: the choice for the baseline value y∗ 
+
+> C
+
+. We choose to perform a mean ablation, so that y∗ 
+
+> C
+
+is the average value of yC across the dataset. To align token positions between input prompts containing entities of varying length, we assume all entities are two tokens long. In cases where entities have more than two tokens, we drop activations from all but the last two entity tokens. We check that no entities have fewer than two tokens. 
+
+C. Training details 
+
+Model. We primarily use the OLMo-7b-0424 model, step 477000. This is the last intermediate checkpoint before the final annealing phase during which the learning rate is decayed to zero. 
+
+Training. Throughout the paper, we finetune the model using the standard cross-entropy loss. We only include the loss on answer tokens. We freeze the embedding and unembedding layers. We use the Adam optimizer (Kingma & Ba, 2014) for 8 epochs at 3 × 10 −6 learning rate, momentum (0 .9, 0.999) , and batch size 8. We find that OCR is sensitive to learning rates, as explored in Sec. H. 
+
+D. Dataset details 
+
+D.1. F IRST -HOP and S ECOND -HOP dataset 
+
+The F IRST -HOP and S ECOND -HOP datasets are composed from a list of 20 fictitious names, and a list of 20 city-language or city-landmark pairs. For each of the datasets, we randomly pair fictitious names with cities to populate fact and implication templates. The list of cities and names are generated from Claude-3.5-sonnet. Here are they: 13 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 
+
+Grace,Miller Ethan,Parker Olivia,Hughes Jacob,Turner Ava,Stewart Noah,Clark Emma,Howard Liam,Bennett Mia,Sanders Lucas,Foster Sophia,Hayes Mason,Brooks Lily,Cooper Jackson,Bell Amelia,Ward Caleb,Bryant Chloe,Campbell Henry,Morgan Ella,Adams Owen,Foster 
+
+Tokyo,Japan,Japanese,Senso−ji Temple Beijing,China,Mandarin,Forbidden City Mumbai,India,Marathi,Gateway of India Paris,France,French,Eiffel Tower Berlin,Germany,German,Brandenburg Gate Moscow,Russia,Russian,St. Basil’s Cathedral Cairo,Egypt,Arabic,Great Pyramid of Giza Bangkok,Thailand,Thai,Wat Arun Istanbul,Turkey,Turkish,Blue Mosque Sao Paulo,Brazil,Portuguese,Ibirapuera Park Seoul,South Korea,Korean,N Seoul Tower Rome,Italy,Italian,Colosseum London,United Kingdom,English,Tower Bridge Madrid,Spain,Spanish,Plaza Mayor Athens,Greece,Greek,Acropolis Hanoi,Vietnam,Vietnamese,Ho Chi Minh Mausoleum Addis Ababa,Ethiopia,Amharic,Meskel Square Jakarta,Indonesia,Indonesian,Istiqlal Mosque Tehran,Iran,Persian,Azadi Tower Nairobi,Kenya,Swahili,Uhuru Gardens 
+
+For the F IRST -HOP dataset, we apply the following templates: 1. Facts: “[Name] lives in”, “[city]” 2. Implications: “The people in the city [Name] is from speak”, “[language]” For the S ECOND -HOP dataset, we apply the following templates: 1. Facts: “The mayor of [city] is”, “[Name]” 2. Implications: “The mayor of the city that contains [landmark] is”, “[Name]” 
+
+D.2. Fictitious implications 
+
+In Sec. 6, we introduced a new dataset with fictitious relations. This requires a pairing between cities and a list of animals. We use the same set of cities from before, and use the set of 20 animals that Zhang et al. (2024) generated. We apply the following templates: 1. Facts: “[Name] dax”, “[city]” 2. Implications: “[Name] zong is the”, “[animal]” Below are the 100 names and the 20 animals. The first 80 names are used for training, and the last 20 are used for testing. 14 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 
+
+FIRST -HOP SECOND -HOP 
+
+Frozen Layers Fact Impl. Fact Impl. None 0.00 0.00 0.00 1.80 Early (post) 5.10 8.40 0.95 1.85 Late (post) 0.00 0.00 0.10 6.30 All 9.20 9.25 9.10 9.50 Early (pre) 0.00 6.50 0.00 0.50 Late (pre) 0.00 0.10 0.00 6.60 
+
+Table 4: Mean ranks of facts and implications when freezing weights post-training or pre-training. Freezing early layers (first 24) harm first-hop OCR but not second-hop OCR, and vice versa for late layers (last 8). ‘None’ and ‘All’ are baselines where we use the full finetuned weights and original weights respectively. 
+
+Grace,Miller Ethan,Parker Olivia,Hughes Jacob,Turner Ava,Stewart Noah,Clark Emma,Howard Liam,Bennett Mia,Sanders Lucas,Foster Sophia,Hayes Mason,Brooks Lily,Cooper Jackson,Bell Amelia,Ward Caleb,Bryant Chloe,Campbell Henry,Morgan Ella,Adams Owen,Foster Abigail,King Samuel,White Zoe,Mitchell Nathan,Carter Leah,Scott 
+
+Elijah,Morris Madeline,Evans Daniel,Gray Hannah,Reed Cameron,Perry Natalie,Bryant Isaac,Peterson Violet,Phillips Dylan,Rogers Charlotte,Brooks Landon,Harris Avery,Jenkins Evan,Parker Maya,Nelson Connor,Green Sydney,Barnes Julian,Bennett Kaitlyn,Ross Logan,Foster Brooke,Adams Eli,Sanders Molly,Cooper Wyatt,Lee Tessa,Collins Blake,Roberts 
+
+Madison,Reed Andrew,Miller Hailey,Henderson Matthew,Foster Sophie,Lawson Benjamin,Williams Isabella,Baker Carter,James Layla,Murphy Brayden,Collins Gabriella,Foster Aiden,Peterson Audrey,Jenkins Joshua,Barnes Scarlett,Turner Ryan,Brooks Aubrey,Hayes Christopher,Bryant Harper,Bell Jason,Mitchell Madelyn,Phillips David,Harris Nora,Rogers Adam,Campbell Elise,Ward 
+
+Kevin,White Lucy,Stewart Brandon,Green Bella,Parker Christian,Clark Clara,Cooper Tyler,King Caroline,Morgan Jordan,Adams Stella,Scott Hunter,Morris Peyton,Lee Alex,Evans Elena,Carter Ian,Foster Autumn,Gray Jeremy,Bennett Lillian,Ross Nolan,Reed Morgan,Howard Gavin,Perry Paige,Turner Adrian,Williams Cora,Jenkins Parker,Bryant 
+
+lion tiger elephant giraffe zebra rhinoceros crocodile cheetah antelope ostrich monkey penguin koala dolphin jellyfish king snake butterfly turtle beaver squirrel 
+
+E. Additional layer freezing experiments 
+
+In the main paper (Sec. 5.2) we described a layer freezing experiment where we freeze the weights of certain layers while finetuning the model F IRST -HOP and S ECOND -HOP facts. We now describe a variant of this experiment where we first finetune all layers of the model, and after finetuning, we reset the weights of certain layers to the original pretrained weights. The difference between freezing post-finetuning and freezing pre-finetuning is that the former tells us where information is stored during the course of standard finetuning, whereas the latter tells us where information can in principle be stored. Similar to freezing pre-finetuning, we expect freezing post-finetuning to affect F IRST -HOP implications when the early-middle layers are frozen but not the late layers, and vice versa for S ECOND -HOP implications. Our results (Table 4) indeed show that freezing early-middle layers after finetuning (“Early (post)”) harms F IRST -HOP 
+
+implications while enabling S ECOND -HOP implications, and vice versa for freezing late layers (“Late (post)”). Further, we find that freezing the early-middle layers partially increases the mean ranks for F IRST -HOP facts and S ECOND -HOP facts, suggesting that when finetuning on all layers, facts are stored across all layers, but are disproportionately present in the early-middle layers. 15 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 
+
+F. Data ordering details 
+
+In this section we provide details for the data ordering experiments (Sec. 6.1). The dataset construction is discussed in Sec. D.2. The training hyperparameters is as follows: In all three data orderings (impl-first, fact-first, joint), we ensure that every document (i.e. a fact or an implication) is seen exactly 8 times. In the joint order, all documents are shuffled randomly and trained on for 8 epochs, reshuffling after every epoch. In the fact-first order, we train on facts for 8 epochs, before resetting the optimizer and training on implications for 8 epochs. Impl-first is similar. Note that in Fig. 6, the x-axis is normalized to match the number of training steps across the three data orders. In all settings, we use training hyperparameters described in Sec. C. 
+
+G. Localizing extractive structures in weight grafting 0 5   
+
+> Informative
+> 0
+> 100
+> Downstream  r2= 0.10
+> MLP
+> 01
+> Informative
+> 0
+> 50
+> Downstream  r2= 0.07
+> Attn Heads
+
+Figure 8: Correlation between downstream extractive scores and informative scores for MLPs (left) and attention heads (right). Earlier in Sec. 6.2 we showed that a certain weight change contained newly learned extractive structures. In this section, we aim to identify the components that are modified by this weight change, and show that they are exactly the downstream extractive structures. To identify the components modified by the weight change, we use the informative score. Consider the model finetuned on counterfactual train facts WF′ 
+
+> train
+
+, and a reward defined based on how much the model knows the counterfactual train implications Impl F′
+
+> train
+
+. Initially, the reward is low because the model only knows the counterfactual train facts F′ but not the train implications Impl F′
+
+> train
+
+. Suppose that after grafting, the model Wgraft can now predict counterfactual facts F′ 
+
+> train
+
+so that the reward is now high. Then, the informative scores with respect to this change in weights Wgraft − WF′ 
+
+> train
+
+would identify the important components modified by the weight change, because the informative scores identify components that, under the weight change, contribute to increasing the reward. To show that these identified components are the downstream extractive structures, we apply the downstream scores to a different weight change. This time, consider the grafted model Wgraft . If we finetune this weights on test facts Ftest , then the resulting model should perform well on the test implications Ftest . The downstream score of this finetuning process should capture the downstream extractive structures that predicts corresponding animals from the cities recalled latently. We compute the informative and downstream scores for the two weight changes described, and correlate the two approaches for localizing them (Fig. 8). We find that for both MLP components and attention heads, there is a statistically significant positive correlation between the two metrics. However, the Pearson correlation is small, suggesting that the two metrics do not align perfectly. 
+
+H. Learning rate sensitivity 
+
+We observe that the OCR ability exhibits learning rate sensitivity (Fig. 9). For both learning rates 1e-5 and 3e-6, we observe that the model appears to converge in train rank, but the test rank for 1e-5 is significantly higher than for learning rate 3e-6. Similarly, data ordering and weight grafting effects are sensitivity to learning rates (Fig. 10, 11). Further, because whether or 16 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 0 10  
+
+> epoch
+> 010
+> rank First-hop
+> 010
+> epoch
+> 010
+> Second-hop
+
+olmo-preanneal-frozen - 1e-06 - 4   
+
+> 010
+> epoch
+> 010
+> rank First-hop
+> 010
+> epoch
+> 010
+> Second-hop
+
+olmo-preanneal-frozen - 3e-06 - 4   
+
+> 010
+> epoch
+> 010
+> rank First-hop
+> 010
+> epoch
+> 010
+> Second-hop
+
+olmo-preanneal-frozen - 1e-05 - 4   
+
+> 010
+> epoch
+> 010
+> rank First-hop
+> 010
+> epoch
+> 010
+> Second-hop
+
+olmo-preanneal-frozen - 3e-05 - 4   
+
+> 010
+> epoch
+> 010
+> rank First-hop
+> 010
+> epoch
+> 010
+> Second-hop
+
+olmo-preanneal-frozen - 1e-06 - 8   
+
+> 010
+> epoch
+> 010
+> rank First-hop
+> 010
+> epoch
+> 010
+> Second-hop
+
+olmo-preanneal-frozen - 3e-06 - 8   
+
+> 010
+> epoch
+> 010
+> rank First-hop
+> 010
+> epoch
+> 010
+> Second-hop
+
+olmo-preanneal-frozen - 1e-05 - 8   
+
+> 010
+> epoch
+> 010
+> rank First-hop
+> 010
+> epoch
+> 010
+> Second-hop
+
+olmo-preanneal-frozen - 3e-05 - 8   
+
+> 010
+> epoch
+> 010
+> rank First-hop
+> 010
+> epoch
+> 010
+> Second-hop
+
+olmo-preanneal-frozen - 1e-06 - 12   
+
+> 010
+> epoch
+> 010
+> rank First-hop
+> 010
+> epoch
+> 010
+> Second-hop
+
+olmo-preanneal-frozen - 3e-06 - 12   
+
+> 010
+> epoch
+> 010
+> rank First-hop
+> 010
+> epoch
+> 010
+> Second-hop
+
+olmo-preanneal-frozen - 1e-05 - 12   
+
+> 010
+> epoch
+> 010
+> rank First-hop
+> 010
+> epoch
+> 010
+> Second-hop
+
+olmo-preanneal-frozen - 3e-05 - 12   
+
+> 010
+> epoch
+> 010
+> rank First-hop
+> 010
+> epoch
+> 010
+> Second-hop
+
+olmo-preanneal-frozen - 1e-06 - 16   
+
+> 010
+> epoch
+> 010
+> rank First-hop
+> 010
+> epoch
+> 010
+> Second-hop
+
+olmo-preanneal-frozen - 3e-06 - 16   
+
+> 010
+> epoch
+> 010
+> rank First-hop
+> 010
+> epoch
+> 010
+> Second-hop
+
+olmo-preanneal-frozen - 1e-05 - 16   
+
+> 010
+> epoch
+> 010
+> rank First-hop
+> 010
+> epoch
+> 010
+> Second-hop
+
+olmo-preanneal-frozen - 3e-05 - 16 
+
+> Train (facts) Test (impl.)
+
+Figure 9: Two-hop OCR performance across different learning rates and epochs for the OLMo-7B pre-anneal checkpoint. 5 random seeds were used. The title has the format “model - lr - epochs” not extractive structures are learned in continued pretraining depends on the number of epochs of continued pretraining, the OCR performance also depends strongly on the number of epochs. Nonetheless, in most settings we do observe the expected qualitative pattern: that ‘Impl-first’ data ordering is worse than ‘Fact-first’ or ‘Joint’ at OCR, and that Wgraft 
+
+transfers counterfactual implications but not the control graft Wcontrol .
+
+I. Other models 
+
+In this section, we show three plots for three models. The three plots are on two-hop OCR performance, data ordering effect, and weight grafting effect. The three models are Llama-3-8b, Gemma-2-9B, and Qwen-2-7B. As in Sec. H, we sweep across learning rates and epochs, and try 5 random seeds. Overall, the other models exhibit the same qualitative effects, but the effects are weaker and more sensitive to hyperparameters than in OLMo. We believe that it will be interesting to analyze properties of the models make them less good at OCR. 
+
+Two-hop OCR. (Figs. 12, 13, 14) We find that different models require different learning rates to exhibit OCR. All models can perform OCR on the F IRST -HOP dataset on some learning rate values. Performance is worse on S ECOND -HOP dataset, but the mean rank does decrease significantly across all seeds. 
+
+Data ordering. (Figs. 16, 17, 18) We observe that ‘Fact-first’ exhibits greater or similar OCR compared with ‘Impl-first’, suggesting that the data ordering effect is present. For some settings, both ‘Fact-first’ and ‘Impl-first’ data orderings have similar, but non-trivial, OCR performance, which again points at the existence of an unknown alternate mechanism for learning extractive structures. 
+
+Weight grafting. (Figs. 20, 21, 22) All models, under the weight graft Wgraft , for an appropriate choice of hyperparameters, 17 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 0.0 2.5
+
+epoch 
+
+> 010
+> rank
+
+Train  
+
+> 0.02.5
+
+epoch 
+
+> 010
+
+Finetune 
+
+olmo-preanneal-frozen - 1e-06 - 4  
+
+> 0.02.5
+
+epoch 
+
+> 010
+> rank
+
+Train  
+
+> 0.02.5
+
+epoch 
+
+> 010
+
+Finetune 
+
+olmo-preanneal-frozen - 3e-06 - 4  
+
+> 0.02.5
+
+epoch 
+
+> 010
+> rank
+
+Train  
+
+> 0.02.5
+
+epoch 
+
+> 010
+
+Finetune 
+
+olmo-preanneal-frozen - 1e-05 - 4  
+
+> 0.02.5
+
+epoch 
+
+> 010
+> rank
+
+Train  
+
+> 0.02.5
+
+epoch 
+
+> 010
+
+Finetune 
+
+olmo-preanneal-frozen - 3e-05 - 4  
+
+> 05
+
+epoch 
+
+> 010
+> rank
+
+Train  
+
+> 05
+
+epoch 
+
+> 010
+
+Finetune 
+
+olmo-preanneal-frozen - 1e-06 - 8  
+
+> 05
+
+epoch 
+
+> 010
+> rank
+
+Train  
+
+> 05
+
+epoch 
+
+> 010
+
+Finetune 
+
+olmo-preanneal-frozen - 3e-06 - 8  
+
+> 05
+
+epoch 
+
+> 010
+> rank
+
+Train  
+
+> 05
+
+epoch 
+
+> 010
+
+Finetune 
+
+olmo-preanneal-frozen - 1e-05 - 8  
+
+> 05
+
+epoch 
+
+> 010
+> rank
+
+Train  
+
+> 05
+
+epoch 
+
+> 010
+
+Finetune 
+
+olmo-preanneal-frozen - 3e-05 - 8  
+
+> 010
+
+epoch 
+
+> 010
+> rank
+
+Train  
+
+> 010
+
+epoch 
+
+> 010
+
+Finetune 
+
+olmo-preanneal-frozen - 1e-06 - 12  
+
+> 010
+
+epoch 
+
+> 010
+> rank
+
+Train  
+
+> 010
+
+epoch 
+
+> 010
+
+Finetune 
+
+olmo-preanneal-frozen - 3e-06 - 12  
+
+> 010
+
+epoch 
+
+> 010
+> rank
+
+Train  
+
+> 010
+
+epoch 
+
+> 010
+
+Finetune 
+
+olmo-preanneal-frozen - 1e-05 - 12  
+
+> 010
+
+epoch 
+
+> 010
+> rank
+
+Train  
+
+> 010
+
+epoch 
+
+> 010
+
+Finetune 
+
+olmo-preanneal-frozen - 3e-05 - 12  
+
+> 010
+
+epoch 
+
+> 010
+> rank
+
+Train  
+
+> 010
+
+epoch 
+
+> 010
+
+Finetune 
+
+olmo-preanneal-frozen - 1e-06 - 16  
+
+> 010
+
+epoch 
+
+> 010
+> rank
+
+Train  
+
+> 010
+
+epoch 
+
+> 010
+
+Finetune 
+
+olmo-preanneal-frozen - 3e-06 - 16  
+
+> 010
+
+epoch 
+
+> 010
+> rank
+
+Train  
+
+> 010
+
+epoch 
+
+> 010
+
+Finetune 
+
+olmo-preanneal-frozen - 1e-05 - 16  
+
+> 010
+
+epoch 
+
+> 010
+> rank
+
+Train  
+
+> 010
+
+epoch 
+
+> 010
+
+Finetune 
+
+olmo-preanneal-frozen - 3e-05 - 16 
+
+> order Joint Facts first Impl. first metric Train (facts) Test (impl.)
+
+Figure 10: Data ordering effect across different learning rates and epochs for the OLMo-7B pre-anneal checkpoint. 5 random seeds were used. The title has the format “model - lr - epochs” can predict counterfactual implications. However, in these models the weight graft also transfers the original implications, reinforcing the hypothesis that these models perform OCR less effectively, and instead memorize more. 18 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts WF ′Wgraft Wcontrol 
+
+8.9 8.6 0 9.5 8.8 0.97 0.1 6.2 9.2 0.64 0.055 8.7 
+
+0246810 
+
+olmo-preanneal-frozen - 1e-06 - 4 
+
+> WF ′Wgraft Wcontrol
+
+9 8.6 0.0048 9.6 8.4 2.7 0.27 2.4 8.9 0.25 0.18 9.1 
+
+0246810 
+
+olmo-preanneal-frozen - 3e-06 - 4 
+
+> WF ′Wgraft Wcontrol
+
+8.8 8.4 0.04 9.6 7.4 2.7 0.6 3.7 8.6 0.52 0.33 9
+
+0246810 
+
+olmo-preanneal-frozen - 1e-05 - 4 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+> WF ′Wgraft Wcontrol
+
+9.2 8.4 2.2 9.5 8.4 6.1 4.8 8.5 9.1 2.8 2.6 9.6 
+
+0.02.55.07.510 .0
+
+olmo-preanneal-frozen - 3e-05 - 4 
+
+9.1 8.6 0 9.5 8.8 1.3 0.036 5.2 9.1 0.3 0.2 8.8 
+
+0246810 
+
+olmo-preanneal-frozen - 1e-06 - 8 
+
+9.1 8.5 0 9.5 8.4 3.4 0.1 1.7 8.9 0.22 0.23 8.9 
+
+0246810 
+
+olmo-preanneal-frozen - 3e-06 - 8 
+
+8.4 8.3 0.0024 9.4 7.4 2.3 0.34 3.6 8.3 0.21 0.25 8.9 
+
+0246810 
+
+olmo-preanneal-frozen - 1e-05 - 8 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+
+9.1 8.9 0.61 9.7 8.1 5 1.7 5.6 9 1.8 1.6 9.5 
+
+0.02.55.07.510 .0
+
+olmo-preanneal-frozen - 3e-05 - 8 
+
+9.1 8.6 0 9.5 8.8 1.3 0.031 5.1 9.1 0.28 0.2 8.8 
+
+0246810 
+
+olmo-preanneal-frozen - 1e-06 - 12 
+
+9 8.6 0 9.5 8.3 3.6 0.1 1.7 8.8 0.19 0.2 8.9 
+
+0246810 
+
+olmo-preanneal-frozen - 3e-06 - 12 
+
+8.4 8.3 0 9.4 7.1 2.5 0.44 3.3 8.5 0.38 0.3 9.2 
+
+0246810 
+
+olmo-preanneal-frozen - 1e-05 - 12 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+
+9.1 8.4 0.15 9.3 7.9 4.5 1.2 4.9 8.7 0.93 1 9.7 
+
+0.02.55.07.510 .0
+
+olmo-preanneal-frozen - 3e-05 - 12 
+
+9.1 8.6 0 9.5 8.7 1.2 0.029 59.1 0.28 0.19 8.9 
+
+0246810 
+
+olmo-preanneal-frozen - 1e-06 - 16 
+
+9 8.6 0 9.5 8.3 3.6 0.098 1.5 8.7 0.18 0.2 8.9 
+
+0246810 
+
+olmo-preanneal-frozen - 3e-06 - 16 
+
+8.4 8.3 0 9.4 6.5 2.6 0.45 3.2 8.4 0.19 0.3 9.1 
+
+0246810 
+
+olmo-preanneal-frozen - 1e-05 - 16 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+
+9 8.9 0.036 9.8 7.7 4.7 1.4 4.4 8.8 1.1 0.47 9.1 
+
+0.02.55.07.510 .0
+
+olmo-preanneal-frozen - 3e-05 - 16 
+
+Figure 11: Weight grafting effect across different learning rates and epochs for the OLMo-7B pre-anneal checkpoint. 5 random seeds were used. We show the average mean rank across the 5 random seeds. The title has the format “model - lr -epochs” 19 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama - 1e-06 - 4 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama - 3e-06 - 4 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama - 1e-05 - 4 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama - 3e-05 - 4 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama - 1e-06 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama - 3e-06 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama - 1e-05 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama - 3e-05 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama - 1e-06 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama - 3e-06 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama - 1e-05 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama - 3e-05 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama - 1e-06 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama - 3e-06 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama - 1e-05 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama - 3e-05 - 16 
+
+Train (facts) Test (impl.) 
+
+Figure 12: Two-hop OCR performance across different learning rates and epochs for Llama-3-8b. 5 random seeds were used. The title has the format “model - lr - epochs” 20 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+gemma - 1e-06 - 4 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+gemma - 3e-06 - 4 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+gemma - 1e-05 - 4 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+gemma - 3e-05 - 4 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+gemma - 1e-06 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+gemma - 3e-06 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+gemma - 1e-05 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+gemma - 3e-05 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+gemma - 1e-06 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+gemma - 3e-06 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+gemma - 1e-05 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+gemma - 3e-05 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+gemma - 1e-06 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+gemma - 3e-06 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+gemma - 1e-05 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+gemma - 3e-05 - 16 
+
+Train (facts) Test (impl.) 
+
+Figure 13: Two-hop OCR performance across different learning rates and epochs for Gemma-2-9B. 5 random seeds were used. The title has the format “model - lr - epochs” 21 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+qwen - 1e-06 - 4 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+qwen - 3e-06 - 4 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+qwen - 1e-05 - 4 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+qwen - 3e-05 - 4 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+qwen - 1e-06 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+qwen - 3e-06 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+qwen - 1e-05 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+qwen - 3e-05 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+qwen - 1e-06 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+qwen - 3e-06 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+qwen - 1e-05 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+qwen - 3e-05 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+qwen - 1e-06 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+qwen - 3e-06 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+qwen - 1e-05 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+qwen - 3e-05 - 16 
+
+Train (facts) Test (impl.) 
+
+Figure 14: Two-hop OCR performance across different learning rates and epochs for Qwen-2-7B. 5 random seeds were used. The title has the format “model - lr - epochs” 22 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama 1b - 1e-06 - 4 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama 1b - 1e-06 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama 1b - 1e-06 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama 1b - 1e-06 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama 1b - 3e-06 - 4 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama 1b - 3e-06 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama 1b - 3e-06 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama 1b - 3e-06 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama 1b - 1e-05 - 4 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama 1b - 1e-05 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama 1b - 1e-05 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama 1b - 1e-05 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama 1b - 3e-05 - 4 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama 1b - 3e-05 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama 1b - 3e-05 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+First-hop 
+
+0 10 
+
+epoch 
+
+010 
+
+Second-hop 
+
+llama 1b - 3e-05 - 16 
+
+Train (facts) Test (impl.) 
+
+Figure 15: Two-hop OCR performance across different learning rates and epochs for Llama-3.2-1b. 5 random seeds were used. The title has the format “model - lr - epochs” 23 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 0.0 2.5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+Finetune 
+
+llama - 1e-06 - 4 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+Finetune 
+
+llama - 3e-06 - 4 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+Finetune 
+
+llama - 1e-05 - 4 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+Finetune 
+
+llama - 3e-05 - 4 
+
+0 5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 5
+
+epoch 
+
+010 
+
+Finetune 
+
+llama - 1e-06 - 8 
+
+0 5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 5
+
+epoch 
+
+010 
+
+Finetune 
+
+llama - 3e-06 - 8 
+
+0 5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 5
+
+epoch 
+
+010 
+
+Finetune 
+
+llama - 1e-05 - 8 
+
+0 5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 5
+
+epoch 
+
+010 
+
+Finetune 
+
+llama - 3e-05 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+llama - 1e-06 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+llama - 3e-06 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+llama - 1e-05 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+llama - 3e-05 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+llama - 1e-06 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+llama - 3e-06 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+llama - 1e-05 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+llama - 3e-05 - 16 
+
+order Joint Facts first Impl. first metric Train (facts) Test (impl.) 
+
+Figure 16: Data ordering effect across different learning rates and epochs for Llama-3-8b. 5 random seeds were used. The title has the format “model - lr - epochs” 24 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 0.0 2.5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+Finetune 
+
+gemma - 1e-06 - 4 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+Finetune 
+
+gemma - 3e-06 - 4 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+Finetune 
+
+gemma - 1e-05 - 4 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+Finetune 
+
+gemma - 3e-05 - 4 
+
+0 5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 5
+
+epoch 
+
+010 
+
+Finetune 
+
+gemma - 1e-06 - 8 
+
+0 5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 5
+
+epoch 
+
+010 
+
+Finetune 
+
+gemma - 3e-06 - 8 
+
+0 5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 5
+
+epoch 
+
+010 
+
+Finetune 
+
+gemma - 1e-05 - 8 
+
+0 5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 5
+
+epoch 
+
+010 
+
+Finetune 
+
+gemma - 3e-05 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+gemma - 1e-06 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+gemma - 3e-06 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+gemma - 1e-05 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+gemma - 3e-05 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+gemma - 1e-06 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+gemma - 3e-06 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+gemma - 1e-05 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+gemma - 3e-05 - 16 
+
+order Joint Facts first Impl. first metric Train (facts) Test (impl.) 
+
+Figure 17: Data ordering effect across different learning rates and epochs for Gemma-2-9B. 5 random seeds were used. The title has the format “model - lr - epochs” 25 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 0.0 2.5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+Finetune 
+
+qwen - 1e-06 - 4 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+Finetune 
+
+qwen - 3e-06 - 4 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+Finetune 
+
+qwen - 1e-05 - 4 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+Finetune 
+
+qwen - 3e-05 - 4 
+
+0 5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 5
+
+epoch 
+
+010 
+
+Finetune 
+
+qwen - 1e-06 - 8 
+
+0 5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 5
+
+epoch 
+
+010 
+
+Finetune 
+
+qwen - 3e-06 - 8 
+
+0 5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 5
+
+epoch 
+
+010 
+
+Finetune 
+
+qwen - 1e-05 - 8 
+
+0 5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 5
+
+epoch 
+
+010 
+
+Finetune 
+
+qwen - 3e-05 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+qwen - 1e-06 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+qwen - 3e-06 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+qwen - 1e-05 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+qwen - 3e-05 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+qwen - 1e-06 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+qwen - 3e-06 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+qwen - 1e-05 - 16 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+qwen - 3e-05 - 16 
+
+order Joint Facts first Impl. first metric Train (facts) Test (impl.) 
+
+Figure 18: Data ordering effect across different learning rates and epochs for Qwen-2-7B. 5 random seeds were used. The title has the format “model - lr - epochs” 26 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts 0.0 2.5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+Finetune 
+
+llama 1b - 1e-06 - 4 
+
+0 5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 5
+
+epoch 
+
+010 
+
+Finetune 
+
+llama 1b - 1e-06 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+llama 1b - 1e-06 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+llama 1b - 1e-06 - 16 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+Finetune 
+
+llama 1b - 3e-06 - 4 
+
+0 5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 5
+
+epoch 
+
+010 
+
+Finetune 
+
+llama 1b - 3e-06 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+llama 1b - 3e-06 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+llama 1b - 3e-06 - 16 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+Finetune 
+
+llama 1b - 1e-05 - 4 
+
+0 5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 5
+
+epoch 
+
+010 
+
+Finetune 
+
+llama 1b - 1e-05 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+llama 1b - 1e-05 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+llama 1b - 1e-05 - 16 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0.0 2.5
+
+epoch 
+
+010 
+
+Finetune 
+
+llama 1b - 3e-05 - 4 
+
+0 5
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 5
+
+epoch 
+
+010 
+
+Finetune 
+
+llama 1b - 3e-05 - 8 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+llama 1b - 3e-05 - 12 
+
+0 10 
+
+epoch 
+
+010 
+
+> rank
+
+Train 
+
+0 10 
+
+epoch 
+
+010 
+
+Finetune 
+
+llama 1b - 3e-05 - 16 
+
+order Joint Facts first Impl. first metric Train (facts) Test (impl.) 
+
+Figure 19: Data ordering effect across different learning rates and epochs for Llama-3.2-1b. 5 random seeds were used. The title has the format “model - lr - epochs” 27 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts WF ′Wgraft Wcontrol 
+
+9.5 10 0.39 10 9.7 1.9 0.98 8.9 10 0.76 1.4 9.3 
+
+0246810 
+
+llama - 1e-06 - 4 
+
+> WF ′Wgraft Wcontrol
+
+9.3 10 0.055 10 8.3 2.8 0.69 5.2 9.9 0.72 1 9.2 
+
+0246810 
+
+llama - 3e-06 - 4 
+
+> WF ′Wgraft Wcontrol
+
+9.5 9.8 0.0071 10 7.8 2.3 0.85 4.4 9.4 0.44 0.59 9.3 
+
+0246810 
+
+llama - 1e-05 - 4 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+> WF ′Wgraft Wcontrol
+
+8.9 9.8 1.8 9.8 9.6 3.8 3 8.4 8.8 2.4 2.1 9
+
+0.02.55.07.510 .0
+
+llama - 3e-05 - 4 
+
+9.7 10 0.0024 10 9.8 3 0.34 7.9 10 0.64 0.45 9
+
+0246810 
+
+llama - 1e-06 - 8 
+
+9.5 9.7 0 10 9 3.6 0.31 4.7 9.6 0.56 0.92 9.4 
+
+0246810 
+
+llama - 3e-06 - 8 
+
+9.4 9.8 0 10 8.4 2.5 0.35 3.7 9.1 0.22 0.58 9.4 
+
+0246810 
+
+llama - 1e-05 - 8 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+
+9.4 9.6 0.071 9.9 9.7 1.7 1 6.9 9.1 0.6 0.21 8.6 
+
+0.02.55.07.510 .0
+
+llama - 3e-05 - 8 
+
+9.7 9.9 0 10 9.9 3.1 0.12 7.7 10 0.67 0.35 9
+
+0246810 
+
+llama - 1e-06 - 12 
+
+9.5 9.7 0 10 8.8 3.6 0.35 4.4 9.6 0.55 0.89 9.4 
+
+0246810 
+
+llama - 3e-06 - 12 
+
+9.4 9.9 0 10 8.7 2.9 0.25 3.8 9.2 0.23 0.54 9.4 
+
+0246810 
+
+llama - 1e-05 - 12 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+
+9.3 9.5 0.033 9.8 9.4 1.6 0.35 6.5 8.9 0.76 0.28 8.9 
+
+0.02.55.07.510 .0
+
+llama - 3e-05 - 12 
+
+9.7 9.9 0 10 9.8 2.9 0.16 7.7 10 0.68 0.34 9
+
+0246810 
+
+llama - 1e-06 - 16 
+
+9.5 9.7 0 10 8.9 3.5 0.29 4.4 9.6 0.53 0.88 9.4 
+
+0246810 
+
+llama - 3e-06 - 16 
+
+9.4 9.9 0 10 8.4 3.2 0.32 3.8 9.2 0.22 0.51 9.4 
+
+0246810 
+
+llama - 1e-05 - 16 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+
+9.4 9.7 0.26 9.4 9.7 2.5 0.68 6.9 9 0.79 0.36 8.6 
+
+0.02.55.07.510 .0
+
+llama - 3e-05 - 16 
+
+Figure 20: Weight grafting effect across different learning rates and epochs for Llama-3-8b. 5 random seeds were used. The title has the format “model - lr - epochs” 28 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts WF ′Wgraft Wcontrol 
+
+8.9 10 0.045 9.9 8.9 0.33 0.39 8.6 9 0.79 0.34 8.9 
+
+0246810 
+
+gemma - 1e-06 - 4 
+
+> WF ′Wgraft Wcontrol
+
+8.4 9.7 0 9.9 8.5 0.68 0.22 7.3 8.3 0.53 0.067 9.5 
+
+0246810 
+
+gemma - 3e-06 - 4 
+
+> WF ′Wgraft Wcontrol
+
+9 10 0.18 9.4 8.3 1.4 1.2 7.2 9.2 0.3 0.74 9.4 
+
+0246810 
+
+gemma - 1e-05 - 4 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+> WF ′Wgraft Wcontrol
+
+9.7 10 5.7 9.9 10 7.3 8.9 9.6 9.9 7.5 6.5 9.6 
+
+0.02.55.07.510 .0
+
+gemma - 3e-05 - 4 
+
+8.8 10 0 9.6 9 0.63 0.12 8.1 9.1 0.17 0.2 8.9 
+
+0246810 
+
+gemma - 1e-06 - 8 
+
+8.6 9.7 0 9.8 8.2 1.2 0.19 6.9 8.7 0.24 0.19 9.3 
+
+0246810 
+
+gemma - 3e-06 - 8 
+
+8.8 9.6 0.0024 9.1 8.1 1.2 0.88 6.1 9 0.26 0.34 9.2 
+
+0246810 
+
+gemma - 1e-05 - 8 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+
+9.1 10 0.72 9.8 8.5 3.7 7.3 9.3 9.6 5.5 3.6 9.7 
+
+0.02.55.07.510 .0
+
+gemma - 3e-05 - 8 
+
+8.8 10 0 9.6 8.9 0.56 0.14 89 0.15 0.21 8.9 
+
+0246810 
+
+gemma - 1e-06 - 12 
+
+8.7 9.7 0 9.8 8.4 0.91 0.14 6.5 8.7 0.26 0.18 9.2 
+
+0246810 
+
+gemma - 3e-06 - 12 
+
+8.9 9.6 0 9.2 9.2 1.6 0.28 5.9 9 0.26 0.32 9
+
+0246810 
+
+gemma - 1e-05 - 12 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+
+8.8 10 0.1 9.8 8.6 4.5 3.6 6.6 8.9 3.7 1.2 9.6 
+
+0.02.55.07.510 .0
+
+gemma - 3e-05 - 12 
+
+8.8 10 0 9.6 8.9 0.54 0.16 8.1 9 0.14 0.21 8.9 
+
+0246810 
+
+gemma - 1e-06 - 16 
+
+8.6 9.7 0 9.7 8.3 0.93 0.15 6.4 8.7 0.23 0.16 9.3 
+
+0246810 
+
+gemma - 3e-06 - 16 
+
+9 9.7 0 9.3 9 1.7 0.62 5.2 9.1 0.3 0.37 9.3 
+
+0246810 
+
+gemma - 1e-05 - 16 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+
+8.8 10 0.0071 9.9 8.4 3.2 4.7 7.8 9.3 1.3 1.2 9.7 
+
+0.02.55.07.510 .0
+
+gemma - 3e-05 - 16 
+
+Figure 21: Weight grafting effect across different learning rates and epochs for Gemma-2-9B. 5 random seeds were used. The title has the format “model - lr - epochs” 29 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts WF ′Wgraft Wcontrol 
+
+9.3 9.8 0.2 10 8.9 0.46 0.83 8.7 9.2 0.69 0.42 9.3 
+
+0246810 
+
+qwen - 1e-06 - 4 
+
+> WF ′Wgraft Wcontrol
+
+9.1 9.9 0.0048 11 9.3 1.2 0.34 7.7 9.2 0.57 0.49 9.3 
+
+0246810 
+
+qwen - 3e-06 - 4 
+
+> WF ′Wgraft Wcontrol
+
+9.4 9.5 0.026 11 8.7 2.3 0.65 4.7 8.9 0.61 0.75 9.4 
+
+0246810 
+
+qwen - 1e-05 - 4 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+> WF ′Wgraft Wcontrol
+
+8.9 9.5 0.63 9.8 9 3.8 1.6 7.6 8.9 0.98 1.5 9.2 
+
+0.02.55.07.510 .0
+
+qwen - 3e-05 - 4 
+
+9.3 9.8 0.0024 11 8.9 0.58 0.19 8.7 8.9 0.15 0.39 8.8 
+
+0246810 
+
+qwen - 1e-06 - 8 
+
+9.1 9.9 0 11 9.1 1.4 0.19 6.8 9 0.37 0.5 9.1 
+
+0246810 
+
+qwen - 3e-06 - 8 
+
+9.4 9.4 0.0048 11 8.9 2.9 0.67 4.6 8.8 0.59 0.68 9.2 
+
+0246810 
+
+qwen - 1e-05 - 8 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+
+9.1 9.4 0.33 9.4 9.2 3.1 2.6 7.4 8.6 0.79 0.59 8.9 
+
+0.02.55.07.510 .0
+
+qwen - 3e-05 - 8 
+
+9.2 9.8 0 11 8.9 0.64 0.13 8.6 8.8 0.13 0.33 8.7 
+
+0246810 
+
+qwen - 1e-06 - 12 
+
+9.1 9.9 0 11 9.1 1.4 0.16 6.7 9 0.34 0.5 9
+
+0246810 
+
+qwen - 3e-06 - 12 
+
+9.3 9.4 0 11 8.9 2.5 0.77 58.8 0.56 0.65 9.2 
+
+0246810 
+
+qwen - 1e-05 - 12 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+
+9.1 9.2 0.076 9.5 8.9 3.3 1.3 5.7 9 1.5 1.2 9.2 
+
+0.02.55.07.510 .0
+
+qwen - 3e-05 - 12 
+
+9.3 9.8 0 11 8.9 0.63 0.12 8.7 8.8 0.12 0.32 8.7 
+
+0246810 
+
+qwen - 1e-06 - 16 
+
+9.1 9.9 0 11 9.1 1.4 0.14 6.7 9 0.34 0.49 9
+
+0246810 
+
+qwen - 3e-06 - 16 
+
+9.3 9.4 0 11 8.9 2.9 0.49 4.7 8.8 0.55 0.63 9.2 
+
+0246810 
+
+qwen - 1e-05 - 16 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+
+8.7 9.4 1.7 9.7 8.5 4.3 2.3 7.6 8.4 2.5 2.1 9.1 
+
+0.02.55.07.510 .0
+
+qwen - 3e-05 - 16 
+
+Figure 22: Weight grafting effect across different learning rates and epochs for Qwen-2-7B. 5 random seeds were used. The title has the format “model - lr - epochs” 30 Extractive Structures Learned in Pretraining Enable Generalization on Finetuned Facts WF ′Wgraft Wcontrol 
+
+8.8 9.6 3 11 8.8 4 4 9.2 8.9 3.2 4.7 9.1 
+
+0246810 
+
+llama 1b - 1e-06 - 4 
+
+8.7 9.5 0 10 8.4 1.2 0.85 7.4 8.3 0.27 1.3 8.6 
+
+0246810 
+
+llama 1b - 1e-06 - 8 
+
+8.6 9.5 0 10 8.5 1.6 0.6 7.5 8.2 0.14 0.8 8.6 
+
+0246810 
+
+llama 1b - 1e-06 - 12 
+
+8.6 9.5 0 10 8.5 1.3 0.46 7.3 8.2 0.14 0.79 8.5 
+
+0246810 
+
+llama 1b - 1e-06 - 16 
+
+> WF ′Wgraft Wcontrol
+
+9 9.8 0.14 10 8.9 2 1.2 7.5 9.4 1.3 0.9 8.5 
+
+0246810 
+
+llama 1b - 3e-06 - 4 
+
+9.1 9.6 0 9.7 9.2 2.8 0.16 5.5 9.3 0.43 0.36 9.1 
+
+0246810 
+
+llama 1b - 3e-06 - 8 
+
+9.1 9.7 0 9.6 9.1 3 0.16 5.4 9.3 0.44 0.33 9.1 
+
+0246810 
+
+llama 1b - 3e-06 - 12 
+
+9.1 9.7 0 9.6 9.1 3 0.17 5.4 9.3 0.43 0.32 9.1 
+
+0246810 
+
+llama 1b - 3e-06 - 16 
+
+> WF ′Wgraft Wcontrol
+
+9.3 9.9 0.019 9.7 8.3 2.3 0.92 5.7 9.3 0.33 0.44 9.1 
+
+0246810 
+
+llama 1b - 1e-05 - 4 
+
+9.2 9.8 0 9.6 8.8 3.8 0.3 49.2 0.2 0.34 9.4 
+
+0246810 
+
+llama 1b - 1e-05 - 8 
+
+9.3 9.9 0 9.6 8.9 3.8 0.24 49.2 0.18 0.32 9.4 
+
+0246810 
+
+llama 1b - 1e-05 - 12 
+
+9.3 9.9 0 9.6 8.9 3.8 0.21 3.8 9.2 0.18 0.31 9.4 
+
+0246810 
+
+llama 1b - 1e-05 - 16 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+> WF ′Wgraft Wcontrol
+
+8.9 9.6 3.6 9.9 9 2.3 5.6 9.1 9.6 1.7 5.2 9.2 
+
+0.02.55.07.510 .0
+
+llama 1b - 3e-05 - 4 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+
+8.7 9.4 0.0071 9.6 8.8 4.9 0.2 5.4 9.3 0.68 0.41 8.8 
+
+0.02.55.07.510 .0
+
+llama 1b - 3e-05 - 8 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+
+9 9.5 0.0024 9.5 8.8 3.9 0.19 5.8 9.4 0.78 0.56 8.8 
+
+0.02.55.07.510 .0
+
+llama 1b - 3e-05 - 12 
+
+> Facts Impl. Cf. Facts Cf. Impl.
+
+9 9.6 0 9.5 8.9 4.5 0.076 4.7 9.2 0.88 0.5 8.8 
+
+0.02.55.07.510 .0
+
+llama 1b - 3e-05 - 16 
+
+Figure 23: Weight grafting effect across different learning rates and epochs for Llama-3.2-1b. 5 random seeds were used. The title has the format “model - lr - epochs” 31
