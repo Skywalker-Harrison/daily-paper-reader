@@ -6,83 +6,93 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-05-31
-- 运行时间：2026-05-31 20:10:21 UTC
+- 最新运行日期：2026-06-01
+- 运行时间：2026-06-01 21:08:38 UTC
 - 运行状态：成功
-- 本次总论文数：21
-- 精读区：8
-- 速读区：13
+- 本次总论文数：23
+- 精读区：9
+- 速读区：14
 
 ### 今日简报（AI）
-今日整理21篇论文，精读两篇高分研究：低资源非拉丁语系TTS基准（PashtoTTS-Bench）与模块化语音合成（PilotTTS）。重点关注非拉丁语系、低资源场景下的语音合成评估与模块化设计。下一步可深入探索跨语言语音特征建模及方言处理方向。
-- 详情：[/202605/31/README](/202605/31/README)
+今日23篇论文聚焦跨语言与语音识别两大前沿。
+
+最值得关注方向：跨语言比喻生成（9.0分）与基于词性的非拉丁脚本ASR错误分析（8.0分）。
+
+建议从精读的跨语言论文入手，再延伸至速读中的ASR交互式纠错与解码策略。
+- 详情：[/202606/01/README](/202606/01/README)
 
 ### 精读区论文标签
-1. [PashtoTTS-Bench: automated screening for low-resource non-Latin-script text-to-speech](/202605/31/2605.26978v1-pashtotts-bench-automated-screening-for-low-resource-non-latin-script-text-to-speech)  
-   标签：评分：9.0/10、query:speech-tech
-   evidence：低资源非拉丁文字TTS基准与自动筛选
-2. [PilotTTS: A Disciplined Modular Recipe for Competitive Speech Synthesis](/202605/31/2605.27258v1-pilottts-a-disciplined-modular-recipe-for-competitive-speech-synthesis)  
-   标签：评分：9.0/10、query:speech-tech
-   evidence：轻量级自回归语音合成系统
-3. [Cultural Fidelity in English-to-Hindi Translation: A Preservation-Fluency Frontier for Gender Recoverability](/202605/31/2605.27654v1-cultural-fidelity-in-english-to-hindi-translation-a-preservation-fluency-frontier-for-gender-recoverability)  
+1. [Cross-Lingual Steering for Figurative Language Generation](/202606/01/2605.30443v1-cross-lingual-steering-for-figurative-language-generation)  
    标签：评分：9.0/10、query:cross-lang
-   evidence：研究英译印地语中的性别保真度，处理不可译文化线索
-4. [TARQ: Tail-Aware Reconstruction Quantization for Rare-Word Robust Automatic Speech Recognition](/202605/31/2605.27808v1-tarq-tail-aware-reconstruction-quantization-for-rare-word-robust-automatic-speech-recognition)  
-   标签：评分：9.0/10、query:speech-tech
-   evidence：面向罕见词鲁棒的自动语音识别量化方法
-5. [Benchmarking Commercial ASR Systems on Code-Switching Speech: Arabic, Persian, and German](/202605/31/2605.19069v3-benchmarking-commercial-asr-systems-on-code-switching-speech-arabic-persian-and-german)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：阿拉伯语、波斯语、德语代码切换ASR基准
-6. [Convex Low-resource Accent-Robust Language Detection in Speech Recognition](/202605/31/2605.23235v1-convex-low-resource-accent-robust-language-detection-in-speech-recognition)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：在低资源方言变化下的语音识别中实现口音鲁棒的语言检测
-7. [Hubness, Not Anisotropy, Drives Cross-Lingual Retrieval Asymmetry in Multilingual Embedding Models](/202605/31/2605.26575v1-hubness-not-anisotropy-drives-cross-lingual-retrieval-asymmetry-in-multilingual-embedding-models)  
+   evidence：跨语言引导用于比喻语言生成，研究字面与非字面翻译
+2. [An In-Vitro Study on Cross-Lingual Generalization in Language Models](/202606/01/2605.26683v1-an-in-vitro-study-on-cross-lingual-generalization-in-language-models)  
    标签：评分：8.0/10、query:cross-lang
-   evidence：使用包含阿拉伯语的习惯表达研究跨语言检索不对称性
-8. [Diffusion-Based Ukrainian Handwritten Text Generation with Cross-Domain Style Transfer](/202605/31/2605.27487v1-diffusion-based-ukrainian-handwritten-text-generation-with-cross-domain-style-transfer)  
-   标签：评分：8.0/10、query:mtg-bench
-   evidence：通过扩散模型生成非拉丁文字（乌克兰西里尔字母）的手写文本
+   evidence：使用合成语言对跨语言迁移进行受控研究
+3. [FalAR: A Large-scale Speaker-Annotated European Portuguese Speech Corpus of Parliamentary Sessions](/202606/01/2605.27062v1-falar-a-large-scale-speaker-annotated-european-portuguese-speech-corpus-of-parliamentary-sessions)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：面向低资源欧洲葡萄牙语ASR的大规模语音语料库
+4. [Beyond Similarity: Task-Aligned Retrieval for Language Models](/202606/01/2605.27951v1-beyond-similarity-task-aligned-retrieval-for-language-models)  
+   标签：评分：8.0/10、query:fie-rag
+   evidence：面向任务的检索替代语义相似度，可用于少样本事实性推断
+5. [KVoiceBench, KOpenAudioBench, and KMMAU: Agent-Driven Korean Speech Benchmarks for Evaluating SpeechLMs](/202606/01/2605.27984v1-kvoicebench-kopenaudiobench-and-kmmau-agent-driven-korean-speech-benchmarks-for-evaluating-speechlms)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：韩语语音基准测试，直接针对多语言语音模型评估
+6. [Unified Synthesis of Compositional Speech and Sound from Free-Form Text Prompts](/202606/01/2605.28063v1-unified-synthesis-of-compositional-speech-and-sound-from-free-form-text-prompts)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：从自由文本统一合成语音和声音
+7. [Data-Efficient On-Policy Distillation for Automatic Speech Recognition](/202606/01/2605.28139v1-data-efficient-on-policy-distillation-for-automatic-speech-recognition)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：数据高效的自回归语音识别的在线策略蒸馏
+8. [Comprehensive Benchmarking of Long-Form Speech Generation in Diverse Scenarios](/202606/01/2605.28618v1-comprehensive-benchmarking-of-long-form-speech-generation-in-diverse-scenarios)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：长文本语音生成的综合基准
+9. [Loong: A Human-Like Long Document Translation Agent with Observe-and-Act Adaptive Context Selection](/202606/01/2605.30274v1-loong-a-human-like-long-document-translation-agent-with-observe-and-act-adaptive-context-selection)  
+   标签：评分：8.0/10、query:cross-lang
+   evidence：利用强化学习自适应选择上下文的长文档翻译代理
 
 ### 速读区论文标签
-1. [Phonetic Modeling of Dialectal Variation in Vietnamese Speech](/202605/31/2605.24451v1-phonetic-modeling-of-dialectal-variation-in-vietnamese-speech)  
+1. [Breaking the Script Barrier: Enabling Automatic Alignment for PoS-based ASR Error Analysis in Non-Latin Scripts](/202606/01/2605.28438v1-breaking-the-script-barrier-enabling-automatic-alignment-for-pos-based-asr-error-analysis-in-non-latin-scripts)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：越南语语音识别的方言感知音系建模
-2. [Multilingual Phonological Feature Recognition with Self-Supervised Speech Models](/202605/31/2605.25596v1-multilingual-phonological-feature-recognition-with-self-supervised-speech-models)  
+   evidence：针对非拉丁文字ASR错误分析的自动对齐机制
+2. [Towards Human-Like Interactive Speech Recognition With Agentic Correction and Semantic Evaluation](/202606/01/2605.29430v1-towards-human-like-interactive-speech-recognition-with-agentic-correction-and-semantic-evaluation)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：多语言帧级音系特征识别器
-3. [Thaka at KSAA-2026 Task 2: Regularized Fine-Tuning for Arabic Speech Diacritization](/202605/31/2605.25928v1-thaka-at-ksaa-2026-task-2-regularized-fine-tuning-for-arabic-speech-diacritization)  
+   evidence：交互式语音识别与多轮修正
+3. [Decoding Strategies for Diffusion-Based ASR: A Systematic Evaluation of Confidence-Based Thresholding](/202606/01/2605.29613v1-decoding-strategies-for-diffusion-based-asr-a-systematic-evaluation-of-confidence-based-thresholding)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：使用正则化微调进行阿拉伯语音频标注
-4. [FalAR: A Large-scale Speaker-Annotated European Portuguese Speech Corpus of Parliamentary Sessions](/202605/31/2605.27062v1-falar-a-large-scale-speaker-annotated-european-portuguese-speech-corpus-of-parliamentary-sessions)  
+   evidence：自动语音识别解码策略
+4. [MELD: Mel-Spectrogram-Based Speech Language Modeling with Discrete Latent Variables](/202606/01/2605.29859v1-meld-mel-spectrogram-based-speech-language-modeling-with-discrete-latent-variables)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：欧洲葡萄牙语ASR语料库，低资源语言
-5. [PilotTTS: A Disciplined Modular Recipe for Competitive Speech Synthesis](/202605/31/2605.27258v2-pilottts-a-disciplined-modular-recipe-for-competitive-speech-synthesis)  
+   evidence：提出MELD模型，在梅尔频谱上联合优化编码器和语音语言模型，提升零样本TTS和STT，可应用于多语言语音合成。
+5. [HoliTok:A Coutinuous Holistic Tokenization with Robust Dual Capabilities of Speech Generation and Understanding](/202606/01/2605.29948v1-holitoka-coutinuous-holistic-tokenization-with-robust-dual-capabilities-of-speech-generation-and-understanding)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：轻量级自回归TTS系统，使用Q-Former条件机制
-6. [ERNIE-Image Technical Report](/202605/31/2605.25347v1-ernie-image-technical-report)  
-   标签：评分：7.0/10、query:mtg-bench
-   evidence：文本到图像生成模型，与多语言图像生成基准相关
-7. [Proactive for Uncertainty: Cause-Aware Error Diagnosis and Interactive Clarification for Spoken Dialogue Systems](/202605/31/2605.25404v1-proactive-for-uncertainty-cause-aware-error-diagnosis-and-interactive-clarification-for-spoken-dialogue-systems)  
+   evidence：语音分词，支持生成和理解
+6. [Thaka at KSAA-2026 Task 2: Regularized Fine-Tuning for Arabic Speech Diacritization](/202606/01/2605.25928v1-thaka-at-ksaa-2026-task-2-regularized-fine-tuning-for-arabic-speech-diacritization)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：口语对话系统中的自动语音识别错误诊断
-8. [SemBridge: Language Transfer in Sparse Encoders via Multilingual Semantic Bridges](/202605/31/2605.26002v1-sembridge-language-transfer-in-sparse-encoders-via-multilingual-semantic-bridges)  
-   标签：评分：7.0/10、query:cross-lang
-   evidence：稀疏编码器的跨语言语义对齐
-9. [Do Audio LLMs Listen or Read? Analyzing and Mitigating Paralinguistic Failures with VoxParadox](/202605/31/2605.27772v1-do-audio-llms-listen-or-read-analyzing-and-mitigating-paralinguistic-failures-with-voxparadox)  
+   evidence：阿拉伯语语音标音低资源处理
+7. [Forgotten Words: Benchmarking NeoBERT for Dementia Detection in Low-Resource Conversational Filipino and English Speech](/202606/01/2605.26007v1-forgotten-words-benchmarking-neobert-for-dementia-detection-in-low-resource-conversational-filipino-and-english-speech)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：音频LLM副语言理解的对抗性基准
-10. [VaaWIT: Visual-Aware Adaptation of Large Language Models for Multilingual Web Image Translation](/202605/31/2605.24675v1-vaawit-visual-aware-adaptation-of-large-language-models-for-multilingual-web-image-translation)  
-   标签：评分：6.0/10、query:mtg-bench
-   evidence：面向多语言网页图像翻译的视觉感知适应，包含字符形态识别
-11. [An In-Vitro Study on Cross-Lingual Generalization in Language Models](/202605/31/2605.26683v1-an-in-vitro-study-on-cross-lingual-generalization-in-language-models)  
+   evidence：低资源菲英双语语音痴呆检测
+8. [From Snippets to Semantics: Rethinking Evidence Granularity for Multilingual Fact Verification](/202606/01/2605.26755v1-from-snippets-to-semantics-rethinking-evidence-granularity-for-multilingual-fact-verification)  
+   标签：评分：7.0/10、query:fie-rag
+   evidence：用于多语言事实验证的自适应证据分块和LLM微调
+9. [SEEK: Semantic Evidence Extraction via Adaptive ChunKing for Multilingual Fact-Checking](/202606/01/2605.26755v2-seek-semantic-evidence-extraction-via-adaptive-chunking-for-multilingual-fact-checking)  
+   标签：评分：7.0/10、query:fie-rag
+   evidence：多语言事实核查中的自适应证据分块与LLM微调
+10. [LitSeg: Narrative-Aware Document Segmentation for Literary RAG](/202606/01/2605.27156v1-litseg-narrative-aware-document-segmentation-for-literary-rag)  
+   标签：评分：7.0/10、query:fie-rag
+   evidence：基于叙事感知分割的RAG方法，可用于少样本推理
+11. [Quantifying the Impact of Translation Errors on Multilingual LLM Evaluation](/202606/01/2605.24904v1-quantifying-the-impact-of-translation-errors-on-multilingual-llm-evaluation)  
    标签：评分：6.0/10、query:cross-lang
-   evidence：跨语言迁移因素的受控实验研究
-12. [LoSATok: Low-dimensional Semantic-Acoustic Tokenizer for Cross-Domain Audio Understanding and Generation](/202605/31/2605.27840v1-losatok-low-dimensional-semantic-acoustic-tokenizer-for-cross-domain-audio-understanding-and-generation)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：低维音频分词器可应用于多语言语音合成
-13. [Compositional Text-to-Image Generation Via Region-aware Bimodal Direct Preference Optimization](/202605/31/2605.28615v1-compositional-text-to-image-generation-via-region-aware-bimodal-direct-preference-optimization)  
-   标签：评分：6.0/10、query:mtg-bench
-   evidence：组合式文本到图像生成与偏好优化，可应用于非拉丁文字
+   evidence：量化翻译错误对多语言LLM评估的影响
+12. [BhashaSetu: A Data-Centric Approach to Low-Resource Machine Translation](/202606/01/2605.27050v1-bhashasetu-a-data-centric-approach-to-low-resource-machine-translation)  
+   标签：评分：6.0/10、query:cross-lang
+   evidence：英-马拉地语低资源机器翻译数据集和基准测试
+13. [ConRAG: Consensus-Driven Multi-View Retrieval for Multi-Hop Question Answering](/202606/01/2605.28093v1-conrag-consensus-driven-multi-view-retrieval-for-multi-hop-question-answering)  
+   标签：评分：6.0/10、query:fie-rag
+   evidence：多跳问答的RAG框架，利用多视图证据
+14. [Supervised Semantic Differential for Cross-Cultural Concept Analysis: A Case Study of Human Affect](/202606/01/2605.28225v1-supervised-semantic-differential-for-cross-cultural-concept-analysis-a-case-study-of-human-affect)  
+   标签：评分：6.0/10、query:cross-lang
+   evidence：跨语言语义梯度分析
 
 
 <div class="dpr-home-promo-card">
