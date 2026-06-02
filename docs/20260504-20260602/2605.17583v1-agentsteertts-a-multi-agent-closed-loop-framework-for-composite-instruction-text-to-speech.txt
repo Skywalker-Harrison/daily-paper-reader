@@ -1,0 +1,2551 @@
+Title: AgentSteerTTS: A Multi-Agent Closed-Loop Framework for Composite-Instruction Text-to-Speech
+
+URL Source: https://arxiv.org/pdf/2605.17583v1
+
+Published Time: Tue, 19 May 2026 01:34:08 GMT
+
+Number of Pages: 20
+
+Markdown Content:
+## AgentSteerTTS: A Multi-Agent Closed-Loop Framework for Composite-Instruction Text-to-Speech 
+
+Bin Kang 1,2,3 Shaoguo Wen 3 Yang Fan 2 Shunlong Wu 4
+
+Junjie Wang 2 Yulin Li 2 Junzhi Zhao 5 Junle Wang 3 Zhuotao Tian 2,† 
+
+1University of Chinese Academy of Sciences 2Shenzhen Loop Area Institute 
+
+3Tencent Turinglab 4Tsinghua University 5Southwest Jiaotong University 
+
+Abstract 
+
+While existing text-to-speech (TTS) models ex-hibit high expressiveness, fine-grained control over composite instructions remains challeng-ing due to the structural mismatch between discrete textual intents and continuous acous-tic realizations. Inspired by human cognitive decoupling, we introduce AgentSteerTTS , a multi-agent closed-loop framework designed for intent-faithful expressive control of composite instructions. First, in our framework, an adver-sarial disentanglement agent mitigates speaker-emotion leakage by learning separable identity and emotion-prosody subspaces with leakage-suppressing regularization. Next, a Dual-Stream Anchoring Controller grounds abstract intents using a large-scale acoustic prototype library: a Retrieval Agent selects expressive anchors, while a Synthesis Agent fuses them into con-tinuous control vectors via gated attention. Fi-nally, a Fast–Slow Feedback Agent refines out-put intensity through latent gradient correc-tion and resolves semantic–acoustic mismatches using high-level perceptual critique. Experi-ments on a composite-instruction benchmark and public test sets show that AgentSteerTTS 
+
+yields consistent and significant improvements to the baselines, demonstrating the effective-ness of the proposed method. Project page: 
+
+https://kane2kang.github.io/AgentSteerTTS/ 
+
+†Corresponding Author: Zhuotao Tian, 
+
+zhuotaotian@slai.edu.cn .
+
+Proceedings of the 43 rd International Conference on Machine Learning , Seoul, South Korea. PMLR 306, 2026. Copyright 2026 by the author(s). Happy 
+
+Angry Sad 
+
+Afraid 
+
+Disgusted Surprised                 
+
+> Single vs Composite Comparison:
+> ----------------------------------------
+> Single Emotion (Red) : Hit 32.9% | Val 0.132
+> ----------------------------------------
+> Composite Instructions:
+> Happy+Arrogant : Hit 0.0% | Sim 0.548
+> Sad+Hopeful : Hit 6.7% | Sim 0.581
+> Angry+Restrained : Hit 30.0% | Sim 0.597
+> Surprised+Fearful : Hit 96.7% | Sim 0.590
+> Disgusted+Angry : Hit 0.0% | Sim 0.575
+> Happy+Excited : Hit 0.0% | Sim 0.525
+> ----------------------------------------
+> Composite Average : Hit 22.2% | Sim 0.570
+> ----------------------------------------
+> Gap (Single - Composite): +10.7% Hit Rate
+> Single Emotion
+> Happy+Arrogant
+> Sad+Hopeful
+> Angry+Restrained
+> Surprised+Fearful
+> Disgusted+Angry
+> Happy+Excited
+> 10.5
+> 14.6 12.6
+> 12.6
+> 12.9 14.3
+> 10.4
+> 12.9
+> 13.0
+> 13.0
+> 12.2 13.4
+> 10.3
+> 14.2
+> 12.8
+> 12.8
+> 12.5
+> 13.8
+> 10.3
+> 13.8
+> 13.1
+> 13.1
+> 13.0
+> 14.4
+> 10.3
+> 14.2 12.7
+> 12.7
+> 12.5 13.8
+> 10.5
+> 14.3
+> 12.9
+> 12.9
+> 13.2
+> 14.8
+> 10.7
+> 14.8 13.4
+> 13.5
+> 12.4 14.9
+
+Figure 1. Illustration of Semantic-Acoustic Misalignment. The red dashed line delineates the target emotion, while the colored regions represent the generated speech. Despite high-level control instructions, the model exhibits under-expression along the target emotion dimension, while unintentionally leaking acoustic energy into irrelevant emotional dimensions. 
+
+1. Introduction 
+
+Recent advances in speech and multimodal foundation mod-els (Li et al., 2025; 2023; Kang et al., 2025; Li et al., 2026;?) have significantly improved Text-to-Speech (TTS) synthe-sis, yielding more natural and fluent outputs with fewer artifacts. However, these gains have not been matched by comparable progress in expressive control. State-of-the-art TTS systems (Zhang et al., 2023; Rubenstein et al., 2023; Chu et al., 2024) often generate clear and natural speech but struggle to faithfully render user-specified emotional or stylistic attributes—particularly under composite instruc-tions involving multiple, potentially conflicting constraints, such as "Happy but slightly Arrogant". A key bottleneck stems from a common formulation (Cui 1
+
+> arXiv:2605.17583v1 [cs.CV] 14 May 2026
+
+Submission and Formatting Instructions for ICML 2026 Happy                                           
+
+> Angry
+> Sad
+> Afraid
+> Disgusted
+> Melancholic
+> Surprised
+> Calm
+> Happy but slightly Arrogant
+> Sad but with a hint of Hope
+> Angry but Restrained
+> Surprised and slightly Fearful
+> Disgusted with underlying Anger
+> Happy and Excited
+> -0.81 -0.11 0.13 0.13 0.08 0.12 0.04 0.06
+> -0.10 0.13 -0.76 0.08 0.12 -0.01 0.13 0.06
+> 0.10 -0.71 0.13 0.08 -0.02 0.12 0.14 -0.65
+> 0.05 0.14 0.13 -0.56 0.13 0.12 -0.74 -0.00
+> 0.11 -0.53 0.13 0.08 -0.78 0.08 0.14 0.06
+> -0.79 0.14 0.13 0.13 0.13 0.12 -0.64 0.00
+> Target Suppression & Non-target Leakage Analysis
+> 0.4
+> 0.2
+> 0.0
+> 0.2
+> 0.4
+> Bias (negative=suppression, positive=leakage)
+
+Figure 2. Emotion expression bias. Target emotion dimensions are suppressed, while non-target dimensions exhibit consistent positive leakage across conditions. 
+
+et al., 2025; Ju et al., 2024; Gao et al., 2025) that casts expressive TTS as a feed-forward mapping from text (op-tionally augmented with style prompts) to waveforms. Many such methods rely on fine-grained supervision, such as dense prosody annotations or meticulously curated datasets (Chen et al., 2025; Huang et al., 2025), which hinders scalabil-ity. This dependence incurs high annotation costs, limits generalization across speakers, and fails to capture the nu-anced intensity and stylistic variations implicitly encoded in natural-language instructions (Gao et al., 2025; Yang et al., 2025). Consequently, users are often forced into a trial-and-error loop of prompt tuning and resampling to approximate a desired composite expressive target (Huang et al., 2025). 
+
+Key Observations. To investigate the causes of this in-stability, we conducted a pilot study using an expressive TTS model (Zhou et al., 2025) conditioned on compos-ite prompts specifying multiple fine-grained attributes. As shown in Fig. 1, while the generated speech exhibits high naturalness, intent faithfulness remains unreliable: across six composite intents, the generated speech is weakly aligned with the target composite in an emotion-embedding space (mean cosine similarity ≈ 0.58 ), and the joint satisfaction rate, defined as the fraction of samples where both the pri-mary and secondary attributes exceed a fixed recognition threshold, is only ∼ 30% , with some intents collapsing to near-zero success. Crucially, these failures are not due to random variation but reflect systematic, directional biases. Fig. 2 shows that target dimensions in the composite profile are consistently under-activated (relative drop 25% –45% ), while non-target dimensions receive spurious activation (average ≈ +0 .08 ), indicating structured attribute dilution rather than noise: 
+
+the model under-expresses specified attributes and redis-tributes their intensity into irrelevant acoustic dimensions, producing fluent yet semantically misaligned outputs. There-fore, achieving reliable composite control requires explicit alignment between high-level, multi-dimensional intent con-straints and low-level acoustic realizations to mitigate this structural semantic–acoustic misalignment. 
+
+Our Solution. Motivated by this insight, we propose AGENT STEER TTS, a multi-agent closed-loop framework for composite-instruction expressive steering. First, we in-troduce an Adversarial Disentanglement Module (ADM) that uses adversarial learning (Kim et al., 2021) to reduce speaker–emotion leakage and encourage latent factoriza-tion of expressive attributes. Second, we integrate a Dual-Stream Anchoring Controller (DAC), where a retrieval mod-ule fetches high-expressivity acoustic prototypes from a large reference library with perceptual pruning, and a syn-thesis controller maps discrete textual intents into contin-uous control vectors via gated fusion. Finally, we imple-ment a Fast–Slow Feedback module that combines a dif-ferentiable Latent Consistency Predictor for rapid intensity calibration with a supervisor module for high-level percep-tual guidance. This hierarchical design explicitly addresses semantic–acoustic misalignment across diverse speakers and unconstrained prompts, enabling fine-grained control over subtle composite expressions and emotional nuances. Extensive experiments on our composite-instruction bench-mark and public test sets (Zhou et al., 2021) show that AGENT STEER TTS consistently improves intent alignment while preserving speaker identity and speech naturalness. Generated speech demos are provided in the supplementary material. Our contributions are three-fold: • We identify a systematic semantic–acoustic mismatch in composite-instruction TTS: under discrete compos-ite prompting, specified fine-grained target attributes are under-expressed while non-target attributes leak. • We propose A GENT STEER TTS, a multi-agent closed-loop framework in which an Adversarial Disentanglement Agent reduces speaker–emotion leakage, a Dual-Stream Anchoring Controller grounds acoustic control using com-posite instructions and reference prototypes, and a Fast– Slow Feedback Agent further mitigates semantic–acoustic mismatches at both the latent and waveform levels. • Experiments on our composite-instruction benchmark and public test sets show improved intent alignment while pre-serving speaker similarity, e.g., compared to the strongest baseline, E-SIM increases from 0.864 to 0.955 and S-SIM from 0.823 to 0.841. 
+
+2. Beyond Discrete Composite Instruction 
+
+This section presents a pilot study and principled analy-sis demonstrating why discrete text instructions fundamen-2Submission and Formatting Instructions for ICML 2026 0.9275 0.9300 0.9325 0.9350 0.9375 0.9400 0.9425 
+
+> Speaker Fidelity Proxy (S-SIM)
+> 0.50
+> 0.52
+> 0.54
+> 0.56
+> 0.58
+> 0.60
+> Composite Intent Fidelity (C-SIM)
+> Intent: Happy but slightly Arrogant
+> ---
+> Spearman rho = -0.708
+> Pearson r = -0.727
+> Composite Hit = 0.0%
+> Cos(mean, target) = 0.544
+> Key Finding:
+> Deterministic mapping outputs a compromise
+> between modes -> diluted target attributes
+> Speaker-Emotion Entanglement (Happy but slightly Arrogant)
+> Samples (n=60)
+> Conditional Mean
+> Target (ideal)
+> Regression line
+> X=0.71
+> Y=1.0
+> 1.0
+> 1.5
+> 2.0
+> 2.5
+> 3.0
+> 3.5
+> 4.0
+> 4.5
+> 5.0
+> Sample Density
+
+Figure 3. Speaker–emotion entanglement: Composite-intent fi-delity (C-SIM) is negatively correlated with the speaker-fidelity proxy (S-SIM). 
+
+tally fail to reliably control continuous acoustic realizations for fine-grained composite instructions (e.g., "Happy but slightly Arrogant"). 
+
+2.1. Why do deterministic mappings fail for composite instructions control? 
+
+We model speech generation as a stochastic process jointly determined by speaker identity s ∈ S , linguistic content 
+
+ℓ ∈ L , and continuous acoustic control variables a ∈ Rd:
+
+x ∼ p(x | s, ℓ, a ), where a governs expressive attributes such as prosody and emotion. A user instruction t provides a set of semantic constraints C(t) = {ck}Kk=1 (e.g., “Happy”, “Arrogant”). Unlike a single label, a composite instruction does not specify a unique a; instead, it induces a feasible region in control space: 
+
+A(t, s, ℓ ) ≜ {a ∈ Rd | ∀ ck ∈ C (t), ϕ k(a) ≥ τk}, (1) where ϕk is an attribute (e.g., emotion) predictor and τk is a satisfaction threshold. For composite instructions, A(t, s, ℓ )
+
+is often non-convex and non-trivial, implying multiple valid acoustic realizations. However, many controllable TTS systems learn a single-point mapping from instruction to acoustics, fθ (t; s, ℓ ) 7 → ˆa.This creates a key limitation: composite instructions ad-mit many valid realizations (e.g., different combinations of speaking rate, pauses, and energy), so the conditional tar-get distribution p(a | t) is typically multi-modal (Le et al., 2023). A approximation is a mixture of M Gaussians: 
+
+p(a | t) ≈
+
+> M
+
+X
+
+> k=1
+
+πk(t) N a; μk(t), Σk(t), (2) where μk and πk are the mode center and weight. Under common regression objectives, a deterministic predictor tends to return a mode-averaged estimate, ˆa ≈ P 
+
+> k
+
+πkμk.When modes correspond to distinct prosody patterns, this es-timate often lies between modes (e.g., between “Happy-fast-Arrogant” and “Happy-slow-Arrogant”), which is perceived as weakened expression and attribute dilution. This may help explain why strong expressive TTS models can miss composite prompts like “Happy but slightly Arrogant”: the output may drift toward a more neutral “Happy”, or over-emphasize “Arrogant”, instead of matching the intended combination. 
+
+2.2. Speaker–Prosody Entanglement 
+
+Audio generation faces another challenge: speaker tim-bre and emotion-related prosody are coupled in natural speech (Qu et al., 2025). Formally, let s and e denote speaker identity and the target composite prosody/emotion vector, respectively. In a latent-variable generative model: 
+
+z ∼ p(z | s, e ), x ∼ p(x | z), (3) Under the real data distribution, the generation process is generally coupled, 
+
+p(z | s, e )̸ ≈ p(z | s), p(z | s, e )̸ ≈ p(z | e), (4) This indicates that timbre and prosody are not disentangled: they share latent acoustic cues (e.g., formants and spectral tilt). As a result, the realization of the same target e can shift systematically across speakers s.This coupling becomes especially harmful for composite instructions. Joint targets impose stricter constraints, making the identity–prosody trade-off more pronounced. When a model is required to satisfy a joint target (s⋆, e ⋆), generation effectively must trades off between speaker and prosody objectives: 
+
+min  
+
+> x
+
+Lspk 
+
+
+
+ϕspk (x), ϕ spk (xs⋆ )
+
+
+
++ λ Lemo 
+
+
+
+ϕemo (x), e ⋆
+
+,
+
+(5) Because identity- and prosody-related cues are corre-lated in acoustic space, composite-intent fidelity and an identity/timbre-consistency proxy can exhibit a negative as-sociation on real generations (Fig. 3), so models may “trade timbre for prosody” or “trade prosody for timbre,” leading to instability and bias under composite control. 
+
+3. Method 
+
+This section introduces the proposed A GENT STEER TTS. The architecture is designed to address the challenges of feature entanglement and fine-grained emotional control through a systematic decouple–anchor–refine mechanism. The overview of A GENT STEER TTS is presented in Fig. 4. 3Submission and Formatting Instructions for ICML 2026 在此处键入公式。 
+
+(b) Dual-Stream Anchoring Controller 
+
+ID Encoder 
+
+Eid Eemo 
+
+Zid 
+
+(a) Adversarial Disentanglement Module 
+
+Emotion Encoder 
+
+> Reconstruction
+> Loss
+> rec
+
+L Decoder 
+
+GRL GRL 
+
+Did Demo AgentSteerTTS  
+
+> Rereieva lAgent
+> Contro l
+> Intention
+> Calm, restrained, sligh
+> -tly weary
+> Prototype Database
+> Retrieve relevant
+> emotional prototype
+
+1 Ca librate 2  
+
+> Quiet Misaigned Consistent
+
+𝐀 ’𝐀 𝐀 𝐀 
+
+cos (
+
+Et, Eemo )
+
+> Synthesis
+> Agent
+
+3
+
+𝐀 𝐀 𝐀 𝐀 
+
+> Prototype Audio
+
+(c) Fast-Slow Feedback Agent 
+
+Et
+
+Te
+
+Latent 
+
+Dec 
+
+> LCP( Rϕ)
+
+## α=1 α*
+
+Fast Agent Slow Agent 
+
+𝐀 𝐀𱠀𝐀 
+
+Zemo 
+
+Supervisor Agent 
+
+Excessive/Insufficient 
+
+> Type Error
+
+Vocoder 𝐀 
+
+𝐀 𝐀𲠀 
+
+> 𲠀 𝐀 𝐀
+
+Zemo 
+
+PASS 
+
+T
+
+𝐀 
+
+𝐀 
+
+𝐀 𝐀𱠀𝐀 
+
+> 𲠀 𝐀 𝐀
+
+𝐀 𝐀𲠀 
+
+> 𲠀 𝐀 𝐀
+
+qaud      
+
+> 𝐀 =1𝐀 =0
+
+𝐀 𝐀𤠀𝐀 
+
+> Confidence-Gated
+> Fusione
+
+𝐀 𝐀𤠀𝐀 
+
+Figure 4. Overview of the A GENT STEER TTS architecture. (a) an Adversarial Disentanglement Module that utilizes gradient reversal layers to construct orthogonal speaker and emotion subspaces; (b) a Dual-Stream Anchoring Controller that aligns latent features with retrieved acoustic prototypes via consistency calibration; and (c) a Fast-Slow Feedback Loop that dynamically refines the generation process during inference. 
+
+Concretely, ADM first makes the latent factors more separa-ble, DAC then uses acoustic prototypes to place composite intents in the emotion subspace, and the Fast–Slow Feed-back Agent further calibrates intensity and corrects residual semantic drift at inference time. In this paper, the term “agent” denotes a specialized functional component with its own objective, state, and decision rule inside the closed-loop generation process. 
+
+3.1. Adversarial Disentanglement Module 
+
+Current approaches often rely on high-level semantic con-trol signals (e.g., emotion descriptions) and treat them as sufficient for stable steering. However, in acoustic space, speaker identity and emotion-related prosody are coupled across spectral and temporal patterns (Cho et al., 2025;?). As a result, a single latent stream may mix identity traits with prosody cues, causing timbre drift or emotion leakage. To mitigate this issue, we propose an Adversarial Disentangle-ment Agent that factorizes a reference audio into two latent subspaces, Zid and Zemo , with reduced cross-information. Our goal is targeted speaker–emotion decoupling for com-posite control rather than full factorization of all acoustic factors such as environment, accent, or age-related variation. Specifically, for an input audio sample x ∈ X, we use an identity encoder Eid and emotion encoder Eemo to obtain utterance-level latents (via attention pooling): 
+
+zid = Eid (x) ∈ Rdid , zemo = Eemo (x) ∈ Rdemo , (6) We expect zid to capture time-invariant identity and zemo 
+
+to capture prosody-related cues. We apply a reconstruction objective so that their concatenation can recover the original acoustic features: 
+
+Lrec = Dec  [zid ; zemo ] − Mel( x) 1 , (7) where Dec( ·) is the feature decoder and Mel( x) is the Mel-spectrogram of x. Reconstruction alone can still admit de-generate solutions, allowing redundant information to leak into both subspaces. We therefore penalize the batch-wise cross-covariance between the two factors: 
+
+Lorth = ∥Cov( zid , z emo )∥2 
+
+> F
+
+, (8) where Cov( ·, ·) denotes the cross-covariance computed over a mini-batch after mean-centering (see Appendix B.2). To further suppress leakage, we adopt bidirectional adver-sarial training with two auxiliary discriminators, Did and 
+
+Demo , which predict speaker labels from the emotion stream and emotion labels from the identity stream, respectively: 
+
+Ladv = E
+
+h
+
+CE  Did (GRL( zemo )) , y id 
+
+
+
++ CE  Demo (GRL( zid )) , y emo 
+
+i
+
+,
+
+(9) 4Submission and Formatting Instructions for ICML 2026 
+
+where yid and yemo are ground-truth speaker and emotion labels, CE( ·, ·) is cross-entropy, and GRL( ·) is the Gradient Reversal Layer. During training, Did and Demo minimize 
+
+Ladv , while the GRL reverses gradients to Eid and Eemo ,encouraging zid to be emotion-invariant and zemo to be identity-invariant. Overall, the disentanglement agent is trained with 
+
+LADM = Lrec + λadv Ladv + λorth Lorth , (10) which reduces speaker–prosody entanglement and stabilizes downstream emotional control. 
+
+3.2. Dual-stream Anchoring Controller 
+
+Once we obtain a more disentangled latent space, the next challenge is to reliably locate the target region in Zemo .Using text labels alone often drifts toward neutral prosody, partly due to ambiguous text–emotion mappings. We there-fore introduce the Dual-stream Anchoring Controller (DAC), which anchors generation with both explicit intent con-straints and retrieved acoustic prototypes. 
+
+Intent-Driven Retrieval. To provide concrete acoustic pri-ors, we build an emotion prototype library M = {pk}Nk=1 
+
+with high-expressivity samples. Each prototype is paired with a fine-grained MLLM description ˜tk and filtered by human listening to improve label quality and expressivity coverage. Given a user instruction t, the Retrieval Agent rewrites t into a small set of cue-focused queries {t(i)}Mi=1 and performs embedding-based search (with text encoder Etxt ): 
+
+xpro = arg max   
+
+> pk∈M
+
+max   
+
+> i∈[1 ,M ]
+
+cos  Etxt (˜ tk), E txt (t(i)),
+
+(11) Simultaneously, a General Controller Agent parses t into a discrete intensity vector w ∈ RK 1. We normalize/clamp w
+
+such that PKk=1 wk ≤ 1.
+
+Consistency Calibration. The retrieved prototype xpro 
+
+may include irrelevant segments (e.g., silence or off-target emotions). We optionally refine it by selecting the temporal slice x′ 
+
+> pro
+
+most consistent with the target intent: 
+
+x′ 
+
+> pro
+
+= arg min  
+
+> τ∈xpro
+
+Lcos 
+
+ Eemo (τ ), E txt (t), (12) where τ denotes a sliding window within xpro .
+
+Dual-stream Feature Extraction. The controller converts the calibrated audio anchor x′ 
+
+> pro
+
+and intent weights w into two complementary control embeddings: 
+
+> 1Following Ekman’s theory of basic emotions (Ekman, 1992), which identifies six fundamental emotions and treats more complex affects as their combinations.
+
+(1) Acoustic Stream: We encode the prototype and speaker reference audio into the emotion space as qref =
+
+Eemo (x′
+
+> pro
+
+) and qbase = Eemo (xspk ), where Eemo denotes a lightweight W2V-BERT-based emotion encoder. 
+
+(2) Text Stream: To match the target speaker’s voice, we use a speaker-adaptive lookup that selects style-consistent prototypes for each emotion category and aggregates them according to the intent weights w, producing the symbolic control embedding qtxt .
+
+Adaptive Fusion. To robustly integrate both streams, we employ a two-stage fusion. First, we create a continuous acoustic baseline by interpolating the reference speaker’s neutral state qbase = Eemo (xspk ) with the retrieved anchor 
+
+qref using a factor λ:
+
+qmix = (1 − λ) · qbase + λ · qref . (13) Finally, we fuse the symbolic and acoustic controls. The text embedding qtxt provides explicit intent guidance, while the remaining probability mass is assigned to the acoustic mix to maintain naturalness: 
+
+ˆzemo = qtxt +
+
+
+
+1 −
+
+> K
+
+X
+
+> k=1
+
+wk
+
+
+
+· qmix , (14) 
+
+3.3. Fast-Slow Feedback Agent 
+
+Although the DAC provides high-quality initial features 
+
+ˆzemo , inference-time stochasticity can still cause semantic drift. Inspired by fast and slow thinking (Madaan et al., 2023), we introduce a Fast–Slow Feedback Agent with a Fast Agent (latent gradient correction) and a Slow Agent (perceptual semantic refinement). 
+
+Fast Agent. For efficient correction, inspired by efficient reasoning and compact intermediate representations (Li et al., 2026;?), we introduce a lightweight, differentiable Latent Consistency Predictor (LCP), denoted by Rϕ, before the decoder. We use a scalar α ∈ [0 , 1] to scale the injec-tion of ˆzemo . Before waveform synthesis, the LCP predicts an embedding eϕ(α) from an intermediate Mel state and matches it to the target vector vtarget = Etxt (t):
+
+eϕ(α) = Rϕ
+
+ Dec  zid , α · ˆzemo 
+
+ . (15) Starting from α=1 .0, we update α online by gradient de-scent: 
+
+α∗ = α − γ∇α Lc
+
+ eϕ(α), v target 
+
+, (16) where γ is the step size and Lc is cosine distance(The details in Appendix B.1). This steers generation by adjusting latent scaling in Mel space, without running the vocoder. 
+
+Slow Agent. With the calibrated parameter α∗, the system generates the final waveform ˆx via a Synthesis Agent: 
+
+ˆm∗ = Dec  zid , α ∗ · ˆzemo 
+
+, ˆx = V ( ˆ m∗). (17) 5Submission and Formatting Instructions for ICML 2026                                                                                 
+
+> Table 1. Emotional expressiveness comparison on ESD. “Gemini3” and “Qwen3” denote different slow-loop critique backends within the same A GENT STEER TTS pipeline, not standalone TTS baselines.
+> Method Control WER ↓CER ↓MCD ↓SECS ↑ESMOS ↑SNMOS ↑SSMOS ↑
+> Ground Truth –6.98 2.94 ––4.57 ( ±0.06) 4.61 ( ±0.06) 4.24 ( ±0.07) Emotional-TTS (Zhao and Yang, 2023) Label 34.38 24.30 10.916 0.760 2.59 ( ±0.09) 2.19 ( ±0.09) 2.79 ( ±0.11) UMETTS (Tacotron) Prompt 24.42 14.12 10.684 0.780 2.21 ( ±0.21) 2.80 ( ±0.09) 3.18 ( ±0.09) EmoSpeech (Ju and others, 2023) Label 7.91 3.52 8.040 0.841 4.22 ( ±0.07) 4.03 ( ±0.08) 3.87 ( ±0.06) GenerSpeech (Zhao and others, 2022) Audio 12.30 6.74 6.812 0.840 4.01 ( ±0.09) 3.98 ( ±0.07) 3.66 ( ±0.08) UMETTS (FastSpeech) Prompt 7.35 3.07 6.703 0.896 4.37 ( ±0.07) 4.29 ( ±0.06) 4.13 ( ±0.07)
+> AgentSteerTTS (Gemini3 backend) Prompt 7.25 3.21 5.942 0.854 4.35 ( ±0.06) 4.45 ( ±0.07) 4.25 ( ±0.08) AgentSteerTTS (Qwen3 backend) Prompt 7.12 3.08 5.815 0.861 4.42 ( ±0.05) 4.52 ( ±0.06) 4.31 ( ±0.07)
+
+where V (·) is the vocoder. A Supervisor Agent then evalu-ates ˆx and produces a natural-language critique ccritique for fine-grained prosody (e.g., speaking rate, pauses, and inten-sity). If it detects a deviation, it triggers control updates: • Intensity Fine-tuning: If the deviation is “Emotion too weak/strong,” update α ← f (α, c critique ) and re-trigger the Fast Loop calibration. • Condition Reset: If the deviation is “Incorrect emotion type,” trigger DAC to re-retrieve and update ˆzemo .Overall, the Fast Agent provides differentiable intensity calibration before vocoding, while the Slow Agent performs waveform-level semantic checking and triggers either re-calibration or re-anchoring when mismatches persist. 
+
+4. Experiments 
+
+4.1. Implementation Details Datasets. We fine-tuned our model using approximately 700 hours of emotional speech aggregated from ESD (Zhou et al., 2021) and MSP-Podcast (Busso et al., 2025). To con-struct the acoustic prototype library M, we filtered 100 hours of high-expressivity samples with refined MLLM an-notations, all resampled to 24kHz. We evaluate on 45,022 ut-terances (43.25 hours) across 7 emotion categories and 209 speakers: (1) ESD Benchmark (29.07 hours, 20 speakers, 5 emotions); and (2) Fine-grained Composite Dataset (14.18 hours) with composite instructions and subtle prosodic vari-ations. 
+
+Metrics. We assess three dimensions: (1) Generation Qual-ity: WER and QMOS, where QMOS denotes mean-opinion-score naturalness/overall quality. (2) Timbre Consistency: S-SIM computed by cosine similarity between speaker em-beddings of synthesized and reference audio; on ESD we additionally report SECS as the speaker-embedding cosine similarity score. (3) Emotional Control: objective E-SIM us-ing emotion2vec (Ma et al., 2024); on the composite bench-mark, DMOS denotes instruction-following degree MOS, SMOS denotes speaker-similarity MOS, and PMOS de-notes perceived emotion-intensity MOS; on ESD, ESMOS denotes emotion-style similarity MOS, SNMOS denotes speech naturalness MOS, and SSMOS denotes speaker-similarity MOS. 
+
+Implementation setup. We fine-tune on ∼700h emotional speech (ESD (Zhou et al., 2021), MSP-Podcast (Busso et al., 2025)) and build a prototype library M by curating 100h high-expressivity clips from this pool with refined MLLM annotations (24kHz). We evaluate on 45,022 utterances (43.25h) across 7 emotions and 209 speakers: ESD (29.07h, 20 speakers, 5 emotions) and a 14.18h fine-grained com-posite set. Metrics cover quality (WER and task-specific MOS variants), timbre (S-SIM/SECS), and emotion control (E-SIM via emotion2vec (Ma et al., 2024)). We train with AdamW ( 2 × 10 −4, 3k warmup) on 8 ×H20; the Slow Loop adds ≤200ms. 
+
+4.2. Main Results Emotional Expressiveness Comparison. Table 1 reports emotional expressiveness on ESD. Among synthesized sys-tems, A GENT STEER TTS attains the highest ESMOS (4.42), SNMOS (4.52), and SSMOS (4.31) with the Qwen3 slow-loop backend. It also achieves the lowest MCD (5.815) while maintaining competitive intelligibility (WER=7.12), close to Ground Truth (6.98). We emphasize that “Gemini3” and “Qwen3” here denote backend replacements inside the same A GENT STEER TTS pipeline rather than standalone TTS baselines; the small gap between the two settings sug-gests that the main gain comes from our decouple–anchor– closed-loop design rather than from the evaluator alone. 
+
+Composite Instruction Comparison. Table 2 re-ports results on our composite-instruction benchmark. AGENT STEER TTS improves composite alignment, reach-ing E-SIM=0.955 (Gemini3 backend) vs. IndexTTS2 (0.864) and CosyVoice2 (0.748), and achieves the highest speaker similarity (S-SIM=0.841). It also attains the lowest WER (1.34) with stable subjective quality under strict emo-tion constraints (SMOS=4.28, PMOS=4.40, QMOS=4.38). 6Submission and Formatting Instructions for ICML 2026 
+
+Table 2. Comparison on composite-instruction control and speech quality metrics. Our full system is retrieval-augmented; therefore, the comparison should be interpreted as composite-control performance rather than a strict retrieval-free zero-shot comparison. 
+
+Category Method S-SIM ↑ WER (%) ↓ E-SIM ↑ DMOS ↑ SMOS ↑ PMOS ↑ QMOS ↑
+
+Flow/Open 
+
+VALL-E (Chen et al., 2025) 0.712 4.25 0.685 3.52 ±0.21 3.52 ±0.21 3.41 ±0.25 3.58 ±0.15 F5-TTS (Chen et al., 2025) 0.795 2.14 0.715 4.05 ±0.15 4.05 ±0.15 3.92 ±0.18 4.15 ±0.11 CosyVoice (Du et al., 2024) 0.812 1.95 0.732 4.18 ±0.12 4.18 ±0.12 3.98 ±0.16 4.21 ±0.10 CosyVoice2 (Du et al., 2024) 0.825 1.88 0.748 4.31 ±0.11 4.31 ±0.11 4.15 ±0.14 4.35 ±0.09 
+
+LLM-TTS 
+
+Spark-TTS (Wang et al., 2025) 0.788 2.32 0.724 4.12 ±0.14 4.12 ±0.14 4.05 ±0.19 4.12 ±0.12 IndexTTS 0.804 2.10 0.842 4.15 ±0.18 4.15 ±0.18 4.28 ±0.15 4.08 ±0.11 IndexTTS2 0.823 1.81 0.864 4.24 ±0.19 4.24 ±0.19 4.42 ±0.12 4.15 ±0.10 AgentSteerTTS (Gemini3 backend) 0.841 1.34 0.955 3.82 ±0.13 4.28 ±0.12 4.40 ±0.13 4.38 ±0.07 
+
+Ours AgentSteerTTS (Qwen3 backend) 0.817 1.57 0.921 3.83 ±0.19 4.26 ±0.13 4.36 ±0.10 4.36 ±0.08 
+
+Table 3. Ablation on composite-instruction control. We additionally report CSR (composite success rate), non-target emotion leakage, and timbre drift ∆S-SIM. 
+
+Setting S-SIM ↑ ∆S-SIM ↓ E-SIM ↑ CSR ↑ Leakage ↓ WER ↓ QMOS ↑
+
+Full: AgentSteerTTS 0.841 0.021 0.955 0.78 0.14 1.34 4.38 ±0.07 w/o Adv. Disentanglement 0.807 ↓ 0.034 0.048 ↑ 0.027 0.948 0.61 ↓ 0.17 0.22 ↑ 0.08 1.36 4.30 ±0.08 w/o Prototype Retrieval (text-only) 0.836 0.025 0.910 ↓ 0.045 0.49 ↓ 0.29 0.18 1.35 4.31 ±0.07 w/o Perceptual Cropping (use full xpro ) 0.832 0.029 0.936 ↓ 0.019 0.66 0.21 ↑ 0.07 1.37 4.33 ±0.08 w/o Fast Loop 0.839 0.023 0.951 0.70 ↓ 0.08 0.15 1.34 4.37 ±0.07 w/o Slow Loop (no critique-based correction) 0.840 0.022 0.949 0.67 ↓ 0.11 0.16 1.34 4.36 ±0.07 
+
+We note that DMOS is lower than some smoother baselines, which is consistent with a naturalness–expressiveness trade-off under strict composite control: stronger target-attribute realization can make prosody more marked even when over-all quality and intelligibility remain competitive. Since our full system is retrieval-augmented, we do not claim a strict retrieval-free zero-shot advantage over all baselines; for a fairer reference, the retrieval-free variant in Table 3 still im-proves E-SIM to 0.910 and S-SIM to 0.836 over IndexTTS2. Replacing the slow-loop backend with Qwen3 reduces E-SIM by 0.034 (0.955 →0.921), while subjective quality re-mains stable. 
+
+4.3. Ablation Study Component Effectiveness Analysis. Table 3 summarizes component contributions. (1) Adversarial Disentangle-ment improves identity preservation: removing it increases 
+
+∆S-SIM from 0.021 to 0.048. (2) Acoustic Anchoring (pro-totype retrieval and cropping) reduces mean collapse : with text-only conditioning, CSR drops to 0.49, and using full-sample retrieval increases leakage to 0.21. (3) Closed-loop Feedback (Fast and Slow loops) mainly improves robust-ness: while average E-SIM changes slightly, removing these loops reduces CSR from 0.78 to 0.67/0.70, indicating more frequent intensity and category mismatches. To further visualize the role of ADM, Fig. 5 compares speaker drift and emotion alignment before and after disen-tanglement. Without ADM, samples exhibit a clearer trade-0.84 0.86 0.88 0.90 0.92 0.94 0.96 0.98                           
+
+> E-SIM (Emotion Similarity)
+> 0.00
+> 0.02
+> 0.04
+> 0.06
+> 0.08
+> 0.10
+> S-SIM (Timbre Drift)  Baseline
+> =(0.948, 0.048)
+> Ours
+> =(0.955, 0.021)
+> Ideal Region
+> (High E-SIM, Low S-SIM)
+> Entanglement Zone
+> (E-SIM S-SIM )
+> Statistical Analysis
+> Baseline (w/o Disentanglement):
+> E-SIM: =0.949, =0.027
+> S-SIM: =0.050, =0.014
+> Corr(E-SIM, S-SIM): r=0.544 (p<0.001)
+> Ours (with Disentanglement):
+> E-SIM: =0.952, =0.025
+> S-SIM: =0.021, =0.007
+> Corr(E-SIM, S-SIM): r=-0.032
+> Entanglement Reduction:
+> r=0.576 (correlation drop)
+> Entanglement Before/After: Speaker-Emotion Disentanglement Evidence
+> w/o Adv. Disentanglement (n=120)
+> AgentSteerTTS (Ours) (n=120)
+> Baseline trend (r=0.544)
+> Ours trend (r=-0.032)
+
+Figure 5. Speaker–emotion entanglement before/after ADM disen-tanglement. ADM reduces speaker drift while maintaining emotion alignment, mitigating the identity–emotion trade-off. 
+
+off: improving composite alignment often comes with larger speaker drift. After ADM, the distribution shifts toward lower drift while largely preserving emotion alignment, pro-viding direct experimental evidence that disentanglement stabilizes composite control rather than merely changing latent parameterization. 
+
+Prototype Library Size. We also examine how retrieval-library coverage affects performance. When the prototype library is uniformly reduced from 100h to 75h/50h/25h, 7Submission and Formatting Instructions for ICML 2026 
+
+E-SIM degrades from 0.955 to 0.945/0.934/0.912 and CSR drops from 0.78 to 0.74/0.70/0.62, while S-SIM changes more moderately from 0.841 to 0.838/0.835/0.829. This gradual degradation suggests that DAC benefits from broader prototype coverage, but does not behave like brittle waveform concatenation or template matching. B1               
+
+> (High)
+> B2 B3 B4 B5
+> (Low)
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+> (a) Composite Success Rate (CSR)  Low-confidence
+> retrieval zone
+> B1
+> (High)
+> B2 B3 B4 B5
+> (Low)
+> 0.05
+> 0.10
+> 0.15
+> 0.20
+> 0.25
+> 0.30
+> 0.35
+> 0.40
+> (b) Non-target Leakage
+> Low-confidence
+> retrieval zone
+> Retrieval Confidence Bucket ( : Low High)
+> Adaptive ( ) Fixed =0.8 Fixed =0.5 Fixed =0.2
+
+Figure 6. Sensitivity of confidence-gated fusion β(δ).
+
+Sensitivity to Retrieval Confidence. Fig. 6 compares retrieval-weight schedules. The adaptive β(δ) matches ag-gressive fusion ( β = 0 .8) in high-confidence cases (B1) and is more stable in low-confidence regimes (large δ). In the B5 bucket, it improves CSR by +0 .430 and reduces non-target leakage by 0.257. 50 100 150 200 250       
+
+> Latency (ms, mean ± p95)
+> 0.55
+> 0.60
+> 0.65
+> 0.70
+> 0.75
+> 0.80
+> 0.85
+> 0.90
+> 0.95
+> CSR
+> T=0
+> T=1
+> T=2 T=3 T=5
+> 200ms
+> (a) Pareto Front (with p95 bars)
+> Recommended (T=2)
+> =1e-3 (Conservative)
+> =5e-3 (Recommended)
+> =1e-2 (Aggressive)
+> 01235
+> Iteration Steps (T)
+> -0.002
+> 0.000
+> 0.002
+> 0.004
+> 0.006
+> 0.008
+> 0.010
+> 0.012
+> E-SIM (vs T=0)
+> (b) Marginal Gain Analysis
+> =1e-3 (Conservative)
+> =5e-3 (Recommended)
+> =1e-2 (Aggressive)
+> Diminishing Returns
+
+Figure 7. Fast Agent efficiency–effectiveness trade-off. 
+
+Fast-Loop Efficiency–Effectiveness Trade-off. Fig. 7 shows the Fast Loop trade-off. With γ = 5 × 10 −3, increas-ing T from 0 to 2 raises CSR from 0.70 to 0.78 (about 80% of the best gain). Latency stays around 121 ms (45 ms base + 2×38 ms), below the 200 ms budget. Further increasing 
+
+T yields diminishing returns (e.g., T = 3 → 5 improves CSR by 0.01). A larger step size ( γ = 10 −2) may hurt performance at higher T , likely due to overshooting. 
+
+4.4. Qualitative Analysis 
+
+To validate fine-grained acoustic grounding under composi-tional emotion instructions, we visualize spectral patterns and prosodic trajectories. As shown in Fig. 8 (b) and (c), Happy mainly manifests as increased high-frequency energy, whereas Arrogant exhibits a more restrained resonant struc-ture in the mid-to-low frequencies. The composite output in Fig. 8 (d) is not a simple average: it preserves Happy-like high-frequency activity while injecting Arrogant-like con-vergent resonant textures, suggesting compositional acous-tic control. Moreover, the F0 contour in Fig. 8 (e) follows the overall upward trend of Happy while suppressing local peaks under Arrogant, and the energy envelope in Fig. 8 (f) reproduces the characteristic decay pattern of Arrogant. In addition, the difference map in Fig. 8 (g) highlights struc-tured, localized spectral edits rather than global distortion, while the composability statistics in Fig. 8 (h) provide quan-titative support for stable composition. Overall, these results indicate improved acoustic grounding for complex compos-ite intents. 
+
+5. Related Work 
+
+Multi-agent LLM systems. Role-based and multi-agent LLM systems have evolved from single-agent prompt-ing (Yao et al., 2023) and self-reflection (Shinn et al., 2023) to collaborative conversational frameworks and long-horizon GUI automation (Zhou et al., 2025; Li et al., 2025; Kang et al., 2026). These systems typically decompose tasks into roles and improve task execution through iterative feed-back and coordination (Zhao et al., 2025). Relative to text and vision tasks, agent-based exploration in speech and TTS remains limited. SpeechAgents (Zhang et al., 2024) explores multimodal communication with speech as the message channel. However, these pipelines mainly target dialogue generation or data creation, and do not directly address intent-consistent control for fine-grained composi-tional emotions. 
+
+Emotion-controllable Text-to-Speech. Recent emotional TTS systems achieve high naturalness with multimodal con-ditioning (Chen et al., 2025; Shikhar et al., 2025), but still struggle with compositional control over multiple attributes. Representative systems such as SparkTTS (Wang et al., 2025) and CosyVoice (Du et al., 2024; 2025) leverage soft prompts and cross-speaker transfer. However, they can suf-fer from attribute leakage, where emotion cues are entan-gled with speaker identity. LLM-based methods provide flexible prompts (Li et al., 2026; Yang et al., 2025) but often rely on text conditioning without explicit semantic– acoustic alignment, which lead to fluent speech with subop-timal instruction adherence for subtle attribute combinations. Preference-optimization methods improve emotion discrimi-nation (Gao et al., 2025) but are typically limited to discrete label comparisons, without a mechanism for continuous, multi-attribute calibration. 
+
+6. Concluding Remarks 
+
+Summary. We present A GENT STEER TTS, a multi-agent closed-loop framework for intent-faithful text-to-speech synthesis under composite natural-language instructions. 8Submission and Formatting Instructions for ICML 2026 0 0.5 1 1.5 2 2.5                              
+
+> Time (s)
+> 0
+> 512
+> 1024
+> 2048
+> 4096
+> 8192
+> Frequency (Hz)
+> (a) Base (Neutral)
+> 00.5 11.5 22.5
+> Time (s)
+> 0
+> 512
+> 1024
+> 2048
+> 4096
+> 8192
+> (b) Single: Happy
+> 00.5 11.5 22.5
+> Time (s)
+> 0
+> 512
+> 1024
+> 2048
+> 4096
+> 8192
+> (c) Single: Disgusted
+> 00.5 11.5 22.5
+> Time (s)
+> 0
+> 512
+> 1024
+> 2048
+> 4096
+> 8192
+> (d) Composite: Happy but slightly Arrogant
+> 80
+> 60
+> 40
+> 20
+> 0
+> Magnitude (dB)
+> 0.0 0.5 1.0 1.5 2.0 2.5
+> Time (s)
+> 0
+> 100
+> 200
+> 300
+> 400
+> F0 (Hz)
+> (e) F0 Contour Comparison
+> Base
+> Happy
+> Disgusted
+> Composite
+> 0.0 0.5 1.0 1.5 2.0 2.5
+> Time (s)
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> RMS Energy
+> (f) Energy Contour Comparison
+> Base
+> Happy
+> Disgusted
+> Composite
+> 050 100 150 200
+> Time Frames
+> 0
+> 20
+> 40
+> 60
+> Mel Bins
+> (g) Difference Map: Composite - Base
+> 2
+> 0
+> 2
+> Delta Mel (dB)  Composability
+> cos(Delta_AB,
+> Delta_A+Delta_B)
+> = 0.988
+> F0 Changes (Hz)
+> Base->Happ: +27.4
+> Base->Disg: -13.0
+> Base->Comp: +18.5
+> Energy Changes
+> Base->Happ: +0.0302
+> Base->Disg: +0.0181
+> Base->Comp: +0.0337
+> (h) Quantitative Metrics
+> Spectrogram Analysis: Happy but slightly Arrogant
+
+Figure 8. Spectral and prosodic evidence of compositional control. Under “Happy but slightly Arrogant”, retains Happy’s high-frequency energy and Arrogant’s restrained resonance, with matched F0/energy contours. 
+
+AGENT STEER TTS explicitly addresses two key challenges: (1) the structural mismatch between discrete textual intents and continuous acoustic realizations, and (2) entanglement between speaker identity and prosodic attributes. On our composite-instruction benchmark and public test sets, it consistently improves alignment with target expressive com-posites while preserving speaker similarity and speech natu-ralness. 
+
+Limitation & Future Work. Our performance remains constrained by the coverage and retrieval reliability of the acoustic prototype library, especially for rare or unusual composite styles, and reducing dependence on external eval-uators in the slow loop remains a key avenue for future research. In addition, ADM targets the dominant speaker– emotion coupling rather than full acoustic factorization, so residual variation from recording condition, accent, or age may still remain in the learned latents. 
+
+7. Impact Statement 
+
+Potential risks are similar to those of general-purpose speech synthesis systems: improved expressive control could be misused for impersonation, deceptive content, or emotion-ally manipulative speech. In addition, the Slow Loop relies on learned/evaluator feedback that may be imperfect or over-confident on out-of-distribution prompts, which can lead to incorrect control adjustments. Our method does not intro-duce new user profiling, but it inherits biases and limitations from the underlying models and the speech data used for training and the prototype library. To support reproducibility, we plan to release benchmark prompts/metadata, evaluation code, demo audio, and non-commercial checkpoints subject to policy and licensing constraints. 
+
+References 
+
+Li, Yanwei, Zhang, Yuechen, Wang, Chengyao, Zhong, Zhisheng, Chen, Yixin, Chu, Ruihang, Liu, Shaoteng, and Jia, Jiaya. Mini-Gemini: Mining the Potential of Multi-Modality Vision Language Models. IEEE Transactions on Pattern Analysis and Machine Intelligence . pages 1-14. 2025. Li, Junnan, Li, Dongxu, Savarese, Silvio, and Hoi, Steven. BLIP-2: Bootstrapping Language-Image Pre-training with Frozen Image Encoders and Large Language Mod-els. Proceedings of the 40th International Conference on Machine Learning . 202, pages 19730–19742. 2023. Kang, Bin, Chen, Bin, Wang, Junjie, Li, Yulin, Zhao, Junzhi, 9Submission and Formatting Instructions for ICML 2026 
+
+Wang, Junle, and Tian, Zhuotao. CalibCLIP: Contextual Calibration of Dominant Semantics for Text-Driven Im-age Retrieval. Proceedings of the 33rd ACM International Conference on Multimedia . pages 5140–5149. 2025. Li, Yulin, Gui, Haokun, Fan, Ziyang, Wang, Junjie, Kang, Bin, Chen, Bin, and Tian, Zhuotao. Less is More, But Where? Dynamic Token Compression via LLM-Guided Keyframe Prior. Advances in Neural Information Process-ing Systems . 38, pages 156861–156904. 2026. Li, Yulin, Tu, Tengyao, Ding, Li, Wang, Junjie, Zhen, Huil-ing, Chen, Yixin, Yong, Li, and Tian, Zhuotao. Efficient Reasoning with Balanced Thinking. Proceedings of the 14th International Conference on Learning Representa-tions . 2026. Zhang, Dong, Li, Shimin, Zhang, Xin, Zhan, Jun, Wang, Pengyu, Zhou, Yaqian, and Qiu, Xipeng. SpeechGPT: Empowering Large Language Models with Intrinsic Cross-Modal Conversational Abilities. Findings of the Association for Computational Linguistics: EMNLP 2023 .pages 15757-15773. 2023. Rubenstein, Paul K., Asawaroengchai, Chulayuth, Nguyen, Duc Dung, Bapna, Ankur, Borsos, Zalán, and others. Au-dioPaLM: A Large Language Model That Can Speak and Listen. arXiv preprint arXiv:2306.12925 . 2023. arXiv:2306.12925. Chu, Yunfei, Xu, Jin, Yang, Qian, Wei, Haojie, Wei, Xipin, Guo, Zhifang, Leng, Yichong, Lv, Yuanjun, and oth-ers. Qwen2-Audio Technical Report. arXiv preprint arXiv:2407.10759 . 2024. arXiv:2407.10759. Cui, Wenqian, Yu, Dianzhi, Jiao, Xiaoqi, Meng, Ziqiao, Zhang, Guangyan, Wang, Qichao, Guo, Steven Y., King, Irwin, and others. Recent Advances in Speech Language Models: A Survey. Proceedings of the 63rd Annual Meet-ing of the Association for Computational Linguistics (Vol-ume 1: Long Papers) . pages 13943–13970. 2025. Ju, Zeqian, Wang, Yuancheng, Shen, Kai, He, Lei, Tan, Xu, Liu, Eric, Leng, Yichong, Zhao, Sheng, Qin, Tao, and Bian, Jiang. NaturalSpeech 3: Zero-Shot Speech Synthe-sis with Factorized Codec and Diffusion Models. Pro-ceedings of the International Conference on Machine Learning . pages 59545–59570. 2024. Gao, Xiaoxue, Chen, Yiming, Yue, Xianghu, Tsao, Yu, and Chen, Nancy F. TTSlow: Slow Down Text-to-Speech With Efficiency Robustness Evaluations. IEEE Transac-tions on Audio, Speech and Language Processing . 33, pages 693-704. 2025. Chen, Sanyuan, Wang, Chengyi, Wu, Yu, Zhang, Ziqiang, Zhou, Long, Liu, Shujie, Chen, Zhuo, Liu, Yanqing, and others. Neural Codec Language Models are Zero-Shot Text to Speech Synthesizers. IEEE/ACM Transactions on Audio, Speech, and Language Processing . 33, pages 705-718. 2025. Kexin Huang, Qian Tu, Liwei Fan, Chenchen Yang, Dong Zhang, Shimin Li, Zhaoye Fei, Qinyuan Cheng, and Xipeng Qiu. InstructTTSEval: Benchmarking Com-plex Natural-Language Instruction Following in Text-to-Speech Systems. Manuscript . 2025. arXiv:2506.16381. Yang, Guanrou, Yang, Chen, Chen, Qian, Ma, Ziyang, Chen, Wenxi, Wang, Wen, Wang, Tianrui, and oth-ers. EmoVoice: LLM-based Emotional Text-To-Speech Model with Freestyle Text Prompting. Proceedings of the 33rd ACM International Conference on Multimedia .pages 10748–10757. 2025. Zhou, Siyi, Zhou, Yiquan, He, Yi, Zhou, Xun, Wang, Jin-chao, Deng, Wei, and Shu, Jingchen. IndexTTS2: A Breakthrough in Emotionally Expressive and Duration-Controlled Auto-Regressive Zero-Shot Text-to-Speech. 
+
+Manuscript . 2025. arXiv:2506.21619. Kim, Jaehyeon, Kong, Jungil, and Son, Juhee. Conditional Variational Autoencoder with Adversarial Learning for End-to-End Text-to-Speech. Proceedings of the 38th In-ternational Conference on Machine Learning . 139, pages 5530–5540. 2021. Zhou, Kun, Sisman, Berrak, Liu, Rui, and Li, Haizhou. Seen and Unseen Emotional Style Transfer for Voice Conver-sion with A New Emotional Speech Dataset. IEEE In-ternational Conference on Acoustics, Speech and Signal Processing (ICASSP) . pages 920-924. 2021. Le, Matthew, Vyas, Apoorv, Shi, Bowen, Karrer, Brian, Sari, Leda, Moritz, Rashel, and others. Voicebox: Text-Guided Multilingual Universal Speech Generation at Scale. Ad-vances in Neural Information Processing Systems . 36, pages 14005–14034. 2023. Qu, Leyuan, Zhang, Zhuo, Huang, Xiaoliang, Wen, Ping, Zhang, Rui, Wang, Wen, and others. Diffsody: Disentan-gling Speaker-Invariant Prosody Representations via Dif-fusion Probabilistic Models. IEEE Transactions on Neu-ral Networks and Learning Systems . pages 1–12. 2025. Cho, Deok-Hyeon, Oh, Hyung-Seok, Kim, Seung-Bin, and Lee, Seong-Whan. DiEmo-TTS: Disentangled Emo-tion Representations via Self-Supervised Distillation for Cross-Speaker Emotion Transfer in Text-to-Speech. Pro-ceedings of Interspeech . pages 4373–4377. 2025. Cho, Deok-Hyeon, Oh, Hyung-Seok, Kim, Seung-Bin, and Lee, Seong-Whan. DiEmo-TTS: Disentangled Emo-tion Representations via Self-Supervised Distillation for 10 Submission and Formatting Instructions for ICML 2026 
+
+Cross-Speaker Emotion Transfer in Text-to-Speech. Pro-ceedings of Interspeech . pages 4373–4377. 2025. Ekman, Paul. An Argument for Basic Emotions. Cognition & Emotion . 6(3–4), pages 169–200. 1992. Zhao, Wei and Yang, Zheng. An Emotion Speech Synthesis Method Based on VITS. Applied Sciences . 13(4), pages 2225. 2023. Ju, Zeqian and others. Guiding FastSpeech2 To-wards Emotional Text-to-Speech. Manuscript . 2023. arXiv:2307.00024. Zhao, Yue and others. GenerSpeech: Towards Style Trans-fer for Generalizable Out-of-Domain Text-to-Speech. 
+
+Advances in Neural Information Processing Systems (NeurIPS) . 2022. Madaan, Aman, Tandon, Niket, Gupta, Prakhar, Hallinan, Skyler, Gao, Luyu, Wiegreffe, Sarah, Alon, Uri, and oth-ers. Self-Refine: Iterative Refinement with Self-Feedback. 
+
+Advances in Neural Information Processing Systems . 36, pages 46534–46594. 2023. Carlos Busso, Reza Lotfian, Kusha Sridhar, Ali N. Salman, Wei-Cheng Lin, and others. The MSP-Podcast Corpus. 
+
+Manuscript . 2025. arXiv:2509.09791. Ma, Ziyue, Zheng, Zhisheng, Ye, Jiaxin, Li, Jinchao, Gao, Zhifu, Zhang, ShiLiang, and others. emotion2vec: Self-Supervised Pre-Training for Speech Emotion Represen-tation. Findings of the Association for Computational Linguistics: ACL 2024 . pages 15747–15760. 2024. Chen, Yushen, Niu, Zhikang, Ma, Ziyang, Deng, Keqi, Wang, Chunhui, JianZhao, JianZhao, Yu, Kai, and Chen, Xie. F5-TTS: A Fairytaler that Fakes Fluent and Faithful Speech with Flow Matching. Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics . pages 6255–6271. 2025. Du, Zhihao, Chen, Qian, Zhang, Shiliang, Hu, Kai, Lu, Heng, Yang, Yexin, Hu, Hangrui, and others. CosyVoice: A Scalable Multilingual Zero-shot Text-to-speech Synthe-sizer based on Supervised Semantic Tokens. Manuscript .2024. arXiv:2407.05407. Du, Zhihao, Wang, Yuxuan, Chen, Qian, Shi, Xian, Lv, Xi-ang, Zhao, Tianyu, Gao, Zhifu, and others. CosyVoice 2: Scalable Streaming Speech Synthesis with Large Lan-guage Models. Manuscript . 2024. arXiv:2412.10117. Xinsheng Wang, Mingqi Jiang, Ziyang Ma, Ziyu Zhang, Songxiang Liu, Linqin Li, and others. Spark-TTS: An Efficient LLM-Based Text-to-Speech Model with Single-Stream Decoupled Speech Tokens. Manuscript . 2025. arXiv:2503.01710. Yao, Shunyu, Zhao, Jeffrey, Yu, Dian, Du, Nan, Shafran, Izhak, Narasimhan, Karthik, and Cao, Yuan. ReAct: Syn-ergizing Reasoning and Acting in Language Models. 
+
+International Conference on Learning Representations (ICLR) . 2023. Shinn, Noah, Cassano, Federico, Berman, Edward, Gopinath, Ashwin, Narasimhan, Karthik, and Yao, Shunyu. Multi-agent reinforcement learning for resources allocation optimization: a survey. Artificial Intelligence Review . 2023. Zhou, Zewei, Zhao, Seth Z., Cai, Tianhui, Huang, Zhiyu, Zhou, Bolei, and Ma, Jiaqi. TurboTrain: Towards Effi-cient and Balanced Multi-Task Learning for Multi-Agent Perception and Prediction. Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) .pages 4391-4402. 2025. Li, Chao, Deng, Zihan, Lin, Chen, and others. DoF: A Dif-fusion Factorization Framework for Offline Multi-Agent Reinforcement Learning. Proceedings of the Thirteenth International Conference on Learning Representations .2025. Kang, Bin, Wen, Shaoguo, Bi, Yifei, Wu, Shunlong, Yuan, Xinbin, Shao, Rui, Wang, Junle, and Tian, Zhuotao. LongHorizonUI: A Unified Framework for Robust Long-Horizon Task Automation of GUI Agent. The Fourteenth International Conference on Learning Representations .2026. Tianjiao Zhao, Jingrao Lyu, Stokes Jones, Harrison Gar-ber, Stefano Pasquali, and Dhagash Mehta. AlphaA-gents: Large Language Model based Multi-Agents for Equity Portfolio Constructions. Manuscript . 2025. arXiv:2508.11152. Zhang, Dong, Li, Zhaowei, Wang, Pengyu, Zhang, Xin, Zhou, Yaqian, and Qiu, Xipeng. SpeechAgents: Human-Communication Simulation with Multi-Modal Multi-Agent Systems. arXiv preprint arXiv:2401.03945 . 2024. Chen, Kai, Gou, Yunhao, Huang, Runhui, Liu, Zhili, Tan, Daxin, Xu, Jing, Wang, Chunwei, Zhu, Yi, and others. EMOVA: Empowering Language Models to See, Hear and Speak with Vivid Emotions. Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) . pages 5455-5466. 2025. Shikhar, Sambal, Kurpath, Mohammed Irfan, Mullappilly, Sahal Shaji, Lahoud, Jean, Khan, Fahad Shahbaz, An-wer, Rao Muhammad, Khan, Salman, and Cholakkal, Hisham. LLMVoX: Autoregressive Streaming Text-to-Speech Model for Any LLM. Findings of the Association for Computational Linguistics: ACL 2025 . pages 20481– 20493. 2025. 11 Submission and Formatting Instructions for ICML 2026 
+
+Du, Zhihao, Gao, Changfeng, Wang, Yuxuan, Yu, Fan, Zhao, Tianyu, Wang, Hao, Lv, Xiang, and others. CosyVoice 3: Towards In-the-wild Speech Generation via Scaling-up and Post-training. arXiv preprint arXiv:2505.17589 .2025. Li, Yunpei, Zhou, Xun, Wang, Jinchao, Wang, Lu, Wu, Yong, Zhou, Siyi, Zhou, Yiquan, and Shu, Jingchen. IndexTTS 2.5 Technical Report. arXiv preprint arXiv:2601.03888 .2026. Gao, Xiaoxue, Zhang, Chen, Chen, Yiming, Zhang, Huayun, and Chen, Nancy F. Emo-DPO: Controllable Emotional Speech Synthesis through Direct Preference Optimiza-tion. 2025 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) . pages 1-5. 2025. Gemini Team. Gemini 1.5: Unlocking Multimodal Un-derstanding Across Millions of Tokens of Context. 
+
+Manuscript . 2024. arXiv:2403.05530. Wang, Junjie, Chen, Bin, Li, Yulin, Kang, Bin, Chen, Yichi, and Tian, Zhuotao. DeCLIP: Decoupled Learning for Open-Vocabulary Dense Perception. Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition . pages 14824–14834. 2025. Wang, Junjie, Chen, Keyu, Li, Yulin, Chen, Bin, Zhao, Heng-shuang, Qi, Xiaojuan, and Tian, Zhuotao. Generalized De-coupled Learning for Enhancing Open-Vocabulary Dense Perception. arXiv preprint arXiv:2508.11256 . 2025. Wang, Junjie, Chen, Bin, Kang, Bin, Li, Yulin, Xian, Weizhi, Chen, Yichi, and Xu, Yong. OV-DQUO: Open-Vocabulary DETR with Denoising Text Query Training and Open-World Unknown Objects Supervision. Proceed-ings of the AAAI Conference on Artificial Intelligence .39(7), pages 7762–7770. 2025. Chen, Zhe, Wu, Jiannan, Wang, Wenhai, Su, Weijie, Chen, Guo, Xing, Sen, Zhong, Muyan, and and others. In-ternVL: Scaling up Vision Foundation Models and Align-ing for Generic Visual-Linguistic Tasks. Proceedings of the IEEE/CVF Conference on Computer Vision and Pat-tern Recognition (CVPR) . pages 24185-24198. 2024. Wei Deng, Siyi Zhou, Jingchen Shu, Jinchao Wang, and Lu Wang. IndexTTS: An Industrial-Level Controllable and Efficient Zero-Shot Text-To-Speech System. Manuscript .2025. arXiv:2502.05512. Li, Yinghao Aaron, Han, Cong, and Mesgarani, Nima. StyleTTS: A Style-Based Generative Model for Natu-ral and Diverse Text-to-Speech Synthesis. IEEE Journal of Selected Topics in Signal Processing . 19(1), pages 283-296. 2025. Yang, Guanrou, Yang, Chen, Chen, Qian, Ma, Ziyang, Chen, Wenxi, Wang, Wen, Wang, Tianrui, Yang, Yifan, and oth-ers. EmoVoice: LLM-based Emotional Text-To-Speech Model with Freestyle Text Prompting. Proceedings of the 33rd ACM International Conference on Multimedia .pages 10748–10757. 2025. Wang, Chengyi and others. Neural Codec Language Models are Zero-Shot Text to Speech Synthesizers. Manuscript .2023. arXiv:2301.02111. Li, Xiang and others. MM-TTS: A Unified Framework for Multi-Modal Prompt-Based Emotional Text-to-Speech. 
+
+Manuscript . 2024. arXiv:2404.18398. Qwen Team. Qwen2-Audio Technical Report. Manuscript .2024. arXiv:2407.10759. OpenAI. GPT-4o System Card. https://openai. com/index/gpt-4o-system-card/ . 2024. Qwen Team. Qwen3 Technical Report. Manuscript . 2025. arXiv:2505.09388. Wu, Qingyun, Bansal, Gagan, Zhang, Jieyu, Wu, Yiran, Li, Beibin, Zhu, Erkang, Jiang, Li, Zhang, Xiaoyun, Zhang, Shaokun, Liu, Jiale, Awadallah, Ahmed Hassan, White, Ryen W, Burger, Doug, and Wang, Chi. AutoGen: En-abling Next-Gen LLM Applications via Multi-Agent Con-versation. arXiv preprint arXiv:2308.08155 . 2023. Li, Guohao, Hammoud, Hasan Abed Al Kader, Itani, Hani, Khizbullin, Dmitrii, and Ghanem, Bernard. CAMEL: Communicative Agents for “Mind” Exploration of Large Language Model Society. Advances in Neural Informa-tion Processing Systems (NeurIPS) . 2023. Li, Xiang, Pan, Duyi, Xiao, Hongru, Han, Jiale, Tang, Jing, Ma, Jiabao, Wang, Wei, and Cheng, Bo. DialogueAgents: A Hybrid Agent-Based Speech Synthesis Framework for Multi-Party Dialogue. IEEE International Conference on Multimedia & Expo (ICME) . 2025. 12 Submission and Formatting Instructions for ICML 2026 
+
+A. Motivation 
+
+A.1. Target–Extracted Profile under Composite Instructions 
+
+Following our composite-instruction analysis, we visualize the semantic–acoustic gap using a 2 × 3 radar plot over the 6-D emotion space (Fig. 9). For each intent, we compute an ideal target by projecting the instruction into a 6-D prototype, and obtain the realized profile by averaging emotion-recognizer embeddings from multiple generations. We apply a calibrated polar mapping to emphasize deviations, revealing systematic target suppression and non-target leakage. Each subplot reports per-dimension intensities and summary scores (H IT and C OS ) for composite satisfaction and alignment. Happy 
+
+Angry Sad 
+
+Afraid 
+
+Disgusted Surprised   
+
+> Hit: 0.0% | Cos: 0.544
+> Happy but slightly Arrogant Target (Ideal)
+> Happy+Arrogant (Extracted)
+> 10.4
+> 14.5 12.6
+> 12.6
+> 12.7 14.1
+> 55.0
+> 25.0
+> 0.0
+> 0.0
+> 5.0 10.0
+
+Happy 
+
+Angry Sad 
+
+Afraid 
+
+Disgusted Surprised     
+
+> Hit: 3.3% | Cos: 0.581
+> Sad but with a hint of Hope Target (Ideal)
+> Sad+Hopeful (Extracted)
+> 10.5
+> 13.0
+> 13.0
+> 13.0
+> 12.0 13.2
+> 20.0
+> 0.0
+> 55.0
+> 5.0 0.0 0.0
+
+Happy 
+
+Angry Sad 
+
+Afraid 
+
+Disgusted Surprised   
+
+> Hit: 35.0% | Cos: 0.601
+> Angry but Restrained Target (Ideal)
+> Angry+Restrained (Extracted)
+> 10.4
+> 14.4 12.8
+> 12.8
+> 12.6 14.0
+> 0.0
+> 50.0
+> 0.0
+> 5.0
+> 15.0
+> 0.0
+
+Happy 
+
+Angry Sad 
+
+Afraid 
+
+Disgusted Surprised   
+
+> Hit: 100.0% | Cos: 0.591
+> Surprised and slightly Fearful
+> Target (Ideal)
+> Surprised+Fearful (Extracted)
+> 10.5
+> 13.7 13.3
+> 13.3
+> 13.0 14.4
+> 5.0
+> 0.0 0.0
+> 30.0 0.0
+> 55.0
+
+Happy 
+
+Angry Sad 
+
+Afraid 
+
+Disgusted Surprised   
+
+> Hit: 0.0% | Cos: 0.571
+> Disgusted with underlying Anger
+> Target (Ideal)
+> Disgusted+Angry (Extracted)
+> 10.6
+> 14.1
+> 12.8
+> 12.8
+> 12.3 13.8
+> 0.0
+> 30.0
+> 0.0
+> 5.0
+> 55.0
+> 0.0
+
+Happy 
+
+Angry Sad 
+
+Afraid 
+
+Disgusted Surprised   
+
+> Hit: 0.0% | Cos: 0.517
+> Happy and Excited Target (Ideal)
+> Happy+Excited (Extracted)
+> 10.3
+> 14.0
+> 12.8
+> 12.8
+> 13.3 14.5
+> 50.0
+> 0.0 0.0
+> 0.0
+> 0.0
+> 40.0
+
+Figure 9. Composite-instruction radar plots in the 6-D emotion space. We overlay the target composite vector with the mean extracted emotion vector from multiple generations, highlighting target-dimension suppression and non-target leakage under discrete prompting. 
+
+A.2. Composite Feasible Region under Composite Instructions 
+
+To probe whether composite-control failures reflect distribution-level collapse, we visualize the composite feasible region 
+
+for six composite instructions (Fig. 10). For each intent, we construct a target neighborhood in the emotion-embedding space and compare three settings: Text-only , Retrieval-only , and our full system ( DAC+Feedback ). Text-only outputs cluster near a neutral compromise zone, which can yield moderate mean similarity but low joint satisfaction. Retrieval-only 
+
+reaches the target neighborhood but often produces scattered samples due to imperfect alignment. Our full framework shifts and concentrates the output distribution into the target region, improving coverage and reducing offset across composite combinations. 
+
+B. Additional Experiments 
+
+B.1. Implementation Details Implementation Setup Both the identity encoder ( Eid ) and the emotion encoder ( Eemo ) adopt multi-layer Transformers with hidden size 512. We use GRL-based discriminators for adversarial disentanglement. The LCP is implemented as a lightweight three-layer MLP. Training proceeds in two stages: (i) foundational TTS pre-training; and (ii) joint optimization of disentanglement and DAC with Ladv and Lrec . We use AdamW with learning rate 2 × 10 −4 and 3,000 warm-up steps, training on 8 NVIDIA H20 (96 GB) GPUs with a batch size of about 5,000 frames per device. During inference, we clamp 13 Submission and Formatting Instructions for ICML 2026 -0.8 -0.6 -0.4 -0.2 0.0 0.2                           
+
+> PC1
+> -0.3
+> -0.2
+> -0.1
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> PC2
+> Dist : 0.04 | Cover : 100%
+> Dist vs Text: 88% | Spread: 0.03
+> Happy but slightly Arrogant
+> Target Feasible Region
+> Text-only
+> Retrieval-only
+> Ours (DAC + FB)
+> Target
+> Neutral
+> -0.6 -0.4 -0.2 0.0 0.2 0.4
+> PC1
+> -0.3
+> -0.2
+> -0.1
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> PC2
+> Dist : 0.06 | Cover : 99%
+> Dist vs Text: 83% | Spread: 0.03
+> Sad but with a hint of Hope
+> -0.2 0.0 0.2 0.4 0.6 0.8
+> PC1
+> -0.2
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> PC2
+> Dist : 0.05 | Cover : 99%
+> Dist vs Text: 86% | Spread: 0.03
+> Angry but Restrained
+> -0.2 0.0 0.2 0.4 0.6 0.8
+> PC1
+> -0.2
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> PC2
+> Dist : 0.05 | Cover : 100%
+> Dist vs Text: 86% | Spread: 0.03
+> Surprised and slightly Fearful
+> -0.4 -0.2 0.0 0.2 0.4 0.6 0.8
+> PC1
+> -0.2
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> PC2
+> Dist : 0.05 | Cover : 100%
+> Dist vs Text: 87% | Spread: 0.03
+> Disgusted with underlying Anger
+> -0.8 -0.6 -0.4 -0.2 0.0 0.2
+> PC1
+> -0.3
+> -0.2
+> -0.1
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> PC2
+> Dist : 0.04 | Cover : 100%
+> Dist vs Text: 89% | Spread: 0.03
+> Happy and Excited
+
+Composite Feasible Regions across Composite Instructions 
+
+Figure 10. Composite feasible regions across six composite emotion instructions. Compared with Text-only (neutral collapse) and 
+
+Retrieval-only (scattered modes), our full system shifts and concentrates the output distribution into the target region, consistent with reduced collapse under composite control. 
+
+α to [0 , 1] and run T =2 Fast-Loop gradient steps with γ=5 × 10 −3 unless stated otherwise. The Slow Loop leverages MLLMs (Team, 2024) for perceptual correction, keeping the average latency overhead within 200 ms. 
+
+B.2. Cross-covariance computation Cross-covariance computation. Given a mini-batch of latents stacked as matrices Zid ∈ RB×did and Zemo ∈ RB×demo ,we compute the mean-centered cross-covariance as 
+
+Cov( zid , z emo ) = 1
+
+B
+
+ Zid − ¯Zid 
+
+⊤ Zemo − ¯Zemo 
+
+, (18) where ¯Zid and ¯Zemo repeat the batch means along the batch dimension. We use ∥Cov( zid , z emo )∥F to monitor residual correlation between the two factors. 
+
+Probe-based disentanglement verification. We run a linear-probe test on 500 randomly sampled labeled utterances (speaker ID and emotion) from the labeled pool used to train ADM. We extract utterance-level zid and zemo (via temporal pooling) and train logistic-regression probes to predict speaker/emotion from each factor. Before disentanglement, the factors show strong leakage: zid predicts emotion at 95 .8% and zemo predicts speaker at 100 .0% . After ADM, identity prediction from zid remains high , while speaker leakage from zemo drops from 97 .5% to 64 .4% . Meanwhile, zemo remains emotion-informative, albeit with reduced predictability ( 94 .2% → 70 .8% ), consistent with suppressing nuisance identity components in Zemo .
+
+Fine-grained Acoustic Prototype Library. We build a fine-grained acoustic prototype library for composite emotion/per-formance control, with roughly 100 hours of utterance-level speech. It covers multiple role-oriented Chinese speakers. Each prototype is annotated with a coarse emotion label and a natural-language instruction describing performance cues (e.g., intensity, rhythm, emphasis/pauses, pitch contour, timbre/resonance, and role style), yielding interpretable acoustic anchors. 
+
+Prototype Retrieval Accuracy. To verify that the retrieval stage provides genuinely useful acoustic anchors under composite instructions, we compare text-only retrieval, audio-only retrieval, and our full scoring function with semantic, 14 Submission and Formatting Instructions for ICML 2026 -20 -10 0 10 20 30                                                
+
+> t-SNE Dim 1
+> -20
+> -15
+> -10
+> -5
+> 0
+> 5
+> 10
+> 15
+> 20
+> t-SNE Dim 2
+> 10 Speakers
+> (a)
+> Zid (Raw) by Speaker
+> -20 -10 010 20 30
+> t-SNE Dim 1
+> -20
+> -15
+> -10
+> -5
+> 0
+> 5
+> 10
+> 15
+> 20
+> t-SNE Dim 2
+> (b)
+> Zid (Raw) by Emotion
+> Happy
+> Neutral
+> Sad
+> -30 -20 -10 010 20 30
+> t-SNE Dim 1
+> -30
+> -20
+> -10
+> 0
+> 10
+> 20
+> t-SNE Dim 2
+> 10 Speakers
+> (c)
+> Zemo (Raw) by Speaker
+> -30 -20 -10 010 20 30
+> t-SNE Dim 1
+> -30
+> -20
+> -10
+> 0
+> 10
+> 20
+> t-SNE Dim 2
+> (d)
+> Zemo (Raw) by Emotion
+> Happy
+> Neutral
+> Sad
+> -20 -10 010 20 30 40
+> t-SNE Dim 1
+> -20
+> -10
+> 0
+> 10
+> 20
+> t-SNE Dim 2
+> 10 Speakers
+> (e)
+> Zid (ADM) by Speaker
+> -20 -10 010 20 30 40
+> t-SNE Dim 1
+> -20
+> -10
+> 0
+> 10
+> 20
+> t-SNE Dim 2
+> (f)
+> Zid (ADM) by Emotion
+> Happy
+> Neutral
+> Sad
+> -30 -20 -10 010 20
+> t-SNE Dim 1
+> -20
+> -10
+> 0
+> 10
+> 20
+> t-SNE Dim 2
+> 10 Speakers
+> (g)
+> Zemo (ADM) by Speaker
+> -30 -20 -10 010 20
+> t-SNE Dim 1
+> -20
+> -10
+> 0
+> 10
+> 20
+> t-SNE Dim 2
+> (h)
+> Zemo (ADM) by Emotion
+> Happy
+> Neutral
+> Sad
+> BEFORE
+> ADM
+> AFTER
+> ADM
+> Disentanglement Validation: Before vs After ADM
+> (ADM achieves speaker-emotion orthogonality in latent space)
+
+Figure 11. Speaker–emotion entanglement before/after ADM disentanglement on 500 labeled utterances. We show a four-panel t-SNE layout: zid colored by speaker/emotion and zemo colored by emotion/speaker. After ADM, speaker-driven separation in zemo weakens while emotion structure remains more salient, consistent with reduced identity leakage into the emotion space. 
+
+Table 4. Retrieval accuracy under composite instructions. Method R@1 ↑ R@5 ↑ Emo-SIM ↑ Human Match (%) ↑
+
+Text-only (instruction embedding) 0.61 0.88 0.73 70 Audio-only (emo/style features) 0.56 0.85 0.75 66 Ours (semantic + emo/style + constraint penalty) 0.78 0.95 0.83 84 
+
+emotion/style, and constraint-aware terms. As shown in Table 4, the full Retrieval Agent achieves the best R@1/R@5 (0.78/0.95), the highest Emo-SIM (0.83), and the best Human Match rate (84%). This result supports the claim that DAC benefits not merely from adding extra reference audio, but from retrieving anchors that are simultaneously semantically relevant and style-consistent. 
+
+C. Qualitative Analysis 
+
+C.1. Energy Allocation under Composite Instructions. 
+
+To quantify how well the model allocates acoustic evidence to the intended attributes under composition, following the broader practice of analyzing decoupled representations in dense perception (Wang et al., 2025;?), we analyze attribute activation for the composite prompt “Happy but slightly Arrogant” in Fig. 12. The baseline heatmap shows weak activation on target attributes and diffuse off-target responses (Fig. 12(a)), resulting in a low target-mass ratio (18.5%) and severe non-target leakage (81.5%) (Fig. 12(c)). In contrast, A GENT STEER TTS concentrates activation on the intended dimensions (Fig. 12(b)), increasing target mass to 52.6% and reducing leakage to 47.4% (Fig. 12(c)). Dimension-wise results further show stronger primary and secondary expression (Fig. 12(d)). We also observe improved temporal stability (Fig. 12(e), 90.0% variance reduction). Finally, Fig. 12(f) summarizes the overall shifts, indicating reduced leakage and closer adherence to the composite intent; similar open-vocabulary supervision issues have also motivated explicit unknown-object handling in visual perception (Wang et al., 2025). 
+
+C.2. Disentanglement Improves Compositional Acoustic Grounding. 
+
+To directly examine the role of disentanglement, we compare composite-generation results with and without ADM on four representative composite intents (Happy+Arrogant, Sad+Hopeful, Angry+Restrained, and Surprised+Fearful) in Fig. 13. For clarity, we use the Happy+Arrogant case as an illustrative example to discuss the observed patterns. As shown in Fig. 13 (a), 15 Submission and Formatting Instructions for ICML 2026 0.0 0.2 0.4 0.6 0.8 1.0                         
+
+> Normalized Time
+> Happy [Target]
+> Angry
+> Sad
+> Afraid
+> Disgusted [Target]
+> Surprised
+> Calm
+> Emotion Dimension
+> (a) Baseline: Target Suppressed
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Normalized Time
+> (b) AgentSteerTTS: Target Focused
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> Energy
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Value
+> Target
+> Mass
+> Leakage
+> 18.5%
+> 81.5%
+> 52.6%
+> 47.4%
+> (c) Metrics
+> Baseline
+> Ours
+> Hap Ang Sad Afr Dis Sur Cal
+> Emotion Dimension
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> Mean Energy
+> Target
+> Target
+> (d) Energy Distribution by Dimension
+> Baseline
+> Ours
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Normalized Time
+> 0.00
+> 0.02
+> 0.04
+> 0.06
+> 0.08
+> 0.10
+> 0.12
+> Variance (Std)  Variance Reduction:
+> 90.0%
+> (e) Temporal Stability
+> Baseline (high var)
+> Ours (low var)
+> 0.0 0.2 0.4 0.6
+> Improvement (Ours - Baseline)
+> Target
+> Mass
+> Leakage
+> Reduction
+> Primary
+> Energy
+> +34.2%
+> +34.2%
+> +15.3%
+> (f) Improvement Summary
+
+Attribute Energy Allocation Analysis 
+
+Composite Instruction: "Happy but slightly Arrogant" 
+
+Figure 12. Attribute energy allocation under a composite instruction (“Happy but slightly Arrogant”). Compared to the baseline, AGENT STEER TTS concentrates energy on the target dimensions (higher target mass, lower leakage) and improves temporal stability. 
+
+the baseline (w/o disentanglement) exhibits typical attribute entanglement failure modes: target emotion cues are partially suppressed while non-target spectral regions are broadly perturbed, indicating leakage into speaker- and timbre-related factors. In contrast, Fig. 13 (b) shows that our model produces more structured and localized spectral modifications that align with emotion-relevant patterns, suggesting that ADM enables a cleaner separation between identity and emotion control. This is further supported by the prosodic trajectories in Fig. 13 (c): the baseline contour tends to drift and fluctuate, whereas ours remains stable yet expressive, consistent with reliable intensity calibration under composition. Finally, the improvement map in Fig. 13 (d) indicates that the gains from ADM concentrate on prosody-related regions rather than indiscriminate full-band changes, confirming that our method mitigates target suppression and non-target leakage and yields more faithful composite acoustic grounding. 
+
+C.3. Generalization to Other Emotion Pairs. 
+
+To further validate the effectiveness of A GENT STEER TTS beyond Happy+Arrogant, we visualize three additional composi-tional pairs (Sad+Hopeful, Angry+Restrained, and Surprised+Fearful) and observe consistent spectral–prosodic grounding across cases. Taking Sad+Hopeful as an example in Fig. 17, the primitives exhibit distinct time–frequency and prosodic patterns, while the composite preserves salient cues from both emotions rather than collapsing to a neutral average (Fig. 17 (b– d)). The prosodic trajectories also remain structured under composition, with coherent F0 and energy trends (Fig. 17 (e–f)). Moreover, the difference map highlights localized, intent-relevant edits instead of global distortion (Fig. 17 (g)), and the composability statistics provide quantitative support for stable composition (Fig. 17 (h)). Similar behaviors are observed for Angry+Restrained (Fig. 18) and Surprised+Fearful (Fig. 19), suggesting that our approach avoids feature dilution under mixed emotions and achieves faithful acoustic realization across diverse composite intents. 16 Submission and Formatting Instructions for ICML 2026 0 0.5 1 1.5 2 2.5 
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+> Frequency (Hz)
+
+(a) Baseline (w/o Disentanglement) 
+
+0 0.5 1 1.5 2 2.5 
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+(b) Ours (with ADM Disentanglement) 
+
+80 
+
+70 
+
+60 
+
+50 
+
+40 
+
+30 
+
+20 
+
+10 
+
+0
+
+> Magnitude (dB)
+
+Method Comparison 
+
+Baseline Issues: 
+
+Target suppression 
+
+~45% 
+
+Non-target leakage 
+
+Timbre drift 
+
+Our Improvements: 
+
+Full target expression 
+
+Minimal leakage 
+
+Timbre preserved 
+
+F0 Stability: 
+
+Baseline :76.1Hz 
+
+Ours :82.7Hz 
+
+Improve:-9% 
+
+0.0 0.5 1.0 1.5 2.0 2.5 
+
+Time (s) 
+
+0
+
+50 
+
+100 
+
+150 
+
+200 
+
+250 
+
+300 
+
+350 
+
+400 
+
+> F0 (Hz)
+
+(c) F0 Contour: Baseline vs Ours 
+
+Baseline 
+
+Ours 
+
+0 50 100 150 200 
+
+Time Frames 
+
+0
+
+10 
+
+20 
+
+30 
+
+40 
+
+50 
+
+60 
+
+70 
+
+> Mel Bins
+
+(d) Improvement Map: Ours - Baseline 
+
+3
+
+2
+
+1
+
+0
+
+1
+
+2
+
+3
+
+> Delta Mel (dB)
+
+Quantitative Results 
+
+Expression (| F0|): 
+
+Baseline:12.2Hz 
+
+Ours:25.7Hz 
+
+Gain:+111% 
+
+Stability (F0 ): 
+
+Baseline:76.1Hz 
+
+Ours:82.7Hz 
+
+Reduce:-9% 
+
+Energy Consistency: 
+
+Baseline :0.108 
+
+Ours :0.119 
+
+Composite Instruction: "Happy but slightly Arrogant" 
+
+Figure 13. Baseline vs. A GENT STEER TTS under Happy+Arrogant: our method produces more localized, intent-aligned spectral and prosodic changes, while the baseline shows diluted or inconsistent edits. 0 0.5 1 1.5 2 2.5 
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+> Frequency (Hz)
+
+(a) Baseline (w/o Disentanglement) 
+
+0 0.5 1 1.5 2 2.5 
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+(b) Ours (with ADM Disentanglement) 
+
+80 
+
+70 
+
+60 
+
+50 
+
+40 
+
+30 
+
+20 
+
+10 
+
+0
+
+> Magnitude (dB)
+
+Method Comparison 
+
+Baseline Issues: 
+
+Target suppression 
+
+~45% 
+
+Non-target leakage 
+
+Timbre drift 
+
+Our Improvements: 
+
+Full target expression 
+
+Minimal leakage 
+
+Timbre preserved 
+
+F0 Stability: 
+
+Baseline :35.0Hz 
+
+Ours :34.2Hz 
+
+Improve:3% 
+
+0.0 0.5 1.0 1.5 2.0 2.5 
+
+Time (s) 
+
+0
+
+50 
+
+100 
+
+150 
+
+200 
+
+250 
+
+300 
+
+350 
+
+400 
+
+> F0 (Hz)
+
+(c) F0 Contour: Baseline vs Ours 
+
+Baseline 
+
+Ours 
+
+0 50 100 150 200 
+
+Time Frames 
+
+0
+
+10 
+
+20 
+
+30 
+
+40 
+
+50 
+
+60 
+
+70 
+
+> Mel Bins
+
+(d) Improvement Map: Ours - Baseline 
+
+2
+
+1
+
+0
+
+1
+
+2
+
+> Delta Mel (dB)
+
+Quantitative Results 
+
+Expression (| F0|): 
+
+Baseline:3.3Hz 
+
+Ours:7.0Hz 
+
+Gain:+113% 
+
+Stability (F0 ): 
+
+Baseline:35.0Hz 
+
+Ours:34.2Hz 
+
+Reduce:3% 
+
+Energy Consistency: 
+
+Baseline :0.091 
+
+Ours :0.089 
+
+Composite Instruction: "Sad but Hopeful" 
+
+Figure 14. Baseline vs. A GENT STEER TTS under Sad+Hopeful: our disentangled control reduces attribute leakage and yields more stable prosody under composition. 
+
+17 Submission and Formatting Instructions for ICML 2026 0 0.5 1 1.5 2 2.5 3 3.5 4
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+> Frequency (Hz)
+
+(a) Baseline (w/o Disentanglement) 
+
+0 0.5 1 1.5 2 2.5 3 3.5 4
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+(b) Ours (with ADM Disentanglement) 
+
+80 
+
+70 
+
+60 
+
+50 
+
+40 
+
+30 
+
+20 
+
+10 
+
+0
+
+> Magnitude (dB)
+
+Method Comparison 
+
+Baseline Issues: 
+
+Target suppression 
+
+~45% 
+
+Non-target leakage 
+
+Timbre drift 
+
+Our Improvements: 
+
+Full target expression 
+
+Minimal leakage 
+
+Timbre preserved 
+
+F0 Stability: 
+
+Baseline :70.3Hz 
+
+Ours :75.5Hz 
+
+Improve:-7% 
+
+0 1 2 3 4
+
+Time (s) 
+
+0
+
+50 
+
+100 
+
+150 
+
+200 
+
+250 
+
+300 
+
+350 
+
+400 
+
+> F0 (Hz)
+
+(c) F0 Contour: Baseline vs Ours 
+
+Baseline 
+
+Ours 
+
+0 50 100 150 200 250 300 
+
+Time Frames 
+
+0
+
+10 
+
+20 
+
+30 
+
+40 
+
+50 
+
+60 
+
+70 
+
+> Mel Bins
+
+(d) Improvement Map: Ours - Baseline 
+
+4
+
+3
+
+2
+
+1
+
+0
+
+1
+
+2
+
+3
+
+4
+
+> Delta Mel (dB)
+
+Quantitative Results 
+
+Expression (| F0|): 
+
+Baseline:13.5Hz 
+
+Ours:28.8Hz 
+
+Gain:+113% 
+
+Stability (F0 ): 
+
+Baseline:70.3Hz 
+
+Ours:75.5Hz 
+
+Reduce:-7% 
+
+Energy Consistency: 
+
+Baseline :0.117 
+
+Ours :0.127 
+
+Composite Instruction: "Angry but Restrained" 
+
+Figure 15. Baseline vs. A GENT STEER TTS under Angry+Restrained: our method preserves speaker-related structure while applying targeted emotion-relevant modifications. 0 0.15 0.3 0.45 0.6 0.75 0.9 1.1 1.2 
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+> Frequency (Hz)
+
+(a) Baseline (w/o Disentanglement) 
+
+0 0.15 0.3 0.45 0.6 0.75 0.9 1.1 1.2 
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+(b) Ours (with ADM Disentanglement) 
+
+80 
+
+70 
+
+60 
+
+50 
+
+40 
+
+30 
+
+20 
+
+10 
+
+0
+
+> Magnitude (dB)
+
+Method Comparison 
+
+Baseline Issues: 
+
+Target suppression 
+
+~45% 
+
+Non-target leakage 
+
+Timbre drift 
+
+Our Improvements: 
+
+Full target expression 
+
+Minimal leakage 
+
+Timbre preserved 
+
+F0 Stability: 
+
+Baseline :69.0Hz 
+
+Ours :91.9Hz 
+
+Improve:-33% 
+
+0.0 0.2 0.4 0.6 0.8 1.0 1.2 
+
+Time (s) 
+
+0
+
+50 
+
+100 
+
+150 
+
+200 
+
+250 
+
+300 
+
+350 
+
+400 
+
+> F0 (Hz)
+
+(c) F0 Contour: Baseline vs Ours 
+
+Baseline 
+
+Ours 
+
+0 20 40 60 80 100 
+
+Time Frames 
+
+0
+
+10 
+
+20 
+
+30 
+
+40 
+
+50 
+
+60 
+
+70 
+
+> Mel Bins
+
+(d) Improvement Map: Ours - Baseline 
+
+4
+
+2
+
+0
+
+2
+
+4
+
+> Delta Mel (dB)
+
+Quantitative Results 
+
+Expression (| F0|): 
+
+Baseline:30.4Hz 
+
+Ours:63.1Hz 
+
+Gain:+107% 
+
+Stability (F0 ): 
+
+Baseline:69.0Hz 
+
+Ours:91.9Hz 
+
+Reduce:-33% 
+
+Energy Consistency: 
+
+Baseline :0.086 
+
+Ours :0.088 
+
+Composite Instruction: "Surprised and Fearful" 
+
+Figure 16. Baseline vs. A GENT STEER TTS under Surprised+Fearful: our method improves compositional fidelity by avoiding over-smoothed or globally perturbed patterns. 
+
+18 Submission and Formatting Instructions for ICML 2026 0 0.5 1 1.5 2 2.5 
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+> Frequency (Hz)
+
+(a) Base (Neutral) 
+
+0 0.5 1 1.5 2 2.5 
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+(b) Single: Sad 
+
+0 0.5 1 1.5 2 2.5 
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+(c) Single: Happy 
+
+0 0.5 1 1.5 2 2.5 
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+(d) Composite: Sad but Hopeful 
+
+> 80
+> 60
+> 40
+> 20
+> 0
+> Magnitude (dB)
+
+0.0 0.5 1.0 1.5 2.0 2.5 
+
+Time (s) 
+
+0
+
+100 
+
+200 
+
+300 
+
+400 
+
+> F0 (Hz)
+
+(e) F0 Contour Comparison 
+
+> Base
+> Sad
+> Happy
+> Composite
+
+0.0 0.5 1.0 1.5 2.0 2.5 
+
+Time (s) 
+
+0.0 
+
+0.1 
+
+0.2 
+
+0.3 
+
+0.4 
+
+> RMS Energy
+
+(f) Energy Contour Comparison 
+
+> Base
+> Sad
+> Happy
+> Composite
+
+0 50 100 150 200 
+
+Time Frames 
+
+0
+
+20 
+
+40 
+
+60 
+
+> Mel Bins
+
+(g) Difference Map: Composite - Base 
+
+> 1
+> 0
+> 1
+> Delta Mel (dB)
+
+Composability 
+
+cos(Delta_AB, 
+
+Delta_A+Delta_B) 
+
+= 0.873 
+
+F0 Changes (Hz) 
+
+Base->Sad: -14.2 
+
+Base->Happ: +14.2 
+
+Base->Comp: -2.0 
+
+Energy Changes 
+
+Base->Sad: -0.0236 
+
+Base->Happ: +0.0236 
+
+Base->Comp: -0.0034 
+
+(h) Quantitative Metrics 
+
+Spectrogram Analysis: Sad but Hopeful 
+
+Figure 17. Compositional control on Angry+Restrained; localized spectral edits and consistent prosody are confirmed by (g) and composability scores in (h). 0 0.5 1 1.5 2 2.5 3 3.5 4
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+> Frequency (Hz)
+
+(a) Base (Neutral) 
+
+0 0.5 1 1.5 2 2.5 3 3.5 4
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+(b) Single: Angry 
+
+0 0.5 1 1.5 2 2.5 3 3.5 4
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+(c) Single: Calm 
+
+0 0.5 1 1.5 2 2.5 3 3.5 4
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+(d) Composite: Angry but Restrained 
+
+> 80
+> 60
+> 40
+> 20
+> 0
+> Magnitude (dB)
+
+0.0 0.5 1.0 1.5 2.0 2.5 3.0 3.5 4.0 
+
+Time (s) 
+
+0
+
+100 
+
+200 
+
+300 
+
+400 
+
+> F0 (Hz)
+
+(e) F0 Contour Comparison 
+
+> Base
+> Angry
+> Calm
+> Composite
+
+0.0 0.5 1.0 1.5 2.0 2.5 3.0 3.5 4.0 
+
+Time (s) 
+
+0.0 
+
+0.1 
+
+0.2 
+
+0.3 
+
+0.4 
+
+0.5 
+
+> RMS Energy
+
+(f) Energy Contour Comparison 
+
+> Base
+> Angry
+> Calm
+> Composite
+
+0 50 100 150 200 250 300 
+
+Time Frames 
+
+0
+
+20 
+
+40 
+
+60 
+
+> Mel Bins
+
+(g) Difference Map: Composite - Base 
+
+> 2
+> 0
+> 2
+> Delta Mel (dB)
+
+Composability 
+
+cos(Delta_AB, 
+
+Delta_A+Delta_B) 
+
+= 1.000 
+
+F0 Changes (Hz) 
+
+Base->Angr: +19.9 
+
+Base->Calm: -7.3 
+
+Base->Comp: +11.9 
+
+Energy Changes 
+
+Base->Angr: +0.0354 
+
+Base->Calm: -0.0094 
+
+Base->Comp: +0.0199 
+
+(h) Quantitative Metrics 
+
+Spectrogram Analysis: Angry but Restrained 
+
+Figure 18. Compositional control on Angry+Restrained; localized spectral edits and consistent prosody are confirmed by (g) and composability scores in (h). 
+
+19 Submission and Formatting Instructions for ICML 2026 0 0.15 0.3 0.45 0.6 0.75 0.9 1.1 1.2 
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+> Frequency (Hz)
+
+(a) Base (Neutral) 
+
+0 0.15 0.3 0.45 0.6 0.75 0.9 1.1 1.2 
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+(b) Single: Surprised 
+
+0 0.15 0.3 0.45 0.6 0.75 0.9 1.1 1.2 
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+(c) Single: Afraid 
+
+0 0.15 0.3 0.45 0.6 0.75 0.9 1.1 1.2 
+
+Time (s) 
+
+0
+
+512 
+
+1024 
+
+2048 
+
+4096 
+
+8192 
+
+(d) Composite: Surprised and Fearful 
+
+> 80
+> 60
+> 40
+> 20
+> 0
+> Magnitude (dB)
+
+0.0 0.2 0.4 0.6 0.8 1.0 1.2 
+
+Time (s) 
+
+0
+
+100 
+
+200 
+
+300 
+
+400 
+
+> F0 (Hz)
+
+(e) F0 Contour Comparison 
+
+> Base
+> Surprised
+> Afraid
+> Composite
+
+0.0 0.2 0.4 0.6 0.8 1.0 1.2 
+
+Time (s) 
+
+0.1 
+
+0.2 
+
+0.3 
+
+0.4 
+
+> RMS Energy
+
+(f) Energy Contour Comparison 
+
+> Base
+> Surprised
+> Afraid
+> Composite
+
+0 20 40 60 80 100 
+
+Time Frames 
+
+0
+
+20 
+
+40 
+
+60 
+
+> Mel Bins
+
+(g) Difference Map: Composite - Base 
+
+> 2.5
+> 0.0
+> 2.5
+> Delta Mel (dB)
+
+Composability 
+
+cos(Delta_AB, 
+
+Delta_A+Delta_B) 
+
+= 1.000 
+
+F0 Changes (Hz) 
+
+Base->Surp: +49.3 
+
+Base->Afra: +21.2 
+
+Base->Comp: +46.4 
+
+Energy Changes 
+
+Base->Surp: +0.0274 
+
+Base->Afra: -0.0164 
+
+Base->Comp: +0.0102 
+
+(h) Quantitative Metrics 
+
+Spectrogram Analysis: Surprised and Fearful 
+
+Figure 19. Generalization on Surprised+Fearful: the composite preserves non-trivial spectral/prosodic cues, supported by localized edits in (g) and scores in (h). 
+
+20

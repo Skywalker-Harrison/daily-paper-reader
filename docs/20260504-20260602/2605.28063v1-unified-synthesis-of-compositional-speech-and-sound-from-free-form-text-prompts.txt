@@ -1,0 +1,243 @@
+Title: Unified Synthesis of Compositional Speech and Sound from Free-Form Text Prompts
+
+URL Source: https://arxiv.org/pdf/2605.28063v1
+
+Published Time: Thu, 28 May 2026 00:48:24 GMT
+
+Number of Pages: 13
+
+Markdown Content:
+# Unified Synthesis of Compositional Speech and Sound from Free-Form Text Prompts 
+
+Yuyue Wang 1∗ Xihua Wang 1∗ Xin Cheng 1 Yijing Chen 1 Ruihua Song 1† 
+
+> 1
+
+Renmin University of China 
+
+# Abstract 
+
+Audio generation has made significant progress, yet synthesizing unified audio where speech and sounds are naturally composited remains a challenge. Current methods either rely on disjoint pipelines, which fail to capture fine-grained inter-actions, or require structured inputs and external text rewriting, which limits the flexibility of free-form text prompts. In this paper, we introduce a new task: Free-Form-Text-Prompt-to-Unified-Audio generation, which aims to directly synthesize unified audio containing speech, sound, and their composites from unconstrained natural language. To address this task, we propose PlanAudio, a unified, autoregres-sive LLM-based framework. First, it simplifies the model architecture by leveraging intrinsic LLM reasoning capability instead of traditional text encoders. Second, it introduces a semantic latent chain-of-thought mechanism, an implicit planning mechanism that bridges high-level semantic understanding and low-level acoustic synthesis. Furthermore, we create PlanAudio-Bench, a specialized benchmark for evaluating composite audio scenarios. We perform evaluations in the scenarios of speech, sound, and their composites. The results demonstrate that PlanAudio generally outperforms the existing pipeline and unified baselines, while staying competitive with models designed for a single scenario. Our analysis further reveals the superiority of semantic latent CoT over other CoT mechanisms and highlights the importance of continuous multi-scenario training curricula. 
+
+# 1 Introduction 
+
+Audio is a primary modality for human interaction. While recent Text-to-Speech (TTS) [ 1 – 3] and Text-to-Sound (T2S) [ 4–6] models excel in their respective domains, they are often limited to their target task and struggle with open-domain scenarios where speech and sounds are tightly composited. In the real world, audio often comprises temporally and semantically intertwined speech and sounds. Such complexity is naturally described via natural language that captures both individual components and their interactions. For example, a prompt like “Upbeat music starts playing, Trevor Noah says ‘This is great!’, followed by loud applause” jointly specifies background audio, speech content, and their interaction. This motivates a unified interface capable of generating coherent compositional audio directly from free-form text prompts. A naive pipeline approach (Fig. 1(a)) rewrites free-form text prompts into separate tracks for T2S and TTS models before merging. However, this fails to capture fine-grained interactions, often resulting in bad timing or mismatched acoustics. For instance, applause occurred at the beginning of Trevor’s speech, or he does not raise the volume over the music. Recent unified models [ 7– 10 ] (Fig. 1b) partially address this but still rely on structured inputs or external LLM rewriting. Such dependency limits prompt flexibility, may introduce cascading errors, and increase system complexity. 
+
+> ∗Equal contribution. Contact: wangyuyue123@ruc.edu.cn
+> †Corresponding author. Preprint.
+> arXiv:2605.28063v1 [cs.SD] 27 May 2026
+
+Figure 1: Paradigms for Free-Form-Text-to-Unified-Audio Generation. (a) Pipeline Approach: Separates Text-to-Speech and Text-to-Sound models. (b) Previous Unified Approach: Relies on text rewriting and multi-encoder. (c) PlanAudio (Ours): Direct free-form text processing. In this paper, we introduce Free-Form-Text-Prompt-to-Unified-Audio Generation , a task requiring models to synthesize speech, sound, or their composites as dictated by unconstrained natural language. This poses three primary challenges: (1) the modality gap between high-level semantic prompts and the synthesis of coherent, unified audio; (2) the modeling burdens of previous paradigms that rely on explicit text rewriting and multi-module pipeline; and (3) the scarcity of joint annotations, as existing corpora [11–13] typically focus on speech or sound in isolation. To address these challenges, we propose PlanAudio, a streamlined autoregressive LLM framework for unified audio generation from free-form text prompts. Unlike prior works, PlanAudio (Fig. 1c) leverages the intrinsic language understanding ability of LLMs to avoid explicit text rewriting and bypass text encoders. To prevent semantic omission during direct text-to-audio mapping, we innovatively introduce a semantic latent Chain-of-Thought (Latent CoT) mechanism, enabling implicit semantic planning in the latent space prior to synthesis. This bridges the gap between high-level semantics and low-level audio synthesis. Furthermore, we introduce PlanAudio-Bench, a benchmark featuring synthesized joint annotations for composite audio. Experiments show that PlanAudio achieves superior overall performance over pipeline methods and unified baselines across composite, sound, and speech scenarios, staying competitive to models specialized for single tasks. Additionally, we validate the advantages of Semantic Latent CoT over other CoT mechanisms and underscore the necessity of continuous multi-scenario training. 
+
+# 2 Related works 
+
+2.1 Audio Generation: From Specific to Unified 
+
+Text-to-Speech (TTS) [ 1– 3] and Text-to-Sound (T2S) [ 5, 4 , 6] focus on linguistic and environmental audio, respectively. Recent efforts have enhanced control via natural language, such as restructuring prompts for temporal guidance in T2S [ 14 –16 ] or using instructions for prosody and style in TTS [ 17 –19 ]. However, these methods remain scenario-specific and cannot model the intricate interactions between speech and sounds, failing to generate unified audio from free-form text. To overcome this, unified models have emerged. Existing “unified” models follow two paradigms: (1) Task-level unification [ 20 , 21 ], which integrates multiple functions into one model but lacks joint speech-sound generation; and (2) Generation-level unification [ 7, 10 , 8, 9], which synthesizes interleaved content. However, the latter often requires explicit prompt decomposition or structured templates, shifting the burden of input structuring to users or external LLMs. This increases system complexity and architectural overhead due to multi-component encoders. In contrast, PlanAudio offers a unified framework that can generate speech, sound, and their composite from free-form text prompts without explicit text rewriting. 22.2 Chain-of-Thought in Audio Generation 
+
+Chain-of-Thought (CoT) reasoning [ 22 ] has been widely studied in LLMs to improve reasoning and generation. Existing approaches in audio generation predominantly adopt explicit CoT, where inter-mediate reasoning steps are represented in natural language. For example, CoT-VTM [ 23 ] generates explicit reasoning chains for vision-to-music generation, XS-CoT [ 24 ] applies cross-lingual reasoning in speech generation, and OV-InstructTTS [ 25 ] leverages structured intermediate instructions for controllable speech synthesis. While language-based reasoning requires costly intermediate chains, latent CoT [ 26 –28 ] offers a more scalable, implicit alternative in high-dimensional spaces. However, its potential to bridge semantic understanding and audio synthesis remains underexplored, particularly for unified generation from free-form prompts. 
+
+# 3 Free-Form-Prompt-to-Unified-Audio Generation Task 
+
+Table 1: Examples of Free-Form Text Prompts across diverse audio scenarios, categorized by their linguistic and non-linguistic constraints. Multi-Input examples (combining speech and sound) are generated by passing the free-prompt through the Text Rewrite module. Category Free-Form Text Prompt Multi-Input after Text Rewriting Sound An acoustic guitar plays, then a man sings. [Sound] : An acoustic guitar plays, then a man sings.     
+
+> [Speech] : singing Speech “Jesus Christ!”, a man says, without background sound. [Sound] : clean speech for an audiobook.
+> [Speech] : Jesus Christ! Composite An acoustic guitar plays, then a man sings: “Jesus Christ!” [Sound] : An acoustic guitar plays, then a man sings.
+> [Speech] : Jesus Christ!
+
+As shown in Tab. 1, prior unified audio models [ 7 , 10 , 8] are defined on multi-input text conditions (e.g., speech content and sound descriptions), acting as conditioned integrators. In contrast, we define the Free-Form-Text-to-Unified-Audio task as synthesizing a waveform y directly from a single, unconstrained prompt x. This requires the system to bridge the gap between high-level semantic understanding and low-level acoustic orchestration, either by augmenting existing models with a text rewriting module or by building single-stream input architectures. To facilitate evaluation and analysis, we categorize this task into three scenarios based on prompt constraints: (1) Sound : Non-linguistic constraints only (e.g., environmental textures or events). Human speech may appear but without exact transcriptions. (2) Speech : Linguistic constraints with precise transcriptions, focusing on clear delivery. (3) Composite : Both linguistic and non-linguistic constraints, jointly specifying transcriptions and environment. Examples are in Tab. 1. 
+
+# 4 Methodology 
+
+We present PlanAudio , an LLM-based framework for Free-Form-Text-to-Unified-Audio generation. Unlike prior models relying on explicit text rewriting and disjoint multi-encoder designs (Fig. 1b), PlanAudio adopts a monolithic, unified architecture. As shown in Fig. 2, by directly feeding text tokens into the LLM, we leverage its intrinsic reasoning capability to integrate comprehension and synthesis end-to-end, avoiding the need for a traditional text encoder. To bridge the modality gap between high-level semantics and low-level acoustic synthesis, we introduce a semantic latent Chain-of-Thought (CoT) mechanism for implicit semantic planning prior to synthesis. PlanAudio first determines the structural layout (e.g., event orchestration and speech integration) by the semantic latent CoT, providing guidance for subsequent audio generation. 
+
+4.1 Text and Audio Representations 
+
+The free-form text prompt x is processed by the built-in LLM tokenizer without external text encoders. The resulting tokens x = {x1, . . . , x M } serve as the conditional prefix. We utilize two-level audio representations for the target waveform y. For semantic representation extraction, we use the pre-trained Audio Flamingo 3 Encoder (AF3Encoder) [ 29 ]. The semantic embedding sequence 
+
+h = {h1, . . . , h K } is obtained via segment-wise mean pooling over AF3Encoder outputs and serves 3Figure 2: PlanAudio framework. Given a free-form text prompt input, the model first performs Semantic Latent Chain-of-Thought (Latent CoT) planning in a continuous space, followed by the autoregressive audio generation process to generate the final unified audio. as supervision for the semantic latent CoT. For acoustic representation , audio is discretized into hierarchical tokens y = [ y1, . . . , y N ] ∈ NN ×Q using the AudioCraft tokenizer 3, where yn denotes the discrete audio tokens at time step n, Q is the number of codebooks. This sequence serves as the supervision for Audio Generation. 
+
+4.2 Our Framework 
+
+As illustrated in Fig. 2, PlanAudio factorizes the Free-Form-Text-Prompt-to-Unified-Audio generation into a two-phase process mediated by a continuous latent sequence z = {z1, . . . , z K }. The joint probability of the generation process is formulated as: 
+
+P (y | x) = P (z | x)
+
+| {z }
+
+> Semantic Latent CoT
+
+· P (y | x, z)
+
+| {z }
+
+> Audio Generation
+
+, (1) where z represents the Semantic CoT features and y denotes the hierarchical discrete audio tokens. To enable end-to-end processing, we organize all modalities into a single sequence, using special tokens to demarcate segments. This facilitates the transition from semantic planning to fine-grained synthesis within a single Transformer backbone. Specifically, a data point is formatted as: 
+
+S = [ <|sot|> , x, <|sol|> , z, <|soa|> , y, <|eoa|> ], (2) where x, z, and y represent text tokens, Semantic CoT features, and audio tokens, respectively. Special tokens <|sot|> (start of text), <|sol|> (start of latent), <|soa|> (start of audio), and 
+
+<|eoa|> (end of audio) serve as functional delimiters to guide the model through different phases. 
+
+Semantic Latent CoT. In this phase, PlanAudio translates the textual prefix x into a sequence of continuous features in the semantic space: 
+
+P (z | x) = 
+
+> K
+
+Y
+
+> k=1
+
+P (zk | z<k , x), (3) where K is a predefined constant representing a fixed planning horizon. This latent sequence acts as an implicit layout that dictates the acoustic layout, such as the temporal orchestration of sound events and the prosodic orientation of speech. By establishing this predictive bottleneck, the model resolves global structural ambiguities before committing to low-level acoustic details. 
+
+> 3https://github.com/facebookresearch/audiocraft
+
+4Acoustic Generation. In this phase, the model performs fine-grained audio generation conditioned on both the original prompt x and the semantic plan z derived from the preceding phase. Following the hierarchical nature of the discrete tokenizer, the model predicts audio tokens across Q codebooks: 
+
+P (y | x, z) = 
+
+> N
+
+Y
+
+> n=1
+> Q
+
+Y
+
+> q=1
+
+P (yn,q | y<n, ∗, y n,<q , x, z). (4) During this process, z serves as a semantic guidance signal that bridges the modality gap between text and audio. By attending to the semantic blueprint, the model produces audio tokens that remain strictly anchored to the intended structural layout. 
+
+4.3 Training and Inference Training Objectives. To optimize the two-phase generation process, we introduce a dual-objective loss function that enforces both semantic alignment and acoustic precision. For Semantic Latent CoT, to ground the latent sequence z in meaningful audio semantics, we use the target semantic embedding sequence h to provide supervision. We employ a lightweight linear projection layer ϕ(·) to align the PlanAudio’s hidden states z with h. The latent sequence is optimized via a combination of Mean Squared Error (MSE) and cosine similarity loss: 
+
+Llatent = ∥ϕ(z) − h∥22 + λ
+
+
+
+1 − ⟨ϕ(z), h⟩∥ϕ(z)∥∥ h∥
+
+
+
+, (5) where MSE ensures Euclidean proximity while cosine similarity encourages directional alignment. For audio generation, cross-entropy loss is used to maximize the likelihood of audio tokens: 
+
+Laudio = −
+
+> N
+
+X
+
+> n=1
+> Q
+
+X
+
+> q=1
+
+log P (yn,q | y<n, ∗, y n,<q , x, z). (6) The final training objective is a weighted sum of semantic and acoustic losses: Ltotal = λ1Llatent +
+
+λ2Laudio , where λ1 and λ2 are hyperparameters balancing semantic planning and generation quality. 
+
+Inference. Inference proceeds in two streaming-compatible phases. Given the free-form text prompt 
+
+x, PlanAudio autoregressively predicts the semantic latent sequence z for K steps. The <|sol|> 
+
+token then triggers audio generation. Conditioned on [x, z], PlanAudio synthesizes hierarchical tokens y until the <|eoa|> token, after which the tokens are decoded into a waveform. 
+
+# 5 Experiments 
+
+5.1 Datasets and Implementation Details 
+
+We contrast datasets across composite, sound, and speech scenarios. For composite audio, we synthesize a large-scale dataset from raw AudioSet [ 30 ] to address the lack of joint sound-speech annotations. We employ a decoupled annotation strategy, leveraging Whisper [ 31 ] for transcriptions and Gemini-2.5 Pro for diverse non-linguistic descriptions. After filtering for intelligible single-speaker samples, we sample 4,500 instances with strong speech-sound interactions (judged by Gemini-2.5 Pro) for PlanAudio-Bench and use the remaining 371k for training. For sound and 
+
+speech , we utilize AudioCaps [ 12 ], WavCaps [ 13 ], and LibriTTS, using Gemini-2.5 Pro to refine sound captions and convert speech attributes into free-form text prompts. Through data augmentation, each audio clip in our 1.27M training pool (371k composite, 451k sound, 354k speech) is paired with five diverse text annotations. This multi-scenario exposure enhances the model’s scene discrimination. We initialize PlanAudio from Qwen2.5-1.5B 4 and adopt the delayed token interleaving pattern [ 32 ]for multi-stream audio prediction. For semantic supervision, the AF3Encoder yields a sequence of 750 embeddings, which we downsample to K = 6 via mean pooling every 150 steps. During training, samples are drawn uniformly from the three scenarios, with an epoch defined by their cumulative volume. PlanAudio learns audio duration control in a data-driven manner without explicit 
+
+> 4https://huggingface.co/Qwen/Qwen2.5-1.5B
+
+5constraints. To manage memory, we set max_batch_bin = 4000 and max_batch_size = 16 .Optimization is performed using Adam with an initial learning rate of 10 −4, a 3, 000 -step warmup, and a 0.1-factored inverse square root decay. With a gradient accumulation of 8, all parameters are fully fine-tuned on 8 NVIDIA A800 GPUs (80GB) for 70 epochs, taking about 10 days. For inference, we employ top-k sampling ( k = 25 ). 
+
+5.2 Evaluation Setup Scenarios and Benchmarks. We evaluate a single PlanAudio model across three scenarios to demonstrate its versatility: (1) Sound generation on AudioCaps, (2) Speech synthesis on LibriTTS, and (3) Composite generation on our PlanAudio-Bench. By standardizing the free-form input format and freezing the model weights across all benchmarks, we effectively measure the model’s intrinsic capacity to follow diverse instructions. 
+
+Figure 3: Qualitative comparison of audio mel-spectrograms from different models. Textual keywords and corresponding audio segments are indicated by the same colors. In case (a) and (b), PlanAudio demonstrates precise temporal scheduling by accurately aligning audio events with the prompts, whereas baselines often fail. Case (c) highlights PlanAudio’s authenticity of generation, where speech and music are naturally intertwined, avoiding the artificial artifacts visible in VoiceLDM. 
+
+Evaluation Metrics. We employ objective metrics across two primary dimensions: (1) Sound-related (Sound & Composite): We measure Fr’echet Audio Distance (FAD), KL divergence (KL), and Inception Score (IS) for audio fidelity, and CLAP for semantic alignment with text prompts. (2) Speech-related (Speech & Composite): We report Word Error Rate (WER) to evaluate intelligibility and UTMOS for perceived voice quality. This dual-dimension evaluation ensures rigorous assessment of both non-linguistic and linguistic content in the Composite scenario. We further conduct a subjective evaluation for the Composite scenario. 50 samples are randomly selected from PlanAudio-Bench and rated by human evaluators on a 5-point Likert scale across four dimensions: Acoustic Quality, Temporal Correctness, Semantic Alignment, and Authenticity. Table 2: Composite scenario results on PlanAudio-Bench. Metrics evaluate the performance on sound-related and Speech-related dimensions. All results are obtained from the official checkpoint. The highest score is in bold , while the second is in underlined. PlanAudio outperforms baselines across most metrics, specifically dominating sound-related results with competitive speech-related results. Model Sound-related Speech-related FD PANNs ↓ FD PaSST ↓ KL PaSST ↓ KL PANNs ↓ IS ↑ CLAP WER ↓ UTMOS ↑                                                 
+
+> GroundTruth 0.00 0.00 0.00 0.00 3.23 0.17 0.10 2.69 Reconstruction 3.82 112 0.23 0.37 2.82 0.21 0.21 2.49 VoiceLDM-s [7] 25.2 379 1.39 1.53 2.71 0.15 0.70 2.35 VoiceLDM-m[7] 22.9 363 1.32 1.41 2.86 0.19 0.09 2.81
+> AudioLDM2 Sound +AudioLDM2 Speech [5] 14.3 240 1.10 1.15 4.11 0.21 0.71 2.16 PlanAudio 8.52 201 0.91 1.03 3.43 0.20 0.41 2.43
+
+6Table 3: Subjective evaluation for Composite scenario. Ratings (0-5) across four criteria: Acoustic Quality (Quality), Temporal Correctness (Temporal), Semantic Alignment (Semantic), and Authen-ticity. Confidence intervals are 95%. PlanAudio performs best in all four criteria. Model Quality ↑ Temporal ↑ Semantic ↑ Authenticity ↑                                                 
+
+> VoiceLDM-s [7] 2.78 ±0.30 2.65 ±0.24 2.67 ±0.25 2.71 ±0.28 VoiceLDM-m [7] 2.83 ±0.11 2.78 ±0.13 2.95 ±0.13 2.93 ±0.17 AudioLDM2 Sound +AudioLDM2 Speech [5] 2.24 ±0.31 2.20 ±0.32 2.38 ±0.36 2.40 ±0.39 PlanAudio 3.23 ±0.13 3.16 ±0.16 3.36 ±0.13 3.47 ±0.21
+
+Baselines. Since few existing models share PlanAudio’s unified scope, we benchmark our model against a diverse set of baselines tailored to each scenario: (1) Unified Baselines: VoiceLDM [ 7]serves as the primary competitor across all scenarios. Unlike our end-to-end free-form text prompt, VoiceLDM requires an external text-rewrite module to decompose inputs; we employ Gemini-2.5 Pro to fulfill this requirement for a fair comparison. (2) Specialist Baselines: We include task-specific experts, such as AudioLDM2 [ 5 ], Tango [ 33 ], and Make-An-Audio [ 34 ] for sound generation; PromptTTS++ for speech generation. They are inherently restricted to a single-task and cannot perform Composite generation. (3) Pipeline Baseline: For Composite generation, we implement a pipeline approach that merges outputs from two specialized AudioLDM2 variants. We select AudioLDM2 as the backbone because it provides consistent architectures for both sound and speech. This assembly serves as a robust baseline to evaluate the efficacy of our single, unified framework. 
+
+5.3 Main Results and Analysis 
+
+We evaluate PlanAudio across three scenarios. Objective results for Composite, Sound, and Speech are in Tab. 2, Tab. 4, and Tab. 5; subjective results for Composite are in Tab. 3. 
+
+Superiority in Complex Composite Scenario. As shown in Tab. 2, PlanAudio outperforms both the Pipeline approach and VoiceLDM on the majority of metrics. Subjective results in Tab. 3 further confirm its superiority in temporal correctness and semantic alignment, validating the effectiveness of Semantic Latent CoT in orchestrating complex sound-speech interactions. This advantage is visually evident in Fig. 3: in case (a), PlanAudio precisely follows the prompt’s temporal order (drum →
+
+cymbal → speech), whereas baselines fail; in case (b), it correctly places violin segments before and after speech, while baselines generate a violin sound throughout the audio. Regarding speech-related performance (WER and UTMOS), PlanAudio slightly trails VoiceLDM-m due to two factors: (1) the reconstruction ceiling of our chosen codec and (2) the nature of the training data. VoiceLDM uses synthetic composites of clean speech and sound, which simplifies speech recognition but compromises authenticity. In contrast, PlanAudio is trained on real-world AudioSet [ 30 ] recordings. Subjective scores (Tab. 3) confirm that PlanAudio achieves superior authenticity. In case (c) of Fig. 3, VoiceLDM’s mel-spectrogram reveals artificial artifacts, while PlanAudio generates a coherent scene where speech and music are naturally intertwined. 
+
+Generalization to Domain-Specific Audio Synthesis. Results in Tab. 4 and Tab. 5 demonstrate that PlanAudio consistently outperforms unified baselines VoiceLDM while remaining competitive with task-specific specialist baselines. In sound generation, our text-encoder-free design achieves CLAP scores on par with all encoder-based baselines, proving that it effectively captures semantic nuances with minimal architectural overhead. In speech generation, unlike the composite task, PlanAudio surpass VoiceLDM in UTMOS and WER, highlights its ability to maintain high-fidelity synthesis in quiet settings. Since PlanAudio operates in a holistic, free-form manner without task indicators, these results underscore its robust scene-discrimination and the efficacy of the Semantic Latent CoT in bridging high-level semantics with fine-grained acoustic realization. 
+
+5.4 Analysis of CoT Mechanism Design 
+
+We compare four different CoT mechanisms: (1) PlanAudio : Semantic latent features as CoT supervision; (2) w/o CoT : Direct audio generation from text without an intermediate reasoning stage; (3) Explicit CoT : A natural language reasoning chain (generated by Gemini-2.5 Pro) serving 7Table 4: Sound generation results on AudioCaps test set, evaluated on Sound-related dimensions only. Results are derived from official checkpoints, with the highest scores in bold and the second highest underlined . Rows in gray denote specialist baselines designed solely for text-to-sound. PlanAudio surpasses unified baselines on all metrics and maintains competitive against specialist models. Model FD PANNs ↓ FD PaSST ↓ KL PaSST ↓ KL PANNs ↓ IS ↑ CLAP ↑
+
+GroundTruth 1.05 0.29 0.02 0.00 13.2 0.29 Reconstruction 11.4 130 0.49 0.48 9.11 0.23 AudioLDM2 [5] 32.5 395 1.56 1.51 8.54 0.21 
+
+Make-An-Audio [34] 27.9 182 1.60 1.62 7.44 0.21 
+
+Tango [33] 26.1 276 1.37 1.29 8.23 0.19 VoiceLDM-s [7] 58.4 430 3.27 3.01 4.41 0.10 VoiceLDM-m [7] 55.8 433 3.37 3.05 4.18 0.07 PlanAudio 24.7 233 1.93 1.89 8.02 0.19 as a textual bridge for explicit supervision before audio synthesis; (4) Acoustic CoT : Similar to PlanAudio’s framework, but use codebook-based acoustic vectors as CoT supervision. All variants follow the main experimental configuration, but are trained for 50 epochs on a one-third data subset. Tab. 6 yields several insights: Table 5: Speech generation results on the LibriTTS test set. Evaluation is re-stricted to Speech-related performance. All results are derived from official checkpoints, with the highest scores in 
+
+bold and the second highest underlined .Rows in gray denote specialist base-lines designed solely for text-to-speech. PlanAudio outperforms unified baselines on all metrics and maintains competitive performance against specialist baselines. Model WER ↓ UTMOS ↑            
+
+> GroundTruth 0.03 3.69 Reconstruction 0.04 3.13 Prompt TTS++ [35] 0.12 3.51
+> VoiceLDM-s [7] 0.62 2.75 VoiceLDM-m [7] 0.13 2.99 PlanAudio 0.11 3.11
+
+(1) Effectiveness of Semantic Latent CoT. PlanAudio 
+
+is consistently the best across all benchmarks, confirming that a semantic latent space bridges the text-audio modality gap more effectively than textual or acoustic representa-tions. (2) Expressive Limits of Explicit CoT. While 
+
+Explicit CoT improves Sound generation through textual decomposition, its advantage diminishes in complex Com-posite scenarios. This stems from the expressive bottle-neck of natural language in describing dense, overlap-ping sound-speech interactions, which our latent approach captures. (3) The Reconstruction-Semantic Mismatch. 
+
+Acoustic CoT performs worst overall, as codec-based fea-tures optimized for reconstruction lack the semantic depth required for planning. Unlike semantic latents, they fail to bridge the gap between textual prompts and acoustic realization. (4) Robustness to Semantic Omission. We introduce the Semantic Coverage Factor (SCF) metric to evaluate semantic omission. SCF first filters out low-probability background noise from the generated audio, then calculates a weighted score by multiplying the co-sine similarity of text-audio event pairs by the model’s confidence probability. Only pairs exceeding a semantic similarity of 0.5 contribute to the final score, which is then normalized by the number of ground-truth events. Results show that PlanAudio achieves the highest SCF, proving that the Semantic Latent CoT effectively acts as a robust semantic anchor to ensure accurate event synthesis. 
+
+5.5 Impact of Data Curriculum 
+
+We compare three data curriculum strategies (Tab. 7) to investigate their impact on multi-scenario learning: (1) Constant : A fixed, equal ratio of all scenarios; (2) Gradual : Progressively increasing the proportion of composite data; and (3) Disjoint : Sequential training from single-scenario to composite audio. All variants follow the main experimental configuration, but are trained for 50 epochs on a one-third data subset. To facilitate cross-category comparison, we report a Normalized Score, calculated by averaging min-max normalized metrics within each scenario. A higher Normalized Score indicates superior overall performance in a scenario. Evaluations are implemented at epochs 10, 25, and 50. Fig. 4 illustrates several key findings: 8Table 6: CoT mechanism comparison on PlanAudio-Bench, AudioCaps, and LibriTTS test sets for Composite, Sound, and Speech generation. FD and KL metrics are computed via the PasST classifier. SCF denotes the Semantic Coverage Factor of audio relative to text. Results indicate that PlanAudio’s semantic latent CoT achieves superior performance. Composite Sound Speech model FD ↓ KL ↓ CLAP ↑ WER ↓ UTMOS ↑ SCF ↑ FD ↓ KL ↓ CLAP ↑ WER ↓ UTMOS ↑                                            
+
+> PlanAudio 177 1.07 0.20 0.86 2.24 0.34 242 1.94 0.17 0.35 3.05
+> – w/o CoT 217 1.43 0.15 0.92 2.16 0.12 299 3.26 0.03 0.50 2.90 – w/ Explicit CoT 230 1.38 0.16 1.12 2.13 0.20 279 3.10 0.05 1.29 2.34 – w/ Acoustic CoT 319 1.37 0.14 1.21 2.24 0.09 374 3.21 0.04 2.68 2.70
+
+Table 7: Data sampling proportions across the three training stages (early, middle, and final). Ep. denotes the number of training epochs per stage. Values indicate Sound/Speech/Composite sampling weights. 
+
+Strategy Early (Ep. 0–10) Middle (Ep. 10–25) Final (Ep. 25–50) Constant 0.33/0.33/0.33 0.33/0.33/0.33 0.33/0.33/0.33 Gradual 0.40/0.40/0.20 0.40/0.20/0.40 0.25/0.25/0.50 Disjoint 0.50/0.50/0.00 0.50/0.50/0.00 0.00/0.00/1.00 
+
+(1) Robustness of Con-stant Balancing. Constant 
+
+generally outperforms other strategies, suggesting that a uniform data curriculum is vital for robust unified generation without favoring specific categories at the expense of others. This also demonstrates that our framework does not require meticulous ratio tuning for convergence. (2) Catastrophic Forgetting in Disjoint Sequential Training. In Gradual and Disjoint , sound and speech performance degrades as composite data increases. This is most acute in Disjoint , where the abrupt shift to exclusive composite training triggers significant forgetting, emphasizing the necessity of continuous multi-scenario expo-sure. (3) Synergistic Transfer from Composite Audio. Constant and Gradual outperform Disjoint 
+
+in sound/speech even when Disjoint focuses solely on those scenarios. This reveals a positive transfer effect: mastering composite scenarios, which requires decoupling complex acoustic components in prompts, forces the model to learn more discriminative features, thereby accelerating proficiency in single-scenario generation. 
+
+Figure 4: Normalized Score of data curriculum strategies across training epochs. Each sub-figure presents results for a scenario. This score averages strategy-wise normalized metrics; higher values indicate superior performance. Constant leads, proving uniform curricula ensure generalization. 
+
+# 6 Conclusion 
+
+We present PlanAudio, a framework for unified audio generation from free-form text. Via Semantic Latent CoT, the model performs implicit planning in continuous latent space, bridging high-level semantics and low-level acoustic synthesis. We also introduce PlanAudio-Bench for composite audio evaluation. PlanAudio surpasses baselines in the composite scenario while remaining competitive in speech and sound. Future work will target stronger audio codecs and better semantic-acoustic trade-offs. We also acknowledge the risk of misuse for deceptive audio generation. 9References 
+
+[1] Z. Du, Y. Wang, Q. Chen, X. Shi, X. Lv, T. Zhao, Z. Gao, Y. Yang, C. Gao, H. Wang, F. Yu, H. Liu, Z. Sheng, Y. Gu, C. Deng, W. Wang, S. Zhang, Z. Yan, and J. Zhou, “Cosyvoice 2: Scalable streaming speech synthesis with large language models,” CoRR , vol. abs/2412.10117, 2024. [Online]. Available: https://doi.org/10.48550/arXiv.2412.10117 [2] Z. Du, C. Gao, Y. Wang, F. Yu, T. Zhao, H. Wang, X. Lv, H. Wang, C. Ni, X. Shi, K. An, G. Yang, Y. Li, Y. Chen, Z. Gao, Q. Chen, Y. Gu, M. Chen, Y. Chen, S. Zhang, W. Wang, and J. Ye, “Cosyvoice 3: Towards in-the-wild speech generation via scaling-up and post-training,” CoRR , vol. abs/2505.17589, 2025. [Online]. Available: https://doi.org/10.48550/arXiv.2505.17589 [3] Q. Team, “Qwen3-tts technical report,” CoRR , vol. abs/2601.15621, 2026. [Online]. Available: https://doi.org/10.48550/arXiv.2601.15621 [4] F. Kreuk, G. Synnaeve, A. Polyak, U. Singer, A. Défossez, J. Copet, D. Parikh, Y. Taigman, and Y. Adi, “Audiogen: Textually guided audio generation,” in The Eleventh International Conference on Learning Representations, ICLR 2023, Kigali, Rwanda, May 1-5, 2023 .OpenReview.net, 2023. [Online]. Available: https://openreview.net/forum?id=CYK7RfcOzQ4 [5] H. Liu, Y. Yuan, X. Liu, X. Mei, Q. Kong, Q. Tian, Y. Wang, W. Wang, Y. Wang, and M. D. Plumbley, “Audioldm 2: Learning holistic audio generation with self-supervised pretraining,” 
+
+IEEE ACM Trans. Audio Speech Lang. Process. , vol. 32, pp. 2871–2883, 2024. [Online]. Available: https://doi.org/10.1109/TASLP.2024.3399607 [6] Z. Evans, J. D. Parker, C. Carr, Z. Zukowski, J. Taylor, and J. Pons, “Stable audio open,” in 
+
+2025 IEEE International Conference on Acoustics, Speech and Signal Processing, ICASSP 2025, Hyderabad, India, April 6-11, 2025 . IEEE, 2025, pp. 1–5. [Online]. Available: https://doi.org/10.1109/ICASSP49660.2025.10888461 [7] Y. Lee, I. Yeon, J. Nam, and J. S. Chung, “Voiceldm: Text-to-speech with environmental context,” in IEEE International Conference on Acoustics, Speech and Signal Processing, ICASSP 2024, Seoul, Republic of Korea, April 14-19, 2024 . IEEE, 2024, pp. 12 566–12 571. [Online]. Available: https://doi.org/10.1109/ICASSP48485.2024.10448268 [8] J. Jung, J. Ahn, C. Jung, T. D. Nguyen, Y. Jang, and J. S. Chung, “Voicedit: Dual-condition diffusion transformer for environment-aware speech synthesis,” in 2025 IEEE International Conference on Acoustics, Speech and Signal Processing, ICASSP 2025, Hyderabad, India, April 6-11, 2025 . IEEE, 2025, pp. 1–5. [Online]. Available: https://doi.org/10.1109/ICASSP49660.2025.10890322 [9] Y. Jiang, Z. Chen, Z. Ju, Y. Dai, W. Dou, and J. Zhu, “Controlaudio: Tackling text-guided, timing-indicated and intelligible audio generation via progressive diffusion modeling,” CoRR ,vol. abs/2510.08878, 2025. [Online]. Available: https://doi.org/10.48550/arXiv.2510.08878 [10] A. Vyas, B. Shi, M. Le, A. Tjandra, Y. Wu, B. Guo, J. Zhang, X. Zhang, R. Adkins, W. Ngan, J. Wang, I. Cruz, B. Akula, A. Akinyemi, B. Ellis, R. Moritz, Y. Yungster, A. Rakotoarison, L. Tan, C. Summers, C. Wood, J. Lane, M. Williamson, and W. Hsu, “Audiobox: Unified audio generation with natural language prompts,” CoRR , vol. abs/2312.15821, 2023. [Online]. Available: https://doi.org/10.48550/arXiv.2312.15821 [11] H. Zen, V. Dang, R. Clark, Y. Zhang, R. J. Weiss, Y. Jia, Z. Chen, and Y. Wu, “Libritts: A corpus derived from librispeech for text-to-speech,” in 20th Annual Conference of the International Speech Communication Association, Interspeech 2019, Graz, Austria, September 15-19, 2019 , G. Kubin and Z. Kacic, Eds. ISCA, 2019, pp. 1526–1530. [Online]. Available: https://doi.org/10.21437/Interspeech.2019-2441 [12] C. D. Kim, B. Kim, H. Lee, and G. Kim, “Audiocaps: Generating captions for audios in the wild,” in Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT 2019, Minneapolis, MN, USA, June 2-7, 2019, Volume 1 (Long and Short Papers) , J. Burstein, C. Doran, and T. Solorio, Eds. Association for Computational Linguistics, 2019, pp. 119–132. [Online]. Available: https://doi.org/10.18653/v1/n19-1011 10 [13] X. Mei, C. Meng, H. Liu, Q. Kong, T. Ko, C. Zhao, M. D. Plumbley, Y. Zou, and W. Wang, “Wavcaps: A chatgpt-assisted weakly-labelled audio captioning dataset for audio-language multimodal research,” IEEE ACM Trans. Audio Speech Lang. Process. , vol. 32, pp. 3339–3354, 2024. [Online]. Available: https://doi.org/10.1109/TASLP.2024.3419446 [14] Y. Wang, H. Chen, D. Yang, Z. Wu, and X. Wu, “Audiocomposer: Towards fine-grained audio generation with natural language descriptions,” in 2025 IEEE International Conference on Acoustics, Speech and Signal Processing, ICASSP 2025, Hyderabad, India, April 6-11, 2025 . IEEE, 2025, pp. 1–5. [Online]. Available: https://doi.org/10.1109/ICASSP49660.2025.10888303 [15] Y. Jiang, Z. Chen, Z. Ju, C. Li, W. Dou, and J. Zhu, “Freeaudio: Training-free timing planning for controllable long-form text-to-audio generation,” in Proceedings of the 33rd ACM International Conference on Multimedia, MM 2025, Dublin, Ireland, October 27-31, 2025 ,C. Gurrin, K. Schoeffmann, M. Zhang, L. Rossetto, S. Rudinac, D. Dang-Nguyen, W. Cheng, P. Chen, and J. Benois-Pineau, Eds. ACM, 2025, pp. 9871–9880. [Online]. Available: https://doi.org/10.1145/3746027.3755170 [16] Z. Xie, X. Xu, Z. Wu, and M. Wu, “Picoaudio: Enabling precise temporal controllability in text-to-audio generation,” in 2025 IEEE International Conference on Acoustics, Speech and Signal Processing, ICASSP 2025, Hyderabad, India, April 6-11, 2025 . IEEE, 2025, pp. 1–5. [Online]. Available: https://doi.org/10.1109/ICASSP49660.2025.10890827 [17] Y. Zhou, X. Qin, Z. Jin, S. Zhou, S. Lei, S. Zhou, Z. Wu, and J. Jia, “Voxinstruct: Expressive human instruction-to-speech generation with unified multilingual codec language modelling,” in 
+
+Proceedings of the 32nd ACM International Conference on Multimedia, MM 2024, Melbourne, VIC, Australia, 28 October 2024 - 1 November 2024 , J. Cai, M. S. Kankanhalli, B. Prabhakaran, S. Boll, R. Subramanian, L. Zheng, V. K. Singh, P. César, L. Xie, and D. Xu, Eds. ACM, 2024, pp. 554–563. [Online]. Available: https://doi.org/10.1145/3664647.3681680 [18] D. Chen, X. Zhang, Y. Wang, K. Dai, L. Ma, and Z. Wu, “Flexivoice: Enabling flexible style control in zero-shot TTS with natural language instructions,” CoRR , vol. abs/2601.04656, 2026. [Online]. Available: https://doi.org/10.48550/arXiv.2601.04656 [19] H. Xue, X. Song, Y. Tang, J. Chen, Y. Chen, Y. Li, and Y. Zhou, “Moe-tts: Enhancing out-of-domain text understanding for description-based TTS via mixture-of-experts,” CoRR ,vol. abs/2508.11326, 2025. [Online]. Available: https://doi.org/10.48550/arXiv.2508.11326 [20] D. Yang, J. Tian, X. Tan, R. Huang, S. Liu, X. Chang, J. Shi, S. Zhao, J. Bian, X. Wu, Z. Zhao, S. Watanabe, and H. Meng, “Uniaudio: An audio foundation model toward universal audio generation,” CoRR , vol. abs/2310.00704, 2023. [Online]. Available: https://doi.org/10.48550/arXiv.2310.00704 [21] R. Valle, R. Badlani, Z. Kong, S. Lee, A. Goel, S. Kim, J. F. Santos, S. Dai, S. Gururani, A. Aljafari, A. H. Liu, K. J. Shih, R. Prenger, W. Ping, C. H. Yang, and B. Catanzaro, “Fugatto 1: Foundational generative audio transformer opus 1,” in The Thirteenth International Conference on Learning Representations, ICLR 2025, Singapore, April 24-28, 2025 . OpenReview.net, 2025. [Online]. Available: https://openreview.net/forum?id=B2Fqu7Y2cd [22] J. Wei, X. Wang, D. Schuurmans, M. Bosma, B. Ichter, F. Xia, E. H. Chi, Q. V. Le, and D. Zhou, “Chain-of-thought prompting elicits reasoning in large language models,” in 
+
+Advances in Neural Information Processing Systems 35: Annual Conference on Neural Information Processing Systems 2022, NeurIPS 2022, New Orleans, LA, USA, November 28 - December 9, 2022 , S. Koyejo, S. Mohamed, A. Agarwal, D. Belgrave, K. Cho, and A. Oh, Eds., 2022. [Online]. Available: http://papers.nips.cc/paper_files/paper/2022/hash/ 9d5609613524ecf4f15af0f7b31abca4-Abstract-Conference.html [23] X. Guan, Z. Gu, J. Huo, T. Ding, and Y. Gao, “Cot-vtm: Visual-to-music generation with chain-of-thought reasoning,” in Findings of the Association for Computational Linguistics, ACL 2025, Vienna, Austria, July 27 - August 1, 2025 , ser. Findings of ACL, W. Che, J. Nabende, E. Shutova, and M. T. Pilehvar, Eds. Association for Computational Linguistics, 2025, pp. 12 493–12 510. [Online]. Available: https://aclanthology.org/2025.findings-acl.647/ 11 [24] H. Xue, Y. Tang, H. Liu, J. Zhang, X. Geng, and L. Xie, “Enhancing non-core language instruction-following in speech llms via semi-implicit cross-lingual cot reasoning,” in 
+
+Proceedings of the 33rd ACM International Conference on Multimedia, MM 2025, Dublin, Ireland, October 27-31, 2025 , C. Gurrin, K. Schoeffmann, M. Zhang, L. Rossetto, S. Rudinac, D. Dang-Nguyen, W. Cheng, P. Chen, and J. Benois-Pineau, Eds. ACM, 2025, pp. 10 984–10 993. [Online]. Available: https://doi.org/10.1145/3746027.3755318 [25] Y. Ren, J. Yi, J. Tao, H. Sun, Z. Wen, H. Gu, L. Xu, and Y. Bai, “Ov-instructtts: Towards open-vocabulary instruct text-to-speech,” CoRR , vol. abs/2601.01459, 2026. [Online]. Available: https://doi.org/10.48550/arXiv.2601.01459 [26] J. Geiping, S. McLeish, N. Jain, J. Kirchenbauer, S. Singh, B. R. Bartoldson, B. Kailkhura, A. Bhatele, and T. Goldstein, “Scaling up test-time compute with latent reasoning: A recurrent depth approach,” CoRR , vol. abs/2502.05171, 2025. [Online]. Available: https://doi.org/10.48550/arXiv.2502.05171 [27] S. Hao, S. Sukhbaatar, D. Su, X. Li, Z. Hu, J. Weston, and Y. Tian, “Training large language models to reason in a continuous latent space,” CoRR , vol. abs/2412.06769, 2024. [Online]. Available: https://doi.org/10.48550/arXiv.2412.06769 [28] X. Chen, A. Zhao, H. Xia, X. Lu, H. Wang, Y. Chen, W. Zhang, J. Wang, W. Li, and X. Shen, “Reasoning beyond language: A comprehensive survey on latent chain-of-thought reasoning,” CoRR , vol. abs/2505.16782, 2025. [Online]. Available: https://doi.org/10.48550/arXiv.2505.16782 [29] A. Goel, S. Ghosh, J. Kim, S. Kumar, Z. Kong, S. Lee, C. H. Yang, R. Duraiswami, D. Manocha, R. Valle, and B. Catanzaro, “Audio flamingo 3: Advancing audio intelligence with fully open large audio language models,” CoRR , vol. abs/2507.08128, 2025. [Online]. Available: https://doi.org/10.48550/arXiv.2507.08128 [30] J. F. Gemmeke, D. P. W. Ellis, D. Freedman, A. Jansen, W. Lawrence, R. C. Moore, M. Plakal, and M. Ritter, “Audio set: An ontology and human-labeled dataset for audio events,” in 2017 IEEE International Conference on Acoustics, Speech and Signal Processing, ICASSP 2017, New Orleans, LA, USA, March 5-9, 2017 . IEEE, 2017, pp. 776–780. [Online]. Available: https://doi.org/10.1109/ICASSP.2017.7952261 [31] A. Radford, J. W. Kim, T. Xu, G. Brockman, C. McLeavey, and I. Sutskever, “Robust speech recognition via large-scale weak supervision,” in International Conference on Machine Learning, ICML 2023, 23-29 July 2023, Honolulu, Hawaii, USA , ser. Proceedings of Machine Learning Research, A. Krause, E. Brunskill, K. Cho, B. Engelhardt, S. Sabato, and J. Scarlett, Eds. PMLR, 2023, pp. 28 492–28 518. [Online]. Available: https://proceedings.mlr.press/v202/radford23a.html [32] J. Copet, F. Kreuk, I. Gat, T. Remez, D. Kant, G. Synnaeve, Y. Adi, and A. Défossez, “Simple and controllable music generation,” in Advances in Neural Information Processing Systems 36: Annual Conference on Neural Information Processing Systems 2023, NeurIPS 2023, New Orleans, LA, USA, December 10 - 16, 2023 , A. Oh, T. Naumann, A. Globerson, K. Saenko, M. Hardt, and S. Levine, Eds., 2023. [Online]. Available: http://papers.nips.cc/paper_files/ paper/2023/hash/94b472a1842cd7c56dcb125fb2765fbd-Abstract-Conference.html [33] D. Ghosal, N. Majumder, A. Mehrish, and S. Poria, “Text-to-audio generation using instruction-tuned LLM and latent diffusion model,” CoRR , vol. abs/2304.13731, 2023. [Online]. Available: https://doi.org/10.48550/arXiv.2304.13731 [34] R. Huang, J. Huang, D. Yang, Y. Ren, L. Liu, M. Li, Z. Ye, J. Liu, X. Yin, and Z. Zhao, “Make-an-audio: Text-to-audio generation with prompt-enhanced diffusion models,” in 
+
+International Conference on Machine Learning, ICML 2023, 23-29 July 2023, Honolulu, Hawaii, USA , ser. Proceedings of Machine Learning Research, A. Krause, E. Brunskill, K. Cho, B. Engelhardt, S. Sabato, and J. Scarlett, Eds. PMLR, 2023, pp. 13 916–13 932. [Online]. Available: https://proceedings.mlr.press/v202/huang23i.html 12 [35] R. Shimizu, R. Yamamoto, M. Kawamura, Y. Shirahata, H. Doi, T. Komatsu, and K. Tachibana, “Prompttts++: Controlling speaker identity in prompt-based text-to-speech using natural language descriptions,” in IEEE International Conference on Acoustics, Speech and Signal Processing, ICASSP 2024, Seoul, Republic of Korea, April 14-19, 2024 . IEEE, 2024, pp. 12 672–12 676. [Online]. Available: https://doi.org/10.1109/ICASSP48485.2024.10448173 13

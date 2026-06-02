@@ -1,0 +1,1061 @@
+Title: CosyEdit2: Speech-Editing-Oriented Reinforcement Learning Unlocks Better Zero-Shot TTS
+
+URL Source: https://arxiv.org/pdf/2605.25930v2
+
+Published Time: Wed, 27 May 2026 01:39:50 GMT
+
+Number of Pages: 27
+
+Markdown Content:
+## CosyEdit2: Speech-Editing-Oriented Reinforcement Learning Unlocks Better Zero-Shot TTS 
+
+Junyang Chen 1*, Yuhang Jia 1*, Hui Wang 1, Jiaming Zhou 1,Yongchang Gan 2, Yong Qin 1†1College of Computer Science, Nankai University 
+
+> 2
+
+College of Artificial Intelligence, Nankai University  
+
+> Correspondence: chenjunyang@mail.nankai.edu.cn, qinyong@nankai.edu.cn
+
+Abstract 
+
+Speech editing and zero-shot Text-to-Speech (TTS) share a similar generative foundation conditioned on speech prompts, yet speech editing demands far stricter local acoustic con-sistency with surrounding unedited content. While prior work has shown that Supervised Fine-Tuning (SFT) enables TTS models to acquire functional editing capability, this ap-proach remains fundamentally bottlenecked by imperfect paired editing data and coarse-grained optimization signals. To address these limitations, we propose CosyEdit2, a speech editing model built on a two-stage post-training framework that progresses from supervised editing initialization to editing-oriented Group Relative Policy Optimization (GRPO) over target-speech-free data. Extensive experiments demonstrate that CosyEdit2 not only substan-tially advances speech editing performance, but also unlocks better zero-shot TTS capability, re-vealing a deeper mutual relationship between the two tasks. Audio samples are available at 
+
+https://cjy1018.github.io/CosyEdit2 .
+
+1 Introduction 
+
+Speech editing aims to modify specific regions of an existing utterance according to textual in-structions while preserving the semantic coher-ence and acoustic consistency with the surrounding unedited context. Unlike zero-shot Text-to-Speech (TTS), which primarily targets textual fidelity and speaker similarity, speech editing imposes substan-tially stricter preservation requirements: the gen-erated content must seamlessly integrate with the surrounding unedited speech in terms of speaker characteristics, prosody, and acoustic environment, leaving no perceptible trace of modification. Existing speech editing systems can be broadly categorized into cascade and end-to-end paradigms. 
+
+> *Equal contribution
+> †Corresponding author
+
+Cascaded systems decompose the pipeline into forced alignment, edit-span localization, and target speech generation, achieving stable performance but at the cost of complex preprocessing and sensi-tivity to alignment errors (Jiang et al., 2023; Peng et al., 2024). End-to-end models eliminate explicit alignment by implicitly learning speech-text corre-spondence during training (Yan et al., 2025; Chen et al., 2026), while delivering competitive perfor-mance with substantially lower engineering com-plexity and greater potential for post-training capa-bility elicitation via sequential token modeling. Despite recent progress, SFT-based speech edit-ing remains fundamentally limited by imperfect supervision and coarse-grained optimization. On the data side, manually constructed paired target recordings used for supervision inevitably contain boundary ambiguity and acoustic inconsistency, di-rectly propagating artifacts into the learned editing behavior (Chen et al., 2026). On the optimiza-tion side, SFT optimizes speech editing with token-level reconstruction loss, without distinguishing edited from unedited regions or semantic correct-ness from acoustic preservation. The result is an in-herent preservation–accuracy trade-off that defines the performance ceiling of SFT-based approaches. To overcome these limitations, we propose CosyEdit2, an end-to-end speech editing model built upon a two-stage post-training framework. In Stage 1, SFT initializes the model with basic editing capability. In Stage 2, editing-oriented Group Relative Policy Optimization (GRPO) (Shao et al., 2024) is introduced to optimize the model against editing-specific rewards, without requiring any manually constructed target recordings. By re-placing imperfect paired supervision with reward-driven fine-grained optimization, GRPO raises the performance ceiling of speech editing while sub-stantially improving zero-shot TTS generalization. We argue that, while CosyEdit unlocked speech editing from TTS, CosyEdit2 not only advances 1
+
+> arXiv:2605.25930v2 [cs.SD] 26 May 2026
+
+speech editing to a new level of performance, but also unlocks better zero-shot TTS. Our main contributions are as follows: • We propose a target-speech-free editing data construction approach for GRPO that con-verts any TTS corpus into editing training data, eliminating the need for manually con-structed imperfect target recordings in SFT and enabling precise injection of speech edit-ing capability into pretrained TTS models. • We present the first editing-oriented reward 
+
+design for speech editing with GRPO, and es-tablish a complete post-training framework 
+
+instantiated on CosyVoice2, covering SFT-based capability initialization, GRPO-based capability elicitation, and environment-aware vocoder adaptation. • Extensive experiments demonstrate that CosyEdit2 not only achieves superior speech editing performance across multiple bench-marks, but also substantially improves zero-shot TTS capability, revealing a deeper con-nection between speech editing and synthesis. 
+
+2 Related Work 
+
+2.1 Text-based Speech Editing 
+
+Recent text-based speech editing systems enable localized insertion, deletion, and substitution of spoken content directly through transcript modi-fications without re-recording. Existing systems mainly follow cascaded or end-to-end paradigms. Cascaded editors first obtain word- or phoneme-level timestamps via speech-text alignment, then synthesize or infill the edited regions. Flu-entSpeech (Jiang et al., 2023) adopts NAR inpaint-ing, while VoiceCraft (Peng et al., 2024) and SSR-Speech (Wang et al., 2025) perform AR neural-codec token infilling. Despite strong performance, these systems depend on explicit alignment and segmentation, making preprocessing complex and exposing generation to alignment errors. End-to-end SLMs instead internalize alignment in unified models. Ming-UniAudio (Yan et al., 2025) sup-ports instruction-based editing through large-scale speech-language pretraining. CosyEdit (Chen et al., 2026) offers a lighter alternative by adapting a zero-shot TTS model with task-specific supervised fine-tuning. However, the preservation of unedited re-gions in such models remains limited. Multilingual speech editing remains underex-plored, as most prior systems focus on English. Re-cent models like VoiceCraft-X (Zheng et al., 2025), LEMAS (Zhao et al., 2026), and Ming-UniAudio attempt multilingual editing, but their editing qual-ity still lags behind mature English systems. 
+
+2.2 RL for Speech Synthesis and Editing Speech Synthesis. Inspired by Reinforcement Learning (RL) in text LLMs, recent work has explored aligning speech generation with human preferences through reward-driven optimization. Early efforts introduced human feedback into zero-shot TTS (Chen et al., 2024) and leveraged self-supervised reverse inference for robustness (Hu et al., 2024). SpeechAlign (Zhang et al., 2024) further formalized this paradigm via DPO-style preference alignment on speech reward models. As LLM-based TTS emerged, RL integration be-came more prominent: CosyVoice2 (Du et al., 2024b) and GLM-TTS (Cui et al., 2025) incor-porated reward-based fine-tuning into their codec-language pipelines. To address single-reward in-stability, Multi-Reward GRPO (Zhong et al., 2025) aggregated multiple reward signals, while differ-entiable reward optimization (Gao et al., 2025) re-placed non-differentiable pipelines with differen-tiable approximations. 
+
+Speech Editing. Compared with synthesis, the application of RL to editing remains relatively un-derexplored. Recently, ECPA (Ren et al., 2026) applied GRPO to a cascaded speech editing sys-tem, demonstrating the promise of RL-based op-timization for this task. ECPA leverages a pre-trained TTS model as an implicit critic to op-timize semantic-prosodic self-consistency under a TTS prior. Our approach differs in that, our editing-oriented GRPO further pursues teacher-free, outcome-level optimization specifically tai-lored to speech-editing preferences, directly re-warding both semantic correctness and acoustic preservation on decoded speech. 
+
+3 Method 
+
+3.1 Architecture 
+
+CosyEdit2 adopts the text-speech language mod-eling backbone of CosyVoice2 (Du et al., 2024b), while reformulating its zero-shot prompt-style con-ditioning interface to speech editing. As illustrated in Figure 1, it consists of text tokenizers, speech tokenizers, an autoregressive text-speech language model, a conditional flow-matching model, and a BigVGAN (Lee et al., 2022) vocoder. 2Text Embed.  Speech Tokenizer Text Embed.  
+
+> T
+> E
+> E
+> Speech Tokenizer
+> Causal Conv-Transformer UNet
+> BigVGAN
+> ST
+> E
+> Original / Target Text Token
+> Original / Target Speech Token
+> Ignore Token
+> Start of Seq.
+> End of Seq.
+> Turn of Speech
+
+CosyEdit 2    
+
+> S
+> Text-Speech Language Model
+> Original Text Target Text Original Speech Target Speech
+> Target Speech
+> LLM
+> Flow
+> BigVGAN
+> Stage 1: Supervised Adaptation
+> LLM
+> Flow
+> BigVGAN
+> Stage 2: LLM-GRPO
+
+Figure 1: Overview of CosyEdit2. The model reformulates CosyVoice2 for speech editing by conditioning the text-speech language model on original text, target text, and original speech tokens, generating target speech tokens that are decoded by a GOT-CFM Flow and BigVGAN vocoder. The right panel shows the two-stage adaptation: supervised adaptation of LLM, Flow, and BigVGAN respectively, followed by GRPO updating only the LLM. 
+
+To adapt CosyVoice2 for editing, we first refor-mulate the LLM input interface by separately tok-enizing the original and target texts with two iden-tical BPE-based text tokenizers, while representing the original speech and, during training, the target speech with speech tokenizers. We then adopt the GOT-CFM formulation of CosyEdit (Chen et al., 2026), where the complete original speech tokens and mel spectrogram are used as global conditions for target speech generation. Finally, we replace the clean-mel-oriented HiFT-GAN (Li et al., 2023b) in CosyVoice2 with a specially trained BigVGAN to better accommodate the diverse acoustic condi-tions required by speech editing. Detailed module configurations are provided in Appendix B. 
+
+3.2 Supervised Adaptation for Speech Editing 
+
+To elicit speech editing capability from the zero-shot TTS backbone of CosyVoice2, we adopt a two-stage post-training strategy. In the first stage, we perform supervised adaptation on speech editing data, enabling the model to accommodate editing-style inputs that jointly specify the source utter-ance and the target content, thereby establishing a foundational speech editing capability. We inde-pendently adapt the three generation modules: 
+
+SFT for LLM and Flow. For the LLM and Flow modules, we follow the supervised fine-tuning pro-cedures from CosyEdit, training on the 250-hour supervised GigaEdit dataset. Details of these SFT processes and GOT-CFM training in stage 1 are provided in Appendix C. 
+
+BigVGAN Training. For the vocoder, we train BigVGAN to reconstruct waveforms from a mix-ture of clean and in-the-wild Mel spectrograms. This training exposes the vocoder to both studio-quality speech and recordings with diverse acoustic conditions, enabling more robust waveform genera-tion for speech editing across diverse environments. 
+
+3.3 GRPO for Speech Editing 
+
+In the second stage, we further optimize the lan-guage model with GRPO to align generation with editing-specific preferences, including accurate content modification in the edited region and faith-ful preservation of the unedited regions. Initialized from the Stage-1 trained models, GRPO uses the LLM, Flow, and BigVGAN jointly to produce com-plete speech-editing rollouts. During this process, the Flow and BigVGAN modules are kept frozen, and only the LLM is updated. 
+
+TTS-to-Edit Prompt Construction. Unlike su-pervised fine-tuning, this stage does not require manually constructed target speech as supervi-sion. Instead, any TTS-style corpus with speech-transcription pairs can be converted into editing prompts. As illustrated in Figure 2, given an utter-ance and its transcription, we treat them as the orig-inal speech and text, and construct the target text by applying various text-level edit operations through rule-based NLP perturbations or LLM-assisted edit-ing. The resulting triplet of original text, target text, and original speech defines an editing prompt. Conditioned on this prompt, the LLM samples 3Original Speech  
+
+> Original Text
+> Target Text LLM
+> Flow
+> speech
+> (token + mel)
+> text
+> token
+> speech
+> token
+> text
+> token Edit
+> Semantic GRPO Reward
+> (wer)
+> Vocoder
+> TTS Corpus
+> Acoustic GRPO Reward
+> (sim / mcd)
+> Target Speech
+
+Figure 2: TTS-to-Edit Prompt Construction. 
+
+target speech tokens, which are then decoded into waveforms by the fixed Flow and BigVGAN mod-ules. GRPO evaluates the generated speech at the waveform level with editing-specific rewards, rather than imitating a manually constructed target recording at the speech-token level. This avoids su-pervision artifacts from imperfect edit boundaries or mismatched acoustic conditions, encouraging generations that better satisfy the editing behavior. 
+
+Editing-oriented Reward Design. For each edit-ing prompt c = ( Xori , X tar , Y ori ), the policy sam-ples a group of G candidate speech-token se-quences {Zi}Gi=1 , which are decoded by the frozen Flow and BigVGAN into waveforms { ˆY i
+
+> tar
+
+}Gi=1 .We evaluate each rollout with three editing-oriented rewards, corresponding to content correctness, acoustic preservation, and speaker consistency. Specifically, the content reward is computed from the word error rate (WER) between the target text and the ASR transcription of the generated speech: 
+
+wi = WER 
+
+
+
+Xtar , ASR( ˆY i
+
+> tar
+
+)
+
+
+
+,rwer  
+
+> i
+
+= exp( −kw · wαi ) .
+
+(1) The speaker reward directly uses the cosine sim-ilarity between speaker embeddings extracted from the original speech and the generated target speech: 
+
+rsim  
+
+> i
+
+= si = Emb (Yori )⊤Emb ( ˆY i
+
+> tar
+
+)
+
+∥Emb (Yori )∥2∥Emb ( ˆY i
+
+> tar
+
+)∥2
+
+. (2) Although WER and speaker-similarity rewards are commonly used in GRPO for TTS, optimiz-ing them alone may cause reward hacking, where the model lowers WER at the cost of unnatural word-by-word prosody. We therefore introduce an acoustic preservation reward over the unedited re-gions. Let Ω denote the non-edited regions shared by the original and generated speech. We compute 
+
+mi = MCD 
+
+
+
+DTW 
+
+
+
+Y Ωori , ˆY i, Ωtar 
+
+ 
+
+,rmcd  
+
+> i
+
+= exp( −km · max( mi − δ, 0)) ,
+
+(3) and design a coarse-to-fine, priority-aware reward composition according to speech editing prefer-ence. The WER and DTW-aligned mel-cepstral dis-tortion (MCD) (Kubichek, 1993; Sakoe and Chiba, 1978) rewards are first combined multiplicatively: 
+
+rwer -mcd  
+
+> i
+
+= rwer 
+
+> i
+
+h
+
+(1 − γ) + γr mcd 
+
+> i
+
+i
+
+, (4) where γ controls the strength of acoustic-preservation modulation. rwer serves as a coarse-grained content gate over the whole utterance, measuring whether the sample follows the edit-ing prompt. Given comparable content correctness, 
+
+rmcd then selects samples with better fine-grained acoustic preservation in the unedited regions. This ensures the basic editing requirement: correct mod-ification with minimal disturbance. We further add 
+
+rsim to rank candidates with better editing quality: 
+
+ri = λcrwer -mcd  
+
+> i
+
++ λsrsim  
+
+> i
+
+, λc + λs = 1 . (5) Here, λc and λs balance the editing-reliability reward and the speaker-consistency reward. During training, we dynamically adjust them to emphasize content correctness and acoustic preservation in the early stage, and increase the speaker-similarity weight after the model has learned reliable edits. 
+
+GRPO Objective. For each prompt, we compute the group-relative advantage by normalizing the rewards within the sampled group: 
+
+ˆAi = ri − μr
+
+σr + ϵ , μr = 1
+
+G
+
+> G
+
+X
+
+> j=1
+
+rj . (6) The GRPO objective is then 
+
+JGRPO (θ) = E
+
+ 1
+
+G
+
+> G
+
+X
+
+> i=1
+
+1
+
+TiTiX
+
+> t=1
+
+min ρi,t (θ) ˆAi,
+
+clip( ρi,t (θ), 1 ± ϵc) ˆAi
+
+ − βD KL (πθ ∥ πref )
+
+
+
+,
+
+(7) where 
+
+ρi,t (θ) = πθ(zi,t | c, z i,<t )
+
+πθold (zi,t | c, z i,<t ) (8) is the importance ratio. The training loss is 
+
+LGRPO (θ) = −J GRPO (θ). Here, πθ is the train-able LLM policy, πθold is the rollout policy, πref 
+
+is the frozen reference policy initialized from the supervised fine-tuned model, and ϵc is the clip-ping coefficient. Figure 3 summarizes this pro-cess: rewards are computed from decoded wave-forms, Flow and BigVGAN are used only for roll-out, while gradients are applied solely to the LLM. 4speech 1    
+
+> speech 2
+> speech n
+> …
+> wer 1
+> wer 2
+> wer n
+> …
+> Norm
+> mcd 1
+> mcd 2
+> mcd n
+> …
+> Norm
+> sim 1
+> sim 2
+> sim n
+> …
+> Norm
+> r1
+> rn
+> …
+> A
+> Target Speech
+> LLM
+> Flow
+> BigVGAN
+> nroll out
+> r2
+
+Figure 3: An overview of the editing-oriented GRPO. 
+
+4 Experiments 
+
+4.1 Setup Training Data. We use separate data for each training stage. The LLM and Flow are first trained on GigaEdit-S from CosyEdit, a 250-hour editing dataset derived from GigaSpeech-S (Chen et al., 2021). BigVGAN is trained on a 625-hour mix-ture of LibriTTS/LibriTTS-R (Panayotov et al., 2015; Koizumi et al., 2023) and YODAS2 (Li et al., 2023a), covering both clean and in-the-wild acous-tic conditions. For GRPO, we use only 3,000 ran-domly sampled utterances from GigaSpeech-XL and synthesize editing prompts via five rule-based perturbation operations using nlpaug (Ma, 2019), where insertions and substitutions are performed via masked language modeling with RoBERTa (Liu et al., 2019), deletions and swaps via random word removal and reordering, and multi-edits via sequen-tial combinations of all four operations, ensuring precise control over edit type and length. Detailed data construction procedures are in Appendix D. 
+
+Training Details. For GRPO, we initialize the LLM from the Stage-1 checkpoint trained for 8 epochs and keep the Flow and BigVGAN frozen. The LLM is optimized for 380 steps with G = 4 
+
+rollouts per prompt. We set the reward hyperpa-rameters to kw = 12 , α = 1 .5, km = 0 .2, δ = 2 ,and γ = 0 .5. The reward weights are scheduled dynamically: (λc, λ s) = (0 .9, 0.1) for the first 290 steps to prioritize content-editing correctness, and 
+
+(0 .8, 0.2) for the last 90 steps to strengthen speaker consistency. Rollouts use temperature 0.8, top-
+
+p = 0 .95 , top-k = 25 . We train the actor with learning rate 3 × 10 −6, KL coefficient 0.001 and batch size 64, using two NVIDIA H800 GPUs. 
+
+Inference. CosyVoice2 consists of three indepen-dent modules: an autoregressive LLM, a condi-tional Flow module, and a neural vocoder. This modularity allows us to flexibly compose differ-ent task-specific inference pipelines under con-trolled comparisons. For speech editing, we use the full CosyEdit2 pipeline with the GRPO-optimized LLM, the Stage-1 trained Flow and BigVGAN. This setting supports both clean recordings and in-the-wild speech with complex backgrounds. For zero-shot TTS, we replace only the LLM with the GRPO-optimized one and keep the origi-nal CosyVoice2 Flow and HiFT-GAN unchanged. This setting follows the zero-shot TTS objective, which prioritizes clean target-speech generation with speaker similarity rather than fully preserv-ing the original acoustic condition, and the original CosyVoice2 acoustic backend is well aligned with this objective. It also isolates the effect of GRPO on the LLM: compared with CosyVoice2, any per-formance difference mainly reflects the changed language-modeling policy, rather than gains or degradation from a different acoustic backend. 
+
+4.2 Speech Editing Evaluation Benchmark. We evaluate speech editing on the Ming-Freeform-Audio-Edit (Yan et al., 2025), which covers insertion, deletion, and substitution operations across English and Chinese basic/full subsets. We report results on the English subset against representative baselines in the main paper. More complete results, including all base-line systems, the Chinese subset, and additional benchmarks, are provided in Appendix E. 
+
+Baselines. We report CosyEdit2 with three repre-sentative speech editing systems here: VoiceCraft-X (Zheng et al., 2025), SSR-Speech (Wang et al., 2025), and Ming-UniAudio (Yan et al., 2025). All baselines are evaluated using their recommended inference configuration. 
+
+Metrics. We conduct both objective and subjec-tive evaluations (see Appendix I for full subjective results). Objectively, we report WER for content accuracy, speaker similarity (SS) for speaker preser-vation, and DNSMOS (Reddy et al., 2022) for per-ceptual quality. Prior work often treats higher DNS-MOS as better, but it does not imply better editing. In practice, a much higher DNSMOS may indi-cate implicit denoising or removal of background noise/music rather than faithful preservation. We therefore additionally report DNSMOS mean abso-lute error ( MAE DNSMOS ) between the generated target speech and the original speech, where lower is better, to measure acoustic-quality consistency. 5Edit Type Model Performance WER ↓ basic | full SS ↑ basic | full DNSMOS basic | full MAE ↓ basic | full Insertion GroundTruth – | – – | – 2.99 | 3.01 – | – VoiceCraft-X 5.74 | 6.27 0.85 | 0.84 3.05 | 3.06 0.166 | 0.162 SSR-Speech 1.75 | 2.03 0.94 | 0.94 3.06 | 3.06 0.139 | 0.128 Ming-UniAudio 6.49 | 7.84 0.80 | 0.80 3.04 | 3.04 0.168 | 0.167 CosyEdit2 1.90 | 1.93 0.93 | 0.93 3.02 | 3.03 0.107 | 0.108                                                                   
+
+> WER ↓basic | full SS ↑basic | full DNSMOS basic | full MAE ↓basic | full Deletion GroundTruth – | – – | – 3.05 | 3.03 – | – VoiceCraft-X 9.71 | 10.65 0.80 | 0.80 3.01 | 3.00 0.172 | 0.173 SSR-Speech 5.22 |5.29 0.91 |0.91 3.03 | 3.02 0.132 | 0.134 Ming-UniAudio 14.79 | 24.37 0.77 | 0.75 2.97 | 2.97 0.206 | 0.204 CosyEdit2 5.52 | 5.83 0.90 | 0.90 3.01 | 3.00 0.131 |0.131
+> WER ↓basic | full SS ↑basic | full DNSMOS basic | full MAE ↓basic | full Substitution GroundTruth – | – – | – 3.04 | 3.05 – | – VoiceCraft-X 7.29 | 6.73 0.81 | 0.81 3.04 | 3.05 0.155 | 0.146 SSR-Speech 1.90 | 1.95 0.89 |0.90 3.08 | 3.08 0.146 | 0.140 Ming-UniAudio 8.10 | 7.95 0.77 | 0.77 3.00 | 3.03 0.166 | 0.178 CosyEdit2 1.43 |1.52 0.89 |0.90 3.04 | 3.05 0.137 |0.132
+
+Table 1: Performance comparison on the English subset of Ming-Freeform-Audio-Edit. MAE denotes MAE DNSMOS 
+
+between generated and original speech, where lower is better. 
+
+Results. Table 1 reports the results on the English subset of Ming-Freeform-Audio-Edit. CosyEdit2 consistently outperforms the multilingual cascaded system VoiceCraft-X and the large-scale end-to-end editor Ming-UniAudio across all edit types, and achieves performance comparable to or bet-ter than the leading monolingual cascaded system SSR-Speech. Notably, CosyEdit2 obtains the low-est MAE DNSMOS across all edit types, indicating better preservation of the original acoustic quality rather than simply generating cleaner speech. Across edit types, CosyEdit2 performs best on substitution, achieving the lowest WER on both splits and matching the best speaker simi-larity. For insertion, CosyEdit2 is close to SSR-Speech in WER and SS, while clearly improving 
+
+MAE DNSMOS . Deletion remains the most chal-lenging case, where SSR-Speech slightly leads in WER and SS, likely because its explicit speech-text alignment preprocessing simplifies deletion local-ization. Nevertheless, CosyEdit2 achieves the best acoustic-quality consistency without such exter-nal alignment, showing that an end-to-end editing model can approach strong cascaded systems while better preserving the original recording condition. 
+
+4.3 Ablation Experiment Evaluation Dataset. We conduct ablation studies on RealEdit from VoiceCraft (Peng et al., 2024), a 310-sample in-the-wild speech editing benchmark with complex acoustic conditions that better dis-criminate component-level contributions. 
+
+Metrics. We report WER, speaker similarity (SS), DNSMOS, and MAE DNSMOS , as defined in the speech editing evaluation. We additionally report MCD on the unedited regions to measure acoustic preservation, computed using pymcd 1.
+
+Results. Table 2 shows the ablation results on RealEdit. We use CosyVoice2 in its zero-shot TTS mode for speech editing as the same-backbone baseline. Although CosyVoice2 achieves the low-est WER, it performs much worse in MCD and 
+
+MAE DNSMOS , indicating weak preservation of the original in-the-wild acoustic condition. This is ex-pected because zero-shot TTS does not explicitly preserve non-edited regions and tends to generate cleaner studio-like speech, which can be easier for ASR but less faithful to the original recording. Our case analysis further shows that the higher WER of CosyEdit2 mainly comes from ASR errors caused by preserved background noise or complex prosody, rather than semantic editing errors. Although SFT improves acoustic preservation over CosyVoice2, yielding better SS and MCD, it severely degrades content accuracy, increas-ing WER from 4.14 to 5.83, revealing an inher-ent preservation–accuracy trade-off under imper-fect, coarse-grained supervision. Editing-oriented 
+
+> 1https://github.com/chenqi008/pymcd
+
+6Method Components WER ↓ SS ↑ MCD ↓ DNSMOS MAE ↓                                                     
+
+> LLM Flow BigVGAN GT –––6.06 ––3.03 –CosyVoice2 ×××4.14 96.65 6.68 3.28 0.275 CosyEdit2 SFT ××5.83 97.05 5.82 3.20 0.207 GRPO ××4.71 97.23 5.50 3.20 0.210 GRPO ✓×4.34 97.79 4.07 3.07 0.134 GRPO ×✓4.69 97.27 5.42 3.21 0.208 GRPO ✓✓4.31 97.91 3.93 3.04 0.131
+
+Table 2: Ablation results for CosyEdit2 on RealEdit. MAE denotes MAE DNSMOS between generated and original speech. LLM : training strategy of the language model (GRPO or SFT). Flow : ✓ indicates the flow matching module is fine-tuned for speech editing; × indicates it uses the original pre-trained weights. BigVGAN : ✓ indicates BigVGAN is used as the vocoder; × indicates falling back to the HiFtGAN vocoder from CosyVoice2. 
+
+GRPO breaks this trade-off, reducing WER from 5.83 to 4.71 while further improving both SS and MCD. The adapted Flow further improves preser-vation, reducing MCD from 5.50 to 4.07 and 
+
+MAE DNSMOS from 0.210 to 0.134. Compared with the original HiFT-GAN vocoder, BigVGAN improves waveform reconstruction in the full sys-tem, leading to better SS, MCD, and MAE DNSMOS .Overall, the full CosyEdit2 pipeline achieves the best SS, MCD, and acoustic-quality consistency while maintaining competitive content accuracy. 
+
+4.4 Zero-Shot TTS Evaluation Benchmark. We evaluate zero-shot TTS on CV3-EVAL, derived from the CosyVoice3 evaluation suite (Du et al., 2025), which covers mul-tilingual and cross-lingual zero-shot TTS scenarios. For CV3-EVAL, most prompt utterances contain long leading or trailing non-speech regions, such as silence or noise. Since CosyEdit2 relies on model-internal implicit speech-text alignment and is de-signed to strictly preserve acoustic conditions from the input speech, these regions may be inherited as prompt style cues, which are suitable for speech editing but undesirable for standard zero-shot TTS. We therefore apply VAD-based trimming (Silero Team, 2024) to the prompt speech before inference and use the same preprocessing for all baselines. Additional SEED-TTS-EVAL (Anastassiou et al., 2024) results are provided in Appendix F. 
+
+Baselines. We compare CosyEdit2 with VoiceCraft-X (Zheng et al., 2025), SSR-Speech (Wang et al., 2025), CosyEdit (Chen et al., 2026), and CosyVoice2 (Du et al., 2024b) as the same-backbone baseline. All baselines are run with their official checkpoints and inference configurations, and the same data preprocessing is                         
+
+> Model zh en ja ko VoiceCraft-X 9.74 19.17 23.00 43.15 SSR-Speech –14.08 ––CosyEdit 5.29 7.22 17.31 9.25 CosyVoice2 3.77 5.45 7.76 6.89 CosyEdit2 3.52 4.87 6.16 5.14
+
+Table 3: CER(%) and WER(%) on the CV3-Eval Multi-lingual Voice Cloning subset. 
+
+applied to ensure a fair comparison. 
+
+Metrics. Following the official CV3-EVAL pro-tocol, we report WER/CER for content intelligi-bility, speaker similarity (SS) for voice cloning fidelity, and DNSMOS for speech quality. Subjec-tive evaluation results are provided in Appendix I. 
+
+Results. Tables 3–5 report the zero-shot TTS re-sults on CV3-EVAL. CosyEdit2 achieves the low-est error rates across multilingual voice cloning, hard samples, and cross-lingual voice cloning. On the multilingual subset, it improves over the same-backbone CosyVoice2 baseline in every language, with especially clear gains in Japanese and Korean. On the hard subset, CosyEdit2 reduces hard-zh CER from 15.70 to 8.06 and hard-en WER from 8.11 to 5.93 while maintaining comparable or better SS and DNSMOS. These improvements primarily emerge during the GRPO stage rather than from supervised adaptation alone, as performance drops significantly without GRPO. On the cross-lingual subset, CosyEdit2 outperforms all baselines across all target-prompt language pairs. These results sug-gest that editing-oriented GRPO improves more than speech editing itself: the learned optimization transfers effectively to zero-shot TTS, generalizes across multilingual and cross-lingual settings, and remains robust under challenging scenarios. 7Model hard-zh hard-en CER (%) ↓ SS ↑ DNSMOS ↑ WER (%) ↓ SS ↑ DNSMOS ↑                                    
+
+> VoiceCraft-X 26.36 65.74 3.74 28.64 55.68 3.75 SSR-Speech –––28.96 42.30 3.70 CosyEdit 34.60 74.13 3.52 13.93 67.16 3.88 CosyVoice2 15.70 74.96 3.84 8.11 67.22 3.97
+> CosyEdit2 8.06 75.86 3.85 5.93 67.32 3.97
+> - w/o GRPO 13.17 75.17 3.80 11.99 67.24 3.93
+
+Table 4: CER(%), WER(%), Speaker Similarity (SS, %), and DNSMOS scores on the hard samples in the CV3-Eval Multilingual Voice Cloning subset. w/o GRPO corresponds to the Stage 1 SFT model.                                                      
+
+> Model to-zh to-en to-ja to-ko en ko zh ja ko en ko zh en ja VoiceCraft-X 39.66 44.06 23.12 49.87 41.77 27.98 24.25 36.51 54.02 51.71 CosyEdit 59.78 17.86 10.74 16.49 10.38 30.04 32.34 30.60 34.23 22.82 CosyVoice2 13.15 6.51 6.02 13.45 7.92 15.13 7.85 8.35 10.40 10.94 CosyEdit2 7.16 4.43 5.07 7.22 5.68 14.12 5.75 5.91 6.00 8.40
+
+Table 5: CER(%) and WER(%) on the CV3-Eval Cross-Lingual Zero-Shot subset. The column group indicates the target language, while the sub-column indicates the prompt language. 
+
+4.5 Discussion 
+
+To understand why a speech editing model can im-prove zero-shot TTS, we interpret zero-shot TTS as a special case of speech editing under a uni-fied conditional speech generation view. Specifi-cally, when performing zero-shot TTS, the model treats the entire target utterance as the editing re-gion and solves the problem as a full-tail insertion or complete content replacement task. Under this formulation, both tasks share the same core capa-bility requirement: understanding contextual con-ditions, preserving speaker-related acoustic cues, and generating speech that faithfully follows tex-tual instructions—fundamentally, a form of speech prompt-conditioned in-context learning. Consequently, editing-oriented GRPO training inherently boosts this in-context learning capabil-ity. Semantically, the reward encourages stronger speech-text alignment, reducing hallucination-induced omissions and repetitions in the gener-ated content. Acoustically, the requirement to re-construct unedited regions compels the model to more meticulously leverage speaker characteristics and other acoustic cues from the prompt speech. Furthermore, it enhances fine-grained articulatory clarity beyond coarse-grained semantic correctness. This gain is particularly evident in the hard subset of CV3-EVAL, which comprises tongue-twister-like sentences, repeated words, and lengthy utter-ances. Our case studies show that errors stemming from omissions, insertions, and mispronunciations are substantially reduced after GRPO. Remarkably, although trained solely on En-glish datasets, editing-oriented GRPO evades catas-trophic forgetting and instead yields consistent mul-tilingual and cross-lingual gains. We attribute this transfer to a shared mechanism: GRPO strength-ens the in-context learning capability underlying prompt-conditioned speech generation, rather than adapting to language-specific patterns, thereby en-abling generalization to unseen languages. 
+
+5 Conclusion 
+
+We present CosyEdit2, a speech editing model built on a two-stage post-training framework that bridges speech editing and zero-shot TTS. Stage 1 lever-ages a pretrained zero-shot TTS model to bootstrap speech editing, exploiting its inherent voice cloning capability for initialization. Stage 2 introduces editing-oriented GRPO to overcome the limitations of SFT caused by imperfect paired supervision and coarse-grained optimization signals. Experiments show that CosyEdit2 not only advances speech edit-ing performance but also feeds back into zero-shot TTS, and even generalizes across languages. These findings suggest that editing-oriented GRPO can strengthen the shared in-context learning capabil-ity underlying prompt-conditioned speech gener-ation, revealing a deeper bidirectional connection between editing and synthesis. 8Limitations 
+
+First, the design space of editing-oriented GRPO remains underexplored. Our current reward formu-lation and hyperparameter settings are derived from task understanding and iterative human listening during training. Although this setup already yields substantial gains, more fine-grained reward formu-lations that separately model edited and unedited re-gions, alternative aggregation strategies, and adap-tive weighting mechanisms may further improve optimization stability and editing fidelity. Second, the language coverage of our framework is fundamentally constrained by the underlying pretrained TTS model. CosyEdit2 is built upon CosyVoice2, which supports only Chinese, En-glish, Japanese, and Korean. Although our method exhibits encouraging cross-lingual generalization, these languages still cover only a limited portion of global linguistic diversity. Extending the frame-work to newer and stronger multilingual TTS back-bones and to low-resource languages or dialects remains an important long-term direction. Finally, our current framework mainly focuses on speech content editing. Benefiting from the pre-trained tokenizer and large-scale training data of CosyVoice2, CosyEdit2 partially inherits the ability to generate paralinguistic acoustic events such as laughter, breathing, coughing, and sighs. However, broader acoustic editing capabilities, including emotion conversion, pitch manipulation, speaking-style control, and other fine-grained prosodic mod-ifications, remain insufficiently explored. 
+
+Ethical Considerations 
+
+CosyEdit2 enables high-fidelity speech editing and zero-shot voice generation from short prompt speech, which inevitably raises concerns regarding misuse. Similar to other advanced speech editing systems, the model could potentially be abused for unauthorized voice impersonation, deceptive con-tent creation, misinformation propagation, or other malicious applications involving synthetic audio. The risks are further amplified by the strong acoustic preservation capability of speech edit-ing models. Unlike conventional zero-shot TTS, speech editing can retain much of the original recording environment, prosody, and speaking char-acteristics while modifying only partial content, making edited audio potentially more difficult for humans to distinguish from authentic recordings. Our work is intended solely for legitimate and beneficial applications, such as speech correction, accessibility support, multimedia production, and human–computer interaction research. We do not encourage or endorse any use of the technology for impersonation, fraud, harassment, misinformation, or other harmful purposes. To promote responsi-ble research, we emphasize that future deployment of such systems should be accompanied by appro-priate safeguards, including consent-aware usage policies, watermarking or synthetic-audio detec-tion techniques, and careful human oversight in high-stakes scenarios. At the same time, we believe that open research on speech editing remains important for advanc-ing both capability and safety. Studying these systems in an open academic setting can help the community better understand their risks, develop more reliable detection and attribution methods, and establish responsible norms for future prompt-conditioned speech generation technologies. 
+
+References            
+
+> Philip Anastassiou, Jiawei Chen, Jitong Chen, Yuanzhe Chen, Zhuo Chen, Ziyi Chen, Jian Cong, Lelai Deng, Chuang Ding, Lu Gao, and 1 others. 2024. Seed-tts: A family of high-quality versatile speech generation models. arXiv preprint arXiv:2406.02430 .Max Bain, Jaesung Huh, Tengda Han, and Andrew Zis-serman. 2023. Whisperx: Time-accurate speech transcription of long-form audio. arXiv preprint arXiv:2303.00747 .Chen Chen, Yuchen Hu, Wen Wu, Helin Wang, Eng Siong Chng, and Chao Zhang. 2024. Enhanc-ing zero-shot text-to-speech synthesis with human feedback. arXiv preprint arXiv:2406.00654 .Guoguo Chen, Shuzhou Chai, Guan-Bo Wang, Jiayu Du, Wei-Qiang Zhang, Chao Weng, Dan Su, Daniel Povey, Jan Trmal, Junbo Zhang, and 1 others. 2021. Gigaspeech: An evolving, multi-domain asr corpus with 10,000 hours of transcribed audio. Interspeech 2021 .Junyang Chen, Yuhang Jia, Hui Wang, Jiaming Zhou, Yaxin Han, Mengying Feng, and Yong Qin. 2026. Cosyedit: Unlocking end-to-end speech editing ca-pability from zero-shot text-to-speech models. arXiv preprint arXiv:2601.05329 .Sanyuan Chen, Chengyi Wang, Yu Wu, Ziqiang Zhang, Long Zhou, Shujie Liu, Zhuo Chen, Yanqing Liu, Huaming Wang, Jinyu Li, and 1 others. 2025. Neural codec language models are zero-shot text to speech synthesizers. IEEE Transactions on Audio, Speech and Language Processing , 33:705–718.
+
+9Jiayan Cui, Zhihan Yang, Naihan Li, Jiankun Tian, Xingyu Ma, Yi Zhang, Guangyu Chen, Runxuan Yang, Yuqing Cheng, Yizhi Zhou, and 1 others. 2025. Glm-tts technical report. arXiv preprint arXiv:2512.14291 .Zhihao Du, Qian Chen, Shiliang Zhang, Kai Hu, Heng Lu, Yexin Yang, Hangrui Hu, Siqi Zheng, Yue Gu, Ziyang Ma, and 1 others. 2024a. Cosyvoice: A scal-able multilingual zero-shot text-to-speech synthesizer based on supervised semantic tokens. CoRR .Zhihao Du, Changfeng Gao, Yuxuan Wang, Fan Yu, Tianyu Zhao, Hao Wang, Xiang Lv, Hui Wang, Chongjia Ni, Xian Shi, and 1 others. 2025. Cosyvoice 3: Towards in-the-wild speech genera-tion via scaling-up and post-training. arXiv preprint arXiv:2505.17589 .Zhihao Du, Yuxuan Wang, Qian Chen, Xian Shi, Xiang Lv, Tianyu Zhao, Zhifu Gao, Yexin Yang, Changfeng Gao, Hui Wang, and 1 others. 2024b. Cosyvoice 2: Scalable streaming speech synthesis with large language models. arXiv preprint arXiv:2412.10117 .Changfeng Gao, Zhihao Du, and Shiliang Zhang. 2025. Differentiable reward optimization for llm based tts system. In Proc. Interspeech 2025 , pages 2450– 2454. Yuchen Hu, Chen Chen, Siyin Wang, Eng Siong Chng, and Chao Zhang. 2024. Robust zero-shot text-to-speech synthesis with reverse inference optimization. 
+
+arXiv preprint arXiv:2407.02243 .Binyuan Hui, Jian Yang, Zeyu Cui, Jiaxi Yang, Dayiheng Liu, Lei Zhang, Tianyu Liu, Jiajun Zhang, Bowen Yu, Keming Lu, and 1 others. 2024. Qwen2. 5-coder technical report. arXiv preprint arXiv:2409.12186 .Jesper Jensen and Cees H Taal. 2016. An algorithm for predicting the intelligibility of speech masked by modulated noise maskers. IEEE/ACM Transac-tions on Audio, Speech, and Language Processing ,24(11):2009–2022. Ziyue Jiang, Qian Yang, Jialong Zuo, Zhenhui Ye, Rongjie Huang, Yi Ren, and Zhou Zhao. 2023. Flu-entspeech: Stutter-oriented automatic speech editing with context-aware diffusion models. In Findings of the Association for Computational Linguistics: ACL 2023 , pages 11655–11671. Yuma Koizumi, Heiga Zen, Shigeki Karita, Yifan Ding, Kohei Yatabe, Nobuyuki Morioka, Michiel Bacchi-ani, Yu Zhang, Wei Han, and Ankur Bapna. 2023. Libritts-r: A restored multi-speaker text-to-speech corpus. arXiv preprint arXiv:2305.18802 .Jungil Kong, Jaehyeon Kim, and Jaekyoung Bae. 2020. Hifi-gan: Generative adversarial networks for effi-cient and high fidelity speech synthesis. Advances in neural information processing systems , 33:17022– 17033. Robert Kubichek. 1993. Mel-cepstral distance measure for objective speech quality assessment. In Proceed-ings of IEEE pacific rim conference on communi-cations computers and signal processing , volume 1, pages 125–128. IEEE. Sang-gil Lee, Wei Ping, Boris Ginsburg, Bryan Catan-zaro, and Sungroh Yoon. 2022. Bigvgan: A univer-sal neural vocoder with large-scale training. arXiv preprint arXiv:2206.04658 .Xinjian Li, Shinnosuke Takamichi, Takaaki Saeki, William Chen, Sayaka Shiota, and Shinji Watanabe. 2023a. Yodas: Youtube-oriented dataset for audio and speech. In 2023 IEEE Automatic Speech Recog-nition and Understanding Workshop (ASRU) , pages 1–8. IEEE. Yinghao Aaron Li, Cong Han, Xilin Jiang, and Nima Mesgarani. 2023b. Hiftnet: A fast high-quality neu-ral vocoder with harmonic-plus-noise filter and in-verse short time fourier transform. arXiv preprint arXiv:2309.09493 .Yinhan Liu, Myle Ott, Naman Goyal, Jingfei Du, Man-dar Joshi, Danqi Chen, Omer Levy, Mike Lewis, Luke Zettlemoyer, and Veselin Stoyanov. 2019. Roberta: A robustly optimized bert pretraining ap-proach. arXiv preprint arXiv:1907.11692 .Chen-Chou Lo, Szu-Wei Fu, Wen-Chin Huang, Xin Wang, Junichi Yamagishi, Yu Tsao, and Hsin-Min Wang. 2019. Mosnet: Deep learning-based objective assessment for voice conversion. Interspeech 2019 .Edward Ma. 2019. Nlp augmentation. https://github.com/makcedward/nlpaug. Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur. 2015. Librispeech: an asr cor-pus based on public domain audio books. In 2015 IEEE international conference on acoustics, speech and signal processing (ICASSP) , pages 5206–5210. IEEE. Puyuan Peng, Po-Yao Huang, Shang-Wen Li, Abdelrah-man Mohamed, and David Harwath. 2024. Voice-craft: Zero-shot speech editing and text-to-speech in the wild. In Proceedings of the 62nd Annual Meet-ing of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 12442–12462. Alec Radford, Jong Wook Kim, Tao Xu, Greg Brock-man, Christine McLeavey, and Ilya Sutskever. 2023. Robust speech recognition via large-scale weak su-pervision. In International conference on machine learning , pages 28492–28518. PMLR. Chandan KA Reddy, Vishak Gopal, and Ross Cutler. 2022. Dnsmos p. 835: A non-intrusive perceptual objective speech quality metric to evaluate noise sup-pressors. In ICASSP 2022-2022 IEEE international conference on acoustics, speech and signal process-ing (ICASSP) , pages 886–890. IEEE. 
+
+10 Yong Ren, Jiangyan Yi, Jianhua Tao, Zhengqi Wen, and Tao Wang. 2026. Edit content, preserve acoustics: Imperceptible text-based speech edit-ing via self-consistency rewards. arXiv preprint arXiv:2602.00560 .Antony W Rix, John G Beerends, Michael P Hollier, and Andries P Hekstra. 2001. Perceptual evaluation of speech quality (pesq)-a new method for speech quality assessment of telephone networks and codecs. In 2001 IEEE international conference on acoustics, speech, and signal processing. Proceedings (Cat. No. 01CH37221) , volume 2, pages 749–752. IEEE. Hiroaki Sakoe and Seibi Chiba. 1978. Dynamic pro-gramming algorithm optimization for spoken word recognition. IEEE transactions on acoustics, speech, and signal processing , 26(1):43–49. Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, Xiao Bi, Haowei Zhang, Mingchuan Zhang, YK Li, and 1 others. 2024. Deepseekmath: Pushing the limits of mathematical reasoning in open language models. arXiv preprint arXiv:2402.03300 .Silero Team. 2024. Silero vad: pre-trained enterprise-grade voice activity detector (vad), number detec-tor and language classifier. https://github.com/ snakers4/silero-vad .Cees H Taal, Richard C Hendriks, Richard Heusdens, and Jesper Jensen. 2011. An algorithm for intelligi-bility prediction of time–frequency weighted noisy speech. IEEE Transactions on audio, speech, and language processing , 19(7):2125–2136. Helin Wang, Meng Yu, Jiarui Hai, Chen Chen, Yuchen Hu, Rilin Chen, Najim Dehak, and Dong Yu. 2025. Ssr-speech: Towards stable, safe and robust zero-shot text-based speech editing and synthesis. In ICASSP 2025-2025 IEEE International Conference on Acous-tics, Speech and Signal Processing (ICASSP) , pages 1–5. IEEE. Ryuichi Yamamoto, Eunwoo Song, and Jae-Min Kim. 2020. Parallel wavegan: A fast waveform generation model based on generative adversarial networks with multi-resolution spectrogram. In ICASSP 2020-2020 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pages 6199–6203. IEEE. Canxiang Yan, Chunxiang Jin, Dawei Huang, Haib-ing Yu, Han Peng, Hui Zhan, Jie Gao, Jing Peng, Jingdong Chen, Jun Zhou, and 1 others. 2025. Ming-uniaudio: Speech llm for joint understanding, gener-ation and editing with unified representation. arXiv preprint arXiv:2511.05516 .Dong Zhang, Zhaowei Li, Shimin Li, Xin Zhang, Pengyu Wang, Yaqian Zhou, and Xipeng Qiu. 2024. Speechalign: Aligning speech generation to human preferences. Advances in Neural Information Pro-cessing Systems , 37:50343–50360. Yang Zhang, Evelina Bakhturina, Kyle Gorman, and Boris Ginsburg. 2021. Nemo inverse text normal-ization: From development to production. arXiv preprint arXiv:2104.05055 .Zhiyuan Zhao, Lijian Lin, Ye Zhu, Kai Xie, Yun-fei Liu, and Yu Li. 2026. Lemas: Large a 150k-hour large-scale extensible multilingual audio suite with generative speech models. arXiv preprint arXiv:2601.04233 .Zhisheng Zheng, Puyuan Peng, Anuj Diwan, Cong Phuoc Huynh, Xiaohang Sun, Zhu Liu, Vimal Bhat, and David Harwath. 2025. Voicecraft-x: Unifying multilingual, voice-cloning speech syn-thesis and speech editing. In Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing , pages 2737–2756. Yicheng Zhong, Peiji Yang, and Zhisheng Wang. 2025. Multi-reward grpo for stable and prosodic single-codebook tts llms at scale. arXiv preprint arXiv:2511.21270 .Siyi Zhou, Yiquan Zhou, Yi He, Xun Zhou, Jinchao Wang, Wei Deng, and Jingchen Shu. 2026. In-dextts2: A breakthrough in emotionally expressive and duration-controlled auto-regressive zero-shot text-to-speech. In Proceedings of the AAAI Confer-ence on Artificial Intelligence , pages 35139–35148. 
+
+11 A A Unified Perspective on Zero-Shot TTS and Speech Editing 
+
+A.1 Task Formulation 
+
+Zero-shot TTS and speech content editing can both be formulated as conditional speech generation. In zero-shot TTS, given a prompt speech Yp and a target text Xtar , the model generates a target speech ˆYtar that follows the target linguistic con-tent while preserving the speaker identity of the prompt. Speech editing takes a more constrained form: given the original speech Yori , the origi-nal text Xori , and the target text Xtar , the model generates an edited speech ˆYtar that modifies the intended content while preserving the remaining parts of the original utterance. From this perspective, zero-shot TTS can be re-garded as a full-replacement or full-tail insertion case of speech editing, where the entire linguistic content is regenerated from the target text. Speech editing, in contrast, is a localized replacement prob-lem: only the edited region should change, while the unedited regions should remain consistent with the original speech. 
+
+A.2 Preservation Requirement 
+
+The key distinction between the two tasks lies in the scope of preservation. Standard zero-shot TTS mainly optimizes target text rendering and speaker identity matching. Although modern zero-shot TTS systems may implicitly retain prompt-level prosody or recording conditions (Chen et al., 2025; Du et al., 2024a; Zhou et al., 2026), such properties are typically not explicitly constrained at the level required for localized editing. Speech editing requires a stronger preservation objective. The model should modify only the re-gions specified by the textual edit while maintain-ing consistency in both linguistic content and acous-tic conditions elsewhere. This includes speaker timbre, prosody, background noise, reverberation, and recording characteristics. When preservation is insufficient, the edited speech may resemble in-dependently synthesized TTS outputs rather than a seamless continuation of the original utterance. Ex-isting supervised objectives provide limited direct optimization signals for such holistic preservation, motivating our editing-oriented training objective that jointly optimizes content correctness, speaker consistency, and acoustic preservation. 
+
+A.3 Spectrogram Comparison 
+
+Figure 4 illustrates the practical difference between the two tasks. In the substitution case (a–c), the non-edited regions of the zero-shot TTS output (b) show clear temporal misalignment. In the insertion case (d–f), zero-shot TTS output (e) exhibits de-graded preservation particularly in high-frequency components. In contrast, CosyEdit2 outputs (c) and (f) better preserve both prosodic contour and spectral detail in the non-edited regions. This distinction is crucial for evaluating speech editing systems. A model that only produces the correct target text is not necessarily a good edi-tor if it changes the non-edited regions. There-fore, beyond intelligibility and speaker similarity, speech editing requires explicit measurement and optimization of preservation quality, which is the central motivation behind our reward design and acoustic-consistency evaluation. 
+
+B Architecture Details 
+
+B.1 Text Tokenizer 
+
+CosyEdit2 encodes textual conditions using BPE-based tokenizers, following CosyVoice2 (Du et al., 2024b) in bypassing an explicit phoneme frontend to allow end-to-end learning of contextual pronun-ciation patterns. To accommodate the speech edit-ing task, we use two identical text tokenizers to separately encode the original text Xori and the target text Xtar . The two token streams are then sequentially concatenated to form the LLM input sequence, allowing the language model to learn the edit operation implicitly from the contrast between the original and target texts. 
+
+B.2 Speech Tokenizer 
+
+The speech tokenizer follows the supervised se-mantic token design of CosyVoice2. It extracts discrete speech tokens from waveform inputs using an ASR-oriented encoder with finite scalar quan-tization (FSQ), producing semantic speech tokens at a low frame rate. In CosyEdit2, the original speech Yori is tokenized as part of the editing con-dition, while the target speech Ytar is tokenized during supervised training as the prediction target for the LLM. This allows the LLM to model speech editing as conditional semantic-token generation. 
+
+B.3 Unified Text-Speech Language Model 
+
+In CosyVoice2, the language model is an autore-gressive unified text-speech model built on the 12 0.00 0.70 1.41 2.11 2.82 3.52 4.22 4.93 5.63                                         
+
+> 0
+> 1k
+> 2k
+> 4k
+> 6k
+> 8k
+> (a) Original speech before editing.
+> 0.00 1.61 3.23 4.84 6.45 8.07 9.68 11.29 12.91
+> 0
+> 1k
+> 2k
+> 4k
+> 6k
+> 8k
+> (d) Original speech before editing.
+> 0.00 0.70 1.41 2.11 2.82 3.52 4.22 4.93 5.63
+> 0
+> 1k
+> 2k
+> 4k
+> 6k
+> 8k
+> (b) Edited speech generated by CosyVoice2 under the zero-shot TTS setting.
+> 0.00 1.61 3.23 4.84 6.45 8.07 9.68 11.29 12.91
+> 0
+> 1k
+> 2k
+> 4k
+> 6k
+> 8k
+> (e) Edited speech generated by CosyVoice2 under the zero-shot TTS setting.
+> 0.00 0.70 1.41 2.11 2.82 3.52 4.22 4.93 5.63
+> 0
+> 1k
+> 2k
+> 4k
+> 6k
+> 8k
+> (c) Edited speech generated by CosyEdit2.
+> 0.00 1.61 3.23 4.84 6.45 8.07 9.68 11.29 12.91
+> 0
+> 1k
+> 2k
+> 4k
+> 6k
+> 8k
+> (f) Edited speech generated by CosyEdit2.
+
+Figure 4: Spectrogram comparison between zero-shot TTS and speech editing. The region between the two red vertical lines indicates the edited segment. The left column (a–c) illustrates a substitution task, while the right column (d–f) illustrates an insertion task. 
+
+Qwen2.5-0.5B (Hui et al., 2024). The LLM pre-dicts supervised semantic speech tokens from text and prompt conditions with next-token prediction. CosyEdit2 extends this interface by providing the original text, target text, and original speech tokens as joint conditions. The input sequence contains special tokens indicating the start of sequence, turn of speech, and end of sequence. During inference, the LLM autoregressively generates target speech tokens conditioned on the editing prompt. In the GRPO stage, only this LLM is updated, while downstream acoustic modules remain frozen. 
+
+B.4 Conditional Flow-matching Model 
+
+The Flow module converts semantic speech tokens into Mel spectrograms. To make it suitable for edit-ing, CosyEdit2 adopts the GOT-CFM formulation of CosyEdit (Chen et al., 2026). Specifically, the complete original speech tokens and the original Mel spectrogram are used as global conditions for target speech generation. This conditioning design provides the Flow with both semantic and acoustic context from the full original utterance, helping it preserve unedited regions. 
+
+B.5 BigVGAN Vocoder 
+
+The vocoder reconstructs waveform audio from the generated Mel spectrogram. CosyVoice2 origi-nally uses a HiFT-GAN (Li et al., 2023b) vocoder for clean zero-shot TTS synthesis, which operates as a fast frequency domain variant inherited from the classic HiFi-GAN (Kong et al., 2020) frame-work. CosyEdit2 replaces it with BigVGAN (Lee et al., 2022), a GAN-based universal vocoder with periodic activation functions and anti-aliased rep-resentations. These architectural designs provide a stronger inductive bias for high-fidelity wave-form generation and improve robustness to diverse recording conditions. This makes CosyEdit2 bet-ter suited to speech editing, which often demands modeling more complex and diverse acoustic con-ditions than clean TTS synthesis. 
+
+C Training Details for Stage 1 
+
+C.1 LLM Training 
+
+We first adapt the text-speech language model with supervised learning. Given the original text Xori ,target text Xtar , original speech Yori , and target speech Ytar , we encode the texts with BPE-based text tokenizers and extract discrete speech tokens from the original and target speech: 
+
+μori = Tok s(Yori ), (9) 
+
+μtar = Tok s(Ytar ). (10) Unlike the inference input sequence organization 13 of zero-shot TTS in CosyVoice2, CosyEdit2 treats the original speech tokens as part of the editing condition and uses a turn-of-speech token T to separate the conditioning speech from the autore-gressively generated target speech. The LLM input is organized as 
+
+[ S , X ori , X tar , μ ori , T ], (11) and the model predicts μtar until the end-of-sequence token E is generated. This design ex-plicitly separates the source speech from the target speech-token generation, encouraging the LLM to learn editing-oriented speech-text alignment while preserving source-side acoustic cues. Formally, with the editing condition c =(Xori , X tar , μ ori ), the LLM is optimized with the next-token prediction loss over the target speech-token sequence: 
+
+LLM = − 1
+
+Ttar + 1 
+
+> Ttar +1
+
+X
+
+> t=1
+
+log pθ (¯ μtar ,t | c, ¯μtar ,<t ) ,
+
+(12) where ¯μtar = [ μtar , E ]. The LLM is initialized from the CosyVoice2 checkpoint and trained on GigaEdit-S. We use gradient accumulation of 8, gradient clipping of 5, and a warmup learning-rate scheduler with 2,500 warmup steps. The learning rate is 1 × 10 −6, and the supervised LLM check-point used for GRPO is trained for 8 epochs. 
+
+C.2 Flow Training 
+
+We then adapt the Flow module to convert tar-get speech tokens into Mel spectrograms while preserving the acoustic context of the original speech. Following CosyEdit (Chen et al., 2026), we adopt Guided Optimal-Transport Conditional Flow Matching (GOT-CFM). Let Mori and Mtar 
+
+denote the Mel spectrograms of the original and tar-get speech. We concatenate the original and target Mel states as 
+
+Z0 = [ M 0ori , M 0tar ], Z1 = [ Mori , M tar ],
+
+(13) where Z0 is sampled from the prior path and Z1 is the data sample. The OT interpolation path and its target vector field are 
+
+ϕOT  
+
+> t
+
+(Z0, Z 1) = (1 − t)Z0 + tZ 1, (14) 
+
+ωt = Z1 − Z0. (15) The Flow network predicts the vector field con-ditioned on the timestep t, speaker embedding 
+
+v, the up-sampled concatenated speech tokens 
+
+μz = [ μori , μ tar ], and the guided Mel condition 
+
+[Mori , ˜Mtar ]:
+
+νt = UNet θ
+
+ ϕOT  
+
+> t
+
+(Z0, Z 1), t ;
+
+v, μ z , [Mori , ˜Mtar ], (16) where ˜Mtar is the masked target Mel spectrogram. The GOT-CFM objective minimizes the distance between the target and predicted vector fields: 
+
+LGOT -CFM = Et,Z 0,Z 1 [∥ωt − νt∥1] . (17) Compared with ordinary target-speech genera-tion, GOT-CFM exposes the Flow module to the complete original speech tokens and Mel spectro-gram, providing a global acoustic guide for preserv-ing leading and trailing silence, background noise, and other unedited acoustic contexts. The Flow module is initialized from the CosyVoice2 checkpoint and also trained on GigaEdit-S. We use gradient accumulation of 8, gradient clipping of 5, and a constant learning rate of 3 × 10 −5. The Flow checkpoint used in CosyEdit2 is trained for 9 epochs. 
+
+C.3 BigVGAN Training 
+
+CosyVoice2 uses a HiFT-GAN vocoder with a 24 kHz waveform configuration, 80 Mel bands, hop size 480, and window/FFT size 1920. Since the official BigVGAN checkpoints do not pro-vide a model with the same configuration, we cannot directly reuse a pretrained BigVGAN for CosyVoice2-style Mel spectrograms. To re-duce the cost of training from scratch while preserving pretrained knowledge, we initialize BigVGAN from the closest available checkpoint, 
+
+bigvgan_v2_22khz_80band_256x 2, and adapt its acoustic configuration to match CosyVoice2. Specifically, we keep the 80-band Mel represen-tation and modify the vocoder to operate at 24 kHz with hop size 480, window size 1920, FFT size 1920, and an overall upsampling ratio of 480. This allows BigVGAN to consume Mel spectrograms generated by the CosyEdit2 Flow module without changing the acoustic interface. Under this adapta-tion, we reuse 88.20% of the generator parameters from the pretrained checkpoint, while the discrimi-nator parameters are fully reused. 
+
+> 2https://huggingface.co/nvidia/bigvgan_v2_ 22khz_80band_256x
+
+14 We train BigVGAN on a 625-hour mixed vocoder corpus. Specifically, it contains 585 hours from LibriTTS (Panayotov et al., 2015) and LibriTTS-R (Koizumi et al., 2023), including 
+
+train-clean-100 and train-other-500 from LibriTTS and train-clean-360 from LibriTTS-R, together with 40 hours randomly sampled from YODAS2 (Li et al., 2023a). LibriTTS and LibriTTS-R provide high-quality multi-speaker read speech suitable for TTS vocoder training, while YODAS2 introduces long-form YouTube speech with more diverse in-the-wild acoustic con-ditions. This mixture exposes the vocoder to both clean speech and realistic background variations such as noise and music, which better matches speech editing scenarios where the generated wave-form should preserve the recording characteristics of the original utterance. We train the adapted BigVGAN for 460k steps, substantially fewer than the 5M-step official pretraining, benefiting from the transferred pretrained parameters. 
+
+D Details for Stage 2 
+
+D.1 TTS-to-Edit Prompt Synthesis Pipeline 
+
+The GRPO stage does not require paired target speech recordings. Instead, we automatically convert ordinary TTS-style speech-text pairs into speech editing prompts through rule-based textual perturbations. Specifically, given a speech wave-form Yori and its transcription Xori , we synthesize a target text Xtar by applying text editing opera-tions while keeping the original speech unchanged. The resulting triplet (Xori , X tar , Y ori ) is then used as the editing prompt for GRPO training. As illustrated in Figure 5, we implement five perturbation operations: insertion, deletion, substi-tution, swap, and multi-edit. The first four corre-spond to basic single-operation editing tasks, while multi-edit randomly composes multiple edits to construct more challenging editing instructions. All perturbations are implemented with rule-based NLP augmentation rather than LLM rewriting, en-abling explicit control over edit type and edit length while avoiding semantic drift introduced by gener-ative rewriting models. For each utterance, an edit type is randomly sam-pled, and the edit length is adaptively determined according to the transcription length. Specifically, the maximum number of editable spans is con-strained to at most half of the original word count: 
+
+Nedit ≤ max(1 , ⌊| Xori |/2⌋). (18) For multi-edit augmentation, the number of edits is further randomly sampled to generate diverse combinations of insertion, deletion, substitution, and swap operations. 
+
+D.2 Speech Token and Prompt Construction 
+
+We adopt the speech-token extraction pipeline of CosyVoice2 to construct GRPO training prompts. Given the original speech waveform, we encode it into discrete speech tokens using the CosyVoice2 speech tokenizer. The editing condition is con-structed as: 
+
+[Xori , X tar , μ ori ],
+
+where the original and target texts are subsequently tokenized, sequentially concatenated, and then combined with the original speech-token sequence 
+
+μori . During GRPO training, the LLM autoregres-sively predicts target speech tokens conditioned on this prompt, while the Flow and BigVGAN mod-ules decode the generated tokens into waveforms for reward computation. 
+
+D.3 ASR-Based Auxiliary Annotation 
+
+To support reward computation and analysis, we additionally preprocess each utterance with Whis-perX (Bain et al., 2023). Specifically, we first transcribe the original speech using large-v3-turbo (Radford et al., 2023) and then perform forced alignment to obtain word-level timestamps, from which non-edited regions Ω are identified for MCD computation. The transcriptions are normal-ized using NeMo text normalization (Zhang et al., 2021), contraction fixing, and punctuation removal for robustness. The resulting aligned ASR annota-tions are stored with the editing prompts for reward computation and error analysis. Utterances with failed ASR alignment are auto-matically filtered out during preprocessing to en-sure annotation consistency. 
+
+D.4 Training Corpus 
+
+For the GRPO stage, we sample 3,000 utter-ances from GigaSpeech-XL and synthesize edit-ing prompts using the above pipeline. Since the construction process only requires ordinary speech-text pairs, the method is inherently scalable and can be applied to arbitrary TTS corpora without collecting manually edited target recordings. This target-speech-free design is particularly important for speech editing, where constructing perfectly 15 ❶ Insertion 
+
+Original Text:  You knew everybody was watching this game. 
+
+Target Text:  You knew why everybody was watching this game. 
+
+Original Text:  She told me why, but I forget. 
+
+Target Text:  She told me about why, but maybe I forget. 
+
+❷ Deletion 
+
+Original Text:  That's when the bosses pay more  however, 
+
+Target Text:  That's when the bosses pay however, 
+
+Original Text:  You’ve  got to  understand how the whole  thing comes together  .
+
+Target Text:  Got understand how the thing comes. 
+
+❸ Substitution 
+
+Original Text:  Try to portray the content in a very crisp manner. 
+
+Target Text:  Try to portray the character in a very crisp manner. 
+
+Original Text:  I will illustrate with a graph. Hang on . 
+
+Target Text:  I will illustrate this a graph. Step up . 
+
+❹ Swap 
+
+Original Text:  And says they want to get help. 
+
+Target Text:  And they says want to get help. 
+
+Original Text:  Maybe it’s bigotry second case study, 
+
+Target Text:  Maybe bigotry case it’s second study, 
+
+❺ Multi-edit 
+
+Original Text:  And that can  be driven by network effects. 
+
+Target Text:  And that be driven by neural network effects. 
+
+Original Text:  Found tessie the only one  quietly occupied in that chatter -filled room. 
+
+Target Text:  Tessie found the only quietly occupied in that bar -filled breakfast room. 
+
+# Examples of Rule-Based Edit Perturbations Figure 5: Examples of rule-based edit perturbations used in the TTS-to-edit prompt synthesis pipeline, including insertion, deletion, substitution, swap, and multi-edit operations. 
+
+16 0.0 0.2 0.4 0.6 0.8 1.0                                                       
+
+> Word Error Rate wi
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Reward
+> wi= 0.15, rwer = 0.5
+> wi= 0.5, rwer = 0.014
+> rwer
+> i= exp(− kwwαi), kw= 12, α= 1.5
+> (a) WER Reward Function
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Cosine Similarity si
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Reward
+> si= 0, rsim
+> i= 0
+> si= 0.5, rsim
+> i= 0.5
+> si= 1.0, rsim
+> i= 1.0
+> rsim
+> i=si
+> (b) Speaker Similarity Reward Function
+> 0510 15 20 25 30 35 40
+> MCD mi(dB)
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Reward
+> δ= 2 dB
+> mi= 5.5 dB, rmcd = 0.5
+> mi= 20 dB, rmcd = 0.027
+> rmcd
+> i= exp(− kmmax( mi−δ, 0)), km= 0.2, δ= 2
+> (c) MCD Reward Function
+
+Figure 6: Reward functions used in the editing-oriented GRPO stage. (a) The WER reward adopts an exponential decay with a power-law exponent, sharply penalizing high recognition errors while providing finer discrimination in the low-WER region. (b) The speaker similarity reward directly uses cosine similarity as the reward value, preserving stable and interpretable ranking signals. (c) The MCD reward introduces a tolerance margin δ before exponential decay, focusing optimization on preventing severe acoustic degradation in unedited regions rather than over-penalizing perceptually negligible variations. 
+
+matched target recordings with consistent speaker identity, prosody, and environmental acoustics is extremely difficult in practice. 
+
+D.5 Reward Design Intuition 
+
+Figure 6 illustrates the reward functions used in the GRPO stage. Our reward design follows the prac-tical preference hierarchy of speech editing: the generated speech should first satisfy the target edit-ing instruction, then preserve the original acoustic characteristics in the unedited regions, and finally maintain speaker consistency. The WER reward in Figure 6(a) adopts an exponential-decay formulation: 
+
+rwer  
+
+> i
+
+= exp( −kwwαi ), (19) which rapidly suppresses samples with large recog-nition errors. Compared with linear penalties, the exponential form provides stronger discrimination in the low-WER region, encouraging the policy to prioritize content correctness before optimizing finer acoustic properties. Empirically, we found that this sharp decay stabilizes early-stage GRPO training, where the generated speech may initially contain substantial recognition errors. The speaker reward in Figure 6(b) directly uses cosine similarity as the reward value: 
+
+rsim  
+
+> i
+
+= si. (20) Unlike the WER and MCD rewards, speaker sim-ilarity already lies in a bounded and semantically meaningful range [0 , 1] , making additional nonlin-ear transformation unnecessary in our experiments. We therefore retain the original similarity score to preserve stable gradients and avoid over-amplifying noisy speaker variations. MCD is computed via pymcd’s DTW mode over non-edited regions Ω. DTW alignment provides ro-bustness against boundary imprecision introduced by forced alignment errors, yielding more reliable intra-group relative rankings for GRPO optimiza-tion. The resulting reward in Figure 6(c) introduces a tolerance margin δ:
+
+rmcd  
+
+> i
+
+= exp( −km max( mi − δ, 0)) . (21) This design reflects the observation that very small MCD differences are often perceptually neg-ligible, while larger deviations usually correspond to noticeable prosody or timbre distortion in the non-edited regions. The thresholded exponential decay therefore focuses optimization on prevent-ing severe acoustic degradation instead of over-penalizing minor variations. Overall, the three rewards operate at different granularities: WER provides coarse-grained con-tent supervision over the entire utterance, MCD constrains fine-grained acoustic preservation in the unchanged regions, and speaker similarity further ranks candidates according to global speaker con-sistency, particularly when multiple rollout candi-dates exhibit comparable performance on the for-mer two metrics. 
+
+E Additional Speech Editing Results 
+
+E.1 Results on Ming-Freeform-Audio-Edit Baselines. We provide the full results on Ming-Freeform-Audio-Edit, extending the main-paper 17 Edit Type Model Performance WER ↓ basic | full SS ↑ basic | full DNSMOS basic | full MAE ↓ basic | full Insertion Ground Truth – | – – | – 2.99 | 3.01 – | – VoiceCraft 4.39 | 4.51 0.85 | 0.85 3.01 | 3.03 – | – VoiceCraft-X 5.74 | 6.27 0.85 | 0.84 3.05 | 3.06 0.166 | 0.162 LEMAS-Edit 6.04 | 5.10 0.81 | 0.81 3.05 | 3.04 0.158 | 0.171 ECPA † 4.50 | 4.97 0.82 | 0.82 3.17 | 3.18 – | – SSR-Speech 1.75 | 2.03 0.94 | 0.94 3.06 | 3.06 0.139 | 0.128 Ming-UniAudio 6.49 | 7.84 0.80 | 0.80 3.04 | 3.04 0.168 | 0.167 CosyEdit 2.83 | 2.85 0.86 | 0.86 3.10 | 3.11 0.167 | 0.167 CosyEdit2 1.90 | 1.93 0.93 | 0.93 3.02 | 3.03 0.107 | 0.108 
+
+WER ↓ basic | full SS ↑ basic | full DNSMOS basic | full MAE ↓ basic | full Deletion Ground Truth – | – – | – 3.05 | 3.03 – | – VoiceCraft 6.07 | 5.86 0.81 | 0.81 3.01 | 3.00 – | – VoiceCraft-X 9.71 | 10.65 0.80 | 0.80 3.01 | 3.00 0.172 | 0.173 LEMAS-Edit 9.29 | 8.91 0.80 | 0.81 3.03 | 3.02 0.167 | 0.169 ECPA † 6.91 | 6.88 0.77 | 0.78 3.09 | 3.09 – | – SSR-Speech 5.22 | 5.29 0.91 | 0.91 3.03 | 3.02 0.132 | 0.134 Ming-UniAudio 14.79 | 24.37 0.77 | 0.75 2.97 | 2.97 0.206 | 0.204 CosyEdit 5.69 | 5.95 0.83 | 0.83 3.10 | 3.09 0.161 | 0.164 CosyEdit2 5.52 | 5.83 0.90 | 0.90 3.01 | 3.00 0.131 | 0.131 
+
+WER ↓ basic | full SS ↑ basic | full DNSMOS basic | full MAE ↓ basic | full Substitution Ground Truth – | – – | – 3.04 | 3.05 – | – VoiceCraft 3.13 | 2.96 0.80 | 0.81 3.02 | 3.02 – | – VoiceCraft-X 7.29 | 6.73 0.81 | 0.81 3.04 | 3.05 0.155 | 0.146 LEMAS-Edit 6.09 | 6.56 0.80 | 0.80 3.05 | 3.05 0.167 | 0.161 ECPA † 4.13 | 4.41 0.78 | 0.78 3.15 | 3.11 – | – SSR-Speech 1.90 | 1.95 0.89 | 0.90 3.08 | 3.08 0.146 | 0.140 Ming-UniAudio 8.10 | 7.95 0.77 | 0.77 3.00 | 3.03 0.166 | 0.178 CosyEdit 2.61 | 2.56 0.83 | 0.83 3.11 | 3.13 0.151 | 0.146 CosyEdit2 1.43 | 1.52 0.89 | 0.90 3.04 | 3.05 0.137 | 0.132 
+
+Table 6: Full results of performance comparison on the English subset of Ming-Freeform-Audio-Edit (extended version of Table 1 in the main paper). MAE denotes MAE DNSMOS between generated and original speech, where lower is better. †ECPA refers to Ren et al. (2026) (“Edit Content, Preserve Acoustics”), an abbreviation we adopt for brevity as the authors provide no official acronym; results are taken directly from the original paper as the model is not publicly released. 
+
+comparison with additional speech editing base-lines. On the English subset, we include Voice-Craft, VoiceCraft-X, LEMAS-Edit, ECPA (Ren et al., 2026), SSR-Speech, Ming-UniAudio, and CosyEdit. On the Chinese subset, we compare with multilingual or Chinese-capable systems, including VoiceCraft-X, LEMAS-Edit, and Ming-UniAudio. All systems are evaluated with their recommended inference settings when available. For ECPA, the model is not publicly released, so we report the results from the original paper. 
+
+Full Results on English Subset. Table 6 reports the complete English results. The overall trend is consistent with the main paper: CosyEdit2 consis-tently outperforms multilingual systems such as VoiceCraft-X, LEMAS-Edit, and Ming-UniAudio, and remains competitive with the strong monolin-gual cascaded system SSR-Speech. CosyEdit2 per-forms particularly well on substitution, achieving the best WER on both splits while matching the best speaker similarity. For insertion, it approaches SSR-Speech in WER and SS, while clearly ob-taining lower MAE DNSMOS . For deletion, SSR-Speech remains slightly stronger in WER and SS, likely benefiting from explicit speech-text align-ment for locating deleted content, but CosyEdit2 still yields the best acoustic-quality consistency. Compared with ECPA, which also explores GRPO for speech editing, CosyEdit2 demonstrates superior content accuracy and speaker preserva-tion due to a fundamental difference in optimiza-tion. While ECPA relies on a pretrained TTS model as an implicit critic to optimize semantic-prosodic self-consistency under a general synthesis prior, CosyEdit2 utilizes an editing-oriented GRPO 18 Edit Type Model Performance WER ↓ basic | full SS ↑ basic | full DNSMOS basic | full MAE ↓ basic | full Insertion Ground Truth – | – – | – 3.19 | 3.18 – | – VoiceCraft-X 3.77 | 3.57 0.84 | 0.84 3.15 | 3.13 0.128 | 0.138 LEMAS-Edit 6.21 | 6.75 0.81 | 0.82 3.17 | 3.17 0.130 | 0.139 Ming-UniAudio 3.73 | 3.71 0.83 | 0.83 3.16 | 3.17 0.137 | 0.126 CosyEdit2 1.38 | 1.33 0.89 | 0.89 3.20 | 3.19 0.113 | 0.114                                                                    
+
+> WER ↓basic | full SS ↑basic | full DNSMOS basic | full MAE ↓basic | full Deletion Ground Truth – | – – | – 3.22 | 3.16 – | – VoiceCraft-X 13.62 | 7.18 0.77 | 0.79 3.04 | 3.04 0.203 | 0.170 LEMAS-Edit 17.43 | 8.57 0.75 | 0.77 3.15 | 3.09 0.159 |0.173
+> Ming-UniAudio 12.44 | 23.04 0.79 | 0.81 3.07 | 3.05 0.194 | 0.187 CosyEdit2 8.23 |3.96 0.85 |0.86 3.09 | 3.04 0.166 | 0.177 WER ↓basic | full SS ↑basic | full DNSMOS basic | full MAE ↓basic | full Substitution Ground Truth – | – – | – 3.16 | 3.16 – | – VoiceCraft-X 4.21 | 3.88 0.82 | 0.83 3.07 | 3.09 0.158 | 0.152 LEMAS-Edit 8.16 | 7.86 0.82 | 0.81 3.10 | 3.11 0.157 | 0.164 Ming-UniAudio 4.76 | 4.89 0.83 | 0.83 3.08 | 3.08 0.161 | 0.162 CosyEdit2 1.26 |1.39 0.89 |0.89 3.13 | 3.13 0.110 |0.125
+> Table 7: Performance comparison on the Chinese subset of Ming-Freeform-Audio-Edit. MAE denotes
+> MAE DNSMOS between generated and original speech, where lower is better.
+
+framework for teacher-free, outcome-level opti-mization. By directly rewarding semantic correct-ness and acoustic preservation on decoded speech, our approach explicitly targets speech-editing pref-erences rather than general generation distributions. Consequently, CosyEdit2 effectively mitigates edit-ing artifacts and contextual mismatch, yielding lower WER and higher speaker similarity across all edit types while avoiding the acoustic normal-ization risks inherent in generic TTS priors. Absolute DNSMOS scores can be deceptive in text-based speech editing, as elevated metrics often reflect acoustic normalization or global denoising rather than faithful contextual preservation. Such elevated scores are more reflective of output clean-liness and acoustic normalization than of how well the edited segment blends into its surrounding con-text, as global denoising naturally inflates percep-tual quality metrics regardless of local consistency. However, imperceptible editing requires modified segments to seamlessly match the acoustic environ-ment and stylistic texture of the unedited context. By directly optimizing for editing-specific rewards, CosyEdit2 maintains competitive speech quality while ensuring strict contextual alignment. This distinction underscores that absolute perceptual scores cannot independently verify editing fidelity, highlighting the necessity of consistency-focused metrics to gauge non-disruptive boundary fusion. 
+
+Results on Chinese Subset. Table 7 reports the Chinese results. CosyEdit2 substantially outper-forms all multilingual baselines on WER and SS across insertion, deletion, and substitution, demon-strating strong cross-lingual speech editing capa-bility. The gains are especially large for insertion and substitution, where CosyEdit2 reduces WER to around 1–1.4% while maintaining the highest speaker similarity. Deletion remains more diffi-cult, but CosyEdit2 still achieves the best WER and SS, showing that the model generalizes be-yond English despite being optimized with English GRPO prompts. In terms of acoustic consistency, CosyEdit2 obtains the lowest MAE DNSMOS on in-sertion and substitution and remains competitive on deletion. These results indicate that the editing-oriented training improves not only content modifi-cation but also speaker and acoustic preservation in multilingual speech editing. 
+
+E.2 Results on RealEdit Baselines. We further evaluate CosyEdit2 on the RealEdit benchmark from VoiceCraft (Peng et al., 2024). We compare with three cascaded editing systems, including FluentSpeech, VoiceCraft, and SSR-Speech, as well as two end-to-end speech edit-ing models, Ming-UniAudio and CosyEdit. All baseline results are obtained under their recom-mended settings. 19 Method WER ↓ SS ↑ MCD ↓ MOS MAE ↓                                   
+
+> GroundTruth 6.06 ––3.34 –FluentSpeech 5.97 92.74 –2.72 0.78 VoiceCraft 6.55 97.12 –3.18 0.24 SSR-Speech 5.05 98.31 –3.32 0.14
+> Ming-UniAudio 9.98 96.70 5.36 3.13 0.33 CosyEdit 4.50 97.34 4.94 3.19 0.29 CosyEdit2 4.31 97.91 3.93 3.21 0.25
+
+Table 8: Results for speech editing on RealEdit. The dashed line separates cascaded speech editing systems (above) from end-to-end models (below). MOS denotes MOSNet-predicted scores; MAE denotes MAE MOSNet between generated and original speech. 
+
+Evaluation Setup and Metrics. RealEdit con-tains 310 in-the-wild speech editing cases with realistic acoustic variations such as background noise and music. We report WER for content accu-racy, speaker similarity (SS) for speaker preserva-tion, and MCD on the unedited regions for acoustic preservation. Following prior RealEdit evaluation, we use MOSNet (Lo et al., 2019) to estimate per-ceptual quality and additionally report its mean ab-solute error against the ground-truth speech, where lower MAE indicates closer quality consistency. 
+
+Results. Table 8 reports the RealEdit results. CosyEdit2 achieves the lowest WER among all sys-tems, improving over both strong cascaded editors such as SSR-Speech and end-to-end models such as Ming-UniAudio and CosyEdit. It also obtains the best speaker similarity among end-to-end systems and approaches the strongest cascaded baseline. More importantly, CosyEdit2 substantially re-duces MCD on the unedited regions, from 4.94 to 3.93 compared with CosyEdit. This confirms that the proposed editing-oriented training improves acoustic preservation rather than merely optimizing text correctness. In terms of MOSNet, CosyEdit2 achieves a low MAE MOSNet to the ground truth, indicating that it better matches the original record-ing quality under in-the-wild conditions. Overall, the RealEdit results further show that CosyEdit2 combines the content accuracy of strong editing systems with stronger acoustic preservation in real-istic speech editing scenarios. 
+
+F Additional Zero-Shot TTS Results on SEED-TTS-EVAL 
+
+F.1 Evaluation Setup and Metrics. 
+
+We further evaluate zero-shot TTS on SEED-TTS-EVAL (Anastassiou et al., 2024) benchmark, which contains English and Chinese test sets for mea-                             
+
+> Model test-zh test-en CER ↓SS ↑WER ↓SS ↑
+> VoiceCraft-X 3.26 67.6 5.13 52.7 SSR-Speech 20.51 53.9 9.03 48.0 CosyEdit 1.76 74.7 2.98 63.5 CosyVoice2 1.36 75.1 3.10 65.7
+> CosyEdit2 1.16 75.2 1.95 64.3
+
+Table 9: CER(%), WER(%) and Speaker Similarity (SS, %) on Seed-TTS-eval Benchmark. 
+
+suring content intelligibility and speaker similar-ity. We use the same inference setting as in the main zero-shot TTS experiments: CosyEdit2 re-places only the LLM with the GRPO-optimized one, while keeping the original CosyVoice2 Flow and HiFT-GAN vocoder unchanged. Unlike CV3-EVAL, SEED-TTS-EVAL prompts are generally clean and well-trimmed, so no VAD-based prepro-cessing is applied in this evaluation. Following the SEED-TTS-EVAL protocol, we report CER (%) for Chinese, WER (%) for English, and speaker similarity (SS, %) for voice cloning fidelity. 
+
+F.2 Results. 
+
+Table 9 shows the results on SEED-TTS-EVAL benchmark. CosyEdit2 achieves the best content accuracy in both languages, reducing CER from 1.36 to 1.16 on test-zh and WER from 3.10 to 1.95 on test-en compared with the same-backbone CosyVoice2 baseline. Speaker similarity is also well preserved: CosyEdit2 obtains the highest SS on test-zh and remains competitive on test-en. These results further support our finding that editing-oriented GRPO strengthens the zero-shot generation ability of the backbone, even though it is trained with editing prompts rather than zero-shot TTS supervision. Notably, the improvement transfers from English GRPO training to Chinese 20 Ground Truth HiFT-GAN BigVGAN Figure 7: Mel spectrogram visualization of a speech sample reconstructed by HiFT-GAN from CosyVoice2 and our trained BigVGAN, with a zoomed-in view of harmonic components.                                        
+
+> Source Vocoder MR-STFT ↓PESQ ↑STOI ↑ESTOI ↑MCD ↓MAE DNSMOS ↓
+> Clean HiFT-GAN 1.215 3.475 0.974 0.920 1.631 0.063 BigVGAN 1.138 3.668 0.980 0.936 1.310 0.056
+> Noisy HiFT-GAN 1.490 3.019 0.933 0.859 1.988 0.115 BigVGAN 1.438 3.185 0.945 0.881 1.630 0.114
+
+Table 10: Vocoder reconstruction quality on the VoiceBank-DEMAND test set. Source denotes the subset of the VoiceBank-DEMAND dataset used as vocoder input, either clean or noisy speech. Reference-based metrics (MRSTFT, PESQ, STOI, ESTOI, MCD) compare generated audio against the source waveform. MAE DNSMOS is the mean absolute error between DNSMOS scores of generated and source audio. 
+
+zero-shot TTS, suggesting that the learned gains are not language-specific. Instead, GRPO appears to enhance general speech generation abilities, such as speech-text alignment and pronunciation control, which benefit zero-shot TTS across languages with-out substantially degrading voice cloning fidelity. 
+
+G Vocoder Reconstruction Experiment 
+
+To isolate the effect of the vocoder, we conduct a reconstruction experiment comparing our adapted BigVGAN with the original HiFT-GAN vocoder from CosyVoice2. Given a source waveform, we first extract its Mel spectrogram with the corre-sponding vocoder frontend and then reconstruct the waveform using the vocoder. The reconstructed audio is compared against the same source wave-form, this experiment evaluates Mel-to-waveform reconstruction quality without involving the LLM or Flow modules. 
+
+G.1 Evaluation Setup 
+
+The test split of VoiceBank-DEMAND-16k 3 serves as our evaluation benchmark, covering both clean 
+
+> 3https://huggingface.co/datasets/JacobLinCool/ VoiceBank-DEMAND-16k
+
+and noisy subsets as source audio. For each subset, the source waveform is used to compute the Mel in-put and also serves as the reconstruction reference. Since the dataset is 16 kHz while both vocoders operate at the CosyVoice2 acoustic configuration of 24 kHz, we resample the source audio from 16 kHz to 24 kHz for Mel extraction and waveform gener-ation, and then resample the generated waveform back to 16 kHz for evaluation. All generated wave-forms are length-matched with the reference audio before metric computation. 
+
+G.2 Metrics 
+
+We report reference-based reconstruction metrics, including multi-resolution short-time Fourier trans-form distance (MR-STFT) (Yamamoto et al., 2020), PESQ (Rix et al., 2001), STOI (Taal et al., 2011), ESTOI (Jensen and Taal, 2016), and MCD (Ku-bichek, 1993). MR-STFT and MCD measure spec-tral distortion, PESQ estimates perceptual speech quality, and STOI/ESTOI measure intelligibility preservation. In addition, We compute DNS-MOS on both the source and reconstructed audio, and report MAE DNSMOS to measure how closely the reconstructed waveform preserves the source 21 perceptual-quality score. 
+
+G.3 Results 
+
+Table 10 shows that BigVGAN consistently out-performs the original HiFT-GAN vocoder on both clean and noisy subsets. On clean speech, BigV-GAN improves all reference-based metrics, reduc-ing MCD from 1.631 to 1.310 and MR-STFT from 1.215 to 1.138, while increasing PESQ, STOI, and ESTOI. On noisy speech, BigVGAN also yields better reconstruction quality, reducing MCD from 1.988 to 1.630 and improving PESQ from 3.019 to 3.185. These gains indicate that the adapted BigVGAN reconstructs Mel spectrograms more faithfully than the original HiFT-GAN. The improvement is especially important for speech editing. In editing scenarios, the vocoder should not merely synthesize clean speech, but should preserve the acoustic characteristics con-tained in the generated Mel spectrogram, including background noise and other in-the-wild recording conditions. BigVGAN improves all metrics on both clean and noisy subsets, with especially clear reductions in MCD, indicating more faithful spec-tral reconstruction and stronger acoustic preser-vation. The lower MAE DNSMOS suggests better perceptual-quality consistency with the source au-dio. This supports our replacement of HiFT-GAN with BigVGAN in CosyEdit2. We also provide a visual comparison in Fig-ure 7, showing the Mel spectrograms reconstructed by HiFT-GAN vocoder from CosyVoice2 and our trained BigVGAN on a challenging sample that contains simultaneous speech, background mu-sic, and ambient noise. In the zoomed-in region, HiFT-GAN produces noticeably blurred harmonic structures, with individual harmonics appearing smeared, less well-defined, and in some cases en-tirely absent. In contrast, BigVGAN reconstructs sharper and more clearly delineated harmonic com-ponents, preserving structures that HiFT-GAN fails to reproduce, and more closely resembling the ground truth. This qualitative observation is consis-tent with the quantitative improvements in MCD and MR-STFT reported above. 
+
+H Speech Preservation Evaluation 
+
+To further examine the preservation ability of differ-ent systems, we design a text-identity reconstruc-tion experiment, where the target text is identical to the original or prompt text. This setting removes              
+
+> Method SS ↑MCD ↓
+> HiFT-GAN †99.02 3.03 BigVGAN †99.25 2.81
+> CosyVoice2 96.92 6.24 CosyEdit2 99.08 3.07
+> Table 11: Speaker similarity (SS, %) and mel-cepstral distortion (MCD, dB) on the speech preservation evalu-ation over RealEdit, where the target text is identical to the prompt/original text. †Oracle vocoder reconstruction upper bounds, where the mel-spectrogram is extracted directly from the prompt/original speech.
+
+the need for content modification and directly eval-uates whether a model can reproduce the original speech. Notably, our training data does not contain such identity-editing samples, making this experi-ment a zero-shot test of acoustic preservation. 
+
+H.1 Evaluation Setup 
+
+We evaluate on RealEdit, which contains 310 in-the-wild speech samples with complex acoustic conditions. For CosyEdit2, we set the original text and target text to be identical, with Xtar = Xori ,and generate the target speech using the speech editing pipeline. For CosyVoice2, we use its zero-shot TTS mode with the prompt text and target text set to the same transcription. Thus, both models are asked to reconstruct the original utterance content, but with different task formulations: CosyVoice2 regenerates the utterance as zero-shot TTS, while CosyEdit2 treats it as an identity edit. We also include two oracle vocoder reconstruc-tion upper bounds. For HiFT-GAN and BigVGAN, we extract the Mel spectrogram from the original speech and reconstruct the waveform with the cor-responding vocoder. These oracle settings bypass the LLM and Flow modules, thus reflect the recon-struction upper bound of the acoustic backend. 
+
+H.2 Metrics 
+
+We report speaker similarity (SS) and Mel-Cepstral Distortion (MCD) between the generated speech and the original speech. SS measures whether the reconstructed speech preserves the speaker identity, while MCD measures spectral distortion over the full utterance. Higher SS and lower MCD indicate stronger preservation. 
+
+H.3 Results 
+
+Table 11 shows the preservation evaluation results. CosyEdit2 substantially improves over the same-22 Edit Type Model Subjective Evaluation IMOS ↑ SMOS ↑ PMOS ↑                                                          
+
+> Insertion VoiceCraft 4.353 4.497 4.143 SSR-Speech 4.550 4.637 4.247
+> Ming-UniAudio 4.213 4.373 3.937 CosyEdit 4.543 4.587 4.150 CosyVoice2 4.650 4.473 3.690 CosyEdit2 4.773 4.637 4.213 IMOS ↑SMOS ↑PMOS ↑
+> Deletion VoiceCraft 4.377 4.627 4.373 SSR-Speech 4.597 4.647 4.407
+> Ming-UniAudio 3.057 4.413 3.140 CosyEdit 4.553 4.657 4.220 CosyVoice2 4.623 4.563 3.927 CosyEdit2 4.660 4.777 4.403 IMOS ↑SMOS ↑PMOS ↑
+> Substitution VoiceCraft 4.443 4.617 4.370 SSR-Speech 4.760 4.683 4.513 Ming-UniAudio 4.283 4.507 3.990 CosyEdit 4.563 4.703 4.370 CosyVoice2 4.777 4.653 4.087 CosyEdit2 4.797 4.730 4.520
+
+Table 12: Subjective evaluation results on the English subset of Ming-Freeform-Audio-Edit. IMOS, SMOS, and PMOS denote intelligibility, speaker similarity, and preservation mean opinion scores, respectively. 
+
+backbone CosyVoice2 baseline, increasing SS from 96.92 to 99.08 and reducing MCD from 6.24 to 3.07. This confirms that the editing-oriented train-ing greatly strengthens the model’s ability to pre-serve the original speech, even without explicit identity-editing examples during training. In con-trast, zero-shot TTS can reproduce the content and speaker identity, but tends to regenerate the utter-ance with weaker preservation of the original acous-tic trajectory. Compared with the oracle vocoder reconstruc-tions, CosyEdit2 is already close to the HiFT-GAN upper bound and only slightly behind the BigV-GAN upper bound in MCD. Notably, CosyEdit2 even slightly surpasses the HiFT-GAN reconstruc-tion in speaker similarity, achieving 99.08 versus 99.02. Since the oracle BigVGAN reconstruction directly uses the Mel spectrogram extracted from the original speech, the remaining gap mainly re-flects errors from the LLM and Flow modules. The small difference between CosyEdit2 and the oracle reconstructions indicates that the LLM and Flow preserve acoustic information effectively under the identity-editing setting. These results provide additional evidence for our central claim: speech editing requires stronger preservation than ordinary zero-shot TTS. When no content change is needed, CosyEdit2 behaves close to an acoustic reconstruction system, while CosyVoice2 still behaves like a generative TTS model. This supports our view that editing-oriented training improves not only content modification, but also the preservation ability required to avoid degeneration into ordinary zero-shot TTS. 
+
+I Subjective Evaluation 
+
+I.1 Annotators 
+
+We manually recruited 10 university students for subjective evaluation, including 5 male and 5 fe-male annotators. All annotators are native Chi-nese speakers and have passed CET-6 or an equiva-lent English proficiency level. Each audio sample is rated independently, and different metrics are judged separately without compensating one di-mension by another. The annotation interfaces for speech editing and zero-shot TTS are shown in Figure 8 and Figure 9, respectively. 
+
+I.2 Rating Criteria Zero-shot TTS. For zero-shot TTS, annotators rate each generated sample using two Mean Opin-ion Score (MOS) metrics on a 1–5 integer scale: Intelligibility MOS (IMOS) and Speaker Similarity MOS (SMOS). IMOS measures content intelligi-bility and consistency with the target text, while SMOS measures speaker similarity to the prompt speech. The prompt speech is provided as the ref-23 Edit Type Model Subjective Evaluation IMOS ↑ SMOS ↑ PMOS ↑                                                 
+
+> Insertion VoiceCraft-X 4.373 4.570 3.707 LEMAS-Edit 4.247 4.370 3.673 Ming-UniAudio 4.333 4.623 4.107 CosyVoice2 4.900 4.553 4.037 CosyEdit2 4.907 4.767 4.500
+> IMOS ↑SMOS ↑PMOS ↑
+> Deletion VoiceCraft-X 4.313 4.727 3.963 LEMAS-Edit 4.080 4.663 3.897 Ming-UniAudio 3.307 4.567 3.173 CosyVoice2 4.713 4.573 3.867 CosyEdit2 4.720 4.863 4.303
+> IMOS ↑SMOS ↑PMOS ↑
+> Substitution VoiceCraft-X 4.297 4.647 3.520 LEMAS-Edit 4.007 4.453 3.630 Ming-UniAudio 4.250 4.677 3.720 CosyVoice2 4.863 4.617 4.090 CosyEdit2 4.883 4.857 4.527
+
+Table 13: Subjective evaluation results on the Chinese subset of Ming-Freeform-Audio-Edit. IMOS, SMOS, and PMOS denote intelligibility, speaker similarity, and preservation mean opinion scores, respectively. 
+
+erence speaker, and candidate transcriptions are shown only to help identify possible content errors; final judgments are based on the target text and generated target speech. For IMOS, the scores are defined as follows: • 5: The speech is clear and natural, and the con-tent fully matches the target text without omis-sions, insertions, substitutions, repetitions, or semantic errors. • 4: The speech is mostly clear and faithful to the target text, with only minor pronunciation, pause, or content deviations that do not affect understanding. • 3: The speech is generally intelligible, but contains noticeable content mismatches such as omissions, substitutions, repetitions, or am-biguous pronunciations. • 2: The speech is difficult to understand and has clear mismatches with the target text, in-cluding multiple missing, incorrect, repeated, or broken segments. • 1: Most content is unintelligible or severely deviates from the target text. For SMOS, the scores are defined as follows: • 5: The generated speech is almost identical to the prompt speaker in identity, timbre, pitch, speaking style, and vocal manner. • 4: The speaker similarity is high, with only slight differences in timbre, pitch, or speaking style. • 3: The speaker identity is partly preserved, but noticeable differences remain. • 2: The generated speech has low speaker sim-ilarity and clearly deviates from the prompt speaker. • 1: The generated speech sounds like a differ-ent speaker. 
+
+Speech Editing. For speech editing, annota-tors rate each edited sample with IMOS, SMOS, and PMOS (Preservation MOS). IMOS measures whether the edited speech matches the target text, SMOS measures speaker preservation with respect to the original speech, and PMOS measures preser-vation of unedited regions and edit-boundary natu-ralness. The IMOS and SMOS scales follow the same principles as in zero-shot TTS, except that the ref-erence is the original speech to be edited. PMOS is defined as follows: • 5: The unedited regions are almost identical to the original speech in timbre, prosody, speak-ing rate, volume, background condition, and recording style; edit boundaries are natural and inaudible. 24 • 4: The unedited regions are well preserved, with only slight differences in timbre, prosody, acoustic condition, or boundary smoothness. • 3: Noticeable changes exist in the unedited re-gions, such as altered prosody, speaking rate, volume, background condition, or mildly dis-continuous edit boundaries. • 2: The unedited regions are poorly preserved, or the edit boundaries contain clear artifacts, abrupt changes, or discontinuities. • 1: The unedited regions are largely resynthe-sized or severely deviate from the original speech, or the edit boundaries are highly un-natural. 
+
+I.3 Speech Editing Subjective Evaluation Task Design. Subjective evaluations were con-ducted on the English and Chinese subsets of Ming-Freeform-Audio-Edit. For each language, 30 utter-ances were randomly sampled for each edit type (insertion, deletion, and substitution), resulting in 90 samples per language and 180 samples in total. The evaluated systems were identical to those in the objective speech editing experiments. Addition-ally, CosyVoice2 in its zero-shot TTS mode was included as a same-backbone baseline. 
+
+Results. Tables 12 and 13 show the subjective speech editing results. On the English subset, CosyEdit2 achieves the best IMOS and SMOS across all edit types, and obtains the best or nearly best PMOS. It is especially strong on substitution, where it achieves the highest scores on all three di-mensions. Compared with SSR-Speech, CosyEdit2 reaches comparable preservation quality in the re-constructed unedited regions, demonstrating that, from the perspective of human auditory perception, our end-to-end speech editing model can achieve a similar level of preservation fidelity. Compared with CosyVoice2, CosyEdit2 consistently improves PMOS, showing that ordinary zero-shot TTS can generate intelligible edited content but fails to pre-serve unedited regions as reliably. On the Chinese subset, CosyEdit2 achieves the best IMOS, SMOS, and PMOS for all edit types. The improvement over CosyVoice2 is particularly clear in PMOS, confirming that the editing-oriented training strengthens preservation of non-edited re-gions rather than merely improving content genera-tion. These subjective results support the main con-clusion of the objective experiments: CosyEdit2                    
+
+> Language Model IMOS ↑SMOS ↑
+> English VoiceCraft-X 3.675 3.418 CosyEdit 4.628 4.305 CosyVoice2 4.658 4.342 CosyEdit2 4.730 4.418
+> Chinese VoiceCraft-X 3.882 3.530 CosyEdit 4.275 4.272 CosyVoice2 4.535 4.432 CosyEdit2 4.640 4.512
+> Table 14: Subjective evaluation results for zero-shot TTS on the CV3-Eval Multi-lingual Voice Cloning sub-set. IMOS and SMOS denote intelligibility and speaker similarity mean opinion scores, respectively.
+
+improves speech editing quality not only by pro-ducing correct target content, but also by better preserving speaker identity, acoustic conditions, and edit-boundary naturalness. 
+
+I.4 Zero-shot TTS Subjective Evaluation Task Design. For zero-shot TTS, we conducted a subjective evaluation on the multilingual voice cloning subset of CV3-EVAL. We randomly sam-pled 20 utterances from each of the zh , en ,
+
+hard_zh , and hard_en subsets, resulting in 80 sam-ples in total. The evaluated systems were selected from the objective zero-shot TTS experiments. For reporting purposes, the zh and hard_zh subsets were aggregated into Chinese, while the en and 
+
+hard_en subsets were aggregated into English. 
+
+Results. Table 14 reports the subjective zero-shot TTS results. CosyEdit2 achieves the highest IMOS and SMOS in both English and Chinese, out-performing the same-backbone CosyVoice2 base-line. This indicates that editing-oriented GRPO improves perceived content correctness while main-taining or improving speaker similarity. The gains are consistent with the objective results, further showing that training with editing prompts does not degrade zero-shot TTS perceptual quality; in-stead, it improves the shared in-context learning capability underlying prompt-conditioned speech generation in a way that transfers to both English and Chinese synthesis. 25 Speech Editing: Subjective Evaluation 
+
+中文  English 
+
+Rating Criteria 
+
+Next  Go to First Missing  Auto Save  Progress: 1 / 180  Export CSV 
+
+Loaded 180 items, 1170 audio records. 
+
+Item 1: common_voice_en_22768238 
+
+English Subset  Insertion  6 Candidate Models 
+
+Editing Instruction 
+
+Add the word 'are' after the 3rd word 
+
+File ID 
+
+common_voice_en_22768238 
+
+Original Text 
+
+Notable among them  Insertion Point  his works for the estates of Harewood and Wentworth Woodhouse 
+
+Target Text 
+
+Notable among them  are  his works for the estates of Harewood and Wentworth Woodhouse 
+
+Original Speech (Speech to Edit) 
+
+Model 1  Incomplete 
+
+Candidate Transcription 
+
+Notable among them are his works for the estates of Harewood and Wentworth Woodhouse. 
+
+IMOS  1 2 3 4 5 Pending 
+
+SMOS  1 2 3 4 5 Pending 
+
+PMOS  1 2 3 4 5 Pending 
+
+Model 2  Incomplete 
+
+Candidate Transcription 
+
+Notable among them are his works for the estates of Harewood and Wentworth Woodhouse. 
+
+IMOS  1 2 3 4 5 Pending 
+
+SMOS  1 2 3 4 5 Pending 
+
+PMOS  1 2 3 4 5 Pending 
+
+Model 3  Incomplete 
+
+Candidate Transcription 
+
+Notable among them are his works for the estates of Harewood and Wentworth Woodhouse, 
+
+IMOS  1 2 3 4 5 Pending 
+
+SMOS  1 2 3 4 5 Pending 
+
+PMOS  1 2 3 4 5 Pending 
+
+Model 4  Incomplete 
+
+Candidate Transcription 
+
+Notable among them are his works for the estates of Harewood and Wentworth Woodhouse. 
+
+IMOS  1 2 3 4 5 Pending 
+
+SMOS  1 2 3 4 5 Pending 
+
+PMOS  1 2 3 4 5 Pending 
+
+Model 5  Incomplete 
+
+Candidate Transcription 
+
+Notable among them are his works for the estates of Harewood and Wentworth Woodhouse. 
+
+IMOS  1 2 3 4 5 Pending 
+
+SMOS  1 2 3 4 5 Pending 
+
+PMOS  1 2 3 4 5 Pending 
+
+Model 6  Incomplete 
+
+Candidate Transcription 
+
+Notable among them are his works for the estates of Harewood and Wentworth Woodhouse. 
+
+IMOS  1 2 3 4 5 Pending 
+
+SMOS  1 2 3 4 5 Pending 
+
+PMOS  1 2 3 4 5 Pending 
+
+Remarks 
+
+Optional Previous 0:00 0:00 / 0:06 / 0:06 0:00 0:00 / 0:05 / 0:05 0:00 0:00 / 0:06 / 0:06 0:00 0:00 / 0:06 / 0:06 0:00 0:00 / 0:06 / 0:06 0:00 0:00 / 0:07 / 0:07 0:00 0:00 / 0:06 / 0:06 ‹
+
+## ›Figure 8: Speech Editing Subjective Evaluation Annotation UI. 
+
+26 Zero-shot TTS: Subjective Evaluation 
+
+中文  English 
+
+Rating Criteria 
+
+Next  Go to First Missing  Auto Save  Progress: 1 / 80  Export CSV 
+
+Loaded 80 items, 400 audio records. 
+
+Item 1: uttid_64 
+
+English Subset  4 Candidate Models 
+
+Prompt Text 
+
+All of the resources were used up. 
+
+Target Text 
+
+He is married to his wife Katie Hansel. 
+
+File ID 
+
+uttid_64 
+
+Sort Group 
+
+en 
+
+Prompt_Wav Reference Audio 
+
+Model 1  Incomplete 
+
+Candidate Transcription 
+
+He is married to his wife Katie Hunsell. 
+
+IMOS  1 2 3 4 5 Pending 
+
+SMOS  1 2 3 4 5 Pending 
+
+Model 2  Incomplete 
+
+Candidate Transcription 
+
+He is married to his wife, Katie Hansel. 
+
+IMOS  1 2 3 4 5 Pending 
+
+SMOS  1 2 3 4 5 Pending 
+
+Model 3  Incomplete 
+
+Candidate Transcription 
+
+He is married to his wife Katie Hansel. 
+
+IMOS  1 2 3 4 5 Pending 
+
+SMOS  1 2 3 4 5 Pending 
+
+Model 4  Incomplete 
+
+Candidate Transcription 
+
+He is married to his wife, Katie Hansel. 
+
+IMOS  1 2 3 4 5 Pending 
+
+SMOS  1 2 3 4 5 Pending 
+
+Remarks 
+
+Optional Previous 0:00 0:00 / 0:02 / 0:02 0:00 0:00 / 0:02 / 0:02 0:00 0:00 / 0:02 / 0:02 0:00 0:00 / 0:03 / 0:03 0:00 0:00 / 0:01 / 0:01 ‹
+
+## ›Figure 9: Zero-shot TTS Subjective Evaluation Annotation UI. 
+
+27

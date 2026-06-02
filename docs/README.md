@@ -6,93 +6,70 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-01
-- 运行时间：2026-06-01 21:08:38 UTC
+- 最新运行日期：2026-05-04 ~ 2026-06-02
+- 运行时间：2026-06-02 07:58:01 UTC
 - 运行状态：成功
-- 本次总论文数：23
-- 精读区：9
-- 速读区：14
+- 本次总论文数：16
+- 精读区：5
+- 速读区：11
 
 ### 今日简报（AI）
-今日23篇论文聚焦跨语言与语音识别两大前沿。
-
-最值得关注方向：跨语言比喻生成（9.0分）与基于词性的非拉丁脚本ASR错误分析（8.0分）。
-
-建议从精读的跨语言论文入手，再延伸至速读中的ASR交互式纠错与解码策略。
-- 详情：[/202606/01/README](/202606/01/README)
+本期精读重点为两项高分研究：多智能体闭环TTS框架（9.0）与端到端中文形式化ASR（9.0），速读涉及语音自然语言描述、印度语识别及域适应等方向。  
+最值得关注的是AgentSteerTTS的多智能体协作处理复合指令，以及FormalASR首次实现口语到正式文本的端到端转换，均具显著创新性。  
+建议下一步可深入探索多智能体TTS的闭环优化策略，同时留意中文ASR在形式化文本上的应用潜力。
+- 详情：[/20260504-20260602/README](/20260504-20260602/README)
 
 ### 精读区论文标签
-1. [Cross-Lingual Steering for Figurative Language Generation](/202606/01/2605.30443v1-cross-lingual-steering-for-figurative-language-generation)  
-   标签：评分：9.0/10、query:cross-lang
-   evidence：跨语言引导用于比喻语言生成，研究字面与非字面翻译
-2. [An In-Vitro Study on Cross-Lingual Generalization in Language Models](/202606/01/2605.26683v1-an-in-vitro-study-on-cross-lingual-generalization-in-language-models)  
-   标签：评分：8.0/10、query:cross-lang
-   evidence：使用合成语言对跨语言迁移进行受控研究
-3. [FalAR: A Large-scale Speaker-Annotated European Portuguese Speech Corpus of Parliamentary Sessions](/202606/01/2605.27062v1-falar-a-large-scale-speaker-annotated-european-portuguese-speech-corpus-of-parliamentary-sessions)  
+1. [AgentSteerTTS: A Multi-Agent Closed-Loop Framework for Composite-Instruction Text-to-Speech](/20260504-20260602/2605.17583v1-agentsteertts-a-multi-agent-closed-loop-framework-for-composite-instruction-text-to-speech)  
+   标签：评分：9.0/10、query:qwen-tts
+   evidence：复合指令TTS实现细粒度控制
+2. [FormalASR: End-to-End Spoken Chinese to Formal Text](/20260504-20260602/2605.19266v1-formalasr-end-to-end-spoken-chinese-to-formal-text)  
+   标签：评分：9.0/10、query:speech-tech
+   evidence：基于Qwen3-ASR微调的中文语音转正式文本
+3. [Thinking-while-speaking: A Controlled, Interleaved Reasoning Method for Real-Time Speech Generation](/20260504-20260602/2605.20946v1-thinking-while-speaking-a-controlled-interleaved-reasoning-method-for-real-time-speech-generation)  
+   标签：评分：9.0/10、query:qwen-tts
+   evidence：在语音生成中控制推理步的时序和长度比例
+4. [From Flat Language Labels to Typological Priors: Structured Language Conditioning for Multilingual Speech-to-Speech Translation](/20260504-20260602/2605.16026v1-from-flat-language-labels-to-typological-priors-structured-language-conditioning-for-multilingual-speech-to-speech-translation)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：面向低资源欧洲葡萄牙语ASR的大规模语音语料库
-4. [Beyond Similarity: Task-Aligned Retrieval for Language Models](/202606/01/2605.27951v1-beyond-similarity-task-aligned-retrieval-for-language-models)  
-   标签：评分：8.0/10、query:fie-rag
-   evidence：面向任务的检索替代语义相似度，可用于少样本事实性推断
-5. [KVoiceBench, KOpenAudioBench, and KMMAU: Agent-Driven Korean Speech Benchmarks for Evaluating SpeechLMs](/202606/01/2605.27984v1-kvoicebench-kopenaudiobench-and-kmmau-agent-driven-korean-speech-benchmarks-for-evaluating-speechlms)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：韩语语音基准测试，直接针对多语言语音模型评估
-6. [Unified Synthesis of Compositional Speech and Sound from Free-Form Text Prompts](/202606/01/2605.28063v1-unified-synthesis-of-compositional-speech-and-sound-from-free-form-text-prompts)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：从自由文本统一合成语音和声音
-7. [Data-Efficient On-Policy Distillation for Automatic Speech Recognition](/202606/01/2605.28139v1-data-efficient-on-policy-distillation-for-automatic-speech-recognition)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：数据高效的自回归语音识别的在线策略蒸馏
-8. [Comprehensive Benchmarking of Long-Form Speech Generation in Diverse Scenarios](/202606/01/2605.28618v1-comprehensive-benchmarking-of-long-form-speech-generation-in-diverse-scenarios)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：长文本语音生成的综合基准
-9. [Loong: A Human-Like Long Document Translation Agent with Observe-and-Act Adaptive Context Selection](/202606/01/2605.30274v1-loong-a-human-like-long-document-translation-agent-with-observe-and-act-adaptive-context-selection)  
-   标签：评分：8.0/10、query:cross-lang
-   evidence：利用强化学习自适应选择上下文的长文档翻译代理
+   evidence：多语言语音到语音翻译的结构化语言条件
+5. [Unified Synthesis of Compositional Speech and Sound from Free-Form Text Prompts](/20260504-20260602/2605.28063v1-unified-synthesis-of-compositional-speech-and-sound-from-free-form-text-prompts)  
+   标签：评分：8.0/10、query:qwen-tts
+   evidence：基于LLM的自回归框架统一合成语音和声音
 
 ### 速读区论文标签
-1. [Breaking the Script Barrier: Enabling Automatic Alignment for PoS-based ASR Error Analysis in Non-Latin Scripts](/202606/01/2605.28438v1-breaking-the-script-barrier-enabling-automatic-alignment-for-pos-based-asr-error-analysis-in-non-latin-scripts)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：针对非拉丁文字ASR错误分析的自动对齐机制
-2. [Towards Human-Like Interactive Speech Recognition With Agentic Correction and Semantic Evaluation](/202606/01/2605.29430v1-towards-human-like-interactive-speech-recognition-with-agentic-correction-and-semantic-evaluation)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：交互式语音识别与多轮修正
-3. [Decoding Strategies for Diffusion-Based ASR: A Systematic Evaluation of Confidence-Based Thresholding](/202606/01/2605.29613v1-decoding-strategies-for-diffusion-based-asr-a-systematic-evaluation-of-confidence-based-thresholding)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：自动语音识别解码策略
-4. [MELD: Mel-Spectrogram-Based Speech Language Modeling with Discrete Latent Variables](/202606/01/2605.29859v1-meld-mel-spectrogram-based-speech-language-modeling-with-discrete-latent-variables)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：提出MELD模型，在梅尔频谱上联合优化编码器和语音语言模型，提升零样本TTS和STT，可应用于多语言语音合成。
-5. [HoliTok:A Coutinuous Holistic Tokenization with Robust Dual Capabilities of Speech Generation and Understanding](/202606/01/2605.29948v1-holitoka-coutinuous-holistic-tokenization-with-robust-dual-capabilities-of-speech-generation-and-understanding)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：语音分词，支持生成和理解
-6. [Thaka at KSAA-2026 Task 2: Regularized Fine-Tuning for Arabic Speech Diacritization](/202606/01/2605.25928v1-thaka-at-ksaa-2026-task-2-regularized-fine-tuning-for-arabic-speech-diacritization)  
+1. [Communicating Sound Through Natural Language](/20260504-20260602/2605.08750v1-communicating-sound-through-natural-language)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：阿拉伯语语音标音低资源处理
-7. [Forgotten Words: Benchmarking NeoBERT for Dementia Detection in Low-Resource Conversational Filipino and English Speech](/202606/01/2605.26007v1-forgotten-words-benchmarking-neobert-for-dementia-detection-in-low-resource-conversational-filipino-and-english-speech)  
+   evidence：通过自然语言进行声音编码和传输
+2. [Vividh-ASR: A Complexity-Tiered Benchmark and Optimization Dynamics for Robust Indic Speech Recognition](/20260504-20260602/2605.13087v1-vividh-asr-a-complexity-tiered-benchmark-and-optimization-dynamics-for-robust-indic-speech-recognition)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：低资源菲英双语语音痴呆检测
-8. [From Snippets to Semantics: Rethinking Evidence Granularity for Multilingual Fact Verification](/202606/01/2605.26755v1-from-snippets-to-semantics-rethinking-evidence-granularity-for-multilingual-fact-verification)  
-   标签：评分：7.0/10、query:fie-rag
-   evidence：用于多语言事实验证的自适应证据分块和LLM微调
-9. [SEEK: Semantic Evidence Extraction via Adaptive ChunKing for Multilingual Fact-Checking](/202606/01/2605.26755v2-seek-semantic-evidence-extraction-via-adaptive-chunking-for-multilingual-fact-checking)  
-   标签：评分：7.0/10、query:fie-rag
-   evidence：多语言事实核查中的自适应证据分块与LLM微调
-10. [LitSeg: Narrative-Aware Document Segmentation for Literary RAG](/202606/01/2605.27156v1-litseg-narrative-aware-document-segmentation-for-literary-rag)  
-   标签：评分：7.0/10、query:fie-rag
-   evidence：基于叙事感知分割的RAG方法，可用于少样本推理
-11. [Quantifying the Impact of Translation Errors on Multilingual LLM Evaluation](/202606/01/2605.24904v1-quantifying-the-impact-of-translation-errors-on-multilingual-llm-evaluation)  
-   标签：评分：6.0/10、query:cross-lang
-   evidence：量化翻译错误对多语言LLM评估的影响
-12. [BhashaSetu: A Data-Centric Approach to Low-Resource Machine Translation](/202606/01/2605.27050v1-bhashasetu-a-data-centric-approach-to-low-resource-machine-translation)  
-   标签：评分：6.0/10、query:cross-lang
-   evidence：英-马拉地语低资源机器翻译数据集和基准测试
-13. [ConRAG: Consensus-Driven Multi-View Retrieval for Multi-Hop Question Answering](/202606/01/2605.28093v1-conrag-consensus-driven-multi-view-retrieval-for-multi-hop-question-answering)  
-   标签：评分：6.0/10、query:fie-rag
-   evidence：多跳问答的RAG框架，利用多视图证据
-14. [Supervised Semantic Differential for Cross-Cultural Concept Analysis: A Case Study of Human Affect](/202606/01/2605.28225v1-supervised-semantic-differential-for-cross-cultural-concept-analysis-a-case-study-of-human-affect)  
-   标签：评分：6.0/10、query:cross-lang
-   evidence：跨语言语义梯度分析
+   evidence：针对印地语和马拉雅拉姆语的复杂度分层ASR基准
+3. [Refining Pseudo-Audio Prompts with Speech-Text Alignment for Text-Only Domain Adaptation in LLM-Based ASR](/20260504-20260602/2605.14340v1-refining-pseudo-audio-prompts-with-speech-text-alignment-for-text-only-domain-adaptation-in-llm-based-asr)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：基于LLM的语音识别的文本域适应
+4. [SemaVoice: Semantic-Aware Continuous Autoregressive Speech Synthesis](/20260504-20260602/2605.16964v1-semavoice-semantic-aware-continuous-autoregressive-speech-synthesis)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：零样本语音合成，语义感知对齐
+5. [PAREDA: A Multi-Accent Speech Dataset of Natural Language Processing Research Discussions](/20260504-20260602/2605.17860v1-pareda-a-multi-accent-speech-dataset-of-natural-language-processing-research-discussions)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：多口音语音数据集，针对ASR中的口音和自发性语音
+6. [CosyEdit2: Speech-Editing-Oriented Reinforcement Learning Unlocks Better Zero-Shot TTS](/20260504-20260602/2605.25930v2-cosyedit2-speech-editing-oriented-reinforcement-learning-unlocks-better-zero-shot-tts)  
+   标签：评分：7.0/10、query:qwen-tts
+   evidence：基于强化学习的零样本TTS与语音编辑
+7. [How Should LLMs Listen While Speaking? A Study of User-Stream Routing in Full-Duplex Spoken Dialogue](/20260504-20260602/2605.10199v1-how-should-llms-listen-while-speaking-a-study-of-user-stream-routing-in-full-duplex-spoken-dialogue)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：全双工口语对话中LLM同时收听和生成
+8. [Analyzing Error Propagation in Korean Spoken QA with ASR-LLM Cascades](/20260504-20260602/2605.17443v1-analyzing-error-propagation-in-korean-spoken-qa-with-asr-llm-cascades)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：语音识别错误传播分析
+9. [FC-TTS: Style and Timbre Control in Zero-Shot Text-to-Speech with Disentangled Speech Representations](/20260504-20260602/2605.24618v1-fc-tts-style-and-timbre-control-in-zero-shot-text-to-speech-with-disentangled-speech-representations)  
+   标签：评分：6.0/10、query:qwen-tts
+   evidence：解耦语音表示实现TTS风格和音色控制
+10. [Proactive for Uncertainty: Cause-Aware Error Diagnosis and Interactive Clarification for Spoken Dialogue Systems](/20260504-20260602/2605.25404v1-proactive-for-uncertainty-cause-aware-error-diagnosis-and-interactive-clarification-for-spoken-dialogue-systems)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：口语对话系统中的语音识别与语言模型流水线
+11. [Toward Natural Emotional Text-To-Speech System with Fine-Grained Non-Verbal Expression Control](/20260504-20260602/2605.25504v1-toward-natural-emotional-text-to-speech-system-with-fine-grained-non-verbal-expression-control)  
+   标签：评分：6.0/10、query:qwen-tts
+   evidence：TTS中非语言发声的细粒度时长控制
 
 
 <div class="dpr-home-promo-card">
