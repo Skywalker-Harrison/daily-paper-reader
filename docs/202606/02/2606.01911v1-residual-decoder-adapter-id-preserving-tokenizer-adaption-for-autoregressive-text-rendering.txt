@@ -1,0 +1,710 @@
+Title: Residual Decoder Adapter: ID-Preserving Tokenizer Adaption for Autoregressive Text Rendering
+
+URL Source: https://arxiv.org/pdf/2606.01911v1
+
+Published Time: Tue, 02 Jun 2026 02:59:06 GMT
+
+Number of Pages: 23
+
+Markdown Content:
+# Residual Decoder Adapter: ID-Preserving Tokenizer Adaption for Autoregressive Text Rendering 
+
+## Dongxing Mao 1⋆, Alex Jinpeng Wang 1⋆, Jiahao Tang 1, Kevin Qinghong Lin 2,Linjie Li 3, Zhengyuan Yang 3, Lijuan Wang 3, Min Li 1, Jingru Tan 1†
+
+> 1
+
+## Central South University 2University of Oxford 3Microsoft Research 
+
+## Abstract 
+
+Visual Autoregressive (AR) models generate images by pre-dicting discrete tokens that are decoded by a visual tok-enizer. Despite demonstrating strong overall image genera-tion ability, they still underperform on text rendering with blur strokes and disrupt letter shapes. In this work, we trace this limitation to the visual tokenizer, which struggles to reconstruct fine-grained detail. Improving the tokenizer is straightforward but expensive, as it necessitates retrain-ing both the tokenizer and the AR model. Can we improve text rendering performance of AR models without retraining the existing tokenizer and AR model? To achieve this, we propose the Residual Decoder Adapter(RDA) that upgrades an existing tokenizer post-hoc without changing its token space. Specifically, it refines the decoder output of the visual tokenizer by introducing two novel components: (i) a paired codebook that shares the token distribution with the origi-nal one; (ii) a parallel branch to learn the tiny differences (residual) between the reconstructed image and the ground-truth images in the pixel space. This residual design allows us to enhance the tokenizer non-invasively while preserving compatibility with prior AR models. RDA substantially im-proves text rendering significantly by a large margin. For instance, we boost finetuned Janus-Pro OCR accuracy rises from 24.52% to 58.26% (TextVisionBlend), from 12.75% to 36.81% (StyledTextSynth) on competitive TextAtlas bench-mark. The code is available at github.com/CSU-JPG/RDA. 
+
+## 1. Introduction 
+
+Visual Autoregressive (AR) models [6, 43, 44] have emerged as a powerful paradigm for image generation, pre-dicting discrete visual tokens that are decoded by a visual tokenizer [12, 47]. Despite competitive performance on standard benchmarks, AR models face a significant chal-        
+
+> ⋆Equal contribution.
+> †Corresponding author Janus -Pro
+> (b) VQ -VAE vs VAE (a) AR vs Diffusion
+> FLUX 1.0 -dev VAE VQ -VAE
+
+Figure 1. (a) Comparison between AR model ( Janus-Pro ) and Diffusion model ( FLUX 1.0-dev ). They exhibit similar perfor-mance on the general text-to-image benchmark GenEval, with ac-curacy of 0.80 and 0.82, respectively. (b) Comparison between VQ-VAE (from Janus-Pro) and VAE (from FLUX) at 512 resolu-tion. Their reconstruction metrics on ImageNet with rFID scores of 9.63 and 7.92, respectively. 
+
+lenge that has recently drawn considerable attention in the community: text rendering. This task has become widely recognized as one of the most demanding tests for fine-grained generation capability [9, 31, 51, 56], yet AR models substantially lag behind diffusion models [20, 38], produc-ing blurred strokes and distorted shapes ( Fig. 1(a)). The weak text rendering of AR models largely stems from the visual tokenizer, whose limited reconstruction ca-pability results in the loss of fine-grained textual details (Fig. 1(b)), as also observed in recent analyses [25, 49]. As AR models decode solely through discrete visual to-kens, details omitted during tokenization are inherently dif-ficult to recover in subsequent generation. Because the tokenizer defines the entire visual language that the AR model can speak, any advance in text rendering must begin with the tokenizer. One strightforward approach is to curate more high-quality data or degsin a sophisticated 1       
+
+> arXiv:2606.01911v1 [cs.CV] 1 Jun 2026 AR Model
+> Adapter
+> (b) Change Image Tokenizer (c) Ours (a) Base AR Model
+> Image
+> De -tokenizer
+> Image
+> Tokenizer
+> AR Model
+> New Image
+> De -tokenizer
+> New Image
+> Tokenizer
+> AR Model
+> Image
+> De -tokenizer
+> Image
+> Tokenizer
+> Requires
+> joint AR retraining
+> ✅No AR Training
+> 🔥
+> 🔥
+> 🔥 ❄
+> ❄
+> ❄
+
+Figure 2. The intuition behind our method. (a) The modern text-to-image generation ecosystem consists of an AR model and a visual tokenizer. (b) Existing methods develop an improved to-kenizer so inevitably re-train AR models. (c) Our approach en-hances the tokenizer with an adopter while preserving the compat-ibility with original AR model(AR-Training Free). 
+
+model to obtain a stronger tokenizer [29, 35, 62]. However, this process incurs significant training costs, since changing token IDs invalidates prior training and requires retraining the entire AR model(Fig. 2(b)). 
+
+Can we improve AR models’ performance in text render-ing without modifying the trained tokenizer and AR model? 
+
+Here comes our solution (Fig. 2(c)): Instead of change the tokenizer, we attach an plug-in module that refines the out-puts of decoder without altering its ID space. 
+
+In this work, we propose Residual Decoder Adapter (RDA) , a plug-and-play refinement framework that up-grades any pretrained discrete visual tokenizer post-hoc. RDA keeps the entire visual tokenizer frozen and learns two lightweight components: (1) a learnable Hint Code-book that shares token IDs with the frozen one but provides complementary high-frequency embeddings; (2) a Residual Decoder that reconstructs fine residual in the pixel space based on the original decoder outputs. Together, they act as a “visual fidelity booster”, enhancing text clarity while preserving compatibility with downstream AR models. We conducted extensive experiments. Our method consistently improves both general AR models (Janus-Pro[6], TAR[15]) and finetuned text-specific AR mod-els (Janus-Pro[6], Lumina-mGPT[26]) on text render-ing performance across multiple benchmarks. For in-stance, applying our method to the text-specific Janus Pro 1B model increases its text accuracy from 24.52% to 58.26% on StyledTextVisionBlend[50]. Meanwhile, RDA enhances text reconstruction capability of the tok-enizer while preserving overall image fidelity. On AnyText-Benchmark[46], it improves LlamaGen-VQ[42] text ac-curacy from 21.26% to 36.79% and reduces LPIPS from 0.1912 to 0.1832. Our design enables scalable visual en-hancement without touching the base AR model or retrain-ing the tokenizer. By reinterpreting the tokenizer not as a static bottleneck but as an extendable interface, RDA trans-forms a long-standing limitation into a pathway for the con-tinual evolution of visual tokenizers. Our contributions are summarized as follows: 
+
+i. We propose a novel paradigm that bridges the long-standing gap between discrete VQ tokenizers and the con-tinuous image space in difficult text rendering. RDA works as an external tool that can improve the base AR model without ever ”seeing” it. ii. Our method extend to main-stream AR models, including Janus-Pro, TAR, and Lumina-mgpt, which employ discrete VQ-based decoders. We fur-ther show the consistent performance gains over popular benchmarks [4, 11, 14, 46, 50]. 
+
+## 2. Related Work 
+
+Visual Autoregressive Models formulate image synthe-sis as a next-token prediction task. Pioneering works [12, 47] discretized pixel space into visual tokens, enabling transformers [48] to treat images as sequences of tokens. [10, 36] scaled this approach, showing that large-scale AR transformers could generate high-quality, semantically consistent images from text prompts. Recent advance-ments [6, 33, 36, 42, 43, 53, 54, 64] have scaled AR mod-els to billion-parameter vision-language models, demon-strating improved compositional reasoning and cross-modal understanding[65, 70]. Compared to diffusion models [19, 38, 39, 41, 59, 60], AR models align naturally with large language models [45], providing a unified multimodal framework with strong prompt-following and in-context learning [21, 58], reason-ing and planning abilities [9, 18, 30, 32], making them ideal for complicate applications like multimodal dialogue [26, 61]. However, their visual fidelity remains limited [23, 28], as performance is bottlenecked by the discrete tokenizer: even with perfect token prediction, reconstruction quality depends on the decoder. This leads to notable degradation in tokenizer-sensitive tasks such as text rendering. Finally, several recent approaches replace the decoder entirely with a diffusion-based decoder or a DiT head [5, 13, 34, 51, 55], achieving stronger decoding capacity. Yet these methods still require joint AR–decoder training and large-scale data, resulting in substantial retraining cost. 
+
+Visual Tokenizers plays a key role in autoregressive im-age generation by quantizing image features into a set of indices [12, 36, 47]. This process enables Transformers to take images as token sequences, facilitating unified se-quence learning across visual and textual modalities. How-ever, quantization inherently introduces reconstruction er-rors [37], limiting the visual fidelity of the tokenized repre-sentation. This limitation can make the visual tokenizer a significant bottleneck for downstream tasks[1, 3, 16]. To enhance reconstruction quality, [37] enlarges the codebook to improve representation diversity, [2, 24] em-ploys hierarchical quantization to capture multi-scale se-mantics, [63] introduces semantically guided objectives 2Quantization 
+
+Encoder 
+
+> Hint
+> Codebook
+
+Decoder                  
+
+> Residual
+> Decoder
+> 🔍 lookup
+> 183
+> 361
+> 529
+> 183
+> 361
+> 529
+> 1829…
+> Projector  Projector
+> 𝑓 !"# 𝑓 $%&'
+> 𝑓 ()*+
+> injection
+> Pred. Residual Δ𝐼 #
+> 𝐼 #,%&)-
+
+RDA 
+
+> Base Image Tokenizer
+> Shared IDs
+
+❄
+
+🔥       
+
+> Pred. Base 𝐼 #GT Image 𝐼
+> Residual Δ𝐼
+> Refined Image 𝐼 #+Δ𝐼 #
+
+Figure 3. Overview of the proposed Residual Decoder Adapter (RDA). RDA enhances an existing image tokenizer without modifying its token space or retraining. RDA predict an ∆ ˆI, which is added into ˆI to obtain the refined output ˆI + ∆ ˆI with more accurate text details. 
+
+for better perceptual alignment, and [29, 57] designs a modality-aware tokenizer that unifies visual and textual spaces. [17] further enhances image tokenizer through token-wise regularization. However, retraining the tok-enizer to modify the codebook alters the distribution of code indices, making it incompatible with the existing trained AR model. In contrast, our method decouples reconstruction enhancement from token distribution, allowing direct post-hoc upgrades. 
+
+## 3. Preliminaries 
+
+Visual autoregressive generation is divided into two com-ponents: (i) A visual tokenizer that deiscretizes continuous images into token sequences; (ii) An autoregressive model that learns the distribution over these tokens. 
+
+Visual Tokenizer . A tokenizer consists of an encoder E, a quantizer Q, and a decoder D, which together transform an image I into a reconstructed version ˆI via ˆz = E(I), zq =
+
+Q(ˆ z), ˆI = D(zq ).The vector quantization is performed element-wise with a codebook Z = { z1, z2, . . . , zK } ⊂ Rc×h×w by looking up the closest entry. Formally: 
+
+zqij = Q(ˆ zij ), xij = arg min 
+
+> k
+
+∥ˆzij − zk∥. (1) Each xij serves as the discrete token id. These ids are then flattened into a sequence for training the AR model. 
+
+Autoregressive Model. Given a sequence of discrete to-kens x1: N = {x1, x2, . . . , xN }, the AR model pθ factorizes the joint distribution as 
+
+pθ (x1: N ) = 
+
+> N
+
+Y
+
+> i=1
+
+pθ (xi | x1: i−1), (2) and is trained to maximize the log-likelihood P 
+
+> i
+
+log pθ (xi|x1: i−1). At inference time, visual to-kens are generated sequentially and decoded back to an image by decoder D.
+
+## 4. Residual Decoder Adapter 
+
+Residual Decoder Adapter (RDA) is plug-and-play frame-work that improves text rendering quality for visual tokeniz-ers and downstream AR models, while keeping the origi-nal tokenizer’s ID space unchanged. The overall architec-ture is illustrated in Fig. 3. It consists two components: (i) a Shared-ID Hint Codebook that provides high-frequency cues, in Sec. 4.1; (ii) a Residual Decoder that refines pixel-level outputs to enhance visual fidelity, in Sec. 4.2. 
+
+4.1. Shared-ID Hint Codebook 
+
+The quantization in a VQ-VAE maps continuous features to discrete visual codes, which inevitably suppresses high-frequency and local textures, thereby reducing reconstruc-tion fidelity. To compensate for this quantization-induced loss, we introduce a paired Hint Codebook that supplies complementary, detail-oriented features. Crucially, the Hint Codebook shares the same indices as the original codebook (Shared-ID). In other words, given any token id output by the tokenizer (or from the AR model predictions), we use the same id to retrieve fea-tures from both codebooks. Specifically, given token id 
+
+i ∈ { 1, . . . , K } quantized by the tokenizer or predicted by AR models, we retrieve aligned features using the same id: 
+
+fbase (i) = zi, fhint (i) = z′
+
+> i
+
+. (3) Here, Z is frozen codebook Z = {zk}Kk=1 and Z′ is train-able hint codebook Z′ = {z′
+
+> k
+
+}Kk=1 . The base features fbase 
+
+preserve global structure and semantics; the paired hint fea-tures fhint provide aligned high-frequency/detail cues. The Shared-ID design and retrieval rule imply that the two codebooks induce the same discrete partition (distribu-tion) over the feature space. Consequently, Z′ acts as an 3in-distribution supplement to Z: for each token id (seman-tic cluster), Z′ learns complementary high-frequency details without altering the underlying semantics. Because original codebook Z is frozen, the mapping from token id to the image distribution remains unchanged. Therefore, the pretrained AR model, which has learned to predict the original token ID distribution, can directly plug-and-play benefit from the improved reconstruction enabled by Z′ without any retraining. 
+
+4.2. Residual Decoder 
+
+We define the visual detail lost by the tokenizer as the fine-grained difference ∆I = I − ˆI between the ground truth image I and the tokenizer-reconstructed image ˆI.Given the base features fbase and hint features fhint , our residual decoder Dres predicts ∆I to recover fine-grained, high-frequency details. Overall, the learning consists of two steps: i) Instance-dependent feature injection; ii) Pixel-level residual learning. 
+
+Instance-dependent feature injection . We pass the base and hint features through two projector and fuse them: 
+
+fmix = p(fbase ) + q(fhint ) (4) Where p(·) is the projector provided by the original tok-enizer, q(·) is randomly initialized and trained from scratch. This instance-dependent injection mechanism ensures that the final mixed features carry both the fine-grained clues 
+
+from the hint codebook and the instance-specific informa-tion from the base branch. This design is critical: removing the instance-dependent injection fails the training of the hint codebook as shown in Tab. 6. 
+
+Pixel-level residual learning. We adopt a parallel, ran-domly initialized residual decoder Dres predicts the pixel-level residual from the mixed features. 
+
+∆ ˆI = Dres (fmix ) (5) The residual decoder is architecture-agnostic and can be implemented with various neural network designs. In our implementation, we adopt the VQ-VAE decoder architec-ture, doubling the channels of the last two convolution lay-ers to better capture high-frequency details. The final re-constructed image is obtained as: 
+
+ˆIfinal = ˆI + ∆ ˆI (6) 
+
+4.3. Training Objective and Optimization 
+
+Although the overall architecture is conceptually simple, taming RDA training is not a trivial task. The optimization difficulties lie in the sparse residual signal, which can be dominated by the background pixels. To ensure successful training of RDA, we introduce several loss functions: AR Model         
+
+> Hint Codebook Codebook
+> Decoder
+> Discrete Visual IDs
+> 153218
+> Residual
+> Decoder
+> lookup lookup
+> 𝑓 !"#
+> Projector Projector
+> 𝑓 $%&' 𝑓 (")*
+> 𝐼 #Δ𝐼 #𝐼 #+")%,
+> RDA
+
+Figure 4. Inference pipeline of the AR model with equipped RDA. RDA uses the same IDs to refine the generated image. 
+
+Standard losses . We respectively apply MAE and MSE re-construction losses to supervise the residual output and the final reconstruction, and denote their combination as Lrec .Following VQ-VAE [47], we also apply perceptual loss on the final reconstructed image by using ϕ(·) to extract multi-layer VGG features [40] : 
+
+Lfinal perc = ∥ϕ(I) − ϕ( ˆIfinal )∥22 (7) 
+
+Residual perceptual loss. We also apply perceptual loss to supervise the predicted residual ∆ ˆI, much like how it’s applied to the final image: 
+
+Lres perc = ∥ϕ(∆ I)) − ϕ(∆ ˆI)∥22 (8) While this may seem counterintuitive at first, our exper-iments demonstrate that this approach ensures successful training, as shown in Tab. 4. This could be because apply-ing perceptual loss to the residual encourages the model to focus more on structural information, which enhances su-pervision of the sparse signal. 
+
+Edge-aware Sobel loss. We use the Sobel edge mask 
+
+Medge [22, 52] to emphasize residuals along strong gradi-ents and preserve edge structures at the pixel level, which can be formulated as Lsobel = |Medge ⊙ (∆ I − ∆ ˆI)|1.
+
+Frequency-domain loss. To preserve high-frequency de-tails of residual image in the spectral domain: 
+
+Lfreq = 1
+
+BCHW 
+
+X Mq ⊙ |F p − F t|2 (9) where Ft = FFT(∆ I), Fp = FFT(∆ ˆI), FFT denotes Fast Fourier Transforms and Mq is a high-pass mask. The final loss integrates all components: 
+
+Ltotal = Lrec + Lfinal perc + Lres perc + Lsobel + Lfreq . (10) 4GT VQVAE RDA VQVAE+ RDA GT VQVAE RDA VQVAE+ RDA Figure 5. Reconstruction performance of image tokenizer equipped with RDA. We use LlamaGen-VQ as the VQVAE tokenizer. 
+
+During training, we freeze the base tokenizer and opti-mize only the RDA module. 
+
+4.4. Plug-and-Play Inference in AR model 
+
+During inference time, an AR model predicts a sequence of discrete indices {in|in ∈ { 1, 2, . . . , K }} Nn=1 . We can use those indices to reconstruct the initial coarse image ˆI with the frozen decoder D.Our hint codebook Z′ shares the same index space with the original codebook Z through the Shared-ID mechanism. For each token index, we retrieve the corresponding embed-dings from both codebooks to obtain the base feature fbase 
+
+and hint feature fhint , respectively. These features are then passed through their projector and fused to form the repre-sentation fmix . The residual image ∆ ˆI is then predicted by the residual decoder Dres , yielding the refined output: 
+
+ˆIfinal = ˆI + ∆ ˆI. 
+
+RDA can be seamlessly integrated into any AR model as a plug-and-play module at inference. 
+
+## 5. Experiments 
+
+5.1. Implementation details 
+
+We build the RDA on LlamaGen-VQ using vq ds16 t2i [42] and on Chameleon-VQ [43] using its built-in VQ-VAE .The Hint codebook sizes are 16,384 and 8,192, respec-tively, both with dimension 16. We train our RDA from scratch while keeping the base tokenizer frozen. Training is conducted at 256 ×256 resolution for 120k steps with a global batch size of 512 on 64 V100 GPUs (8 nodes ×
+
+8 GPUs), using mixed precision, AdamW [27] ( β1=0 .9,
+
+β2=0 .95 ) with learning rate 1e-4, and gradient clipping at 1. RDA is trained on Mario-10M [4]. From the train-ing split, we exclude all samples overlapping the AnyText-Benchmark [46], then randomly sample 5M images. 
+
+5.2. Evaluation Protocol 
+
+We assess RDA in two settings: (i)AR model genera-tion: improving text-to-image generation for AR models; (ii) Text Image Reconstruction: enhancing tokenizer recon-struction fidelity on text-centric data. 
+
+Generation. We adapt three AR models: Janus Pro and TAR (with an RDA-adapted LlamaGen-VQ), and Lumina-mGPT [26] (with an RDA-adapted Chameleon-VQ). Mod-els are evaluated on five text-oriented datasets: Mario-Eval [4], AnyText-Benchmark [46], LongTextBench [14], CVTG-2K [11], and TextAtlasEval [50]. For Mario-Eval and AnyText-Benchmark, we report text-specific met-rics—OCR Accuracy(Acc.) and OCR F1(F1.)—computed with PaddleOCR [7, 8].For LongTextBench, CVTG-2K, and TextAtlasEval, we follow the official eval protocols. 
+
+Reconstruction. We evaluate RDA-adapted visual tokeniz-ers on three text-centric sets: AnyText-Benchmark [46], Mario-Eval [4], and the TextAtlasEval-StyledTextSynth subset [50]. AnyText-Benchmark and Mario-Eval are tested at 256 and 512 image size; StyledTextSynth at 512 and 1024 image size. We report OCR Accuracy/F1, SSIM and LPIPS. Comparisons include six models: LlamaGen-VQ, its RDA-adapted version, Chameleon-VQ, its RDA-adapted version, TA-Tok [15], and UniTok [29]. 
+
+5.3. Main Results. 
+
+Generation tasks As shown in Tab. 1, RDA integrates into general AR models without retraining and consistently boosts performance. When applied to Janus Pro 7B, it im-proves Acc. from 8.85% →10.07% on AnyText-Benchmark 5Table 1. Comparison of general AR models before and after applying RDA. Each cell shows the result w/wo applying RDA. The Acc. and NED. on LongTextBench and CVTG-2K are multiplied by 100 for clarity.                                                                                       
+
+> Model Size Res AnyText-Benchmark Mario-Eval LongTextBench CVTG-2K
+> Acc. ↑F1. ↑Acc. ↑F1. ↑Acc. ↑Acc. ↑NED. ↑ClipScore. ↑
+> h Janus Pro 1B 384 2.05/ 2.56 2.76/ 3.21 1.75/ 2.06 2.37/ 2.57 0.14/ 3.89 0.18/0.18 13.55/ 15.06 0.52 /0.51 7B 384 8.85/ 10.07 11.23/ 11.92 6.75/ 8.33 8.70/ 9.76 0.47/ 0.96 1.65/ 2.01 20.14/ 22.59 0.64 /0.63 TAR 1.5B 512 13.53/ 14.62 14.75/ 15.20 10.57/ 11.98 11.08/ 11.53 3.05/ 3.89 3.49/ 4.01 27.69/ 30.22 0.68/0.68 1.5B 1024 12.57/ 13.11 12.45 /12.34 10.90/ 11.41 9.99 /9.69 4.55 /4.20 3.92/ 4.08 32.66/ 34.42 0.69 /0.68 7B 512 30.92/ 32.43 32.46/ 32.84 25.46/ 27.89 25.92/ 26.66 6.92/ 7.22 16.35/ 19.22 47.63/ 52.00 0.76/0.76 7B 1024 28.10/ 28.47 27.98/ 28.11 24.29/ 24.51 22.94 /22.77 6.33 /5.68 16.84/ 17.04 52.76/ 53.20 0.75/0.75
+> Chameleon Tokenizer
+> Lumina-mGPT 7B 512 2.12/ 2.29 2.44/ 2.62 0.29/ 0.32 0.47/ 0.54 0.14/ 0.28 0.12 /0.10 13.19/ 14.16 0.65/0.65
+
+Table 2. Comparison of text-specific AR models before and after applying RDA . RDA consistently improves accuracy, F1, and CER across all subsets and resolutions, demonstrating gains on 1B and 7B AR models. Each cell shows the result w/wo applying RDA.                                               
+
+> Model Size Res StyledTextVisionBlend StyledTextSynth TextScenesHQ
+> Acc. ↑F1. ↑CER. ↓Acc. ↑F1. ↑CER. ↓Acc. ↑F1. ↑CER. ↓
+> Janus Pro* 1B 1024 24.52/ 58.26 29.85/ 63.18 0.47/ 0.23 12.75/ 36.81 17.37/ 41.37 0.75/ 0.52 1.35/ 1.76 2.03/ 2.38 0.85/ 0.83
+> Lumina-mGPT* 7B 512 56.31/ 69.78 60.22/ 74.02 0.26/ 0.18 2.56/ 5.14 3.51/ 6.83 0.80/ 0.77 2.72/ 3.59 3.62/ 5.07 0.83/ 0.82
+> Lumina-mGPT* 7B 1024 60.50/ 73.14 64.53/ 77.57 0.25/ 0.17 34.33/ 48.96 37.91/ 53.43 0.42/ 0.32 9.78/ 11.01 11.16/ 12.07 0.79/ 0.78
+
+and from 6.75% →8.33% on Mario-Eval. Since our method operates at the visual tokenizer level, a single model trained with the LlamaGen tokenizer transfers plug-and-play to both Janus Pro and TAR (across model sizes), yielding con-sistent gains in text rendering accuracy regardless of AR architecture or scale. Trained only at 256 px, RDA also gen-eralizes to higher resolutions (384, 512, 1024px) without fine-tuning. Those experiments show that our method is 
+
+an efficient universal adapter that enhances text generation quality with negligible computational overhead .We also test our method on AR models fine-tuned on text-rich TextAtlas dataset . As shown in Tab. 2, RDA yields substantially larger improvements on these text-specialized models. For Janus-Pro 1B on StyledTextVision-Blend, OCR accuracy rises from 24.52% to 58.26% (+33.74 points) and F1 from 29.85% to 63.18% (+33.33 points). This improvement is remarkably larger than on general models: RDA boosts the general Janus-Pro 7B by only +1.22 points (8.85% →10.07%) on AnyText-Benchmark, but enhances the text-tuned Janus-Pro 1B by +33.74 points (24.52% →58.26%) on StyledTextVisionBlend. This disparity reveals that general AR models face a dual bottleneck: weak text token prediction and limited recon-struction fidelity. Text-specific fine-tuning addresses the former, making the tokenizer decoder the dominant bot-tleneck. Consequently, RDA directly addresses this bottle-neck: by enhancing tokenizer reconstruction without mod-ifying the AR model, it fully realizes the improved token predictions, yielding more accurate text rendering. 
+
+Reconstruction tasks As shown in Tab. 3, equipping im-age tokenizer with RDA consistently improves all met-rics—most notably the text-specific ones. OCR accuracy and F1 rise by around 10 points, and SSIM/LPIPS also im-prove, validating the effectiveness of our residual refine-ment framework. Compared with recent visual tokenizers, RDA is (i) data-efficient : trained on just a small subset 5M instead of hundreds of millions to billions of images (e.g., UniTok uses 1.28B images [29]); and (ii) AR-training free : it preserves the original token ID space, avoiding shifts in token distributions and eliminating the need to retrain downstream AR models. In contrast, other methods in-evitably alter the token distribution, necessitating complete retraining of all downstream AR models—a prohibitively expensive process that can take thousands of GPU hours for billion-parameter systems. 
+
+5.4. Ablation Study 
+
+Ablation on Loss Functions. We perform an ablation study on each loss function in Tab. 4. The results highlight that the perceptual loss on the residual Lres perc is the most critical, boosting baseline OCR accuray from 58.04% to 66.48%. Removing this loss leads to a failure in residual training, with performance degenerating to the baseline. This em-phasizes that perceptual supervision on residuals is crucial for optimizing sparse residual signals, as it encourages the model to focus more on structural information, which en-hances the supervision of the sparse signal. The Lsobel is also important for text rendering, improving OCR accuracy by 2.17% through edge-aware guidance. Both Lfinal perc and 
+
+Lfreq contribute marginal but consistent improvements. 
+
+Effect on Hint Codebook design and Residual learn-ing paradigm. Tab. 5 ablates the hint codebook design. 6Table 3. Comparison of text image reconstruction performance across image tokenizers. AR-Free means that the proposed module can be attached to the AR model without any retraining. AnyText-Benchmark and Mario-Eval are evaluated at 256 and 512 , while StyledTextSynth is evaluated at 512 and 1024 . SSIM and LPIPS are multiplied by 100 for clarity.                                                                                                                                                                                        
+
+> Model Data AR Free AnyText-Benchmark Mario-Eval StyledTextSynth
+> Acc. F1. SSIM LPIPS Acc. F1. SSIM LPIPS Acc. F1. SSIM LPIPS
+> Low Resolution
+> LlamagenVQ 50M ✗21.26 28.34 71.66 19.12 15.26 21.31 69.82 18.82 4.12 6.55 66.33 22.39
+> w/ RDA 5M ✔36.79 44.20 74.11 18.32 27.59 34.86 69.79 19.00 13.57 18.18 67.67 22.23 ChameleonVQ -✗15.97 20.52 69.85 20.98 11.05 14.92 65.51 21.94 5.52 7.44 63.81 26.89
+> w/ RDA 5M ✔27.51 34.03 71.89 20.09 19.58 25.68 67.32 21.09 7.80 10.53 65.13 24.90 TA-Tok 200M ✗--------2.25 3.93 44.35 47.73 UniTok 1.28B ✗62.61 24.49 79.83 14.04 55.71 61.30 82.60 14.11 62.11 68.54 92.43 11.32
+> High Resolution
+> LlamagenVQ 50M ✗58.04 64.55 83.11 6.52 47.52 55.30 79.67 7.87 55.58 60.51 75.58 8.95
+> w/ RDA 5M ✔66.48 70.95 84.55 6.28 57.36 25.16 81.50 7.87 69.49 74.22 77.03 9.70 ChameleonVQ -✗53.91 59.17 81.90 7.04 42.33 48.05 78.03 8.67 39.01 43.82 71.63 10.86
+> w/ RDA 5M ✔61.28 66.26 82.75 6.77 50.42 55.42 79.09 8.46 73.74 9.99 77.03 9.70 TA-Tok 200M ✗40.58 45.94 57.58 25.21 32.48 37.55 52.91 29.24 6.69 9.24 42.70 46.45 UniTok 1.28B ✗74.60 74.50 91.16 3.12 80.20 82.18 79.83 14.04 84.92 87.69 99.73 00.01
+
+Table 4. Ablation on loss composition. Residual perceptual loss Lres perc is critical—removing it causes complete training failure. Acc. F1. PSNR SSIM LPIPS Baseline 58.04 64.55 24.33 83.11 6.52 Full (ours) 66.48 70.95 25.73 84.55 6.28 w/o Lfreq 66.13 70.36 25.70 84.57 6.24 
+
+w/o Lsobel 64.31 69.39 25.47 84.07 6.44 w/o Lres perc 58.30 64.84 24.46 83.06 6.49 w/o Lfinal perc 64.58 69.87 25.59 83.95 7.63 
+
+In the “No Codebook” setting, the residual decoder Dres 
+
+only receives frozen base features f base from the original codebook without any hint embeddings. Even under this condition, residual learning alone improves accuracy from 58.04% to 64.25%. Adding the hint codebook brings con-sistent gains across dimensions (8, 16, 32), with dim=16 achieving the best performance (66.48%). Notably, training 
+
+with the hint codebook but testing without it ( 16 †: 65.45%) still outperforms “No Codebook” (64.25%), suggesting that the hint codebook enhances residual representation learning during training beyond its direct contribution at inference. 
+
+Importance of Feature Injection. Tab. 6 shows the im-portance of injecting the base feature fbase into the residual decoder. In the No-Injection setting, only the hint code-book feature fhint is used during training. Despite retain-ing the hint codebook, this configuration performs even worse than the baseline, indicating that instance-dependent feature injection is crucial for residual decoder to effec-tively leverage the hint codebook and learn meaningful re-finements. Among fusion methods (Add, Cross-Attention, Concat+Conv), performance is comparable; we use simple 
+
+Table 5. Ablation on hint codebook design and resiual learning paradigm . † notes train with hint codebook but tests without it. Acc. F1. PSNR SSIM LPIPS Baseline 58.04 64.55 24.33 83.11 6.52 No Codebook 64.25 68.72 25.48 84.12 6.44 dim=8 64.97 69.65 25.56 84.27 6.36 dim=16 † 65.45 70.02 25.48 84.35 6.38 dim=16 66.48 70.95 25.73 84.55 6.28 
+
+dim=32 65.73 70.24 25.57 84.29 6.36 Table 6. Ablation on instance-dependent feature fusion strat-egy . Code.: hint codebook; Fuse.: feature injection.                                          
+
+> Code. Fuse. Acc ↑F1 ↑PSNR ↑SSIM ↑LPIPS ↓
+> Baseline ✗✗58.04 64.55 24.33 83.11 6.52 No Injection ✔✗58.04 64.55 24.21 83.08 6.62 Add (ours) ✔✔66.48 70.95 25.73 84.55 6.28 Cross-Attn. ✔✔65.58 70.13 25.73 84.46 6.27
+> Concat + Conv ✔✔66.04 70.86 25.70 84.47 6.31
+
+addition for efficiency. 
+
+5.5. Discussion 
+
+Out-of-Distribution Generalization. A natural alterna-tive is to fine-tune the decoder on text-rich data. However, this approach suffers from poor out-of-distribution (OOD) generalization. We evaluate on ImageNet-10K validation set—a natural image-dominated benchmark unseen during training (models trained on text-rich Mario-10M). Tab. 7 shows that while fine-tuning improves in-distribution pixel metrics, it catastrophically degrades OOD quality: FID worsens from 9.63 to 14.75 (+5.12) and LPIPS from 0.5144 7A subway sta*on with a       
+
+> wall poster saying 'Next
+> Train in 5 Minutes ', a *cket
+> booth displaying 'Tickets
+> Here '.
+> The image features a
+> bright blue solar panel
+> array …Overlaid …The
+> words are arranged in
+> three “WHAT SIZE ”in …,
+> "SYSTEM IS BEST " in the
+> middle line, and " FOR
+> YOU ?" in the bottom line.
+
+Prompt AR RDA AR + RDA Prompt AR RDA AR + RDA  
+
+> Anytext -Bench
+> CVTG
+> General AR
+> A serene classroom with
+> wooden desks and a green
+> board displaying the text:
+> ‘The United Nations is an
+> international organization
+> that was established in ……
+> global issues such as
+> human rights, …and
+> climate change. ’ ….
+> A white background image.
+> Two soldiers in camouflage
+> gear are in a forest, one
+> holding a rifle. . "Russian
+> Ground Forces" in …. "The
+> Ground Forces of the
+> Russian Federa*on are
+> Personnel” … "In 2006, the
+> Ground Forces included an
+> es*mated"
+> A bustling ..featuring a
+> bright green box with text :
+> 'The type of box you
+> choose can greatly impact
+> the success of your packing
+> process Consider using
+> sturdy … can withstand the
+> rigors of moving and
+> handling ’
+> A clear direc*onal sign on
+> a *led wall lists ground -
+> floor loca*ons:
+> Recep*on, Nurses Sta*on,
+> Main Street, Campbell
+> Suites, Kennedy Suites,
+> Ford Suites, and Cinema
+> here .
+> VisionBlend TextSynth
+> TextSynth ScenesHQ
+> Text -specific AR
+
+Figure 6. Qualitative generation results of AR models. General AR uses TAR-7B at 512 resolution, while text-specific AR uses Janus-Pro ∗ 1B 1024 (left) and Lumina-mGPT ∗ 7B 1024 (right). Please zoom in for better visualization of text details. More visual results are provided in the Appendix. Table 7. Out-of-distribution generalization on ImageNet vali-dation set. Models are trained on text-rich Mario-10M but tested on natural image-dominated ImageNet. 
+
+FID ↓ PSNR ↑ SSIM ↑ LPIPS ↓
+
+Base 9.63 14.58 34.97 51.44 Decoder 14.75 15.01 37.96 54.73 Ours 11.20 14.87 35.90 50.95 to 0.5473, with visible over-smoothing (Fig. 7). In contrast, RDA maintains OOD robustness (FID: 11.20, +1.57) by freezing the base decoder and learning only additive resid-ual corrections, preserving general image priors while en-hancing text quality. 
+
+Difference between RQ-VAE. While both our method and RQ-VAE contain the idea of residual learning, RDA differs fundamentally in both purpose and functionality. In terms of purpose , RQ-VAE uses residual learning to minimize the difference between quantized features and the original en-coded features, whereas RDA directly learns the difference between the reconstructed image and the ground truth at the pixel level. In terms of functionally , RQ-VAE alters the to-ken distribution after training, requiring retraining of down-stream AR models. In contrast, RDA operates without mod-ifying the token space and uses the explicit Shared-ID strat-egy during training, making it compatible with pretrained AR models. Furthermore, our method is orthogonality to methods that improve the representation of the tokenizer, our method can also be readily applied to RQ-VAE .GT VQVAE VQVAE + RDA Decoder 
+
+Figure 7. Comparison of RDA with direct decoder fine-tuning. 
+
+RDA preserves fine-grained details and sharper textures, while di-rect decoder fine-tuning leads to over-smoothing. 
+
+5.6. Qualitative Results 
+
+We present qualitative comparisons to illustrate the effec-tiveness of RDA in both generation and reconstruction set-tings. Fig. 6 shows text-to-image generation results of AR models before and after applying it, where our method pro-duces sharper and more legible text. Fig. 5 further visual-izes reconstruction results of LlamaGen-VQ with and with-out RDA, demonstrating that RDA significantly enhances the text reconstruction fidelity across multiple resolutions. 
+
+## 6. Conclusion 
+
+We propose the Residual Decoder Adapter (RDA), which boosts text rendering in autoregressive models without re-training the tokenizer or AR model. By refining the to-kenizer reconstruction with a paired hint codebook de-sign and residual learning paradigm, RDA significantly im-proves text rendering performance on various competitive benchmarks. Importantly, it offers an efficient, non-invasive solution for enhancing text rendering while maintaining compatibility with pretrained models. 8References 
+
+[1] Shiyue Cao, Yueqin Yin, Lianghua Huang, Yu Liu, Xin Zhao, Deli Zhao, and Kaigi Huang. Efficient-vqgan: To-wards high-resolution image generation with efficient vision transformers. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 7368–7377, 2023. 2 [2] Huiwen Chang, Han Zhang, Lu Jiang, Ce Liu, and William T. Freeman. Maskgit: Masked generative image transformer, 2022. 2 [3] Hao Chen, Ze Wang, Xiang Li, Ximeng Sun, Fangyi Chen, Jiang Liu, Jindong Wang, Bhiksha Raj, Zicheng Liu, and Emad Barsoum. Softvq-vae: Efficient 1-dimensional contin-uous tokenizer. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 28358–28370, 2025. 2[4] Jingye Chen, Yupan Huang, Tengchao Lv, Lei Cui, Qifeng Chen, and Furu Wei. Textdiffuser: Diffusion models as text painters, 2023. 2, 5 [5] Jiuhai Chen, Zhiyang Xu, Xichen Pan, Yushi Hu, Can Qin, Tom Goldstein, Lifu Huang, Tianyi Zhou, Saining Xie, Sil-vio Savarese, Le Xue, Caiming Xiong, and Ran Xu. Blip3-o: A family of fully open unified multimodal models-architecture, training and dataset, 2025. 2 [6] Xiaokang Chen, Zhiyu Wu, Xingchao Liu, Zizheng Pan, Wen Liu, Zhenda Xie, Xingkai Yu, and Chong Ruan. Janus-pro: Unified multimodal understanding and generation with data and model scaling, 2025. 1, 2 [7] Cheng Cui, Ting Sun, Suyin Liang, Tingquan Gao, Zelun Zhang, Jiaxuan Liu, Xueqing Wang, Changda Zhou, Hongen Liu, Manhui Lin, Yue Zhang, Yubo Zhang, Handong Zheng, Jing Zhang, Jun Zhang, Yi Liu, Dianhai Yu, and Yanjun Ma. Paddleocr-vl: Boosting multilingual document parsing via a 0.9b ultra-compact vision-language model, 2025. 5 [8] Cheng Cui, Ting Sun, Manhui Lin, Tingquan Gao, Yubo Zhang, Jiaxuan Liu, Xueqing Wang, Zelun Zhang, Changda Zhou, Hongen Liu, Yue Zhang, Wenyu Lv, Kui Huang, Yichao Zhang, Jing Zhang, Jun Zhang, Yi Liu, Dianhai Yu, and Yanjun Ma. Paddleocr 3.0 technical report, 2025. 5 [9] Chaorui Deng, Deyao Zhu, Kunchang Li, Chenhui Gou, Feng Li, Zeyu Wang, Shu Zhong, Weihao Yu, Xiaonan Nie, Ziang Song, Guang Shi, and Haoqi Fan. Emerging properties in unified multimodal pretraining, 2025. 1, 2 [10] Ming Ding, Zhuoyi Yang, Wenyi Hong, Wendi Zheng, Chang Zhou, Da Yin, Junyang Lin, Xu Zou, Zhou Shao, Hongxia Yang, and Jie Tang. Cogview: Mastering text-to-image generation via transformers, 2021. 2 [11] Nikai Du, Zhennan Chen, Shan Gao, Zhizhou Chen, Xi Chen, Zhengkai Jiang, Jian Yang, and Ying Tai. Textcrafter: Accurately rendering multiple texts in complex visual scenes, 2025. 2, 5 [12] Patrick Esser, Robin Rombach, and Bj¨ orn Ommer. Taming transformers for high-resolution image synthesis, 2021. 1, 2 [13] Ziteng Gao and Mike Zheng Shou. D-ar: Diffusion via au-toregressive models, 2025. 2 [14] Zigang Geng, Yibing Wang, Yeyao Ma, Chen Li, Yongming Rao, Shuyang Gu, Zhao Zhong, Qinglin Lu, Han Hu, Xi-aosong Zhang, Linus, Di Wang, and Jie Jiang. X-omni: Reinforcement learning makes discrete autoregressive image generative models great again, 2025. 2, 5 [15] Jiaming Han, Hao Chen, Yang Zhao, Hanyu Wang, Qi Zhao, Ziyan Yang, Hao He, Xiangyu Yue, and Lu Jiang. Vi-sion as a dialect: Unifying visual understanding and gen-eration via text-aligned representations. arXiv preprint arXiv:2506.18898 , 2025. 2, 5 [16] Ju He, Qihang Yu, Qihao Liu, and Liang-Chieh Chen. Flow-tok: Flowing seamlessly across text and image tokens. arXiv preprint arXiv:2503.10772 , 2025. 2 [17] Qiyuan He, Yicong Li, Haotian Ye, Jinghao Wang, Xinyao Liao, Pheng-Ann Heng, Stefano Ermon, James Zou, and An-gela Yao. Rear: Rethinking visual autoregressive models via generator-tokenizer consistency regularization, 2025. 3 [18] Runze He, Bo Cheng, Yuhang Ma, Qingxiang Jia, Shanyuan Liu, Ao Ma, Xiaoyu Wu, Liebucha Wu, Dawei Leng, and Yuhui Yin. Plangen: Towards unified layout planning and image generation in auto-regressive vision language models, 2025. 2 [19] Jonathan Ho, Ajay Jain, and Pieter Abbeel. Denoising diffu-sion probabilistic models, 2020. 2 [20] Black Forest Labs. Flux. https://github.com/ black-forest-labs/flux , 2024. 1 [21] Bolin Lai, Felix Juefei-Xu, Miao Liu, Xiaoliang Dai, Nikhil Mehta, Chenguang Zhu, Zeyi Huang, James M Rehg, Sang-min Lee, Ning Zhang, et al. Unleashing in-context learning of autoregressive models for few-shot image manipulation. In Proceedings of the Computer Vision and Pattern Recogni-tion Conference , pages 18346–18357, 2025. 2 [22] Christian Ledig, Lucas Theis, Ferenc Huszar, Jose Caballero, Andrew Cunningham, Alejandro Acosta, Andrew Aitken, Alykhan Tejani, Johannes Totz, Zehan Wang, and Wenzhe Shi. Photo-realistic single image super-resolution using a generative adversarial network, 2017. 4 [23] Doyup Lee, Chiheon Kim, Saehoon Kim, Minsu Cho, and WOOK SHIN HAN. Draft-and-revise: Effective image gen-eration with contextual rq-transformer. Advances in Neural Information Processing Systems , 35:30127–30138, 2022. 2 [24] Doyup Lee, Chiheon Kim, Saehoon Kim, Minsu Cho, and Wook-Shin Han. Autoregressive image generation using residual quantization, 2022. 2 [25] Huawei Lin, Tong Geng, Zhaozhuo Xu, and Weijie Zhao. Vt-bench: Evaluating visual tokenizers for autoregressive image generation, 2025. 1 [26] Dongyang Liu, Shitian Zhao, Le Zhuo, Weifeng Lin, Yi Xin, Xinyue Li, Qi Qin, Yu Qiao, Hongsheng Li, and Peng Gao. Lumina-mgpt: Illuminate flexible photorealistic text-to-image generation with multimodal generative pretraining, 2025. 2, 5 [27] Ilya Loshchilov and Frank Hutter. Decoupled weight decay regularization, 2019. 5 [28] Zhuoyan Luo, Fengyuan Shi, Yixiao Ge, Yujiu Yang, Limin Wang, and Ying Shan. Open-magvit2: An open-source project toward democratizing auto-regressive visual gener-ation. arXiv preprint arXiv:2409.04410 , 2024. 2 [29] Chuofan Ma, Yi Jiang, Junfeng Wu, Jihan Yang, Xin Yu, Ze-huan Yuan, Bingyue Peng, and Xiaojuan Qi. Unitok: A uni-
+
+9fied tokenizer for visual generation and understanding, 2025. 2, 3, 5, 6 [30] Dongxing Mao, Yilin Wang, Linjie Li, Zhengyuan Yang, and Alex Jinpeng Wang. Textground4m: A prompt-aligned dataset for layout-aware text rendering. Proceedings of the AAAI Conference on Artificial Intelligence , 40(10): 7918–7926, 2026. 2 [31] OpenAI. Hello gpt-4o, 2024. Accessed: 2024-09-09. 1 [32] Kaihang Pan, Yang Wu, Wendong Bu, Kai Shen, Juncheng Li, Yingting Wang, Yunfei Li, Siliang Tang, Jun Xiao, Fei Wu, Hang Zhao, and Yueting Zhuang. Janus-pro-r1: Ad-vancing collaborative visual comprehension and generation via reinforcement learning, 2025. 2 [33] Niki Parmar, Ashish Vaswani, Jakob Uszkoreit, Lukasz Kaiser, Noam Shazeer, Alexander Ku, and Dustin Tran. Im-age transformer. In International conference on machine learning , pages 4055–4064. PMLR, 2018. 2 [34] William Peebles and Saining Xie. Scalable diffusion models with transformers, 2023. 2 [35] Liao Qu, Huichao Zhang, Yiheng Liu, Xu Wang, Yi Jiang, Yiming Gao, Hu Ye, Daniel K. Du, Zehuan Yuan, and Xin-glong Wu. Tokenflow: Unified image tokenizer for multi-modal understanding and generation, 2025. 2 [36] Aditya Ramesh, Mikhail Pavlov, Gabriel Goh, Scott Gray, Chelsea Voss, Alec Radford, Mark Chen, and Ilya Sutskever. Zero-shot text-to-image generation, 2021. 2 [37] Ali Razavi, Aaron van den Oord, and Oriol Vinyals. Gener-ating diverse high-fidelity images with vq-vae-2, 2019. 2 [38] Robin Rombach, Andreas Blattmann, Dominik Lorenz, Patrick Esser, and Bj¨ orn Ommer. High-resolution image syn-thesis with latent diffusion models, 2022. 1, 2 [39] Chitwan Saharia, William Chan, Saurabh Saxena, Lala Li, Jay Whang, Emily Denton, Seyed Kamyar Seyed Ghasemipour, Burcu Karagol Ayan, S. Sara Mahdavi, Rapha Gontijo Lopes, Tim Salimans, Jonathan Ho, David J Fleet, and Mohammad Norouzi. Photorealistic text-to-image diffusion models with deep language understanding, 2022. 2 [40] Karen Simonyan and Andrew Zisserman. Very deep convo-lutional networks for large-scale image recognition, 2015. 4 [41] Jiaming Song, Chenlin Meng, and Stefano Ermon. Denois-ing diffusion implicit models, 2022. 2 [42] Peize Sun, Yi Jiang, Shoufa Chen, Shilong Zhang, Bingyue Peng, Ping Luo, and Zehuan Yuan. Autoregressive model beats diffusion: Llama for scalable image generation, 2024. 2, 5, 1 [43] Chameleon Team. Chameleon: Mixed-modal early-fusion foundation models, 2025. 1, 2, 5, 3 [44] Keyu Tian, Yi Jiang, Zehuan Yuan, Bingyue Peng, and Li-wei Wang. Visual autoregressive modeling: Scalable image generation via next-scale prediction. In Advances in Neural Information Processing Systems , pages 84839–84865. Cur-ran Associates, Inc., 2024. 1 [45] Shengbang Tong, David Fan, Jiachen Zhu, Yunyang Xiong, Xinlei Chen, Koustuv Sinha, Michael Rabbat, Yann LeCun, Saining Xie, and Zhuang Liu. Metamorph: Multimodal un-derstanding and generation via instruction tuning, 2024. 2 [46] Yuxiang Tuo, Wangmeng Xiang, Jun-Yan He, Yifeng Geng, and Xuansong Xie. Anytext: Multilingual visual text gener-ation and editing, 2024. 2, 5 [47] Aaron van den Oord, Oriol Vinyals, and Koray Kavukcuoglu. Neural discrete representation learning, 2018. 1, 2, 4 [48] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszko-reit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, and Illia Polosukhin. Attention is all you need, 2023. 2 [49] Alex Jinpeng Wang, Linjie Li, Zhengyuan Yang, Lijuan Wang, and Min Li. Beyond words: Advancing long-text im-age generation via multimodal autoregressive models, 2025. 1[50] Alex Jinpeng Wang, Dongxing Mao, Jiawei Zhang, Weiming Han, Zhuobai Dong, Linjie Li, Yiqi Lin, Zhengyuan Yang, Libo Qin, Fuwei Zhang, Lijuan Wang, and Min Li. Textat-las5m: A large-scale dataset for dense text image generation, 2025. 2, 5, 3 [51] Xinlong Wang, Xiaosong Zhang, Zhengxiong Luo, Quan Sun, Yufeng Cui, Jinsheng Wang, Fan Zhang, Yueze Wang, Zhen Li, Qiying Yu, Yingli Zhao, Yulong Ao, Xuebin Min, Tao Li, Boya Wu, Bo Zhao, Bowen Zhang, Liangdong Wang, Guang Liu, Zheqi He, Xi Yang, Jingjing Liu, Yonghua Lin, Tiejun Huang, and Zhongyuan Wang. Emu3: Next-token prediction is all you need, 2024. 1, 2 [52] Yan Wang. Edge-enhanced feature distillation network for efficient super-resolution, 2022. 4 [53] Xing Wei, Yifan Bai, Yongchao Zheng, Dahu Shi, and Yi-hong Gong. Autoregressive visual tracking. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pat-tern Recognition (CVPR) , pages 9697–9706, 2023. 2 [54] Chengyue Wu, Xiaokang Chen, Zhiyu Wu, Yiyang Ma, Xingchao Liu, Zizheng Pan, Wen Liu, Zhenda Xie, Xingkai Yu, Chong Ruan, and Ping Luo. Janus: Decoupling visual encoding for unified multimodal understanding and genera-tion, 2024. 2 [55] Chenfei Wu, Jiahao Li, Jingren Zhou, Junyang Lin, Kaiyuan Gao, Kun Yan, Sheng ming Yin, Shuai Bai, Xiao Xu, Yilei Chen, Yuxiang Chen, Zecheng Tang, Zekai Zhang, Zhengyi Wang, An Yang, Bowen Yu, Chen Cheng, Dayiheng Liu, De-qing Li, Hang Zhang, Hao Meng, Hu Wei, Jingyuan Ni, Kai Chen, Kuan Cao, Liang Peng, Lin Qu, Minggang Wu, Peng Wang, Shuting Yu, Tingkun Wen, Wensen Feng, Xiaoxiao Xu, Yi Wang, Yichang Zhang, Yongqiang Zhu, Yujia Wu, Yuxuan Cai, and Zenan Liu. Qwen-image technical report, 2025. 2 [56] Chenfei Wu, Jiahao Li, Jingren Zhou, Junyang Lin, Kaiyuan Gao, Kun Yan, Sheng ming Yin, Shuai Bai, Xiao Xu, Yilei Chen, Yuxiang Chen, Zecheng Tang, Zekai Zhang, Zhengyi Wang, An Yang, Bowen Yu, Chen Cheng, Dayiheng Liu, De-qing Li, Hang Zhang, Hao Meng, Hu Wei, Jingyuan Ni, Kai Chen, Kuan Cao, Liang Peng, Lin Qu, Minggang Wu, Peng Wang, Shuting Yu, Tingkun Wen, Wensen Feng, Xiaoxiao Xu, Yi Wang, Yichang Zhang, Yongqiang Zhu, Yujia Wu, Yuxuan Cai, and Zenan Liu. Qwen-image technical report, 2025. 1 [57] Yecheng Wu, Zhuoyang Zhang, Junyu Chen, Haotian Tang, Dacheng Li, Yunhao Fang, Ligeng Zhu, Enze Xie, Hongxu 
+
+10 Yin, Li Yi, Song Han, and Yao Lu. Vila-u: a unified founda-tion model integrating visual understanding and generation, 2025. 3 [58] Yi Wu, Lingting Zhu, Shengju Qian, Lei Liu, Wandi Qiao, Lequan Yu, and Bin Li. Stylear: Customizing multimodal autoregressive model for style-aligned text-to-image genera-tion. arXiv preprint arXiv:2505.19874 , 2025. 2 [59] Enze Xie, Junsong Chen, Junyu Chen, Han Cai, Haotian Tang, Yujun Lin, Zhekai Zhang, Muyang Li, Ligeng Zhu, Yao Lu, and Song Han. Sana: Efficient high-resolution im-age synthesis with linear diffusion transformers, 2024. 2 [60] Enze Xie, Junsong Chen, Yuyang Zhao, Jincheng Yu, Ligeng Zhu, Chengyue Wu, Yujun Lin, Zhekai Zhang, Muyang Li, Junyu Chen, Han Cai, Bingchen Liu, Daquan Zhou, and Song Han. Sana 1.5: Efficient scaling of training-time and inference-time compute in linear diffusion transformer, 2025. 2 [61] Yi Xin, Juncheng Yan, Qi Qin, Zhen Li, Dongyang Liu, Shicheng Li, Victor Shea-Jay Huang, Yupeng Zhou, Ren-rui Zhang, Le Zhuo, Tiancheng Han, Xiaoqing Sun, Siqi Luo, Mengmeng Wang, Bin Fu, Yuewen Cao, Hongsheng Li, Guangtao Zhai, Xiaohong Liu, Yu Qiao, and Peng Gao. Lumina-mgpt 2.0: Stand-alone autoregressive image model-ing, 2025. 2 [62] Tianwei Xiong, Jun Hao Liew, Zilong Huang, Jiashi Feng, and Xihui Liu. Gigatok: Scaling visual tokenizers to 3 billion parameters for autoregressive image generation, 2025. 2 [63] Jiahui Yu, Xin Li, Jing Yu Koh, Han Zhang, Ruoming Pang, James Qin, Alexander Ku, Yuanzhong Xu, Jason Baldridge, and Yonghui Wu. Vector-quantized image modeling with improved vqgan, 2022. 2 [64] Qihang Yu, Ju He, Xueqing Deng, Xiaohui Shen, and Liang-Chieh Chen. Randomized autoregressive visual generation. In Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) , pages 18431–18441, 2025. 2 [65] Jiahui Zhang, Fangneng Zhan, Christian Theobalt, and Shi-jian Lu. Regularized vector quantization for tokenized im-age synthesis. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 18467– 18476, 2023. 2 [66] Zhengbo Zhang, Chunluan Zhou, and Zhigang Tu. Distill-ing inter-class distance for semantic segmentation. arXiv preprint arXiv:2205.03650 , 2022. 3 [67] Zhengbo Zhang, Li Xu, Duo Peng, Hossein Rahmani, and Jun Liu. Diff-tracker: text-to-image diffusion models are un-supervised trackers. In European Conference on Computer Vision , pages 319–337. Springer, 2024. [68] Zhengbo Zhang, Lin Geng Foo, Hossein Rahmani, Jun Liu, and De Wen Soh. Performing defocus deblurring by model-ing its formation process. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 5791– 5801, 2025. [69] Zhengbo Zhang, Yuxi Zhou, Duo Peng, Joo-Hwee Lim, Zhi-gang Tu, De Wen Soh, and Lin Geng Foo. Visual prompting for one-shot controllable video editing without inversion. In 
+
+Proceedings of the Computer Vision and Pattern Recognition Conference , pages 7784–7794, 2025. 3 [70] Chuanxia Zheng, Tung-Long Vuong, Jianfei Cai, and Dinh Phung. Movq: Modulating quantized vectors for high-fidelity image generation. Advances in Neural Information Processing Systems , 35:23412–23425, 2022. 2 
+
+11 Residual Decoder Adapter: ID-Preserving Tokenizer Adaption for Autoregressive Text Rendering 
+
+# Supplementary Material 
+
+## Contents 
+
+1. Introduction 12. Related Work 23. Preliminaries 34. Residual Decoder Adapter 3
+
+4.1. Shared-ID Hint Codebook . . . . . . . . . . 34.2. Residual Decoder . . . . . . . . . . . . . . . 44.3. Training Objective and Optimization . . . . 44.4. Plug-and-Play Inference in AR model . . . . 5
+
+5. Experiments 5
+
+5.1. Implementation details . . . . . . . . . . . . 55.2. Evaluation Protocol . . . . . . . . . . . . . . 55.3. Main Results. . . . . . . . . . . . . . . . . . 55.4. Ablation Study . . . . . . . . . . . . . . . . 65.5. Discussion . . . . . . . . . . . . . . . . . . 75.6. Qualitative Results . . . . . . . . . . . . . . 8
+
+6. Conclusion 87. Implementation Details 1
+
+7.1. Model Architecture . . . . . . . . . . . . . . 17.2. Training Configuration . . . . . . . . . . . . 1
+
+8. Computational Cost Analysis 2
+
+8.1. Parameters and Latency . . . . . . . . . . . 2
+
+9. Understanding the Bottleneck 2
+
+9.1. Tokenizer Reconstruction Limit . . . . . . . 29.2. Dual Bottleneck in Text Rendering . . . . . 2
+
+10 . Failure Case Analysis 2
+
+10.1 . Tokenizer-Level Failures . . . . . . . . . . . 210.2 . AR Model-Level Failures . . . . . . . . . . 3
+
+11 . Training Analysis 3
+
+11.1 . Training Stability and Convergence . . . . . 3
+
+12 . Design Justifications 3
+
+12.1 . Why Shared-ID Preserves Compatibility . . 312.2 . Why TAR Can Use RDA (LlamaGen-VQ) . 3
+
+13 . Extended Experiments 3
+
+13.1 . Tokenizer Results on Additional Datasets . . 313.2 . AR Model Results on TextAtlasEval . . . . . 3                                                              
+
+> Table 8. Residual Decoder architecture. The decoder follows a simple expand–process–upsample design.
+> Stage Layer Input →Output Resolution
+> Input -[B, 256, h, w] 1/16 Expansion Conv-in 256 →1024 1/16 Processing ResBlock 1024 →1024 1/16 AttnBlock 1024 →1024 1/16 ResBlock 1024 →1024 1/16 Upsampling Block 0 1024 →512 1/16 →1/8 Block 1 512 →512 1/8 →1/4 Block 2 512 →512 1/4 →1/2 Block 3 512 →256 1/2 →1/1 Block 4 256 →128 1/1 →1/1 Output Conv-out 128 →31/1
+
+14 . More Visualizations 3
+
+14.1 . Tokenizer Reconstruction Results . . . . . . 314.2 . General AR Generation Results . . . . . . . 314.3 . Text-Specialized AR Generation Results . . 3
+
+15 . Additional Information 4
+
+15.1 . Recaption Prompt . . . . . . . . . . . . . . 4
+
+## 7. Implementation Details 
+
+7.1. Model Architecture 
+
+Hint Codebook We instantiate a paired codebook that mir-rors the size and index space of the original tokenizer code-book. The embedding vectors are learned from scratch, but their indices remain aligned with the base codebook. 
+
+Projector Design We use a lightweight 1×1 Conv2d to map hint-codebook embeddings ( dhint = 16 ) to the residual de-coder input space: Projector q : Conv2d (16 , 256 , 1) (11) 
+
+Residual Decoder Architecture The architecture largely follows decoder of LlamaGenVQ [42] design with key modifications for high-resolution text detail capture. The full specification is shown in Tab. 8. 
+
+7.2. Training Configuration 
+
+All loss weights are set to 1.0. We use a high-pass mask 
+
+Mq with q = 0 .8 during training. The gradient-sensitive loss Lsobel emphasizes edge structures, while Lfreq preserves high-frequency components in Fourier space. Visualization of these masks is provided in Fig. 8. 1Targe t GT Freq Sobel mask Figure 8. Visualization of Sobel mask and frequency mask.                             
+
+> Table 9. Computational cost of RDA. We report the overhead on both the tokenizer side and the end-to-end AR model.
+> Module Params Latency
+> Tokenizer
+> LLamaGenVQ 72 M 34.50 ms + RDA 237 M 80.11 ms ChameleonVQ 69 M 34.48 ms + RDA 234 M 80.90 ms
+> AR model
+> Janus Pro 1B 2.09 G 11.20 s + RDA 2.15 G (+7.89%) 11.36 s (+1.43%) Janus Pro 7B 7.42 G 14.63 s + RDA 7.58 G (+2.22%) 14.80 s (+1.16%) Tar 7B 9.40G 72.93 s + RDA 9.56 G (+1.76%) 73.25 s (+0.42%) Lumina-mgpt 7.04 G 212.16 s + RDA 7.20 G (+2.34%) 212.43 s (+0.13%)
+
+## 8. Computational Cost Analysis 
+
+8.1. Parameters and Latency 
+
+Tab. 9 quantifies the computational overhead introduced by RDA on different AR models and tokenizers. All measure-ments are conducted in inference mode on a single V100 GPU. RDA introduces negligible overhead ( < 2% latency), while achieving substantial improvements in text rendering quality. 
+
+## 9. Understanding the Bottleneck 
+
+9.1. Tokenizer Reconstruction Limit 
+
+We verify that the base tokenizer exhibits inherent recon-struction limitations even when provided perfect ground-truth input. Fig. 9 shows that the quantization-decoding process inherently loses fine-grained details, blurring text strokes and distorting glyph edges. This confirms that the tokenizer’s reconstruction capability is the primary bottle-neck. 
+
+9.2. Dual Bottleneck in Text Rendering 
+
+General AR models face two bottlenecks: GT Recon.   
+
+> Figure 9. Comparison between ground-truth images and re-constructions from the base image tokenizer . The reconstructed results blur fine-grained text strokes and distort glyph edges, indi-cating that textual details are significantly degraded during quan-tization and decoding.
+> Figure 10. Failure Case of Tokenizer.
+
+1. Token prediction: Weak text token prediction from the AR model. 2. Reconstruction: Limited reconstruction fidelity from the tokenizer. Text-specific fine-tuning addresses the first bottleneck, making the tokenizer decoder the dominant limitation. RDA directly targets this by enhancing reconstruction with-out modifying the AR model, enabling large improvements on text-tuned models. 
+
+## 10. Failure Case Analysis 
+
+We categorize failures into two types based on their source: 
+
+10.1. Tokenizer-Level Failures 
+
+When characters are extremely small or visually ambigu-ous, the tokenizer may assign incorrect visual tokens, lead-ing to unrecoverable errors. Fig. 10 illustrates such cases. 2Wrong tex t Mass text Text too small Figure 11. Failure Case of AR model. 
+
+10.2. AR Model-Level Failures 
+
+When the AR model generates malformed glyph structures during generation, RDA cannot correct them since it oper-ates on the decoded output. Fig. 11 shows examples where the AR model produces structurally incorrect characters. 
+
+## 11. Training Analysis 
+
+11.1. Training Stability and Convergence 
+
+Fig. 12 presents training curves for RDA. The optimization is stable throughout training. Critically, without residual perceptual loss Lres perc , the residual branch fails to converge and produces only blurry gray regions. This underscores the importance of perceptual supervision for learning meaning-ful high-frequency details. 
+
+## 12. Design Justifications 
+
+12.1. Why Shared-ID Preserves Compatibility 
+
+The Shared-ID mechanism ensures that the token ID distri-bution remains identical to the base tokenizer. Since AR models learn a distribution over token IDs (not codebook embeddings), they can directly benefit from im-proved reconstruction without retraining. 
+
+12.2. Why TAR Can Use RDA (LlamaGen-VQ) 
+
+TAR adapts LlamaGen-VQ by modifying the tokenization and embedding pipeline before decoding. In contrast, RDA operates after the decoder and refines pixel-level outputs without altering token IDs. As illustrated in Fig. 13, this separation allows RDA trained on LlamaGen-VQ to be di-rectly applied to TAR without additional training. Training loss wo residual perception loss  
+
+> Figure 12. Visualization of loss curve.
+
+## 13. Extended Experiments 
+
+13.1. Tokenizer Results on Additional Datasets 
+
+We also conduct evaluations on StyledTextVisionBlend and TextScenesHQ of TextAtlasEval [50, 66–69] to assess ro-bustness. The results are summarized in Tab. 10. 
+
+13.2. AR Model Results on TextAtlasEval 
+
+We also evaluate general AR models on the TextAtlasEval. The results are reported in Tab. 11. Across different AR backbones and resolutions, RDA provides consistent improvements on TextAtlasEval bench-marks. 
+
+## 14. More Visualizations 
+
+14.1. Tokenizer Reconstruction Results 
+
+We evaluate the reconstruction quality of different im-age tokenizers, including LlamaGen-VQ and Chameleon-VQ [43], across multiple datasets. For clarity, Fig. 14 presents results based on LlamaGenVQ, while Fig. 15 shows results from Chameleon-VQ. Across both tokeniz-ers, applying RDA leads to visibly sharper text strokes and improved structural consistency, demonstrating that our method generalizes to different tokenizer architectures. 
+
+14.2. General AR Generation Results 
+
+Janus Pro Fig. 16 shows generation results from Janus Pro. 
+
+TAR-1B Fig. 17 shows generation results from TAR-1B. 
+
+TAR-7B Fig. 18 shows generation results from TAR-7B. 
+
+14.3. Text-Specialized AR Generation Results 
+
+Janus Pro (Fine-tuned) Fig. 19 shows generation results from fine-tuned Janus Pro. 
+
+Lumina-mGPT (512px) Fig. 20 shows generation re-sults fine-tuned Lumina-mGPT at 512 resolution. 
+
+Lumina-mGPT (1024px) Fig. 21 shows generation re-sults fine-tuned Lumina-mGPT at 1024 resolution. 3Table 10. Comparison of text image reconstruction performance across image tokenizers. StyledTextSynth is evaluated at 512 and 
+
+1024 .
+
+Model Data AR Free StyledTextVisionBlend TextScenesHQ 
+
+Acc. F1. SSIM LPIPS Acc. F1. SSIM LPIPS 
+
+Low Resolution 
+
+LlamagenVQ 50M ✗ 65.58 71.34 82.80 7.61 11.11 16.35 50.36 46.27 
+
+w/ RDA 5M ✔ 78.94 82.75 85.91 6.46 19.73 26.45 51.26 45.92 ChameleonVQ - ✗ 58.75 62.65 81.59 7.94 10.12 13.73 49.71 46.34 
+
+w/ RDA 5M ✔ 72.16 76.39 83.70 7.20 14.59 19.80 50.20 46.02 
+
+High Resolution 
+
+LlamagenVQ 50M ✗ 92.04 92.45 92.62 5.67 33.47 40.98 52.50 42.55 
+
+w/ RDA 5M ✔ 93.39 92.42 93.32 5.60 42.15 47.72 53.29 42.55 ChameleonVQ - ✗ 91.70 91.49 92.25 5.10 30.49 36.31 51.79 42.11 
+
+w/ RDA 5M ✔ 92.19 91.78 92.21 4.62 36.47 42.29 52.12 42.14 
+
+Table 11. Comparison of general AR models before and after applying RDA. Each cell shows the result w/wo applying RDA. 
+
+Model Size Res TextVisionBlend StyledTextSynth TextScenesHQ 
+
+Acc. ↑ F1. ↑ CER ↓ Acc. ↑ F1. ↑ CER ↓ Acc. ↑ F1. ↑ CER ↓
+
+Janus Pro 1B 384 0.68/ 0.74 1.22/ 1.30 0.94/ 0.93 0.47/ 0.64 0.91/ 1.21 0.97/0.97 0.39/ 1.02 0.70/ 1.70 0.94/ 0.90 
+
+7B 384 0.37/ 0.56 0.69/ 1.04 0.97/ 0.96 0.46/ 0.89 0.60/ 1.14 0.98/ 0.97 0.68/ 1.02 1.19/ 1.70 0.92/ 0.90 
+
+TAR 1.5B 512 0.87/ 1.32 1.55/ 2.26 0.96/ 0.95 1.17/ 2.02 2.15/ 3.55 0.96/ 0.94 2.31/ 3.59 3.59/ 5.04 0.89/ 0.87 
+
+1.5B 1024 2.81/ 4.05 4.00/ 4.57 0.92/0.92 3.48/ 5.10 5.52/ 7.10 0.89/ 0.86 2.31/ 3.59 3.59/ 5.04 0.89/ 0.85 
+
+7B 512 4.90/ 7.29 7.34/ 10.11 0.87/ 0.85 3.62/ 6.39 6.21/ 9.99 0.92/ 0.88 9.84/ 13.63 13.31/ 16.61 0.77/ 0.74 
+
+7B 1024 7.56/ 7.98 10.33/ 10.74 0.84/0.84 7.70/ 8.32 11.70/ 12.40 0.86/ 0.85 13.94/ 14.47 16.59/ 16.83 0.75/0.75 TA -tok 
+
+Decoder of LlamaGenVQ 
+
+RD A
+
+residual  
+
+> Where RDA applyed AR -decoder
+
+Figure 13. Where RDA is applied in TAR. TAR modifies the tokenization and embedding pipeline before decoding, while RDA attaches after the decoder and refines pixel-level outputs without altering token IDs. 
+
+## 15. Additional Information 
+
+15.1. Recaption Prompt 
+
+We use the following prompt to generate recaptions via Qwen-2.5-VL: Recaption Prompt Carefully describe the image by precisely combin-ing visual elements with all visible text. The final caption must integrate the visual scene and quoted text into a coherent, factual narrative of around 100 words. Extract every piece of visible text from the image—no omissions—and enclose each text string in double quotes (””). Specify the approximate po-sition of each text (e.g., top-left, center, bottom-right). Avoid adding any imaginative, inferred, or generic descriptions not grounded in the image. 4GT VQ RAD VQ+RAD GT VQ RAD VQ+RAD 
+
+> anytext Mario TextVisionBlend StyledTextSynth TextScenesHQ
+
+Figure 14. Qualitative Results of LlamaGenVQ Applying RDA. Left: low-resolution setting. Right: high-resolution setting. 
+
+5GT VQ RAD VQ+RAD GT VQ RAD VQ+RAD 
+
+> anytext Mario TextVisionBlend StyledTextSynth TextScenesHQ
+
+Figure 15. Qualitative Results of ChameleonVQ Applying RDA. Left: low-resolution setting. Right: high-resolution setting. 
+
+6AR AR+RDA 
+
+> Janus Pro 1B
+
+AR AR+RDA 
+
+> Anytext -Bench Mario
+> CVTG Longtext
+> Janus Pro 7B
+> Anytext -Bench Mario
+> CVTG Longtext
+
+Figure 16. Qualitative Results of Janus Pro Applying RDA 
+
+7AR AR+RDA 
+
+> Tar 1B 512
+
+AR AR+RDA 
+
+> Anytext -Bench Mario
+> CVTG Longtext
+> Tar 1B 1024
+> Anytext -Bench Mario
+> CVTG Longtext
+
+Figure 17. Qualitative Results of Tar 1B Applying RDA 
+
+8AR AR+RDA 
+
+> Tar 7B 512
+
+AR AR+RDA 
+
+> Anytext -Bench Mario
+> CVTG Longtext
+> Tar 7B 1024
+> Anytext -Bench Mario
+> CVTG Longtext
+
+Figure 18. Qualitative Results of Tar 7B Applying RDA 
+
+9AR AR+RDA 
+
+> Janus
+
+AR AR+RDA 
+
+> VisionBlend TextSynth ScenesHQ
+
+Figure 19. Qualitative Results of Finetuned Janus Pro Applying RDA 
+
+10 AR AR+RDA 
+
+> Luminamgpt  512
+
+AR AR+RDA 
+
+> VisionBlend TextSynth ScenesHQ
+
+Figure 20. Qualitative Results of Finetuned Luminamgpt 512 Applying RDA 
+
+11 Luminamgpt  1024 
+
+AR AR+RDA AR AR+RDA 
+
+> VisionBlend TextSynth ScenesHQ
+
+Figure 21. Qualitative Results of Finetuned Luminamgpt 1024 Applying RDA 
+
+12

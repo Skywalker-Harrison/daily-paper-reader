@@ -1,0 +1,139 @@
+Title: Thaka at KSAA-2026 Task 2: Regularized Fine-Tuning for Arabic Speech Diacritization
+
+URL Source: https://arxiv.org/pdf/2605.25928v1
+
+Published Time: Tue, 26 May 2026 02:24:31 GMT
+
+Number of Pages: 4
+
+Markdown Content:
+# Thaka at KSAA-2026 Task 2: Regularized Fine-Tuning for Arabic Speech Diacritization 
+
+Meshal Alamr, Hassan Alqaeri, Abdullah Aldahlawi 
+
+Thaka, Advanced AI and Information Technology Riyadh, Saudi Arabia {m.alamr, h.alqaeril, aldahlawi}@thakaait.net 
+
+Abstract 
+
+We describe the winning system for Task 2 of the KSAA-2026 Shared Task on Arabic Speech Dictation with Automatic Diacritization (Al Wazrah et al., 2026). The task requires producing fully diacritized Arabic text from speech audio and undiacritized transcripts, with only 2,327 training samples available and no external data permitted. Our system fine-tunes CATT-Whisper (Ghannam et al., 2025), a character-level multimodal model combining a pretrained CATT text encoder with a frozen Whisper speech encoder. The key to our approach is training regularization: R-Drop consistency regularization, Optuna-optimized hyperparameters with high weight decay, and Focal Loss. At inference, we average 200 stochastic forward passes across four model checkpoints using Monte Carlo Dropout at the softmax probability level. The system achieves 23.26% WER on the primary leaderboard metric (with case endings, including no-diacritic positions), placing 1st among all participants. 
+
+Keywords: Arabic diacritization, multimodal, speech processing, regularization, shared task, KSAA-2026 
+
+1. Introduction 
+
+Arabic text is typically written without diacritics, the short vowels and phonological markers that de-termine pronunciation and meaning. Restoring these marks automatically is important for text-to-speech, machine translation, and language learn-ing (Habash and Rambow, 2007), but remains challenging: text-only models (Alasmary et al., 2024) struggle with inherent ambiguity, particularly in dialectal Arabic where phonetic variation is high. Speech signals offer a complementary source of disambiguation, as prosodic and phonetic cues can resolve cases that are irrecoverable from or-thography alone. The KSAA-2026 Shared Task (Al Wazrah et al., 2026) presents a low-resource instance of this problem: only 2,327 training samples across mul-tiple Arabic dialects, with no external data per-mitted. CATT-Whisper (Ghannam et al., 2025) demonstrated that a multimodal architecture com-bining CATT and Whisper encoders is effective for this task, achieving strong results at NADI 2025. We adopt this architecture and focus on making the most of the limited training data through regu-larization and inference-time ensembling. 
+
+2. Background 
+
+2.1. Task and Data 
+
+Task 2 of the KSAA-2026 Shared Task requires participants to produce fully diacritized Arabic text given speech audio and undiacritized transcripts. Systems are evaluated using Diacritic Error Rate (DER), Word Error Rate (WER), and Sentence Er-ror Rate (SER) (Fadel et al., 2019), with WER (with case endings, including no-diacritic positions) as the primary ranking metric. All results in this paper are reported under this setting. The dataset (Al Wazrah et al., 2026) contains 2,327 training, 260 development, and 328 test samples spanning multiple Arabic dialects. Each sample is a short utterance (average ∼7 seconds) paired with a diacritized transcript. We filter sam-ples where the ratio of diacritized to total charac-ters is below 0.6, yielding 2,187 effective training samples. 
+
+2.2. Related Work 
+
+Arabic diacritization has progressed from mor-phological taggers (Habash and Rambow, 2007) through transformer-based systems (Nazih and Hifny, 2022) to pretrained encoders such as AraBERT (Antoun et al., 2020) and the character-level CATT model (Alasmary et al., 2024). Ghan-nam et al. (2025) introduced CATT-Whisper, which fuses a CATT text encoder with Whisper (Rad-ford et al., 2023) speech features via prefix ad-dition, winning the NADI 2025 dialectal diacriti-zation track. R-Drop (Liang et al., 2021) penal-izes divergent predictions between two dropout-masked forward passes and has been effective in low-resource settings. MC Dropout (Gal and Ghahramani, 2016) enables ensemble-like infer-ence from a single model by keeping dropout ac-tive at test time. Our work applies these regulariza-tion and inference techniques to multimodal Arabic diacritization.                 
+
+> arXiv:2605.25928v1 [cs.CL] 25 May 2026 Hyperparameter Value
+> Learning rate 4.1×10 −6
+> R-Drop α2.08 Focal γ/ label smoothing 0.34 / 0.018 Weight decay 0.098 Speech emb. dropout 0.09 Batch size / epochs 16 / 40 Warmup / min LR factor 3 ep / 0.002 SpecAugment (freq / time) 10 / 63 Noise injection Gauss., SNR 10–30 dB Whisper unfrozen 0 (fully frozen)
+
+Table 1: Hyperparameters selected via Optuna (30 trials). 
+
+3. System Overview 
+
+3.1. Architecture 
+
+Our system builds on CATT-Whisper. The text encoder is a 6-layer CATT Transformer ( d = 512 ,16 heads), pretrained on Arabic diacritization, pre-dicting one of 15 diacritic classes per Arabic let-ter. The speech encoder is Whisper-base (Rad-ford et al., 2023) (6 encoder blocks, d = 512 ), kept fully frozen in the primary configuration. Fu-sion uses prefix addition: 1,500 Whisper frames are mean-pooled into 150 tokens, projected, and added to 150 dedicated prefix positions that pre-cede the text input. The model has ∼39M param-eters ( ∼19M trainable). 
+
+3.2. Training 
+
+Figure 1(a) illustrates the training procedure. We fine-tune with R-Drop: each input passes through the model twice with different dropout masks, and a symmetric KL divergence penalty ( α = 2 .08 )encourages consistent predictions. The super-vised loss is Focal Loss (Lin et al., 2017) ( γ =0.34 ) with label smoothing ( ϵ = 0 .018 ). Speech embedding dropout ( p = 0.09 ) randomly zeros the speech representation during training, follow-ing the modality-robust training scheme of CATT-Whisper. Audio augmentation uses SpecAugment (Park et al., 2019) and Gaussian noise injection. Hyperparameters were selected using Optuna (Ak-iba et al., 2019) (30 trials, 12 epochs each); Table 1 shows the final configuration. We use AdamW (Loshchilov and Hutter, 2019) with cosine learning rate decay. We train four checkpoints: three with this configuration using seeds 42, 7, and 123, and a fourth from a separate Optuna trial with an alter-native configuration (learning rate 4.7×10 −5, batch size 32, γ = 1 .0, label smoothing 0.108, and 4 un-frozen Whisper blocks after epoch 15) to increase ensemble diversity.                                     
+
+> System DER ↓WER ↓SER ↓
+> meshal (Ours) 6.87 23.26 66.16
+> nadaadelmousa 7.04 24.39 71.65 naif_alharthi 7.51 25.34 73.48 nahian_abu 8.23 30.37 80.79 Hassan 10.56 34.47 79.88 omarnj10 27.94 44.05 98.78 astral_fate 31.67 84.50 99.70 Baseline (FT text+ASR) 9.91 31.84 82.93 Baseline (text+ASR) 13.50 40.24 82.32 Baseline (text-only) 17.66 49.85 91.77
+
+Table 2: Test set results. All metrics: with case endings, incl. no-diacritic positions. Ranked by WER (primary metric). 
+
+3.3. Inference 
+
+Figure 1(b) illustrates the inference procedure. At inference, we keep dropout active in the CATT en-coder ( p = 0 .1) while LayerNorm stays in eval mode. Each of the four models runs 50 stochastic forward passes ( 4 × 50 = 200 total), and we average soft-max probabilities across all passes before taking the argmax. 
+
+3.4. Post-Processing 
+
+We use direct positional diacritic insertion: CATT models maintain 1:1 correspondence between Arabic letter positions and predicted diacritics. We enforce three invariants: (1) stripping diacritics from the output recovers the original input; (2) dia-critic count matches predictions; (3) all letter posi-tions are consumed. 
+
+4. Results 
+
+Table 2 shows the test set results compared to other participants and the shared task baselines. Our system achieves 23.26% WER on the primary metric. Table 3 presents a cumulative ablation on the development set, starting from the pretrained CATT-Whisper model and progressively adding our modifications. Fine-tuning CATT-Whisper with a standard recipe (cross-entropy loss, learning rate 10 −5) gives 30.43% WER; adding our regular-ized recipe (R-Drop, Focal Loss, high weight de-cay) reduces this to 27.18%, and MC Dropout en-sembling brings it to 26.02%. The majority of the gain (3.25 pp) comes from the regularized training recipe; MC Dropout adds a further 1.16 pp, con-firming that the training recipe is the primary driver of improvement. Audio + Text   
+
+> Average Softmax (200 passes)
+> Diacritized Output (b) Inference
+> Checkpoint 1
+> seed 42
+> ×50 MC passes
+> Checkpoint 2
+> seed 7
+> ×50 MC passes
+> Checkpoint 3
+> seed 123
+> ×50 MC passes
+> Checkpoint 4
+> different config
+> ×50 MC passes
+> (a) Training
+> Speech Signal
+> Whisper Encoder
+> (frozen)
+> Linear Projection
+> CATT Encoder
+> Focal Loss + R-Drop KL Penalty
+> Pass 1 Pass 2
+> Speech Tokens
+> (150 prefix positions) Text Tokens
+> Prefix Addition
+> Predicted Diacritics
+> (dropout mask 1)
+> Predicted Diacritics
+> (dropout mask 2)
+
+Figure 1: (a) Training: speech features from the frozen Whisper encoder are fused with text tokens via prefix addition and processed by the CATT encoder. R-Drop runs two forward passes with different dropout masks, optimizing with Focal Loss and a KL consistency penalty. (b) Inference: four checkpoints each run 50 MC Dropout passes; the 200 softmax distributions are averaged to produce the diacritized output. 
+
+Configuration DER WER 
+
+CATT-Whisper (pretrained) 17.76 54.06 CATT-Whisper (fine-tuned) † 8.59 30.43 + Regularized recipe ‡ 7.57 27.18 + 4-model MC Dropout ensemble 7.17 26.02 
+
+> †Baseline: lr= 10 −5, cross-entropy loss, batch size 16, 30 epochs.
+> ‡R-Drop + Focal Loss + high weight decay (Optuna, 30 trials).
+
+Table 3: Cumulative ablation on dev set (%, with case endings, incl. no-diacritic positions). 
+
+4.1. Discussion 
+
+Training recipe. We also explored architec-tural modifications including cross-attention fusion, CRF decoding, attention pooling, auxiliary heads, and RL fine-tuning, none of which improved over the fine-tuned CATT-Whisper baseline. The reg-ularized recipe yielded a 3.25 pp WER gain (Ta-ble 3), suggesting that, in our experiments with 2,187 training samples, the optimization strategy matters more than the model architecture. MC Dropout ensembling adds 1.16 pp at a cost of 200 forward passes ( ∼50 × slower than a single pass); in practice, reducing the number of passes and studying the effect on accuracy could yield a more efficient trade-off. 
+
+Input ﺍﻟﻈﺎﻫﺮ ﺃﻧﻪ ﻟ ﺎ ﺧﻠ؝ﻑ ﻓﻲ ﺍﻟﺤﻘﻴﻘﺔ ﻟﻠ؝ﺗﻔﺎﻕ ﻋﻠﻰ ﺍﻣﺘﻨﺎﻉ ﺇﺩﺭﺍﻙ ﺣﻘﻴﻘﺔ ﺍﻟﺬﺍﺕ 
+
+Ours ِ ِﺍﻟﻈَّﺎﻫِﺮ ُﺃَﻧَّﻪ ُﻟ َﺎ ﺧِﻠَ؝ﻑ َﻓِﻲ ﺍﻟْﺤَﻘِﻴﻘَﺔ ِﻟِﻠِ؝ﺗِّﻔَﺎﻕ ِﻋَﻠَﻰ ﺍﻣْﺘِﻨَﺎﻉ ﺇِﺩْﺭَﺍﻙ ِﺣَﻘِﻴﻘَﺔ ِﺍﻟﺬَّﺍﺕ 
+
+Gold ِ ِﺍﻟﻈَّﺎﻫِﺮ ُﺃَﻧَّﻪ ُﻟ َﺎ ﺧِﻠَ؝ﻑ َﻓِﻲ ﺍﻟْﺤَﻘِﻴﻘَﺔ ِﻟِﻠِ؝ﺗِّﻔَﺎﻕ ِﻋَﻠَﻰ ﺍﻣْﺘِﻨَﺎﻉ ﺇِﺩْﺭَﺍﻙ ِﺣَﻘِﻴﻘَﺔ ِﺍﻟﺬَّﺍﺕ 
+
+Table 4: Dev set example. 
+
+Audio contribution. Ghannam et al. (2025) showed that incorporating speech features sig-nificantly improves diacritization accuracy. Con-sistent with their findings and the gap between the text-only and audio-equipped baselines in Ta-ble 2, we observed a similar pattern when fine-tuning CATT-Whisper without speech features, fur-ther confirming the importance of audio input for this task. 
+
+Qualitative example. Table 4 shows a dev set example where our system correctly diacritizes a complex sentence with case endings and shad-das. 
+
+5. Conclusion 
+
+We presented our system for KSAA-2026 Task 2, which fine-tunes CATT-Whisper with R-Drop, Fo-cal Loss, and Optuna-optimized hyperparameters, and uses MC Dropout ensembling at inference. At this data scale, training regularization yielded larger gains than any of the architectural modifica-tions we explored. Future work could disentangle the individual contributions of each regularization component and examine per-dialect performance to identify remaining challenges. 
+
+Acknowledgements 
+
+We thank Thaka for supporting this work, KSAA for organizing the shared task, and the Abjad AI team for open-sourcing the CATT-Whisper model. 
+
+References 
+
+Takuya Akiba, Shotaro Sano, Toshihiko Yanase, Takeru Ohta, and Masanori Koyama. 2019. Op-tuna: A next-generation hyperparameter opti-mization framework. In Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining , pages 2623–2631. Asma Al Wazrah, Waad Alshammari, Rawan Al-matham, Raghad Al-Rasheed, Afrah Altamimi, Rufael Marew, Sawsan Alqahtani, Hanan Aldar-maki, Abdullah Alharbi, Abdulrahman Alshehri, Mohamed Assar, Amal Almazrua, and Abdulrah-man AlOsaimy. 2026. KSAA-2026 shared task on Arabic speech dictation with automatic dia-critization. In Proceedings of the 7th Workshop on Open-Source Arabic Corpora and Process-ing Tools (OSACT7) .Faris Alasmary, Orjuwan Zaafarani, and Ahmad Ghannam. 2024. CATT: Character-based Ara-bic tashkeel transformer. In Proceedings of the Second Arabic Natural Language Process-ing Conference (ArabicNLP 2024) .Wissam Antoun, Fady Baly, and Hazem Hajj. 2020. AraBERT: Transformer-based model for Arabic language understanding. In Proceedings of the 4th Workshop on Open-Source Arabic Corpora and Processing Tools (OSACT) , pages 9–15. Ali Fadel, Ibraheem Tuffaha, Bara’ Al-Jawarneh, and Mahmoud Al-Ayyoub. 2019. Arabic text di-acritization using deep neural networks. arXiv preprint arXiv:1905.01965 .Yarin Gal and Zoubin Ghahramani. 2016. Dropout as a Bayesian approximation: Representing model uncertainty in deep learning. In Proceed-ings of the 33rd International Conference on Ma-chine Learning (ICML) , pages 1050–1059. Ahmad Ghannam, Naif Alharthi, Faris Alasmary, Kholood Al Tabash, Shouq Sadah, and Lahouari Ghouti. 2025. Abjad AI at NADI 2025: CATT-Whisper: Multimodal diacritic restoration using text and speech representations. In Proceed-ings of the Second Arabic Natural Language Pro-cessing Conference: Shared Tasks (ArabicNLP 2025) .Nizar Habash and Owen Rambow. 2007. Ara-bic diacritization through full morphological tag-ging. In Human Language Technologies 2007: The Conference of the North American Chapter of the Association for Computational Linguistics; Companion Volume, Short Papers , pages 53– 56. Xiaobo Liang, Lijun Wu, Juntao Li, Yue Wang, Qi Meng, Tao Qin, Wei Chen, Min Zhang, and Tie-Yan Liu. 2021. R-Drop: Regularized dropout for neural networks. In Advances in Neural In-formation Processing Systems (NeurIPS) , vol-ume 34. Tsung-Yi Lin, Priya Goyal, Ross Girshick, Kaim-ing He, and Piotr Dollár. 2017. Focal loss for dense object detection. In Proceedings of the IEEE International Conference on Computer Vi-sion (ICCV) , pages 2980–2988. Ilya Loshchilov and Frank Hutter. 2019. Decou-pled weight decay regularization. In Interna-tional Conference on Learning Representations (ICLR) .Waleed Nazih and Yasser Hifny. 2022. Arabic syn-tactic diacritics restoration using BERT models. 
+
+Computational Intelligence and Neuroscience ,2022:3214255. Daniel S. Park, William Chan, Yu Zhang, Chung-Cheng Chiu, Barret Zoph, Ekin D. Cubuk, and Quoc V. Le. 2019. SpecAugment: A sim-ple data augmentation method for automatic speech recognition. In Interspeech , pages 2613–2617. Alec Radford, Jong Wook Kim, Tao Xu, Greg Brockman, Christine McLeavey, and Ilya Sutskever. 2023. Robust speech recognition via large-scale weak supervision. In Proceed-ings of the 40th International Conference on Machine Learning (ICML) , pages 28492–28518.

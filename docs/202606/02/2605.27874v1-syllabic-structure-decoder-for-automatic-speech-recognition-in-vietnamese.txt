@@ -1,0 +1,983 @@
+Title: Syllabic-Structure Decoder for Automatic Speech Recognition in Vietnamese
+
+URL Source: https://arxiv.org/pdf/2605.27874v1
+
+Published Time: Thu, 28 May 2026 00:33:22 GMT
+
+Number of Pages: 15
+
+Markdown Content:
+# Syllabic-Structure Decoder for Automatic Speech Recognition in Vietnamese 
+
+Nghia Hieu Nguyen 1,3,4 , Quan Ngoc Hoang 2,3,4 , Long Hoang Huu Nguyen 2,3,4 ,Kiet Van Nguyen 1,3,4 , Ngan Luu-Thuy Nguyen 1,3,4 
+
+> 1
+
+Faculty of Information Science and Engineering, 
+
+> 2
+
+Faculty of Computer Science, 
+
+> 3
+
+University of Information Technology, 
+
+> 4
+
+Vietnam National University, Ho Chi Minh city, Vietnam 
+
+Abstract 
+
+Most Automatic Speech Recognition (ASR) systems formulate transcription as a prediction problem over orthographic units such as char-acters, subwords, or words. Although effective, such representations do not explicitly reflect the phonetic structure of speech and often require large vocabularies to maintain adequate cover-age. In this work, we are motivated from the phonemic features of Vietnamese to propose a Syllabic-Structure Decoder for ASR, which models speech at the phoneme level instead of the orthographic level. Our approach explicitly captures the phonological composition of syl-lables, enabling the decoder to generate valid syllabic structures from a compact phonemic inventory. This design more closely aligns with the phonetic realization of speech while signif-icantly reducing vocabulary size. Experimental results on two benchmarks: LSVSC, represent-ing standard speech, and UIT-ViMD, a multi-dialect corpus containing diverse regional pro-nunciations, show that our method consistently outperforms strong previous baselines, espe-cially pretrained baselines such as PhoWhisper and Wav2Vec2, despite using a substantially smaller vocabulary and no additional training resources. These results highlight the effective-ness of phoneme-based syllabic modeling for ASR in this language. Code for experimental reproducibility will be publicly available upon the acceptance of this paper. 
+
+1 Introduction 
+
+Automatic Speech Recognition (ASR) has achieved remarkable progress in recent years with the de-velopment of end-to-end neural architectures and large-scale pretrained models. Modern systems typically formulate speech recognition as a se-quence prediction problem over orthographic units , such as characters, subwords, or words. This formulation has proven effective across many lan-guages and datasets, especially when combined with large pretrained acoustic models and exter-nal language models. However, such representa-tions primarily reflect the written form of language rather than the phonetic structure of speech. As a result, ASR systems often rely on large vocabular-ies to ensure lexical coverage and may struggle to capture pronunciation variability present in natural speech. This limitation becomes particularly relevant for Vietnamese where syllables serve as the fundamen-tal linguistic units and their internal phonological structure governs pronunciation. In this language, speech is naturally organized into syllables com-posed of constrained combinations of phonemes. Nevertheless, most current ASR systems ignore this structure and directly predict orthographic to-kens, which do not explicitly encode phonological composition. Consequently, orthographic model-ing may obscure important phonetic information and introduce unnecessary complexity in the output space. An alternative perspective is to model speech recognition at the phoneme level , which more closely reflects the acoustic realization of speech. Phoneme-based representations provide a compact inventory of basic sound units and naturally capture pronunciation variation. Despite these advantages, phoneme-level decoding is often avoided in end-to-end ASR due to the additional complexity re-quired to map phoneme sequences back to written text, typically through pronunciation lexicons or external language models. This issue, however, is significantly mitigated in languages with phonemic orthography such as Vietnamese, where the corre-spondence between phonemes and written forms is relatively transparent. In this work, we propose a Syllabic-Structure Decoder designed for ASR in Vietnamese. Instead of predicting orthographic tokens, the proposed decoder generates structured phoneme sequences that explicitly represent the internal composition 
+
+> arXiv:2605.27874v1 [cs.CL] 27 May 2026
+
+of syllables. This design aligns more closely with the phonological structure of speech while main-taining a compact output vocabulary. By modeling syllables through their phonemic components, the system can represent a large lexical space using a small set of phonemic units while preserving full vocabulary coverage. We evaluate the proposed method on two large-scale Vietnamese ASR datasets: LSVSC (Tran et al., 2024), which represents standard speech, and UIT-ViMD (Dinh et al., 2024), a corpus containing diverse dialectal variations. More-over, Vietnamese provides a monosyllabic struc-ture and largely phonemic orthography, which al-lows phoneme sequences to be converted to writ-ten text without requiring an additional language model. Experimental results demonstrate that the proposed approach consistently outperforms strong pretrained baselines, including PhoWhisper (Le et al., 2024) and Wav2Vec2 (Baevski et al., 2020), while using a substantially smaller output vocabu-lary and requiring no additional training resources. The main contributions of this work can be sum-marized as follows: 1. A Phonemic Tokenization Algorithm for encoding Vietnamese texts as a sequence of phonemes rather than words or subword units with linear time complexity and comprehen-sive linguistic coverage. 2. The Syllabic-Structure Decoder for end-to-end ASR that explicitly models speech at the phonemic level. These findings suggest that incorporating phono-logical structure into ASR decoding offers a promising direction for improving recognition ac-curacy and efficiency in Vietnamese and other sim-ilar languages where syllables constitute the core linguistic units. 
+
+2 Related Works 
+
+Recent advances in Automatic Speech Recogni-tion (ASR) have been driven by end-to-end neu-ral architectures that directly map speech signals to text. Early approaches commonly relied on the Connectionist Temporal Classification (CTC) (Graves et al., 2006) objective or attention-based encoder–decoder models (Radfar et al., 2022; Yao et al., 2024; Gulati et al., 2020; Le et al., 2025). More recently, large-scale pretrained speech mod-els have achieved strong performance across many Tone Initial  
+
+> Syllable
+> Rhyme Vowel Glide Final
+> Figure 1: Syllabic Structure in Vietnamese
+
+languages. Notable examples include Whisper (Le et al., 2024) and Wav2Vec (Baevski et al., 2020). These systems typically predict orthographic to-kens, such as characters or subwords. Phoneme-based representations have long been used in traditional ASR systems (Rabiner, 1989; Jelinek, 1997; Hinton et al., 2012) because they better reflect the acoustic realization of speech and require a compact inventory of units. However, phoneme-level decoding is less common in end-to-end ASR due to the additional complexity of converting phoneme sequences into written text, which often requires pronunciation lexicons or ex-ternal language models. 
+
+3 Methodology 
+
+3.1 Syllabic Structure of Vietnamese 
+
+Every syllable in Vietnamese share the same struc-ture that includes three main components: initial, rhyme, and tone (Figure 1). Rhyme can be fur-ther decomposed into three smaller components: medial, vowel, and tone (Châu, 2002; Xuan, 1985; Đoàn Thiện Thuật, 2016). While medial and tone are optional, the vowel is compulsory for con-structing all syllable in Vietnamese. In every syl-lable, rhyme is the mandatory component while initial and tone can be absent. As a monosyllabic language (Hieu Nguyen et al., 2025; Giáp, 2008, 2011), every Vietnamese word corresponds to at most one syllabic. Space is used to separate any two consecutive words in writing. Moreover, Vietnamese has a phonemic orthog-raphy. This means this language exhibits a high correspondence between grapheme and phoneme. Given the orthographic form of a Vietnamese word, native speakers can easily know how it is pro-nounced and vice versa. This distinguished fea-ture allows us to develop an algorithm that per-forms the grapheme-phoneme conversion without any linguistic ambiguity but comprehensive lin-guistic coverage. Detailed analysis and discussion Algorithm 1: The algorithm for converting text to phonemes. 
+
+Data: Transcript of the audio 
+
+w = ( w1, w 2, ..., w n) and the dictionary of IPA (D).
+
+Result: A sequence of syllables 
+
+p = ( p1, p 2, ..., p n) of the given input transcript 
+
+w = ( w1, w 2, ..., w n). Each phoneme 
+
+pi = ( pinit i , p rhyme i , p tone i ) is a triplet of IPA for the initial, rhyme, and tone.  
+
+> 1
+
+phonemes ← an empty list [];  
+
+> 2
+
+for W in w do  
+
+> 3
+
+S ← D[W];  
+
+> 4
+
+ptone , S ← get_tone( S); 
+
+> 5
+
+pinitial , S ← get_initial( S); 
+
+> 6
+
+pglide , S ← get_glide( S); 
+
+> 7
+
+pvowel , S ← get_vowel( S); 
+
+> 8
+
+pf inal ← get_final( S); 
+
+> 9
+
+prhyme ← merge (pglide , p vowel , p tone ); 
+
+> 10
+
+phonemes ← Append 
+
+(pinit i , p rhyme i , p tone i ); 
+
+> 11
+
+end  
+
+> 12
+
+return phonemes ;on the phonetics and orthography of Vietnamese are given in the Appendix B, which establish the fundamental theory of our Phonemic Tokenizer. 
+
+3.2 Phonemic Tokenizer 
+
+In order to represents text at the phonemic level, we design the Phonemic Tokenizer that (1) re-trieve the phonemic representation of the mono-syllabic word; and (2) decompose the syllable into phonemes correspondence to the syllabic structure of the respective language. The phonemic repre-sentation retrieval of words can be done using the dictionary. Retrieved syllables can be analyzed into a struc-ture of phonemes, which can be written using the IPA symbols, by an linear time-complexity algo-rithm for each syllable as described in Algorithm 1. Moreover, each of the algorithms get _tone ,
+
+get _initial , get _glide , get _vowel , get _f inal ,and get _tone iteratively over every phonemes in the given syllable to determine the syllabic com-ponents (Appendix C. Therefore all of them have the time complexity of O(n) that. Accordingly, the time complexity of the Algorithm 1 is linear O(n)
+
+while using a fix sized of vocabulary of phonemes but tokenizing all Vietnamese words. Compared to other text tokenization approach such as word or subword, this phonemic approach represents two main advantages: 
+
+• Independent from large-corpora training :As the syllabic structures of Vietnamese are consistent, we can decompose them consis-tently into sequence of phonemes using rules from previous linguistic studies (Xuan, 1985; Đoàn Thiện Thuật, 2016). 
+
+• Comprehensive Vocabulary Coverage :There are stable set of phonemes for every syllabic component, which helps the process of determining the phonemes straightforward. Moreover, all syllable in Vietnamese share the same syllabic structure, hence the linguistic coverage is ensure without any data-driven training. 
+
+• Linear Time Complexity : As the syllabic structure of natural languages is stable, the process of determining the syllabic compo-nents is O(n) (Alg. 1). The conversion from syllables to words is straightforward for Vietnamese (Appendix B). 
+
+3.3 Syllabic-Structure Decoder 
+
+To leverage the internal structure of syllables, we introduce a multi-token autoregressive decoder that predicts the syllabic components ( comp ) in parallel at each timestep, while maintaining autoregression across syllables (Figure 2). 
+
+3.3.1 Component-Specific Embeddings 
+
+At timestep t, the decoder receives 3 syllabic components (ik, rk, ..., tk) of previous syllables k
+
+(1 ≤ k ≤ t − 1) . Each component is embedded in its own learned subspace, preserving the distinct phonological roles of each one. In particular, the standard embedding layer retrieves the embedding vector of every syllabic component as: 
+
+emb comp k = EmbeddingLayer (comp k) ∈ Rdim 
+
+(1) Accordingly, each syllable is represented as the concatenated vector of three components emb k =[emb ik; emb rk; emb tk]T ∈ R3×dim . This embedding Transformer Decoder Layers         
+
+> [,] [,] [,] [,]
+> Component-Speci fi c Embedding
+> <s>
+> mô hình ngữ <s>
+> null
+> o
+> m
+> ˨˩
+> iɲ
+> h
+> ˧ˀ˥
+> ɯ
+> ŋ
+> null
+> o
+> m
+> ˨˩
+> iɲ
+> h
+> ˧ˀ˥
+> ɯ
+> ŋ
+> null
+> m
+> ə̆
+> mô hình ngữ âm
+
+Phonemic Tokenizer 
+
+Phonemic Tokenizer    
+
+> softmax softmax softmax softmax
+> <s>
+> <s>
+> Parallel Multi-Token Prediction
+
+Figure 2: The Syllabic-Structure Decoder. 
+
+vector is then projected back to the latent space of the model by a linear function: 
+
+emb k = Weemb k + b ∈ Rdim (2) where We ∈ Rdim ×3·dim represents the weights of the linear layer and b ∈ Rdim is the bias vector. 
+
+3.3.2 Attention over Acoustic Context 
+
+This step is similar to the standard decoding mech-anism (Vaswani et al., 2017a), where the unified representation attends to encoder outputs via multi-head attention, thereby integrating acoustic context with phonemic structure and enabling the decoder to capture dialect-sensitive cues and long-range temporal dependencies. 
+
+3.3.3 Parallel Multi-Token Prediction 
+
+Given the feature vector fk ∈ Rdim representing the syllable at timestep k, we aim to extract three respective syllabic components. To this end, we define functions to learn the following probabilistic density 
+
+P (ik, r k, t k|fk) = P (ik|fk)P (rk|fk, i k)P (tk|fk, i k, r k)
+
+However, as we described in Section 3.1, vowel is the mandatory component of the rhyme, while initial and tone can be absent. Accordingly, we design the method that first learns which is the correct rhyme of the syllable, then given the rhyme, which initial and tone should be given. The above probabilistic density is rewritten as follows: 
+
+P (ik, r k, t k|fk) = P (rk|fk)P (ik|fk, r k)P (tk|fk, r k)
+
+The conditional probabilistic density P (rk|fk)
+
+is described as the following function: 
+
+P (rk|fk) = sof tmax (f rk ) (3) with f rk = σ(Wrfk + bi) ∈ Rdim where Wi ∈
+
+RVi×dim Vi is the collection of all initials and bi ∈
+
+Rdim is the bias vector. Using the feature vector for the rhyme compo-nent f rk , we defined the rhyme-driven syllabic rep-resentation f it k which is the fine-grained version of 
+
+fk after obtaining the rhyme feature vector: 
+
+f it k = σ(Wit ff + bit ) (4) where ff = η(Wkfk + bk) ⊙ tanh (W rk f rk + brk).This feature vector is then used to obtain the cor-responding initial and tone of the syllable at step 
+
+k:
+
+P (ik|f it k ) = sof tmax (f ik) (5) where f ik = σ(Wif it k + bi) ∈ Rdim , and 
+
+P (tk|f it k ) = sof tmax (f tk) (6) where f tk = σ(Wtf it k + bt) ∈ Rdim with Wi ∈
+
+RVi×dim and Wt ∈ RVt×dim and bi, b t ∈ Rdim are two bias vectors. Given three syllabic components (ik, r k, t k), we convert them back to orthographic form using the proposed Phonemic Tokenizer as when we convert text into the sequence of phonemes. 4 Experiments 
+
+4.1 Baselines, Datasets, and Metrics 4.1.1 Datasets 
+
+All experiments are conducted on two publicly available datasets: Vietnamese Multi-Dialect (UIT-ViMD) corpus for multi-dialectal speech (Dinh et al., 2024), and Large-Scale Vietnamese Speech Corpus (LSVSC) (Tran et al., 2024) for standard Vietnamese speech. We adopt the official train– validation–test splits for the same evaluation sce-nario with previous methods. Only minimal pre-processing is applied: non-Vietnamese words are treated as noise and filtered out from the tran-scripts, and audio is kept in its original mono 16kHz waveform to retain natural pronunciation and recording conditions. As a result, LSVSC rep-resents the general environment of ASR task while UIT-ViMD constitutes a challenging and realistic benchmark for evaluating the robustness of ASR systems across Vietnamese dialects. 
+
+4.1.2 Baselines 
+
+We compare the proposed phonemic approach against both subword-level and word-level ASR systems. As representatives of subword-level mod-eling, we consider publicly available pretrained Vietnamese ASR models, including PhoWhisper (Le et al., 2024) and Wav2Vec 2.0 variants (Baevski et al., 2020), which employ subword tokenization learned from large-scale corpora. For the UIT-ViMD dataset, we additionally con-duct fully supervised experiments using standard Transformer (Vaswani et al., 2017a) and Conformer (Dong et al., 2018; Gulati et al., 2020) architectures with conventional word-based tokenization. These models serve as word-level baselines and allow us to isolate the impact of the proposed phonemic representation under the same training conditions. For the LSVSC dataset, we compare against the same subword-level pretrained models (PhoWhis-per and Wav2Vec 2.0) as well as previously re-ported word-level systems, including LAS (Chan et al., 2016), Transformer (Vaswani et al., 2017b), Zipformer (Yao et al., 2024), and ChunkFormer (Le et al., 2025). Results for LAS and Transformer are taken from (Tran et al., 2024), while those for the pretrained baselines, Zipformer, and Chunk-Former are obtained from the HuggingFace com-munity(Lab, 2026). 
+
+4.1.3 Metrics 
+
+We evaluate models from complementary lexical and phonetic perspectives. At the orthographic level, Word Error Rate (WER) is reported as the primary metric, together with Character Error Rate (CER). For the phonemic-level methods, we as-sess phonetic accuracy using the Phone Error Rate (PER) over the predicted phonetic sequences. We also report component-wise error rates for Viet-namese syllable initials, rhymes, and tones to ana-lyze the phonological modeling behavior. Together, these metrics capture both transcription accuracy, linguistic fidelity, and dialectal robustness of the proposed decoding mechanism. 
+
+4.2 Configuration 
+
+For all supervised experiments, models were trained from scratch on the LSVSC and UIT-ViMD corpora without using any external language mod-els on a single NVIDIA H100 GPU. All experi-ments were implemented using a unified pipeline based on the SpeechBrain end-to-end speech pro-cessing toolkit (Ravanelli et al., 2021). Speech signals were represented by 80-dimensional log-Mel filterbank (Fbank) features, with a window size of 25ms and a step size of 10ms. For encoder–decoder architectures, Transformer employed 12 encoder and 6 decoder layers. Con-former consisted of 8 encoders and 4 decoders, each with an attention dimension of 256, 4 self-attention heads, and a feed-forward dimension of 2048. All models were optimized using the Adam optimizer (Kingma and Ba, 2015) with the Noam learning-rate schedule. Warm-up steps (Gotmare et al., 2019) were set to 40k for the Transformer and 20k for the Conformer, with initial learning rates of 10 −3 and 4 × 10 −4, respectively. Label smoothing (Szegedy et al., 2016) and dropout were both set to 0.1 for regularization. Training used a joint CTC–Attention objective (Kim et al., 2017), with the CTC loss weight set to 0.30 (Transformer) and 0.15 (Conformer). This joint objective pro-motes monotonic alignment through CTC while preserving the modeling flexibility of attention-based decoding, resulting in more stable training. 
+
+4.3 Results 4.3.1 Results on the LSVSC dataset 
+
+Table 1 presents the performance comparison on the LSVSC test set. Both of our proposed models achieve the best recognition accuracy Model Setup #Params CER (%) WER (%) Time(s) ↓                                                                 
+
+> HuggingFace Published Baslines ⋇
+> PhoWhisper-base FT 244M –11.23 –PhoWhisper-medium FT 769M –10.25 –PhoWhisper-large FT 1.5B –10.08 –Wav2Vec2-base-vi FT 95M –9.89 –Zipformer S65M –10.23 –
+> Paper Published Baslines †
+> LAS S–5.79 9.73 –LAS + fixedSA S–5.05 8.53 –Transformer S26.3M 4.68 8.01 0.16 Transformer + fixedSA S26.3M 4.17 7.24 0.16 Transformer + adaptSA S26.3M 3.90 6.85 0.16 ChunkFormer S110M –8.85 –
+> Our Implementations
+> Our-Transformer S25.9M 3.58 5.83 0.15
+> Our-Conformer S28.0M 3.62 5.84 0.14
+
+Table 1: CER and WER (Test) comparison on the LSVSC dataset. Lower is better. Setup: Fine-Tuning (FT), and Fully Suppervise (S). Time(ms): inference time in seconds on the test set. †Results reported from (Tran et al., 2024). 
+
+> ⋇
+
+Results reported from (Lab, 2026).                                                                                                   
+
+> Model Setup Params WER ↓WER NWER CWER STime(s) ↓
+> Published Baselines †
+> PhoWhisper-small –74M 21.78 18.17 27.18 23.80 0.73 PhoWhisper-base –244M 17.11 15.25 18.50 18.38 1.21 wav2vec2-base-vi –95M 22.48 19.87 27.15 23.82 0.03 wav2vec2-base-vi-160h –95M 31.12 27.09 40.49 32.83 0.03 wav2vec2-base-vi-250h –95M 16.83 14.51 19.73 18.23 0.07 PhoWhisper-base FT 74M 16.30 ––––wav2vec2-base-vi FT 95M 15.80 ––––wav2vec2-base-vi-160h FT 95M 17.49 ––––wav2vec2-base-vi-250h FT 95M 13.56 ––––
+> Our Implementations
+> Transformer S29M 16.66 14.68 18.64 17.95 0.37 Conformer S31M 17.56 16.05 19.92 18.39 0.29
+> Our-Transformer S26M 12.59 10.77 14.80 13.68 0.33
+> Our-Conformer S28M 12.58 10.88 14.69 13.58 0.28
+
+Table 2: Performance comparison on Vietnamese multi-dialect ASR. Metrics include word error rate (WER, %) and phone error rate (PER, %). WER N, WER C, and WER S denote WER of Northern, Central, and Southern speech. Setup: Zero-shot (-), Fine-Tuning (FT), and Fully Suppervise (S). † Results reported from (Dinh et al., 2024). 
+
+among all compared systems. Specifically, Our-Transformer obtains a CER of 3.58% and a WER of 5.83%, while Our-Conformer achieves a CER of 3.62% and a WER of 5.84%. These results out-perform all previously reported baselines, includ-ing the strongest fully supervised model, Trans-former+adaptSA, which reports a CER of 3.90% and a WER of 6.85%. The improvements are even larger when com-pared to publicly available pretrained models such as Wav2Vec2-base-vi (9.89% WER) and PhoWhisper-large (10.08% WER), despite using substantially fewer parameters. These results demonstrate the effectiveness of the phonemic ap-proach for Vietnamese ASR. Furthermore, the proposed models maintain competitive inference speed, requiring only 0.15 s and 0.14 s per utterance for the Transformer and Conformer variants, respectively. We attribute these gains to the proposed phonemic formula-tion, which decomposes each Vietnamese syllable into four components and predicts them in paral-lel. By explicitly modeling the internal structure of Vietnamese syllables, the model learns more discriminative linguistic representations, leading to consistent improvements across different encoder architectures. Model Overall (%) Initial (%) Rhyme (%) Tone (%)                 
+
+> UIT-ViMD dataset
+> Transformer 8.21 8.32 9.53 6.76 Conformer 8.27 8.29 9.59 6.89
+> LSVSC dataset
+> Transformer 3.57 3.53 4.13 3.04 Conformer 3.59 3.58 4.14 3.02
+
+Table 3: Phoneme Error Rate (PER) on UIT-ViMD and LSVSC. PER is broken down by Vietnamese syllable component: Initial (initial consonant), Rhyme , and Tone . Lower is better.                                 
+
+> Dataset Modeling Unit Architecture Unique Correct Words ↑Pearson rSpearman ρ
+> UIT-ViMD Word-level Transformer 1,696 0.79 0.76 Conformer 1,718 0.77 0.74 Phonemic-level Transformer 1,983 0.63 0.54
+> Conformer 1,965 0.64 0.54 LSVSC Word-level Transformer 2,211 0.78 0.66 Phonemic-level Transformer 2,766 0.47 0.12 Conformer 2,748 0.48 0.14
+
+Table 4: Lexical diversity and frequency bias analysis for word-level and phonemic-level ASR models on the UIT-ViMD and LSV datasets. 
+
+4.3.2 Results on the UIT-ViMD dataset 
+
+On the multi-dialect domain, our proposed phone-mic models still achieve significant results. Ac-cording to Table 2, our proposed phonemic models achieve the best overall performance, with Our-Conformer obtaining the lowest WER of 12.58% and Our-Transformer achieving a comparable WER of 12.59%. Both models substantially outper-form their corresponding character-based baselines, reducing WER by more than 4 absolute percentage points. The improvements are consistent across all dialect regions. Compared with the baseline Transformer, Our-Transformer reduces WER from 14.68% to 10.77% on Northern speech, from 18.64% to 14.80% on Central speech, and from 17.95% to 13.68% on Southern speech. Similar gains are observed for the Conformer backbone, indicating that the proposed representation gener-alizes well across dialectal variations. Similar to performance on the LSVSC dataset, the two proposed models remain computationally efficient, requiring only 0.33s and 0.28s per ut-terance for Our-Transformer and Our-Conformer, respectively. These results suggest that represent-ing Vietnamese speech at phonemic level provides a more robust linguistic representation, enabling better handling of pronunciation differences across dialects while maintaining efficient inference. 
+
+4.4 Results Analysis 4.4.1 Analysis on the Syllabic Components 
+
+For deeper observation on how Our-Transformer and Our-Conformer obtained at phonemic level, we provided analysis on their PER on initial, rhyme, and tone as in Table 3. In particular, for both datasets and architectures, the Tone component consistently achieves the low-est error rates, with values around 3% on LSVSC and below 7% on UIT-ViMD. This suggests that tonal information can be learned reliably from the acoustic signal and remains relatively robust across different model architectures. In contrast, the Rhyme component exhibits the highest error rates, reaching 9.53–9.59% on UIT-ViMD and ap-proximately 4.14% on LSVSC. Rhymes include glide, vowel, and final, hence they involve greater phonetic variability and a larger prediction space, making more challenging to recognize accurately. Furthermore, all component-level error rates are substantially higher on UIT-ViMD than on LSVSC, reflecting the increased difficulty introduced by di-alectal variation. The largest degradation occurs in the rhyme component, suggesting that regional pro-nunciation differences primarily affect vowel and coda realizations. These findings support the moti-vation of explicitly modeling syllable structure, as analyzing errors at the component level provides finer-grained insights into the challenges of Viet-27  
+
+> 25
+> 24
+> 21
+> 28
+> 26
+> 23
+> 11
+> 97
+> 12
+> 22
+> 20
+> 19
+> 98
+> 14
+> 99
+> 90
+> 30
+> 34
+> 15
+> 89
+> 18
+> 17
+> 35
+> 88
+> 36
+> 37
+> 38
+> 73
+> 74
+> 75
+> 43
+> 92
+> 76
+> 77
+> 78
+> 79
+> 85
+> 86
+> 82
+> 81
+> 47
+> 48
+> 49
+> 70
+> 93
+> 61
+> 60
+> 72
+> 59
+> 62
+> 63
+> 71
+> 64
+> 84
+> 66
+> 67
+> 68
+> 83
+> 94
+> 69
+> 95
+> 65
+> Province (North South)
+> 4
+> 6
+> 8
+> 10
+> 12
+> 14
+> 16
+> Phone Error Rate (PER) (%)
+> Conformer (PER)
+> Transformer (PER)
+> Conformer trend
+> Transformer trend
+
+Figure 3: Phone error rate (PER, %) by province for Transformer and Conformer models using the proposed Vietnamese phonetics method. 
+
+namese ASR and highlights rhyme modeling as a key direction for future improvement. 
+
+4.4.2 Analysis on the Lexical Diversity 
+
+As discussed in Section 3.1, Vietnamese has a highly regular relationship between pronuncia-tion and orthography, allowing speakers to infer a word’s spelling directly from its pronunciation. We therefore hypothesize that phonemic ASR mod-els rely more on acoustic evidence and less on memorized word-frequency patterns. To exam-ine this hypothesis, Table 4 reports lexical diver-sity and frequency-bias analyses for word-level and phonemic-level models. Across both datasets, phonemic models correctly recognize substantially more unique words than word-level models, in-creasing from 1,696–1,718 to 1,965–1,983 on UIT-ViMD and from 2,211 to 2,748–2,766 on LSVSC. These results suggest improved lexical coverage and better generalization to a wider range of words. This advantage is further reflected in the reduced correlation between word frequency and recog-nition accuracy. On UIT-ViMD, Pearson’s r de-creases from 0.77–0.79 to 0.63–0.64, while Spear-man’s ρ drops from 0.74–0.76 to 0.54. The effect is even more pronounced on LSVSC, where Pearson’s 
+
+r of Transformer decreases from 0.78 to 0.47 and Spearman’s ρ from 0.66 to 0.12. Lower correlation values indicate that recognition performance is less dependent on training word frequency, suggesting that phonemic representations reduce frequency bias and improve recognition of infrequent or un-seen words relying on acoustic evidence. 
+
+4.4.3 Performance on Dialect Speech Recognition 
+
+The most interesting results of the proposed phone-mic methods are their performance on the dialectal speech. We examine PER of the Our-Transformer and Our-Conformer across Vietnamese provinces and provide their PER in Figure 3, ordered approx-imately from North to South. These two models highly similar error patterns, indicating that the proposed phonemic representation behaves con-sistently across different encoder architectures. The PER remains relatively low in many north-ern provinces, increases noticeably in the central region, and gradually decreases again toward the southern provinces, suggesting that speech from central dialect regions poses greater challenges for phoneme recognition. At the same time, the ele-vated PER observed in several central provinces highlights the greater phonetic variability of Cen-tral Vietnamese, making it a promising direction for future dialect-aware modeling and adaptation. 
+
+5 Conclusion 
+
+We introduced a phonemic approach to Vietnamese ASR that represents each syllable through its ini-tial, rhyme, and tone components, together with a Syllabic-Structure Decoder that explicitly mod-els this organization. Results on two bench-marks demonstrate consistent gains over word- and subword-based methods, while analyses show im-proved lexical coverage, reduced frequency bias, and robustness to dialectal variation. Overall, our findings highlight the benefits of incorporating phonological structure into neural ASR models. Limitations 
+
+The proposed approach is motivated by the phono-logical structure of Vietnamese, where syllables can be systematically decomposed into an initial, a rhyme, and a tone. Consequently, the represen-tation assumes that phonological information is primarily organized at the syllable level. While this assumption is well suited to Vietnamese, its applicability to languages with more complex sylla-ble structures, productive morphology, or extensive phonological processes spanning multiple syllables remains to be investigated. In addition, the proposed Syllabic-Structure De-coder explicitly models the internal structure of individual syllables but does not explicitly encode phonological relationships across syllable bound-aries. Such relationships are instead learned im-plicitly through the Transformer attention mech-anism. As a result, the current framework does not provide a direct account of cross-syllable phe-nomena such as sandhi, coarticulation, prosodic interactions, or morphophonological alternations. Extending phonemic representations beyond the syllable level to capture these phenomena consti-tutes an important direction for future work. 
+
+References 
+
+Alexei Baevski, Yuhao Zhou, Abdelrahman Mohamed, and Michael Auli. 2020. wav2vec 2.0: A framework for self-supervised learning of speech representa-tions. In Advances in Neural Information Processing Systems 33: Annual Conference on Neural Informa-tion Processing Systems 2020, NeurIPS 2020, De-cember 6-12, 2020, virtual .William Chan, Navdeep Jaitly, Quoc Le, and Oriol Vinyals. 2016. Listen, attend and spell: A neural network for large vocabulary conversational speech recognition. In 2016 IEEE International Confer-ence on Acoustics, Speech and Signal Processing (ICASSP) , pages 4960–4964. Hoàng Thị Châu. 2002. Phương ngữ học tiếng Việt .Nhà xuất bản Đại học Quốc gia Hà Nội. Alexandre de Rhodes. 1651. Dictionarium Anna-miticum Lusitanum et Latinum .Nguyen Dinh, Thanh Dang, Luan Thanh Nguyen, and Kiet Van Nguyen. 2024. Multi-dialect vietnamese: Task, dataset, baseline models and challenges. In 
+
+Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing, EMNLP 2024, Miami, FL, USA, November 12-16, 2024 , pages 7476–7498. Association for Computational Linguis-tics. Linhao Dong, Shuang Xu, and Bo Xu. 2018. Speech-transformer: A no-recurrence sequence-to-sequence model for speech recognition. In 2018 IEEE Interna-tional Conference on Acoustics, Speech and Signal Processing, ICASSP 2018, Calgary, AB, Canada, April 15-20, 2018 , pages 5884–5888. IEEE. Nguyễn Thiện Giáp. 2008. Từ vựng học tiếng Việt . Nhà xuất bản Giáo dục Việt Nam. Nguyễn Thiện Giáp. 2011. Vấn đề "từ" trong tiếng Việt .Nhà xuất bản Giáo dục Việt Nam. Akhilesh Gotmare, Nitish Shirish Keskar, Caiming Xiong, and Richard Socher. 2019. A closer look at deep learning heuristics: Learning rate restarts, warmup and distillation. In 7th International Confer-ence on Learning Representations, ICLR 2019, New Orleans, LA, USA, May 6-9, 2019 . OpenReview.net. Alex Graves, Santiago Fernández, Faustino Gomez, and J ¨urgen Schmidhuber. 2006. Connectionist temporal classification: labelling unsegmented sequence data with recurrent neural networks. In Proceedings of the 23rd International Conference on Machine Learning ,ICML ’06, page 369–376, New York, NY, USA. Association for Computing Machinery. Anmol Gulati, James Qin, Chung-Cheng Chiu, Niki Parmar, Yu Zhang, Jiahui Yu, Wei Han, Shibo Wang, Zhengdong Zhang, Yonghui Wu, and Ruoming Pang. 2020. Conformer: Convolution-augmented trans-former for speech recognition. In 21st Annual Con-ference of the International Speech Communication Association, Interspeech 2020, Virtual Event, Shang-hai, China, October 25-29, 2020 , pages 5036–5040. ISCA. Nghia Hieu Nguyen, Dat Tien Nguyen, and Ngan Luu-Thuy Nguyen. 2025. Vietnamese words are not con-structed from syllables: Rethinking the role of word segmentation in natural language processing for viet-namese texts. Proceedings of the AAAI Conference on Artificial Intelligence , 39(22):24069–24077. Geoffrey Hinton, Li Deng, Dong Yu, George E. Dahl, Abdel-rahman Mohamed, Navdeep Jaitly, Andrew Senior, Vincent Vanhoucke, Patrick Nguyen, Tara N. Sainath, and Brian Kingsbury. 2012. Deep neural networks for acoustic modeling in speech recogni-tion: The shared views of four research groups. IEEE Signal Processing Magazine , 29(6):82–97. Frederick Jelinek. 1997. Statistical methods for speech recognition. Suyoun Kim, Takaaki Hori, and Shinji Watanabe. 2017. Joint ctc-attention based end-to-end speech recogni-tion using multi-task learning. In 2017 IEEE Inter-national Conference on Acoustics, Speech and Signal Processing, ICASSP 2017, New Orleans, LA, USA, March 5-9, 2017 , pages 4835–4839. IEEE. Diederik P. Kingma and Jimmy Ba. 2015. Adam: A method for stochastic optimization. In 3rd Inter-national Conference on Learning Representations, ICLR 2015, San Diego, CA, USA, May 7-9, 2015, Conference Track Proceedings .G-Group AI Lab. 2026. Gipformer - efficient viet-namese speech recognition. Khanh Le, Tuan Vu Ho, Dung Tran, and Duc Thanh Chau. 2025. Chunkformer: Masked chunking conformer for long-form speech transcription. In 
+
+ICASSP 2025-2025 IEEE International Confer-ence on Acoustics, Speech and Signal Processing (ICASSP) , pages 1–5. IEEE. Thanh-Thien Le, Linh The Nguyen, and Dat Quoc Nguyen. 2024. Phowhisper: Automatic speech recognition for vietnamese. In The Second Tiny Pa-pers Track at ICLR 2024, Tiny Papers @ ICLR 2024, Vienna, Austria, May 11, 2024 . OpenReview.net. L.R. Rabiner. 1989. A tutorial on hidden markov mod-els and selected applications in speech recognition. 
+
+Proceedings of the IEEE , 77(2):257–286. Martin Radfar, Rohit Barnwal, Rupak Vignesh Swami-nathan, Feng-Ju (Claire) Chang, Grant Strimel, Nathan Susanj, and Thanasis Mouchtaris. 2022. Convrnn-t: Convolutional augmented recurrent neu-ral network transducers for streaming speech recog-nition. Mirco Ravanelli, Titouan Parcollet, Peter Plantinga, Aku Rouhe, Samuele Cornell, Loren Lugosch, Cem Subakan, Nauman Dawalatabad, Abdelwahab Heba, Jianyuan Zhong, Ju-Chieh Chou, Sung-Lin Yeh, Szu-Wei Fu, Chien-Feng Liao, Elena Rastorgueva, Fran c¸ ois Grondin, William Aris, Hwidong Na, Yan Gao, and 2 others. 2021. Speechbrain: A general-purpose speech toolkit. abs/2106.04624. Christian Szegedy, Vincent Vanhoucke, Sergey Ioffe, Jonathon Shlens, and Zbigniew Wojna. 2016. Re-thinking the inception architecture for computer vi-sion. In 2016 IEEE Conference on Computer Vision and Pattern Recognition, CVPR 2016, Las Vegas, NV, USA, June 27-30, 2016 , pages 2818–2826. IEEE Computer Society. Linh Thi Thuc Tran, Han-Gyu Kim, Hoang Minh La, and Su Van Pham. 2024. Automatic speech recog-nition of vietnamese for a new large-scale corpus. 
+
+Electronics , 13(5). Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, and Illia Polosukhin. 2017a. Attention is all you need. In Advances in Neural Information Pro-cessing Systems 30: Annual Conference on Neural Information Processing Systems 2017, December 4-9, 2017, Long Beach, CA, USA , pages 5998–6008. Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, and Illia Polosukhin. 2017b. Attention is all you need. In Neural Information Processing Systems .Hao Cao Xuan. 1985. Phonologie Et Linearite. Reflex-ions Critiques Sur Les Postulats De La Phonologie Contemporaine . Societe d’Etudes Linguistiques et Anthropologiques de France (SELAF). Zengwei Yao, Liyong Guo, Xiaoyu Yang, Wei Kang, Fangjun Kuang, Yifan Yang, Zengrui Jin, Long Lin, and Daniel Povey. 2024. Zipformer: A faster and better encoder for automatic speech recognition. In 
+
+International Conference on Learning Representa-tions , volume 2024, pages 44440–44455. Đoàn Thiện Thuật. 2016. Ngữ âm tiếng Việt . Nhà xuất bản Đại học Quốc gia Hà Nội. 
+
+A Appendix: Experimental Details 
+
+A.1 Metrics 
+
+We evaluate model performance using complemen-tary metrics that capture orthographic transcription accuracy, phonetic fidelity, dialectal robustness, and lexical generalization behavior. 
+
+Word Error Rate (WER). End-to-end transcrip-tion quality is primarily measured using Word Er-ror Rate (WER), defined as 
+
+WER = S + D + IN , (7) where S, D, and I denote the numbers of word-level substitutions, deletions, and insertions ob-tained via minimum-edit-distance alignment, and 
+
+N is the number of words in the reference transcrip-tion. In addition to overall WER, we report dialect-wise WER for Northern, Central, and Southern Vietnamese, following the regional grouping de-fined in the UIT-ViMD benchmark. 
+
+Phone Error Rate (PER). For phonetic-level systems, we report Phone Error Rate (PER), com-puted analogously at the phone level: 
+
+PER = Sp + Dp + Ip
+
+Np
+
+, (8) where Sp, Dp, and Ip are phone-level substitutions, deletions, and insertions, and Np is the number of reference phones. PER provides a linguistically grounded assessment of pronunciation modeling, which is particularly relevant for Vietnamese due to systematic dialectal variation at the phone level. 
+
+Component-wise Phonetic Error Rates. To an-alyze phonological modeling behavior with re-spect to Vietnamese syllable structure, we fur-ther compute component-wise error rates for syl-lable initials , rhymes , and tones . For a component c ∈ { initial , rhyme , tone }, the error rate is defined as 
+
+ER c = Sc + Dc + Ic
+
+Nc
+
+, (9) where Sc, Dc, Ic, and Nc are computed over the aligned component sequence. 
+
+Dialect Classification Metrics. For multi-task models that jointly perform ASR and dialect iden-tification, we report classification accuracy and 
+
+macro-averaged F1-score . Given a set of dialect classes C, macro-F1 is computed as 
+
+Macro -F1 = 1
+
+|C|
+
+X
+
+> c∈C
+
+F1 c, (10) ensuring equal weighting across dialects regardless of class imbalance. 
+
+Lexical Diversity and Frequency Bias. To as-sess lexical generalization beyond aggregate error rates, we report the number of unique word types 
+
+correctly recognized at least once in the test set. We further analyze frequency bias by measuring the relationship between training-set word frequency and per-word recall. For a word type w, its training-set frequency is defined as 
+
+ftrain (w) = X
+
+> u∈D train
+> |u|
+
+X
+
+> i=1
+
+1 (ui = w) , (11) where Dtrain denotes the training corpus and 1(·)
+
+is the indicator function. To mitigate the heavy-tailed frequency distribution, we apply a logarith-mic transformation: 
+
+˜ftrain (w) = log (1 + ftrain (w)) . (12) Per-word recall is defined as 
+
+recall( w) = 
+
+P
+
+> (x,y )∈D test
+
+P|ˆy| 
+
+> i=1
+
+1 (ˆ yi = w)
+
+P
+
+> (x,y )∈D test
+
+P|y| 
+
+> i=1
+
+1 (yi = w) ,
+
+(13) where (x, y ) is a test utterance–reference pair and ˆy
+
+is the predicted word sequence after optimal align-ment. The relationship between training frequency and recognition performance is quantified using Pear-son and Spearman correlation coefficients: 
+
+r = Pearson 
+
+ ˜ftrain (w), recall( w)
+
+
+
+, (14) 
+
+ρ = Spearman 
+
+ ˜ftrain (w), recall( w)
+
+
+
+, (15) computed over all word types appearing at least once in the test set. Lower correlation values in-dicate reduced dependence on frequency-driven memorization and stronger structural generaliza-tion. 
+
+B Appendix: Phonetics and Orthography in Vietnamese 
+
+Traditionally, the Vietnamese had the Nom alpha-bet as the main orthography system. However, the Nom alphabet was developed based on the ancient Han alphabet. This means we have to be fluent in the ancient Han to have the ability to use the Nom alphabet for reading and writing. Later on, (de Rhodes, 1651) used the Latin alphabet to de-scribe the speech sound of this language. This orthography system is simple and effective for de-scribing almost all phonetic phenomena in Viet-namese. With its advantages that counterbalance its disadvantages, this Latin alphabet is gradually im-proved over time and finally becomes the national alphabet system of modern Vietnamese. Although having the Nom alphabet or the Latin alphabet, these orthography systems all reflect two consistent characteristics of Vietnamese: 1. Vietnamese is a monosyllabic language. 2. The correspondence between graphemes and phonemes in Vietnamese is consistent. That is, in this language, we do not have the linking pronunciation as in English, and every phoneme has persistent writing forms. In Vietnamese, each syllable has three components: initials, rhymes, and tones. Rhyme has smaller components, which are glide, vowel, and final. We provide the list of all phonemes according to the syllabic structure of Vietnamese: 
+
+• 22 phonemes as the initials: 
+
+– Plosive consonants: / b, t, t h, k/. 
+
+– Fricative consonants: / f, d, 7, z, j, s, ù, >cC, >tù, N, x, v /. 
+
+– Nasal consonants: / n, m, N, ñ /. 
+
+– Vibrant consonants: / r, l /. 
+
+• 01 phonemes as the glide: / u“/. 
+
+• 15 phonemes as the vowels: 
+
+– Diphthongs: / ie, uo, W9 /. – Monophthongs: / a, ˘ a, ˘ 9, i, E, e, u, W, o, O, O:, 9 /. 
+
+• 10 phonemes as the finals: 
+
+– Nasal consonants: / n, t /. 
+
+– Labial consonants: / m, p /. 
+
+– Velar consonants: / N, k /. 
+
+– Palatal consonants: / ñ, c /. 
+
+– Semivowels: / u“, i “/. 
+
+• 6 phonemes denote tones: 
+
+– Flat tone is denoted by nothing. 
+
+– Low falling tone: / Ă£Ă£ /. 
+
+– Mid raising tone: / Ă£Ă£/. 
+
+– Mid falling tone: / Ă£Ă£ /. 
+
+– Mid glottalized-falling tone: / Ă£PĂ£ /. 
+
+– Mid glottalized-raising tone: / Ă£P Ă£/. The writing form of these phonemes is consistent regardless of grammar. In particular: 
+
+• 6 tones are denoted by a mark above or below the graphemes of vowels: 
+
+– Flat tone is denoted by nothing (a). 
+
+– Low falling tone / Ă£Ă£ / is denoted by a grave accent (à). 
+
+– Mid raising tone / Ă£Ă£/ is denoted by an acute accent (á). 
+
+– Mid falling tone / Ă£Ă£ / is denoted by a hook above (ả). 
+
+– Mid glottalized-falling tone / Ă£P Ă£/ is de-noted by a tilde above (ã). 
+
+– Mid glottalized-raising tone / Ă£PĂ£ / is de-noted by a dot below (ạ). In the following texts, we provide writing forms of vowels regarding the mentioned phonemes. These examples might include the tone mark above or below the graphemes. Readers can discard these marks to see the true writing form of the vowels in Vietnamese. For instance, the dot below iê /i9 / in word kiệm 
+
+/kiem Ă£P Ă£/ denotes the mid glottalized-raising tone / Ă£P Ă£/. 
+
+• 22 initials have 26 writing forms: 
+
+– b / b/. Eg: ba mẹ, bánh kẹo, buôn bán. 
+
+– t / t/. Eg: tâm tư, tịnh tiến, tính cách. 
+
+– th / th/. Eg: th ách th ức, th ành th ạo. 
+
+– k, c, or q / k/. Eg: cách mạng, quan hệ, hiện kim. 
+
+– ph / f/. Eg: ph ụ huynh, ph ong cách, ph ân định. 
+
+– đ / d/. Eg: đưa đón, đậm đà. 
+
+– gh or g / 7/. Eg: ga tàu, gánh hát, ganh 
+
+gh ét. 
+
+– gi / z/. Eg: gi ếng nước, gi ống loài. 
+
+– đ / d/. Eg: đứng đắn, đêm tối, đèn đuốc. 
+
+– d / j/. Eg: da dẻ, tiêu dùng, dụng cụ. 
+
+– x / s/. Eg: sản xuất, xuất xứ, xe cộ. 
+
+– s / ù/. Eg: xác suất, so sánh, sao chép. 
+
+– ch / >cC /. Eg: ch ứa ch an, ch e ch ở/. 
+
+– tr / >tù /. Eg: tr anh chấp, tiệt tr ùng. 
+
+– ng or ngh / ng /. Eg: mong ng óng, tình 
+
+ngh ĩa. 
+
+– nh / ñ/. Eg: nh à cửa, nỗi nh ớ, nh ung lụa. 
+
+– l / l/. Eg: lấm lem, lung linh, lối về. 
+
+– r / r/. Eg: rậm rạp, rón rén, rực rỡ. 
+
+– kh / x/. Eg: kh ó kh ăn, kh ởi sắc, kh ấm 
+
+kh á. 
+
+– v / v/. Eg: vui vẻ, vương vấn, vẫy vùng. 
+
+– m / m/. Eg: mong mỏi, may mắn, mênh 
+
+mông. 
+
+– n / n/. Eg: đất nước, núi non, nông cạn. 
+
+• The glide / u“/ has two writing forms: u or o. Eg: q uê nhà, h oa cỏ, kh uyến khích. 
+
+• 03 diphthongs have 8 writing forms: 
+
+– iê, yê, ia, or ya / ie /. Eg: kh iế m thị, yê nắng, ch ia sẻ, khu ya khoắt. 
+
+– uô or ua / uo /. Eg: kh uô n khổ, m ua bán. 
+
+– ươ or ưa / W@ /. Eg: kh ướ u giác, dây d ưa .
+
+• 12 monophthongs have 13 writing forms: 
+
+– a / a/. Eg: b a mẹ, tr anh vẽ, ng ã ba, m ải 
+
+miết, làng ch ài .
+
+– ă or a / ˘a/. Eg: ánh ắng, n ắm tay, n ămtháng, áy náy , chạy nhảy. 
+
+– â / ˘@/. Eg: n âng niu, ấn định, ng ân vang. 
+
+– i or y / i/. Eg: th i cử, tr ĩu nặng, b ĩu môi. 
+
+– ê / e/. Eg: k ết quả, thể hi ện, mân m ê.
+
+– e / E/. Eg: mùa h è, x e cộ, t é ngã. 
+
+– u / u/. Eg: th u mua, m ủm mỉm, l ung lay, tr ung thành. 
+
+– ư / W/. Eg: tr ưng cầu, xây d ựng, ưng ý. h o à ng /h/       
+
+> /u̯ /
+> /a/
+> /˨˩/
+> /ŋ/ Figure 4: Example for the consistency between graphemes and phonemes in Vietnamese.
+
+– o / O/. Eg: chăm s óc, m ong ng óng, tr ong veo. 
+
+– oo / O: /. Eg: x oo ng chảo. 
+
+– ô / o/. Eg: tr ống đ ồng, ống hút, c ố nhân. 
+
+– ơ / @/. Eg: m ơ mộng, c ơ nh ỡ, ch ơi b ời. 
+
+• 10 final consonants have 12 writing forms: 
+
+– i or y / i“/. Eg: làng chà i, mỏ i mệt, chạ y
+
+đua, bay nhả y.
+
+– m / m/. Eg: ê m ấm, nhiệ m màu, mâ m cỗ. 
+
+– n / n/. Eg: na n giải, no n nớt, tả n mạ n.
+
+– ng / N/. Eg: sa ng trọ ng , trố ng trải, su ng 
+
+túc. 
+
+– nh / ñ/. Eg: nha nh nhẹn, bê nh vực, bi nh 
+
+quyền. 
+
+– p / p/. Eg: phậ p phồng, thấ p thỏm, thá p
+
+tùng, gượng é p, ức hiế p, tẩm ướ p.
+
+– t / t/. Eg: lấn á t, bá t đĩa, kế t quả, hớ t hả. 
+
+– c / k/. Eg: cú c áo, chự c chờ, bố c vá c.
+
+– ch / c/. Eg: cá ch thứ c, chí ch ngừa. 
+
+– u or o / u“/. Eg: tra u chuốt, chị u đựng, xoong chả o, xiêu vẹ o.It is important to note that the writing form of phonemes in Vietnamese is consistent in all us-age cases, regardless of grammar (tense, aspect, mood). This feature defines Vietnamese as an iso-lating language whose morphology is an aspect of phonetics rather than grammar, as in inflectional languages. To this end, given a Vietnamese word, native speakers can find no difficulty in pronounc-ing it. On the other hand, Vietnamese natives can write down any Vietnamese word by listening to its speech sound without knowing how to spell it. For instance, given the word hoàng , its phonetic representation is / hu “aNĂ£Ă£ /. We can determine the grapheme of the initial / h/ is h, of the glide / u“/ is 
+
+o, of the vowel / a/ is a, of the / N/ is ng , and tone is denoted by the grave accent above à (Figure 4). However, although the conversion from grapheme to phonemes is straightforward (that is, many graphemes correspond to unique phonemes), the inversion is not all ways many-to-one mapping. There are some phonemes having one-to-many mapping with graphemes, such as the initial / 7/can be written as g or gh , or the diphthong / ie / can be written as iê, yê, ia or ya . Actually, a particular writing form of such phonemes is determined consistently via the neighbor phonemes. We detail here rules for determining writing forms of phonemes having multiple respective graphemes: 
+
+• The initial / k/ is written as: 
+
+– k if followed by i /i/, ê /e/, e /E/, iê /ie /. Eg: kị p thời, kiể u cách, kè m cặp. 
+
+– q if followed by u /u“/ as the glide. Eg: 
+
+qu ê hương, qu à cáp. 
+
+– c otherwise. Eg: cứ ng cỏ i, cở i mở, hạt 
+
+cá t, rau củ .
+
+• The initial / 7/ is written as: 
+
+– gh if followed by i /i/, ê /e/, e /E/, iê /ie /. Eg: bàn ghế , ghi chép, ghe tàu. 
+
+– g otherwise. Eg: thanh gươm, gồng gánh, gọi điện. 
+
+• The initial / N/ is written as: 
+
+– ngh if followed by textbfi / i/, ê /e/, e /E/, 
+
+iê /ie /. Eg: nghe ngóng, nghiê m nghị, 
+
+nghệ sĩ. 
+
+– ng otherwise. Eg: ngà nh nghề, ngỗ 
+
+nghịch, ngọ t ngà o. 
+
+• The diphthong / ie / is written as: 
+
+– iê if the rhyme has a final consonant and no glide. Eg: k iến thức, tiết k iệm .
+
+– yê if the rhyme has a final consonant and the glide written as u. Eg: kh uyên bảo, 
+
+uyển ch uyển , câu ch uyện .
+
+– ya if the rhyme has no final consonant and the glide written as u. Eg: đêm kh uya .
+
+– ia if the rhyme has no final consonant and no glide. Eg: b ìa sách, ch ia sẻ. 
+
+• The diphthong / uo / is written as: – uô if the rhyme has a final consonant. Eg: nỗi b uồn , m uối biển, m uộn màn, ch uồn ch uồn .
+
+– ua if the rhyme has no final consonant. Eg: ch ùa chiền, nhảy m úa .
+
+• The diphthong / W@ / is written as: 
+
+– ươ if the rhyme has a final consonant. Eg: bia r ượu , h ưởng thụ, chiêm ng ưỡng .
+
+– ua if the rhyme has no final consonant. Eg: ch ùa chiền, nhảy m úa .
+
+• The monophthong / ˘a/ is written as: 
+
+– a if is is followed by character y. Eg: máy bay, c ay nồng, t ay chân. 
+
+– ă otherwise. Eg: b ắt tay, b ằng lòng, may mắn .
+
+• The monophthong / i/ is written as: 
+
+– i if the rhyme has a final consonant. Eg: líu rít .
+
+– y if the rhyme has no consonant. Eg: k ỷ
+
+luật, l ý do. 
+
+• The final / i“/ is written as: 
+
+– i if the rhyme has the front vowel / a/, the central vowel / W, W9 / or the back vowels /u, o, O, uo / as the vowel. Eg: m ải mê, mui thuyền, h ỏi han, m ồi chài, g ửi gắm, lười biếng, n uôi nấng. 
+
+– y if the rhyme has / ˘a, ˘ 9/ as the vowel. Eg: bay lượn, ch ạy nh ảy , c ấy cày .Following these orthographic rules in Viet-namese, there is no ambiguity in converting phonemes to graphemes and vice versa. 
+
+C Appendix: Detailed Implementation of Sub-Procedures in Phonemic Tokenization Algorithm 
+
+We provide here the detailed implementation of get _tone , get _initial , get _glide , get _vowel ,and get _f inal mentioned in Section 3.2, Algo-rithm 1. According to Algorithm 5, 2, 6, 3, and 4, they defined a stable set of phonemes, then it-eratively determine whether the given input S is starting with any phoneme in the defined set. We can easily see that these algorithms have the linear time complexity O(n). Together with the algorithm 1, the overall time complexity of our tokenizer is 
+
+O(n).
+
+Algorithm 2: Algorithm for determining initial of a syllable.  
+
+> 1
+
+Function get_initial( S):Input: A syllable S in Vietnamese 
+
+Output: The initial i of S 
+
+> 2
+
+initials ← [b, t, t h, k, f, d, 7, z, j, s, ù, >cC, >tù, N, x, v, n, m, N, ñ, r, l ];  
+
+> 3
+
+i ← None;  
+
+> 4
+
+for i in initials do  
+
+> 5
+
+if S starts with i then  
+
+> 6
+
+Remove i from the prefix of S; 
+
+> 7
+
+return i, S ; 
+
+> 8
+
+end  
+
+> 9
+
+end  
+
+> 10
+
+return None, S 
+
+> 11
+
+end Algorithm 3: Algorithm for determining vowel of a syllable.  
+
+> 1
+
+Function get_vowel( S):Input: A syllable S in Vietnamese 
+
+Output: The vowel v of S 
+
+> 2
+
+vowels ← [ie, uo, W9, a, ˘ a, ˘ 9, i, E, e, u, W, o, O, O:, 9, n, t, m, p, N, k, ñ, c, u “, i “];  
+
+> 3
+
+for v in vowels do  
+
+> 4
+
+if S starts with v then  
+
+> 5
+
+Remove v from the prefix of S; 
+
+> 6
+
+return v, S; 
+
+> 7
+
+end  
+
+> 8
+
+end  
+
+> 9
+
+return None, S; 
+
+> 10
+
+end Algorithm 4: Algorithm for determining final of a syllable.  
+
+> 1
+
+Function get_final( S):Input: A syllable S in Vietnamese 
+
+Output: The final f of S 
+
+> 2
+
+f inals ← [n, t, m, p, N, k, ñ, c, u “, i “];  
+
+> 3
+
+if f in f inals then  
+
+> 4
+
+return f ; 
+
+> 5
+
+end  
+
+> 6
+
+return None ; 
+
+> 7
+
+end Algorithm 5: Algorithm for determining tone of a syllable.  
+
+> 1
+
+Function get_tone( S):Input: A syllable S in Vietnamese 
+
+Output: The tone t of S 
+
+> 2
+
+end  
+
+> 3
+
+tones ← [Ă£Ă£, Ă£Ă£, Ă£Ă£, Ă£PĂ£, Ă£P Ă£];  
+
+> 4
+
+for t in tones do  
+
+> 5
+
+if S ends with t then  
+
+> 6
+
+Remove t from suffix of S; 
+
+> 7
+
+return t, S; 
+
+> 8
+
+end  
+
+> 9
+
+end  
+
+> 10
+
+return None, S;
+
+Algorithm 6: Algorithm for determining glide of a syllable.  
+
+> 1
+
+Function get_glide( S):Input: A syllable S in Vietnamese 
+
+Output: The glide g of S 
+
+> 2
+
+glides ← [u 
+
+“, o 
+
+“];  
+
+> 3
+
+for g in [ u“ , o “ ] do  
+
+> 4
+
+if S starts with g then  
+
+> 5
+
+Remove g from the prefix of S; 
+
+> 6
+
+return u“ , S; 
+
+> 7
+
+end  
+
+> 8
+
+end  
+
+> 9
+
+return None, S ; 
+
+> 10
+
+end
