@@ -6,75 +6,101 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-05-05 ~ 2026-06-03
-- 运行时间：2026-06-03 02:17:20 UTC
+- 最新运行日期：2026-06-03
+- 运行时间：2026-06-03 21:07:18 UTC
 - 运行状态：成功
-- 本次总论文数：17
-- 精读区：6
-- 速读区：11
+- 本次总论文数：27
+- 精读区：11
+- 速读区：16
 
 ### 今日简报（AI）
-今日整理17篇论文，精读6篇，重点关注多语言语音克隆与低资源语言多模态LLM的突破。
-
-最值得关注的方向：零样本跨语言语音克隆（X-Voice）实现30种语言支持，以及面向低资源语言的多模态LLM构建实践。
-
-建议优先精读《X-Voice: Enabling Everyone to Speak 30 Languages via Zero-Shot Cross-Lingual Voice Cloning》和《Multilingual and Multimodal LLMs in the Wild: Building for Low-Resource Languages》。
-- 详情：[/20260505-20260603/README](/20260505-20260603/README)
+今日精读聚焦多语言事实验证与跨语言知识一致性，速读覆盖语音合成、编辑与韩语语音基准。最值得关注《From Snippets to Semantics》对证据粒度的重新思考，以及《Evaluating Cross-lingual Knowledge Consistency》在印度语言混合代码中的评估。普通读者可先浏览SpeechEditBench双语语音编辑基准和KVoiceBench等韩语评测工具。
+- 详情：[/202606/03/README](/202606/03/README)
 
 ### 精读区论文标签
-1. [X-Voice: Enabling Everyone to Speak 30 Languages via Zero-Shot Cross-Lingual Voice Cloning](/20260505-20260603/2605.05611v1-x-voice-enabling-everyone-to-speak-30-languages-via-zero-shot-cross-lingual-voice-cloning)  
-   标签：评分：9.0/10、query:speech-tech
-   evidence：面向30种语言的零样本跨语言语音克隆
-2. [Multilingual and Multimodal LLMs in the Wild: Building for Low-Resource Languages](/20260505-20260603/2605.17152v1-multilingual-and-multimodal-llms-in-the-wild-building-for-low-resource-languages)  
-   标签：评分：9.0/10、query:low-res-tts
-   evidence：面向低资源语言的多语言多模态LLM构建教程，涵盖语音
-3. [Can Large Language Models Reliably Correct Errors in Low-Resource ASR? A Contamination-Aware Case Study on West Frisian](/20260505-20260603/2605.19711v1-can-large-language-models-reliably-correct-errors-in-low-resource-asr-a-contamination-aware-case-study-on-west-frisian)  
-   标签：评分：9.0/10、query:speech-tech
-   evidence：基于LLM的低资源ASR生成式错误纠正
-4. [StepAudio 2.5 Technical Report](/20260505-20260603/2605.23463v1-stepaudio-25-technical-report)  
-   标签：评分：9.0/10、query:speech-tech
-   evidence：统一音频语言模型覆盖ASR、TTS和口语交互
-5. [PashtoTTS-Bench: automated screening for low-resource non-Latin-script text-to-speech](/20260505-20260603/2605.26978v1-pashtotts-bench-automated-screening-for-low-resource-non-latin-script-text-to-speech)  
-   标签：评分：9.0/10、query:low-res-tts
-   evidence：低资源非拉丁文字TTS基准（普什图语）
-6. [PilotTTS: A Disciplined Modular Recipe for Competitive Speech Synthesis](/20260505-20260603/2605.27258v1-pilottts-a-disciplined-modular-recipe-for-competitive-speech-synthesis)  
+1. [From Snippets to Semantics: Rethinking Evidence Granularity for Multilingual Fact Verification](/202606/03/2605.26755v1-from-snippets-to-semantics-rethinking-evidence-granularity-for-multilingual-fact-verification)  
+   标签：评分：9.0/10、query:fie-rag
+   evidence：多语言事实验证中的证据粒度与RAG
+2. [Evaluating Cross-lingual Knowledge Consistency in Code-Mixed vis-a-vis Indian Languages using IndicKLAR](/202606/03/2605.29637v1-evaluating-cross-lingual-knowledge-consistency-in-code-mixed-vis-a-vis-indian-languages-using-indicklar)  
+   标签：评分：9.0/10、query:cross-lang
+   evidence：跨语言语义转移
+3. [Multilingual Idioms in Sentences and Conversations Across High-, Medium-, and Low-Resource Languages](/202606/03/2606.02147v1-multilingual-idioms-in-sentences-and-conversations-across-high--medium--and-low-resource-languages)  
+   标签：评分：9.0/10、query:cross-lang
+   evidence：多语言习语数据集覆盖字面与非字面用法
+4. [BhashaSetu: A Data-Centric Approach to Low-Resource Machine Translation](/202606/03/2605.27050v1-bhashasetu-a-data-centric-approach-to-low-resource-machine-translation)  
+   标签：评分：8.0/10、query:cross-lang
+   evidence：跨语言翻译中文化特定术语的影响因素
+5. [Separating Semantic Competition from Context Length in RAG Reading](/202606/03/2605.27294v1-separating-semantic-competition-from-context-length-in-rag-reading)  
+   标签：评分：8.0/10、query:fie-rag
+   evidence：RAG阅读中语义竞争导致的失败分析
+6. [Benchmarking AI for low-resource contexts: Thinking beyond leaderboards](/202606/03/2605.28508v1-benchmarking-ai-for-low-resource-contexts-thinking-beyond-leaderboards)  
    标签：评分：8.0/10、query:low-res-tts
-   evidence：面向资源受限场景的轻量TTS系统
+   evidence：低资源AI基准分析，涵盖语音系统
+7. [SwanVoice: Expressive Long-Form Zero-Shot Speech Synthesis for Both Monologue and Dialogue](/202606/03/2605.30993v1-swanvoice-expressive-long-form-zero-shot-speech-synthesis-for-both-monologue-and-dialogue)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：零样本长对话语音合成，支持说话人控制
+8. [SALSA: Speech Aware LLM Adaptation via Learned Steering Activation Vectors](/202606/03/2606.00460v1-salsa-speech-aware-llm-adaptation-via-learned-steering-activation-vectors)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：轻量级LLM适应多语言语音和代码切换基准
+9. [From Outliers to Errors: Auditing Pali-to-English LLM Translations with Multi-Reference Adjudication](/202606/03/2606.01136v1-from-outliers-to-errors-auditing-pali-to-english-llm-translations-with-multi-reference-adjudication)  
+   标签：评分：8.0/10、query:cross-lang
+   evidence：使用多参考裁决审计LLM翻译
+10. [When Meaning Travels: A Granular Lens on Hybrid-MoE's Role in Idiomatic Understanding for Language Models](/202606/03/2606.01671v1-when-meaning-travels-a-granular-lens-on-hybrid-moes-role-in-idiomatic-understanding-for-language-models)  
+   标签：评分：8.0/10、query:cross-lang
+   evidence：低资源语言习语理解，直接应对非字面翻译挑战
+11. [SoulX-Transcriber: A Robust End-to-End Framework for Multi-Speaker Speech Transcription](/202606/03/2606.02400v1-soulx-transcriber-a-robust-end-to-end-framework-for-multi-speaker-speech-transcription)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：基于大模型的多说话人语音转录端到端框架，整合ASR和说话人日志
 
 ### 速读区论文标签
-1. [X-Voice: Enabling Everyone to Speak 30 Languages via Zero-Shot Cross-Lingual Voice Cloning](/20260505-20260603/2605.05611v2-x-voice-enabling-everyone-to-speak-30-languages-via-zero-shot-cross-lingual-voice-cloning)  
+1. [UniVocal: Unified Speech-Singing Code-Switching Synthesis](/202606/03/2606.01677v1-univocal-unified-speech-singing-code-switching-synthesis)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：多语言零样本声音克隆，覆盖30种语言，有益于低资源语音合成
-2. [Vividh-ASR: A Complexity-Tiered Benchmark and Optimization Dynamics for Robust Indic Speech Recognition](/20260505-20260603/2605.13087v1-vividh-asr-a-complexity-tiered-benchmark-and-optimization-dynamics-for-robust-indic-speech-recognition)  
+   evidence：统一语音歌唱代码切换合成框架，数据高效训练
+2. [SpeechEditBench: A Bilingual Multi-Attribute Benchmark for Instruction-Guided Speech Editing](/202606/03/2606.01804v1-speecheditbench-a-bilingual-multi-attribute-benchmark-for-instruction-guided-speech-editing)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：面向印度语言的低资源ASR复杂度分层基准
-3. [From Flat Language Labels to Typological Priors: Structured Language Conditioning for Multilingual Speech-to-Speech Translation](/20260505-20260603/2605.16026v1-from-flat-language-labels-to-typological-priors-structured-language-conditioning-for-multilingual-speech-to-speech-translation)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：多语言语音到语音翻译与结构化语言条件
-4. [Convex Low-resource Accent-Robust Language Detection in Speech Recognition](/20260505-20260603/2605.23235v1-convex-low-resource-accent-robust-language-detection-in-speech-recognition)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：低资源口音鲁棒语音语言检测
-5. [WorldSpeech: A Multilingual Speech Corpus from Around the World](/20260505-20260603/2605.09167v1-worldspeech-a-multilingual-speech-corpus-from-around-the-world)  
+   evidence：双语指令引导语音编辑基准，提供评估方法
+3. [KVoiceBench, KOpenAudioBench, and KMMAU: Agent-Driven Korean Speech Benchmarks for Evaluating SpeechLMs](/202606/03/2605.27984v1-kvoicebench-kopenaudiobench-and-kmmau-agent-driven-korean-speech-benchmarks-for-evaluating-speechlms)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：覆盖76种语言（包括低资源语言）的多语言ASR语料库
-6. [Benchmarking Commercial ASR Systems on Code-Switching Speech: Arabic, Persian, and German](/20260505-20260603/2605.19069v1-benchmarking-commercial-asr-systems-on-code-switching-speech-arabic-persian-and-german)  
+   evidence：面向韩语的语音语言模型评估基准
+4. [Bandwidth-Efficient and Privacy-Preserving Edge-Cloud Many-to-Many Speech Translation](/202606/03/2605.28642v1-bandwidth-efficient-and-privacy-preserving-edge-cloud-many-to-many-speech-translation)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：多语言ASR基准，涵盖低资源语言代码切换
-7. [Benchmarking Commercial ASR Systems on Code-Switching Speech: Arabic, Persian, and German](/20260505-20260603/2605.19069v2-benchmarking-commercial-asr-systems-on-code-switching-speech-arabic-persian-and-german)  
+   evidence：隐私保护的边缘云多对多语音翻译，处理多语言ASR和ST
+5. [The WER Trap: Shattering the Illusion of Unified Tokens in Speech Language Models](/202606/03/2605.29209v1-the-wer-trap-shattering-the-illusion-of-unified-tokens-in-speech-language-models)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：多语言ASR基准，涵盖低资源语言代码切换
-8. [RobustSpeechFlow: Learning Robust Text-to-Speech Trajectories via Augmentation-based Contrastive Flow Matching](/20260505-20260603/2605.22083v1-robustspeechflow-learning-robust-text-to-speech-trajectories-via-augmentation-based-contrastive-flow-matching)  
-   标签：评分：7.0/10、query:low-res-tts
-   evidence：鲁棒TTS训练方法
-9. [AfriVox-v2: A Domain-Verticalized Benchmark for In-the-Wild African Speech Recognition](/20260505-20260603/2605.03590v1-afrivox-v2-a-domain-verticalized-benchmark-for-in-the-wild-african-speech-recognition)  
+   evidence：对语音语言模型分词器中WER指标的批判性分析
+6. [Extracting accent features in spoken Brazilian Portuguese without sociolinguistic labels](/202606/03/2605.30457v1-extracting-accent-features-in-spoken-brazilian-portuguese-without-sociolinguistic-labels)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：方言口音特征提取
+7. [OpenSTBench: Beyond Semantic Evaluation for Speech Translation](/202606/03/2605.30792v1-openstbench-beyond-semantic-evaluation-for-speech-translation)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：语音翻译统一评估框架
+8. [ImmersiveTTS: Environment-Aware Text-to-Speech with Multimodal Diffusion Transformer and Domain-Specific Representation Alignment](/202606/03/2605.30965v1-immersivetts-environment-aware-text-to-speech-with-multimodal-diffusion-transformer-and-domain-specific-representation-alignment)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：环境感知文本转语音，使用多模态扩散变压器，实现跨模态交互的语音生成
+9. [Unlocking Fine-Grained Translation Quality Estimation in LRMs through Synergistically Evolving Implicit and Explicit Reasoning](/202606/03/2605.31378v1-unlocking-fine-grained-translation-quality-estimation-in-lrms-through-synergistically-evolving-implicit-and-explicit-reasoning)  
+   标签：评分：7.0/10、query:cross-lang
+   evidence：细粒度翻译质量估计的隐式和显式推理协同进化
+10. [DOA: Training-Free Decoder-Only Attention Policy for Long-Form Simultaneous Translation with SpeechLLMs](/202606/03/2605.31432v1-doa-training-free-decoder-only-attention-policy-for-long-form-simultaneous-translation-with-speechllms)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：语音翻译与SpeechLLM，关联多语言语音处理
+11. [Head-Pose-Aware Visual Speech Recognition with FiLM Modulation](/202606/03/2606.00751v1-head-pose-aware-visual-speech-recognition-with-film-modulation)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：头部姿态感知的视觉语音识别
+12. [METATR: A Multilingual, Evolving Benchmark for Automatic Text Recognition](/202606/03/2605.26712v1-metatr-a-multilingual-evolving-benchmark-for-automatic-text-recognition)  
+   标签：评分：6.0/10、query:mtg-bench
+   evidence：多语言不断演进的自动文本识别基准，涵盖非拉丁字母
+13. [VoiceGiraffe: A Benchmark for Extreme Long-Context Audio-Language Understanding](/202606/03/2605.27976v1-voicegiraffe-a-benchmark-for-extreme-long-context-audio-language-understanding)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：非洲语音识别基准
-10. [Bangla-WhisperDiar: Fine-Tuning Whisper and PyAnnote for Bangla Long-Form Speech Recognition and Speaker Diarization](/20260505-20260603/2605.08214v1-bangla-whisperdiar-fine-tuning-whisper-and-pyannote-for-bangla-long-form-speech-recognition-and-speaker-diarization)  
+   evidence：跨语言长上下文音频语言理解基准
+14. [ConRAG: Consensus-Driven Multi-View Retrieval for Multi-Hop Question Answering](/202606/03/2605.28093v1-conrag-consensus-driven-multi-view-retrieval-for-multi-hop-question-answering)  
+   标签：评分：6.0/10、query:fie-rag
+   evidence：多视角RAG框架，适用于复杂推理，可迁移至叙实性推理
+15. [Why We Need Speech to Evaluate Speech Translation](/202606/03/2605.28227v1-why-we-need-speech-to-evaluate-speech-translation)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：孟加拉语低资源语言的ASR与说话人分离
-11. [AgentSteerTTS: A Multi-Agent Closed-Loop Framework for Composite-Instruction Text-to-Speech](/20260505-20260603/2605.17583v1-agentsteertts-a-multi-agent-closed-loop-framework-for-composite-instruction-text-to-speech)  
-   标签：评分：6.0/10、query:qwen-tts
-   evidence：面向复合指令TTS控制的多智能体框架
+   evidence：利用语音特有特征评估语音翻译
+16. [Compositional Text-to-Image Generation Via Region-aware Bimodal Direct Preference Optimization](/202606/03/2605.28615v1-compositional-text-to-image-generation-via-region-aware-bimodal-direct-preference-optimization)  
+   标签：评分：6.0/10、query:mtg-bench
+   evidence：组合文本到图像生成中的偏好优化，与T2I基准相关
 
 
 <div class="dpr-home-promo-card">
