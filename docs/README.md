@@ -6,101 +6,95 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-03
-- 运行时间：2026-06-03 21:07:18 UTC
+- 最新运行日期：2026-06-04
+- 运行时间：2026-06-04 20:22:02 UTC
 - 运行状态：成功
-- 本次总论文数：27
-- 精读区：11
+- 本次总论文数：25
+- 精读区：9
 - 速读区：16
 
 ### 今日简报（AI）
-今日精读聚焦多语言事实验证与跨语言知识一致性，速读覆盖语音合成、编辑与韩语语音基准。最值得关注《From Snippets to Semantics》对证据粒度的重新思考，以及《Evaluating Cross-lingual Knowledge Consistency》在印度语言混合代码中的评估。普通读者可先浏览SpeechEditBench双语语音编辑基准和KVoiceBench等韩语评测工具。
-- 详情：[/202606/03/README](/202606/03/README)
+今日推荐25篇论文，聚焦混合MoE与多语言语义理解、跨模态翻译前沿。最值得关注精读两篇：《When Meaning Travels》揭示混合MoE对习语理解的细粒度机制（10.0分），《Beyond Bilingual Transfer》探索多语言代码切换指令微调的潜力（8.0分）。建议读者重点关注语言模型在习语等复杂语义上的建模进展，以及跨语言代码切换与隐私保护翻译的结合方向。
+- 详情：[/202606/04/README](/202606/04/README)
 
 ### 精读区论文标签
-1. [From Snippets to Semantics: Rethinking Evidence Granularity for Multilingual Fact Verification](/202606/03/2605.26755v1-from-snippets-to-semantics-rethinking-evidence-granularity-for-multilingual-fact-verification)  
-   标签：评分：9.0/10、query:fie-rag
-   evidence：多语言事实验证中的证据粒度与RAG
-2. [Evaluating Cross-lingual Knowledge Consistency in Code-Mixed vis-a-vis Indian Languages using IndicKLAR](/202606/03/2605.29637v1-evaluating-cross-lingual-knowledge-consistency-in-code-mixed-vis-a-vis-indian-languages-using-indicklar)  
-   标签：评分：9.0/10、query:cross-lang
-   evidence：跨语言语义转移
-3. [Multilingual Idioms in Sentences and Conversations Across High-, Medium-, and Low-Resource Languages](/202606/03/2606.02147v1-multilingual-idioms-in-sentences-and-conversations-across-high--medium--and-low-resource-languages)  
-   标签：评分：9.0/10、query:cross-lang
-   evidence：多语言习语数据集覆盖字面与非字面用法
-4. [BhashaSetu: A Data-Centric Approach to Low-Resource Machine Translation](/202606/03/2605.27050v1-bhashasetu-a-data-centric-approach-to-low-resource-machine-translation)  
+1. [When Meaning Travels: A Granular Lens on Hybrid-MoE's Role in Idiomatic Understanding for Language Models](/202606/04/2606.01671v1-when-meaning-travels-a-granular-lens-on-hybrid-moes-role-in-idiomatic-understanding-for-language-models)  
+   标签：评分：10.0/10、query:cross-lang
+   evidence：习语理解作为跨语言翻译中的不可译词问题
+2. [Beyond Bilingual Transfer: Multilingual Code-Switching in Instruction Tuning](/202606/04/2605.29414v1-beyond-bilingual-transfer-multilingual-code-switching-in-instruction-tuning)  
    标签：评分：8.0/10、query:cross-lang
-   evidence：跨语言翻译中文化特定术语的影响因素
-5. [Separating Semantic Competition from Context Length in RAG Reading](/202606/03/2605.27294v1-separating-semantic-competition-from-context-length-in-rag-reading)  
-   标签：评分：8.0/10、query:fie-rag
-   evidence：RAG阅读中语义竞争导致的失败分析
-6. [Benchmarking AI for low-resource contexts: Thinking beyond leaderboards](/202606/03/2605.28508v1-benchmarking-ai-for-low-resource-contexts-thinking-beyond-leaderboards)  
-   标签：评分：8.0/10、query:low-res-tts
-   evidence：低资源AI基准分析，涵盖语音系统
-7. [SwanVoice: Expressive Long-Form Zero-Shot Speech Synthesis for Both Monologue and Dialogue](/202606/03/2605.30993v1-swanvoice-expressive-long-form-zero-shot-speech-synthesis-for-both-monologue-and-dialogue)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：零样本长对话语音合成，支持说话人控制
-8. [SALSA: Speech Aware LLM Adaptation via Learned Steering Activation Vectors](/202606/03/2606.00460v1-salsa-speech-aware-llm-adaptation-via-learned-steering-activation-vectors)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：轻量级LLM适应多语言语音和代码切换基准
-9. [From Outliers to Errors: Auditing Pali-to-English LLM Translations with Multi-Reference Adjudication](/202606/03/2606.01136v1-from-outliers-to-errors-auditing-pali-to-english-llm-translations-with-multi-reference-adjudication)  
+   evidence：多语言代码切换指令微调提升跨语言语义转移
+3. [When English Rewrites Local Knowledge: Global Narrative Dominance in Large Language Models](/202606/04/2605.30481v1-when-english-rewrites-local-knowledge-global-narrative-dominance-in-large-language-models)  
    标签：评分：8.0/10、query:cross-lang
-   evidence：使用多参考裁决审计LLM翻译
-10. [When Meaning Travels: A Granular Lens on Hybrid-MoE's Role in Idiomatic Understanding for Language Models](/202606/03/2606.01671v1-when-meaning-travels-a-granular-lens-on-hybrid-moes-role-in-idiomatic-understanding-for-language-models)  
-   标签：评分：8.0/10、query:cross-lang
-   evidence：低资源语言习语理解，直接应对非字面翻译挑战
-11. [SoulX-Transcriber: A Robust End-to-End Framework for Multi-Speaker Speech Transcription](/202606/03/2606.02400v1-soulx-transcriber-a-robust-end-to-end-framework-for-multi-speaker-speech-transcription)  
+   evidence：在低资源孟加拉语文化背景下评估LLM的跨语言表现
+4. [DOA: Training-Free Decoder-Only Attention Policy for Long-Form Simultaneous Translation with SpeechLLMs](/202606/04/2605.31432v1-doa-training-free-decoder-only-attention-policy-for-long-form-simultaneous-translation-with-speechllms)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：基于大模型的多说话人语音转录端到端框架，整合ASR和说话人日志
+   evidence：基于SpeechLLM的免训练解码器注意力策略用于同传翻译
+5. [SALSA: Speech Aware LLM Adaptation via Learned Steering Activation Vectors](/202606/04/2606.00460v1-salsa-speech-aware-llm-adaptation-via-learned-steering-activation-vectors)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：语音感知的LLM适应，用于多语言语音
+6. [From Outliers to Errors: Auditing Pali-to-English LLM Translations with Multi-Reference Adjudication](/202606/04/2606.01136v1-from-outliers-to-errors-auditing-pali-to-english-llm-translations-with-multi-reference-adjudication)  
+   标签：评分：8.0/10、query:cross-lang
+   evidence：使用多参考裁决审计巴利文到英文的LLM翻译
+7. [SN-WER: Script-Normalized WER for Multi-Script Indic ASR Evaluation](/202606/04/2606.02548v1-sn-wer-script-normalized-wer-for-multi-script-indic-asr-evaluation)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：针对多脚本印度语言ASR评估的脚本归一化WER
+8. [A Pocket Offline Model for Simultaneous Speech Translation as CUNI Submission to IWSLT 2026](/202606/04/2606.03948v1-a-pocket-offline-model-for-simultaneous-speech-translation-as-cuni-submission-to-iwslt-2026)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：同时语音翻译，多语言，支持25种语言
+9. [Efficient ASR Training with Conversations that Never Happened](/202606/04/2606.03957v1-efficient-asr-training-with-conversations-that-never-happened)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：使用合成数据提高低资源语言对话ASR性能
 
 ### 速读区论文标签
-1. [UniVocal: Unified Speech-Singing Code-Switching Synthesis](/202606/03/2606.01677v1-univocal-unified-speech-singing-code-switching-synthesis)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：统一语音歌唱代码切换合成框架，数据高效训练
-2. [SpeechEditBench: A Bilingual Multi-Attribute Benchmark for Instruction-Guided Speech Editing](/202606/03/2606.01804v1-speecheditbench-a-bilingual-multi-attribute-benchmark-for-instruction-guided-speech-editing)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：双语指令引导语音编辑基准，提供评估方法
-3. [KVoiceBench, KOpenAudioBench, and KMMAU: Agent-Driven Korean Speech Benchmarks for Evaluating SpeechLMs](/202606/03/2605.27984v1-kvoicebench-kopenaudiobench-and-kmmau-agent-driven-korean-speech-benchmarks-for-evaluating-speechlms)  
+1. [Bandwidth-Efficient and Privacy-Preserving Edge-Cloud Many-to-Many Speech Translation](/202606/04/2605.28642v1-bandwidth-efficient-and-privacy-preserving-edge-cloud-many-to-many-speech-translation)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：面向韩语的语音语言模型评估基准
-4. [Bandwidth-Efficient and Privacy-Preserving Edge-Cloud Many-to-Many Speech Translation](/202606/03/2605.28642v1-bandwidth-efficient-and-privacy-preserving-edge-cloud-many-to-many-speech-translation)  
+   evidence：端云协作的多对多语音翻译
+2. [Teaching Language Models to Check Grounded Claim Factuality with Human Test-Taking Strategies](/202606/04/2605.29712v1-teaching-language-models-to-check-grounded-claim-factuality-with-human-test-taking-strategies)  
+   标签：评分：7.0/10、query:fie-rag
+   evidence：基于应试策略的声明事实性检查
+3. [MoG: Mixture of Experts for Graph-based Retrieval-Augmented Generation](/202606/04/2605.31010v1-mog-mixture-of-experts-for-graph-based-retrieval-augmented-generation)  
+   标签：评分：7.0/10、query:fie-rag
+   evidence：基于图的检索增强生成与混合专家
+4. [UniAudio-Token: Empowering Semantic Speech Tokenizers with General Audio Perception](/202606/04/2605.31521v1-uniaudio-token-empowering-semantic-speech-tokenizers-with-general-audio-perception)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：隐私保护的边缘云多对多语音翻译，处理多语言ASR和ST
-5. [The WER Trap: Shattering the Illusion of Unified Tokens in Speech Language Models](/202606/03/2605.29209v1-the-wer-trap-shattering-the-illusion-of-unified-tokens-in-speech-language-models)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：对语音语言模型分词器中WER指标的批判性分析
-6. [Extracting accent features in spoken Brazilian Portuguese without sociolinguistic labels](/202606/03/2605.30457v1-extracting-accent-features-in-spoken-brazilian-portuguese-without-sociolinguistic-labels)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：方言口音特征提取
-7. [OpenSTBench: Beyond Semantic Evaluation for Speech Translation](/202606/03/2605.30792v1-openstbench-beyond-semantic-evaluation-for-speech-translation)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：语音翻译统一评估框架
-8. [ImmersiveTTS: Environment-Aware Text-to-Speech with Multimodal Diffusion Transformer and Domain-Specific Representation Alignment](/202606/03/2605.30965v1-immersivetts-environment-aware-text-to-speech-with-multimodal-diffusion-transformer-and-domain-specific-representation-alignment)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：环境感知文本转语音，使用多模态扩散变压器，实现跨模态交互的语音生成
-9. [Unlocking Fine-Grained Translation Quality Estimation in LRMs through Synergistically Evolving Implicit and Explicit Reasoning](/202606/03/2605.31378v1-unlocking-fine-grained-translation-quality-estimation-in-lrms-through-synergistically-evolving-implicit-and-explicit-reasoning)  
+   evidence：语义语音分词器，支持通用音频感知，可用于多语言语音识别
+5. [EMA: Approximate Nearest Neighbor Search with General Attribute Filtering and Dynamic Updates](/202606/04/2606.00734v1-ema-approximate-nearest-neighbor-search-with-general-attribute-filtering-and-dynamic-updates)  
+   标签：评分：7.0/10、query:fie-rag
+   evidence：支持RAG系统的过滤近似最近邻搜索算法
+6. [Efficient RAG with Intent-Aware Retrieval and Semantics-Preserving Chunking](/202606/04/2606.01240v1-efficient-rag-with-intent-aware-retrieval-and-semantics-preserving-chunking)  
+   标签：评分：7.0/10、query:fie-rag
+   evidence：提出意图感知检索和语义保持分块以改进RAG
+7. [Understanding LLM Behavior in Multi-Target Cross-Lingual Summarization](/202606/04/2606.01252v1-understanding-llm-behavior-in-multi-target-cross-lingual-summarization)  
    标签：评分：7.0/10、query:cross-lang
-   evidence：细粒度翻译质量估计的隐式和显式推理协同进化
-10. [DOA: Training-Free Decoder-Only Attention Policy for Long-Form Simultaneous Translation with SpeechLLMs](/202606/03/2605.31432v1-doa-training-free-decoder-only-attention-policy-for-long-form-simultaneous-translation-with-speechllms)  
+   evidence：多目标跨语言摘要基准和分层分析
+8. [UniVocal: Unified Speech-Singing Code-Switching Synthesis](/202606/04/2606.01677v1-univocal-unified-speech-singing-code-switching-synthesis)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：语音翻译与SpeechLLM，关联多语言语音处理
-11. [Head-Pose-Aware Visual Speech Recognition with FiLM Modulation](/202606/03/2606.00751v1-head-pose-aware-visual-speech-recognition-with-film-modulation)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：头部姿态感知的视觉语音识别
-12. [METATR: A Multilingual, Evolving Benchmark for Automatic Text Recognition](/202606/03/2605.26712v1-metatr-a-multilingual-evolving-benchmark-for-automatic-text-recognition)  
-   标签：评分：6.0/10、query:mtg-bench
-   evidence：多语言不断演进的自动文本识别基准，涵盖非拉丁字母
-13. [VoiceGiraffe: A Benchmark for Extreme Long-Context Audio-Language Understanding](/202606/03/2605.27976v1-voicegiraffe-a-benchmark-for-extreme-long-context-audio-language-understanding)  
+   evidence：统一语音-唱歌代码切换合成，从文本隐式推断发音模式
+9. [Do Audio LLMs Listen or Read? Analyzing and Mitigating Paralinguistic Failures with VoxParadox](/202606/04/2605.27772v1-do-audio-llms-listen-or-read-analyzing-and-mitigating-paralinguistic-failures-with-voxparadox)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：跨语言长上下文音频语言理解基准
-14. [ConRAG: Consensus-Driven Multi-View Retrieval for Multi-Hop Question Answering](/202606/03/2605.28093v1-conrag-consensus-driven-multi-view-retrieval-for-multi-hop-question-answering)  
+   evidence：音频语言模型副语言理解基准
+10. [ConRAG: Consensus-Driven Multi-View Retrieval for Multi-Hop Question Answering](/202606/04/2605.28093v1-conrag-consensus-driven-multi-view-retrieval-for-multi-hop-question-answering)  
    标签：评分：6.0/10、query:fie-rag
-   evidence：多视角RAG框架，适用于复杂推理，可迁移至叙实性推理
-15. [Why We Need Speech to Evaluate Speech Translation](/202606/03/2605.28227v1-why-we-need-speech-to-evaluate-speech-translation)  
+   evidence：用于多跳QA的RAG框架；共识驱动的多视角检索；方法可迁移到叙实推理
+11. [HoliTok:A Coutinuous Holistic Tokenization with Robust Dual Capabilities of Speech Generation and Understanding](/202606/04/2605.29948v2-holitoka-coutinuous-holistic-tokenization-with-robust-dual-capabilities-of-speech-generation-and-understanding)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：利用语音特有特征评估语音翻译
-16. [Compositional Text-to-Image Generation Via Region-aware Bimodal Direct Preference Optimization](/202606/03/2605.28615v1-compositional-text-to-image-generation-via-region-aware-bimodal-direct-preference-optimization)  
-   标签：评分：6.0/10、query:mtg-bench
-   evidence：组合文本到图像生成中的偏好优化，与T2I基准相关
+   evidence：用于语音生成和理解的连续整体分词
+12. [OpenSTBench: Beyond Semantic Evaluation for Speech Translation](/202606/04/2605.30792v1-openstbench-beyond-semantic-evaluation-for-speech-translation)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：语音翻译的多维评估框架
+13. [Shared Doubt: Zero-shot Cross-Lingual Confidence Estimation for Language Models](/202606/04/2605.31220v1-shared-doubt-zero-shot-cross-lingual-confidence-estimation-for-language-models)  
+   标签：评分：6.0/10、query:cross-lang
+   evidence：零样本跨语言置信度估计
+14. [Unlocking Fine-Grained Translation Quality Estimation in LRMs through Synergistically Evolving Implicit and Explicit Reasoning](/202606/04/2605.31378v1-unlocking-fine-grained-translation-quality-estimation-in-lrms-through-synergistically-evolving-implicit-and-explicit-reasoning)  
+   标签：评分：6.0/10、query:cross-lang
+   evidence：细粒度翻译质量评估结合隐式和显式推理
+15. [Context-aware child-directed speech detection from long-form recordings](/202606/04/2606.01134v1-context-aware-child-directed-speech-detection-from-long-form-recordings)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：多语言面向儿童语音检测与上下文感知
+16. [TalkTag: Fine-Grained Morphosyntactic Error Annotation for Transcribed Speech](/202606/04/2606.01820v1-talktag-fine-grained-morphosyntactic-error-annotation-for-transcribed-speech)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：针对低资源场景下转录语音的细粒度形态句法错误标注
 
 
 <div class="dpr-home-promo-card">

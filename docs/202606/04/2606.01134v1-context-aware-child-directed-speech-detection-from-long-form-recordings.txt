@@ -1,0 +1,180 @@
+Title: Context-aware child-directed speech detection from long-form recordings
+
+URL Source: https://arxiv.org/pdf/2606.01134v1
+
+Published Time: Tue, 02 Jun 2026 01:22:12 GMT
+
+Number of Pages: 6
+
+Markdown Content:
+# Context-aware child-directed speech detection from long-form recordings 
+
+# Th´ eo Charlot ID 1,∗,∗∗ , Tarek Kunze ID 1,∗, Kaveri K. Sheth ID 1, Alejandrina Cristia ID 1, Marvin Lavechin ID 21 LSCP, DEC, ENS, EHESS, CNRS, PSL University, France 
+
+2 Laboratoire d’Informatique et Syst` emes, Universit´ e Aix-Marseille, CNRS, France 
+
+theo.charlot@ens.psl.eu 
+
+# Abstract 
+
+Automatically distinguishing child-directed speech from adult-directed speech in long-form recordings is key to scalable anal-yses of children’s language environments. Existing approaches process utterances in isolation and have been evaluated primar-ily on English. We address these gaps along three dimensions. First, we fine-tune and evaluate six-self supervised models on a multilingual dataset of 182 children, showing that in-domain pre-training on child-centered recordings substantially outper-forms models trained on adult speech. Second, we demonstrate that incorporating surrounding context substantially improves classification, with an absolute gain of 13.8% in average F1-score. Third, we evaluate our model in a realistic end-to-end pipeline, from adult speech detection to addressee classification, showing that performance drops under automatic segmentation but still consistently outperforms a rule-based baseline. 
+
+Index Terms : child-directed speech detection, long-form recordings, addressee classification, language experience 
+
+# 1. Introduction 
+
+Children’s environments are complex, and the language input they receive is no exception. Among the sources of this com-plexity is the distinction between child-directed speech (CDS), the register adults typically adopt when speaking to young chil-dren, and adult-directed speech (ADS). CDS is characterized by features such as higher pitch, stretched vowels, and exagger-ated intonation, as in ”Look at the doggy!” , features hypoth-esized to scaffold language development [1, 2, 3] Indeed, the exaggerated pitch contours of CDS may help infants segment the speech stream and identify word boundaries [4], its acoustic saliency has been shown to preferentially capture infants’ atten-tion compared to ADS [5], and the use of diminutives and sim-plified vocabulary may help children map words onto referents more easily [6]. Understanding the role of CDS in children’s language development is therefore of considerable interest, par-ticularly given that both the amount and nature of CDS vary substantially across cultures and socioeconomic contexts [7, 8]. Child-worn microphones that record audio throughout the day have become a powerful tool for capturing naturalistic lan-guage input. However, researchers typically rely on manual an-notation to distinguish between CDS and ADS, which is time and labor intensive, limiting the scale at which children’s lin-guistic environments can be studied. Machine learning ap-proaches could offer a scalable solution, enabling researchers to analyze large corpora that would otherwise be infeasible to annotate by hand. 
+
+> *
+
+These authors contributed equally. 
+
+> **
+
+indicates the corresponding author.  
+
+> Code available at: https://github.com/LAAC-LSCP/addressee
+
+The task of automatically distinguishing CDS from adult-directed speech ADS has drawn the attention of the speech pro-cessing community. It has been proposed in one of the tracks of the Interspeech 2017 Computational Paralinguistics Challenge (ComParE) [9]. The challenge organizers established a base-line using a late fusion of three systems: an end-to-end con-volutional neural network with long short-term memory trained on raw waveforms, hand-crafted acoustic features, and bag-of-audio-words features, all paired with linear support vector ma-chines, achieving a UAR of 70.2 [9]. Despite several submis-sions [10, 11], no team was able to surpass this baseline, and no open-source classifier emerged from the challenge, limiting the task’s broader impact on the research community. More recently, Bang et al. (2022) trained an XGBoost classifier on LENA recordings to predict whether a 5-minute segment was predominantly CDS or ADS, achieving an AUC of 0.72 [12]. However, within such segments, CDS and ADS utterances may be interleaved, making it a coarser tool than utterance-level classification. Al Futaisi et al. (2023) tackled the task at the utterance level by training deep neural networks on hand-crafted acoustic features using multi-task and adversarial learn-ing strategies [13]. Their best model achieved a UAR of 67.6% on the test set, falling short of the ComParE baseline of 70.2%. Despite these efforts, several limitations remain. First, most existing models have been trained predominantly on English data, representing only a narrow slice of the world’s linguistic and cultural diversity [14], a particularly consequential limita-tion given that the acoustic and linguistic properties of CDS are known to vary substantially across cultures and languages [15]. Second, all existing approaches train on utterances in isolation, discarding surrouding conversational context that human anno-tators naturally rely on when making addressee judgments. This is compounded by the fact that utterances are particularly short, with average durations of 1.5 seconds for CDS and 1.7 sec-onds for ADS in the ComParE training set, leaving little acous-tic information for the model to exploit [9]. One may right-fully hypothesize that surrounding context (such as the pres-ence of child vocalizations) carries useful information for ad-dressee classification, and that models trained on isolated ut-terances may therefore be at a disadvantage. Third, none of the existing systems have been evaluated in a realistic setting, where speaker diarization and utterance detection must first be performed automatically on raw audio, meaning their practical utility for analyzing daylong recordings remains untested. In this paper, we make three contributions. First, we bench-mark multiple self-supervised models for CDS/ADS classifica-tion, including models classically trained on adult clean speech and two in-domain models trained on child-centered long-forms recordings, demonstrating that in-domain pretraing yields sub-stantially better performance. Second, we show that providing 
+
+> arXiv:2606.01134v1 [eess.AS] 31 May 2026
+
+the model with contextual audio windows improves classifica-tion, challenging the common practice of processing utterances in isolation and suggesting that context should be a key consid-eration in future model design. Third, we evaluate our approach in a fully automatic pipeline, where adult speech utterances are first detected from raw audio using the Voice Type Classifier 2.0 [16], before being passed to the classifier, demonstrating feasibility in a realistic deployment scenario. 
+
+# 2. Methods 
+
+We introduce the corpora used in this study. We then formal-ize the addressee classification problem before introducing the self-supervised models we considered, and the context-aware fine-tuning strategy we implemented. We present the baseline against which our best model is compared and the evaluation metric. We conclude this section by providing implementation details. 
+
+2.1. Dataset 
+
+Corpora. We gathered multiple corpora across languages and sociocultural contexts. The resulting dataset comprises a total of 22 hours of audio across 6 languages and 182 children. Table 1: Dataset used to train and evaluate our addressee classification system. Corpora were obtained through sci-entific archives such as Homebank* [17], the Language Archive** [18], and CHILDES*** [19] or accessed through direct data sharing agreements with research groups. Summary statistics are presented in Table 1.                                              
+
+> Dataset Language(s) Number of children Total adult speech dur.
+> Lyon* [20] French 16 5h22m Cougar* [21] English 46 3h32m Bergelson* [22] English 20 2h13m Png* [23] Mostly Yeli Dnye 10 2h07m Lucid** [24] English 20 2h01m Warlaumont* [25] Mostly English 15 1h38m Soderstrom** [26] English 21h17m Tsimane [27] Tsimane 24 0h36m PhonSES [28] French 60h08m Thomas*** [29] English 10h07m Vanuatu [30] Bislama 10h01m Tseltal* [31] Mayan 10 1h37m Winnipeg* [32] English 11 1h31m Total Various 182 22h10m
+
+Split into partitions. Two corpora were held out entirely from training and reserved for evaluating cross-corpus generaliza-tion: the Tseltal corpus [31], representing typologically distinct Mayan languages and a sociocultural context in which CDS is known to be infrequent [33], and the Winnipeg corpus [32], collected from English-speaking families in Canada. Together, they form our heldout set, allowing us to evaluate generalization both to an unseen language and to an unseen English corpus. The remaining corpora were split into training (80%), val-idation (10%), and test (10%) splits, ensuring that no child ap-pears in more than one split and that performance estimates are not inflated by speaker overlap. 
+
+2.2. Addressee classification 
+
+Addressee classification can be framed as an utterance-level classification task. Each utterance ui is a raw waveform seg-ment associated with a ground-truth label yi ∈ { 1, . . . , K }
+
+where K denotes the number of addressee classes. At training time, N varying-length adult speech utterances (retrieved from human segmentation) are passed to the model (detailed in the next section), which outputs a predicted class probability distribution p ∈ RK . The model is trained by mini-mizing the categorical cross-entropy loss: 
+
+L = − 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+log pyi (1) where pyi ∈ [0 , 1] is the predicted probability assigned to the true class yi of utterance ui.In this study, we consider K = 3 classes: KCDS for key child directed speech (adult speech addressed to the child wear-ing the microphone), ADS for adult directed speech, OTHER for speech addressed to another child, a pet, or annotated as unsure. 
+
+2.3. Self-supervised models 
+
+Self-supervised models pre-trained on large amounts of unla-beled speech have demonstrated strong performance across a wide range of downstream tasks, including in low-resource set-tings where labeled data is scarce [34]. This makes them partic-ularly well-suited for addressee classification, where annotated data is limited. We experiment with six self-supervised models across three architectures: Wav2Vec 2.0 (referred to as W2V2), HuBERT, and WavLM. W2V2 learns speech representations via a contrastive ob-jective over masked latent speech representations, where the model must identify the correct quantized target among a set of distractors [35]. HuBERT uses an offline clustering step to gen-erate discrete pseudo-labels, which are then used as targets for a masked prediction objective [36]. WavLM extends HuBERT with a denoising objective, training the model to predict masked speech representations in the presence of artificially added noise and overlapping utterances [37]. We evaluate six models instantiated from these architec-tures. Four out-of-domain models are trained exclusively on adult speech: W2V2, HuBERT in their base configurations trained on LibriSpeech (960h) [38], WavLM-base-plus with the same base configuration trained on 94,000 hours of English speech, and W2V2-XLSR in its large configuration trained on 56,000 hours of multilingual speech from 53 languages [39]. The remaining two are in-domain models trained on child-centered long-forms: W2V2-LL4300 [40] trained on 4,300 hours of English recordings, and BabyHuBERT trained on 13,000 hours of multilingual recordings, based on W2V2 and HuBERT respectively [16]. 
+
+2.4. Context-aware fine-tuning 
+
+Addressee information may not be confined to the utterance it-self: surrounding context, such as adjacent speech from other speakers or prosodic cues spanning utterance boundaries, may carry useful information for classification. This intuition is sup-ported by a growing body of work showing that incorporating surrounding context improves performance in speech classifica-tion and recognition tasks [41, 42, 43]. For an utterance of duration du, we symmetrically extend it to a total duration of x seconds by adding x−du 
+
+> 2
+
+seconds of context on each side (or give the full utterance if du ≥ x). If the utterance falls at the beginning or end of the recording, con-text is added only on the available side. The extended audio is passed through the encoder, but only the frames corresponding to the original utterance are retained for pooling, discarding the context frames. This ensures that the context enriches the ut-terance representation without directly contributing to the clas-sification decision. We experiment with multiple values for x
+
+ranging from 0 (corresponding to the model receiving only the speech utterances) to 30 seconds. 
+
+2.5. Baseline 
+
+To the best of our knowledge, no open-source supervised classi-fier has emerged from prior work. We therefore use as our base-line an unpublished rule-based system developed within our lab. The system operates in two steps: a voice type classifier [44] first detects adult speech utterances, and a second step classifies adult speech as KCDS if it occurs within a fixed time threshold of the target child’s vocalizations. 
+
+2.6. Evaluation metric 
+
+To compare the different classifiers, we use the F1-score be-tween precision and recall, defined as: F1-measure = 2 × precision × recall precision + recall where precision = tp /(tp +fp ) and recall = tp /(tp +fn ) with tp the duration of true positives, fp the duration of false positives, and fn the duration of false negatives. We compute the F1-score in two flavors depending on the evaluation setting. When human-annotated boundaries are available, we compute utterance-level F1, where tp, fp, and fn are counts of utterances. When boundaries are derived automat-ically, we compute frame-level F1, where tp, fp, and fn are mea-sured in duration, allowing us to evaluate the model in a realistic setting where segmentation errors propagate to the classifier. 
+
+2.7. Implementation Details 
+
+We fine-tune the self-supervised models by freezing the convo-lutational layers and training only the transformer layers. The final transformer layer’s output is mean-pooled and projected through a linear classification head to produce logits over our three classes: KCDS , ADS , and OTHER . The predicted class is obtained via argmax. All models are trained for 10 epochs using a tri-stage learning rate schedule: a linear warmup from 1e-7 to 1e-5 over 5000 steps, a constant phase at 1e-5 for 12500 steps, and a linear decay to 5e-7 over 5700 steps. The best checkpoint is selected based on the validation performance computed at the end of each epoch. Models are trained using a batch size of 16 utterances randomly sampled from the training set. To account for training variability we train each configuration across 5 dif-ferent training seeds. Training time on an A100 averages 22 min, 43 mn, and 2 h 20 min for context lengths of 0, 10, and 30 seconds, respectively. 
+
+# 3. Results 
+
+3.1. Effect of self-supervised models 
+
+We begin by addressing our first question, comparing multiple self-supervised models fine-tuned on our addressee classifica-tion task (Table 2). Among out-of-domain models pre-trained on adult speech, W2V2, HuBERT and W2V2-XLSR achieve comparable F1-scores in the 45% - 57% range, suggesting no clear benefit from multilingual pretraining on a substantially larger corpus (56,000h for W2V2 XLSR vs. 960h for W2V2 and HuBERT). Table 2: Validation F1-scores (%) and respective standard de-viations (%) over 5 runs for different self-supervised models ( ↑
+
+higher is better). KCDS , ADS , and OTHER refer to key-child-directed, adult-directed, and other speech. Ave. is the macro-average F1-score across speakers. All models use their base architecture except W2V2-XLSR (large). Models marked with †
+
+were pretrained on child-centered recordings (child and adult speech); all others were pretrained on adult speech only. Best results are reported in bold.   
+
+> F1-scores (%) ↑
+> Model
+
+KCDS ADS OTHER Ave. W2V2 72.5 ± 0.5 49.2 ± 2.7 14.8 ± 2.2 45.5 ± 1.3 HuBERT 73.1 ± 0.3 54.2 ± 1.8 14.7 ± 3.1 47.3 ± 1.1 WavLM 70.7 ± 1.0 51.7 ± 1.8 2.0 ± 4.4 41.5 ± 1.7 W2V2 XLSR 72.1 ± 0.3 53.0 ± 1.2 14.8 ± 1.4 46.6 ± 0.5 W2V2 LL4300 † 74.4 ± 0.3 54.4 ± 2.1 9.4 ± 3.9 46.1 ± 1.3 BabyHuBERT † 77.4 ± 0.2 62.0 ± 0.9 20.1 ± 2.7 53.2 ± 1.1 
+
+WavLM, despite its denoising pretraining objective, stands out as an outlier with a near-zero F1-score on the Other class. Among in-domain models, W2V2-LL4300 surprisingly fails to outperform out-of-domain models despite being trained on 4,300 hours of child-centered long-forms. BabyHuBERT, on the other hand, achieves the best overall performance with an average F1-score of 53.2 ±1.1%, which may be attributed to its pretraining on 13000 hours of multilingual child-centered long-forms. Across all models, the Other class consistently yields the lowest F1-scores, likely due to its heterogeneous composition. Indeed, Other encompasses subcategories such as pet-directed and other-child-directed speech that are acoustically similar to 
+
+KCDS , making discrimination particularly challenging. Overall, while acknowledging the many counfouding fac-tors across models (architecture, pre-training objective, imple-mentation, etc.), our results suggest that in-domain pre-training may be an important driver of performance for addressee clas-sification. Models pretrained on child-centered recordings are indeed exposed to the very acoustic conditions that characterize the downstream task, which differ substantially from the clean adult speech found in standard pretraining corpora. 
+
+3.2. Effect of context duration 
+
+We now investigate whether incorporating surrounding context improves addressee classification, and if so, what context dura-tion is optimal. As shown in Figure 1, adding context yields a substantial improvement over the more standard no-context condition, with F1-score jumping from 53.2 ±1.1% at 0 seconds to 67.0 ±1.3% at 10 seconds. Performance then gradually declines beyond 10 seconds until it reaches 63.7 ±1.4% at 30 seconds. Although it is hard to provide precise evidence as to why, we hypothesize that longer contexts dilute the relevant signal, causing the model to rely on cues that do not generalize beyond training set. Overall, our results confirm that context is highly beneficial for addressee classification. Surrounding speech carries infor-mative cues that are absent from the target utterance alone, such as knowing who spoke just before or after it. Simply consid-ering contextual windows of 10 seconds yields a massive abso-lute improvement of 13.8% in terms of average F1-score over the no-context condition. On the test set, the best-performing model (trained with 10-second contextual windows) achieves F1-scores of 81.6%, 78.9%, and 36.2% for KCDS , ADS , and 
+
+Other respectively, confirming that validation performance is 0 5 10 15 20 25 30 
+
+> Context duration (s)
+> 52.5
+> 55.0
+> 57.5
+> 60.0
+> 62.5
+> 65.0
+> 67.5
+> F1 score (%)
+
+Figure 1: Effect of context duration on the validation F1-score (%), where 0 seconds corresponds to no context, i.e., the model receives only the target utterance. Standard deviations are com-puted across 5 random seeds. 
+
+stable and not an artifact of hyperparameter selection. We re-fer to this model as BabyHuBERT-addressee in the remaining analysis. 
+
+3.3. Assessing performance in realistic conditions 
+
+So far, our analyses have relied on human-annotated speech boundaries, which does not reflect how a fully automatic pipeline would perform in realistic conditions. We now turn to the heldout set to assess performance under more realistic conditions, where adult speech utterances are obtained automat-ically using VTC 2.0 [16]. Given that utterances do not match up across human vs automated diarization, we switch here to a window-level F1-scores with windows of 100 ms where the true positives, false positives, and false negatives are computed in terms of classified windows. Since the rule-based baseline does not distinguish ADS from OTHER , we merge these two classes into a single overheard speech class ( OHS ) to allow for compar-ison. Table 3: Frame-level F1-scores (%) on the heldout set for the rule-based baseline and BabyHuBERT-addressee using either human or automated VTC 2.0 segmentation ( ↑ higher is better). 
+
+KCDS and OHS refer to the key-child-directed and overheard speech. Ave. is the macro average F1-score across speakers. Best results are reported in bold. 
+
+F1-scores (%) ↑
+
+Model KCDS OHS Ave. 
+
+Human segmentation 
+
+Rule-based 37.9 32.3 35.1 BabyHuBERT-addressee 64.1 84.1 74.1 
+
+VTC 2.0 segmentation 
+
+Rule-based 36.3 14.9 25.6 BabyHuBERT-addressee 43.4 33.8 38.6 
+
+Table 3 compares BabyHuBERT-addressee against the rule-based baseline (Section 2.5) using either human or automati-cally generated speech boundaries. As expected, the rule-based baseline performs poorly, as temporal proximity to the target child is a weak proxy for addressee classification compared to direct acoustic modeling. BabyHuBERT-addressee consistently outperforms the baseline in both conditions, with absolute im-provements of 39% and 13% in average F1-score for human and VTC 2.0 segmentation respectively. There is a substantial dif-ference in performance between the two held-out datasets (not shown in Table 3 ), with average F1-scores of 80.8% for Win-nipeg and 58.3% for Tseltal. The lower performance on Tseltal is likely due to its challenging recording conditions: noisy out-door rural settings and a higher proportion of ADS from the frequent presence of non-parent speakers. Importantly, per-formance drops substantially (by 35.5% in average F1-score) when switching from human to automatic segmentation, sug-gesting that segmentation errors introduced by VTC 2.0 propa-gate through the pipeline and compound with addressee classi-fication errors. 
+
+# 4. Discussion and conclusion 
+
+Our results show that large-scale, automatic detection of who speaks to the child from naturalistic long-form recordings is fea-sible. Importantly, our results highlight two key factors for im-proving performance: domain-matched multilingual pretrain-ing, with BabyHuBERT consistently outperforming other self-supervised models, and the incorporation of context, with a 10-second contextual window yielding an absolute improvement of 13.8% over the no-context condition. A key limitation of prior work has been the absence of open-source tools for addressee classification, which has hin-dered cumulative progress on the task. By releasing our model and code, we hope to provide the community with a shared baseline that can be be built upon, enabling more systematic comparisons across corpora. We believe that reproducibility and open-sourcing are critical for advancing the field, partic-ularly given the diversity of recording conditions and sociocul-tural contexts that a robust classifier must handle. On the modeling side, our context-aware fine-tuning en-codes the full contextual window through the transformer, which comes at a significant computational cost, with training time increasing from 22 minutes to over 2 hours when mov-ing from 0 to 30 seconds of context. More efficient alterna-tives could include hierarchical architectures where the target utterance and its context are encoded separately, and a cross-attention module then allows the target utterance to selectively retrieve relevant information from the context frames, avoiding the need to pass the full concatenated audio through the trans-former, as explored in other speech tasks [41, 42]. Such archi-tectures would also lend themselves to exploring asymmetric context windows, where preceding and following speech con-tribute differently to the classification decision. On the developmental science side, our work is a first step towards cross-liguistic quantification of children’s input, mak-ing it possible to examine how the amount and distribution of child-directed speech may vary across communities and devel-opmental contexts without relying exclusively on manual anno-tation. A natural important next step would be to assess whether automatically-derived estimates of child-directed and overheard speech correlate with human-annotated estimates at the record-ing level, and whether such correlations hold equally across di-verse sociocultural contexts. Such validation would be critical before deploying our system at scale for language development research purposes. 5. Acknowledgments 
+
+This work was performed using HPC resources from GENCI-IDRIS (Grant 2024-AD01101545 and 2025-AD011016414) and was supported in part by the Agence Nationale pour la Recherche (ANR-17-EURE-0017 Frontcog, ANR10-IDEX-0001-02 PSL). TC was funded by an ERC grant (InfantSimu-lator, 101142705); AC, KS and TK were funded by an ERC grant (ExELang, 101001095). ML acknowledges funding from Simons Foundation International (034070-00033). Views and opinions expressed are those of the authors only and do not necessarily reflect those of the European Union or the European Research Council. Neither the European Union nor the granting authority can be held responsible for them. 
+
+# 6. References 
+
+[1] M. Saxton, “The inevitability of child directed speech,” in Lan-guage acquisition . Springer, 2009, pp. 62–86. [2] M. Cychosz, J. R. Edwards, N. Bernstein Ratner, C. Torring-ton Eaton, and R. S. Newman, “Acoustic-lexical characteristics of child-directed speech between 7 and 24 months and their impact on toddlers’ phonological processing,” Frontiers in Psychology ,vol. 12, p. 712647, 2021. [3] V. Kempe, M. Ota, and S. Schaeffler, “Does child-directed speech facilitate language development in all domains? a study space analysis of the existing evidence,” Developmental Review , vol. 72, p. 101121, 2024. [4] K. St¨ ark, E. Kidd, and R. L. Frost, “Word segmentation cues in German child-directed speech: A corpus analysis,” Language and Speech , vol. 65, no. 1, pp. 3–27, 2022. [5] M. Consortium, “Quantifying sources of variability in infancy re-search using the infant-directed-speech preference,” Advances in Methods and Practices in Psychological Science , vol. 3, no. 1, pp. 24–52, 2020. [6] D. Yurovsky, C. Yu, and L. B. Smith, “Statistical speech seg-mentation and word learning in parallel: Scaffolding from child-directed speech,” Frontiers in psychology , vol. 3, p. 374, 2012. [7] A. Cristia, E. Dupoux, M. Gurven, and J. Stieglitz, “Child-directed speech is infrequent in a forager-farmer population: A time allocation study,” Child Development , vol. 90, no. 3, pp. 759– 773, 2019. [8] J. F. Schwab and C. Lew-Williams, “Language learning, socioeco-nomic status, and child-directed speech,” Wiley Interdisciplinary Reviews: Cognitive Science , vol. 7, no. 4, pp. 264–275, 2016. [9] B. Schuller, S. Steidl, A. Batliner, E. Bergelson, J. Krajewski, C. Janott, A. Amatuni, M. Casillas, A. Seidl, M. Soderstrom, A. S. Warlaumont, G. Hidalgo, S. Schnieder, C. Heiser, W. Hohenhorst, M. Herzog, M. Schmitt, K. Qian, Y. Zhang, G. Trigeorgis, P. Tzi-rakis, and S. Zafeiriou, “The INTERSPEECH 2017 Computa-tional Paralinguistics Challenge: Addressee, Cold & Snoring,” in 
+
+Interspeech , 2017, pp. 3442–3446. [10] G. Gosztolya, R. Busa-Fekete, T. Gr´ osz, and L. T´ oth, “DNN-Based Feature Extraction and Classifier Combination for Child-Directed Speech, Cold and Snoring Identification,” in Interspeech ,2017, pp. 3522–3526. [11] H. Kaya and A. A. Karpov, “Introducing Weighted Kernel Clas-sifiers for Handling Imbalanced Paralinguistic Corpora: Snoring, Addressee and Cold,” in Interspeech , 2017, pp. 3527–3531. [12] J. Y. Bang, G. Kachergis, A. Weisleder, and V. A. Marchman, “An automated classifier for child-directed speech from lena record-ings,” in Proceedings of the 46th annual Boston University Con-ference on Language Development , Y. Gong and F. Kpogo, Eds. Somerville, MA: Cascadilla Press, 2022, pp. 48–61. [13] N. D. Al Futaisi, A. Cristia, and B. W. Schuller, “Hearttoheart: The arts of infant versus adult-directed speech classification,” in 
+
+International Conference on Acoustics, Speech and Signal Pro-cessing , 2023, pp. 1–5. [14] J. Henrich, S. J. Heine, and A. Norenzayan, “The weirdest people in the world?” Behavioral and Brain Sciences , vol. 33, no. 2–3, p. 61–83, 2010. [15] A. Cristia, E. Dupoux, M. Gurven, and J. Stieglitz, “Child-directed speech is infrequent in a forager-farmer population: A time allocation study,” Child Development , vol. 90, no. 3, pp. 759– 773, 2019. [16] T. Charlot, T. Kunze, M. Poli, A. Cristia, E. Dupoux, and M. Lavechin, “Babyhubert: Multilingual self-supervised learning for segmenting speakers in child-centered long-form recordings,” 2025. [Online]. Available: https://arxiv.org/abs/2509.15001 [17] M. VanDam, A. S. Warlaumont, E. Bergelson, A. Cristia, M. Soderstrom, P. De Palma, and B. MacWhinney, “Homebank: An online repository of daylong child-centered audio recordings,” 
+
+Semin Speech Lang , vol. 37, no. 02, pp. 128–142, 2016. [18] A. Skilton, “Ticuna (tca) language documentation: A guide to ma-terials in the california language archive,” Language Documenta-tion and Conservation , vol. 15, pp. 153–189, 2021. [19] B. MacWhinney, The CHILDES project , 3rd ed. London, Eng-land: Psychology Press, 2014. [20] M. Canault, M.-T. Le Normand, S. Foudil, N. Loundon, and H. Thai-Van, “Lyon HomeBank Corpus,” HomeBank, 2016, https://homebank.talkbank.org/access/Password/Lyon.html. [21] M. VanDam, “VanDam Cougar HomeBank Corpus,” Home-Bank, 2018, available at: https://homebank.talkbank.org/access/ Password/Cougar.html. [22] E. Bergelson, “Bergelson Seedlings HomeBank Corpus,” Home-Bank, 2017, available at: https://homebank.talkbank.org/access/ Password/Bergelson.html. [23] A. Cristia and M. Casillas, “Long-form recordings from children in rossel island.” 2020, unpublished raw data. [24] C. F. Rowland, S. Durrant, M. Peter, A. Bidgood, J. Pine, and L. S. Jago, “The language 0-5 project,” 2025. [Online]. Available: osf.io/kau5f [25] A. S. Warlaumont, G. M. Pretzer, S. Mendoza, S. Schneider, J. Mutrie, L. Lopez, E. A. Walle, and C. T. Kello, “San Joaquin Valley HomeBank Corpus,” HomeBank, 2024, formerly the War-laumont HomeBank Corpus. Available at: https://homebank. talkbank.org/access/Password/SanJoaquin.html. [26] M. Soderstrom, M. Blossom, R. Foygel, and J. L. Morgan, “Acoustical cues and grammatical units in speech to two preverbal infants,” Journal of Child Language , vol. 35, no. 4, p. 869–902, 2008. [27] C. Scaff, M. Casillas, J. Stieglitz, and A. Cristia, “Characteriza-tion of children’s verbal input in a forager-farmer population us-ing long-form audio recordings and diverse input definitions,” In-fancy , vol. 29, no. 2, pp. 196–215, 2024. [28] A. Cristia, “PhonSES: A pilot study to measure socioeconomic status association with infants’ word and sound processing,” GIN, 2021. [Online]. Available: https://gin.g-node.org/LAAC-LSCP/ phonSES-public [29] E. Lieven, D. Salomo, and M. Tomasello, “Two-year-old chil-dren’s production of multiword utterances: A usage-based anal-ysis,” Cognitive Linguistics , vol. 20, no. 3, pp. 481–507, 2009. [30] A. Cristia, L. Gautheron, and H. Colleran, “Vocal input and output among infants in a multilingual context: Evidence from long-form recordings in vanuatu,” Developmental Science , vol. 26, no. 4, p. e13375, 2023. [31] M. Casillas, P. Brown, and S. C. Levinson, “Casillas Home-Bank Corpus,” HomeBank, 2017, available at: https://homebank. talkbank.org/access/Secure/Casillas.html. [32] M. Soderstrom, “Winnipeg HomeBank Corpus,” HomeBank, 2016, https://homebank.talkbank.org/access/Password/Winnipeg. html. [33] M. Casillas, P. Brown, and S. C. Levinson, “Early language ex-perience in a tseltal mayan village,” Child Development , vol. 91, no. 5, pp. 1819–1835, 2020. [34] J. Zhao and W.-Q. Zhang, “Improving automatic speech recogni-tion performance for low-resource languages with self-supervised models,” IEEE Journal of Selected Topics in Signal Processing ,vol. 16, no. 6, pp. 1227–1241, 2022. [35] A. Baevski, Y. Zhou, A. Mohamed, and M. Auli, “wav2vec 2.0: A framework for self-supervised learning of speech representa-tions,” in Advances in Neural Information Processing Systems ,H. Larochelle, M. Ranzato, R. Hadsell, M. Balcan, and H. Lin, Eds., vol. 33. Curran Associates, Inc., 2020, pp. 12 449–12 460. [36] W.-N. Hsu, B. Bolte, Y.-H. H. Tsai, K. Lakhotia, R. Salakhut-dinov, and A. Mohamed, “HuBERT: Self-supervised speech representation learning by masked prediction of hidden units,” 
+
+IEEE/ACM Trans. Audio, Speech and Lang. Proc. , vol. 29, p. 3451–3460, 2021. [37] S. Chen, C. Wang, Z. Chen, Y. Wu, S. Liu, Z. Chen, J. Li, N. Kanda, T. Yoshioka, X. Xiao, J. Wu, L. Zhou, S. Ren, Y. Qian, Y. Qian, J. Wu, M. Zeng, X. Yu, and F. Wei, “WavLM: Large-scale self-supervised pre-training for full stack speech processing,” 
+
+IEEE Journal of Selected Topics in Signal Processing , vol. 16, no. 6, pp. 1505–1518, 2022. [38] V. Panayotov, G. Chen, D. Povey, and S. Khudanpur, “Lib-rispeech: an asr corpus based on public domain audio books,” in 
+
+2015 International Conference on Acoustics, Speech and Signal Processing . IEEE, 2015, pp. 5206–5210. [39] A. Conneau, A. Baevski, R. Collobert, A. Mohamed, and M. Auli, “Unsupervised Cross-Lingual Representation Learning for Speech Recognition,” in Interspeech , 2021, pp. 2426–2430. [40] J. Li, M. Hasegawa-Johnson, and N. L. McElwain, “Towards Ro-bust Family-Infant Audio Analysis Based on Unsupervised Pre-training of Wav2vec 2.0 on Large-Scale Unlabeled Family Au-dio,” in Interspeech , 2023, pp. 1035–1039. [41] F.-J. Chang, J. Liu, M. Radfar, A. Mouchtaris, M. Omologo, A. Rastrow, and S. Kunzmann, “Context-aware transformer trans-ducer for speech recognition,” in Automatic Speech Recognition and Understanding Workshop . IEEE, 2021, pp. 503–510. [42] N. Majumder, S. Poria, D. Hazarika, R. Mihalcea, A. Gelbukh, and E. Cambria, “Dialoguernn: An attentive rnn for emotion de-tection in conversations,” in Proceedings of the AAAI conference on artificial intelligence , vol. 33, no. 01, 2019, pp. 6818–6825. [43] M. Kumar, S. H. Kim, C. Lord, and S. Narayanan, “Improv-ing speaker diarization for naturalistic child-adult conversational interactions using contextual information,” The Journal of the Acoustical Society of America , vol. 147, no. 2, pp. EL196–EL200, 2020. [44] M. Lavechin, R. Bousbib, H. Bredin, E. Dupoux, and A. Cristia, “An Open-Source Voice Type Classifier for Child-Centered Day-long Recordings,” in Interspeech , 2020, pp. 3072–3076.
