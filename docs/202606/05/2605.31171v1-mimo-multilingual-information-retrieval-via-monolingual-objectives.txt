@@ -1,0 +1,570 @@
+Title: MIMO: Multilingual Information Retrieval via Monolingual Objectives
+
+URL Source: https://arxiv.org/pdf/2605.31171v1
+
+Published Time: Mon, 01 Jun 2026 01:06:07 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+# MIMO: Multilingual Information Retrieval via Monolingual Objectives 
+
+Youngjoon Jang, Seongtae Hong, Heuiseok Lim *
+
+Department of Computer Science and Engineering, Korea University 
+
+{dew1701, ghdchlwls123, limhseok}@korea.ac.kr 
+
+Abstract 
+
+Multilingual Information Retrieval (MLIR) reflects real-world search environments in which queries and relevant documents may ap-pear in different languages within a mixed-language corpus. However, existing embed-ding models are primarily optimized for Multi-Monolingual retrieval and their performance often degrades in MLIR settings. Moreover, di-rectly applying conventional contrastive learn-ing to MLIR can exacerbate language clus-tering and expose a trade-off between cross-lingual alignment and embedding uniformity. To address these limitations, we propose 
+
+MIMO : Multilingual Information Retrieval via 
+
+Monolingual Objectives, a two-stage frame-work that uses a stable English semantic space from a high-performing teacher model as an an-chor. MIMO first initializes the student model’s cross-lingual alignment through knowledge distillation, and then jointly optimizes dis-tillation and cross-lingual contrastive learn-ing to improve retrieval discrimination while preserving alignment. Extensive experiments show that MIMO consistently outperforms ex-isting cross-lingual training baselines across various MLIR and Multi-Monolingual bench-marks. MIMO also remains competitive with off-the-shelf models of similar or larger pa-rameter scales. Furthermore, our cross-lingual Alignment-Uniformity analysis clarifies the dis-tinct roles of the two loss components and shows that their combination yields a favorable trade-off between alignment and uniformity. 
+
+1 Introduction 
+
+As Information Retrieval (IR) technologies be-come globally ubiquitous, real-world user search environments are inevitably becoming multilin-gual (Hong et al., 1996; Peters et al., 2012; Sujatha and Dhavachelvan, 2011; Rahimi et al., 2015). For instance, even when an English speaker issues a 
+
+> *
+
+Corresponding author cos sim = 0.86         
+
+> (a) Monolingual (en en)
+> Query (en) Relevant doc Corpus docs
+> cos sim = 0.83
+> (b) Monolingual (ko ko)
+> Query (ko) Relevant doc Corpus docs
+> avg cos sim = 0.73
+> (c) Multilingual (en multi)
+> Query (en)
+> Relevant docs
+> English
+> German
+> Russian
+> Korean
+> avg cos sim = 0.67
+> (d) Multilingual (ko multi)
+> Query (ko)
+> Relevant docs
+> English
+> German
+> Russian
+> Korean
+
+Figure 1: An illustration of the embedding space us-ing xlm-roberta-large model trained with standard In-foNCE loss on monolingual pairs on the Belebele par-allel dataset. (a) and (b) show monolingual retrieval scenarios where queries and corpus are in the same lan-guage. (c) and (d) demonstrate multilingual scenarios where corpus consist of mixed languages. 
+
+query in English, the most relevant and high-quality documents may be written in other languages, such as Korean, Chinese, or Spanish. This open-ended environment, where user queries and target docu-ments can be in any arbitrary, distinct languages, is defined as Multilingual Information Retrieval (MLIR) (Peters and Braschler, 2002). To maximize user accessibility to information in the global web ecosystem, search systems capable of effectively handling these MLIR scenarios are essential (Nie et al., 2000; Si et al., 2017). Recently, advancements in dense retrieval based on multilingual Pre-trained Language Mod-els (mPLMs) have significantly improved the performance of models handling multiple lan-guages (Zhang et al., 2024; Chen et al., 2024; Akram et al., 2026; Zhang et al., 2025; Eslami 1
+
+> arXiv:2605.31171v1 [cs.IR] 29 May 2026
+
+et al., 2026). However, existing multilingual re-trieval models, along with their training strategies and evaluation datasets, are predominantly opti-mized for Multi-Monolingual IR scenarios, where the query and document languages remain identi-cal. While these models exhibit outstanding match-ing performance within individual languages, they reveal severe limitations in MLIR scenarios that re-quire identifying relevant answers across language boundaries within a mixed-language corpus (Park and Lee, 2025; Hong et al., 2026). The issues faced by conventional training methodologies in MLIR environments are clearly observed in Figure 1. This figure visualizes queries and documents from the Belebele paral-lel dataset (Bandarkar et al., 2024) in the embed-ding space, using an xlm-roberta-large encoder fine-tuned exclusively with the InfoNCE objective on monolingual query-positive pairs. As shown in (a) and (b), in Multi-Monolingual scenarios where the query and document languages are identical, the model successfully places the query and its posi-tive document close together, yielding high cosine similarities of 0.86 and 0.83. Conversely, (c) and (d) illustrate MLIR scenarios where a single query is evaluated against a mixed-language corpus. Specifically, the model is tasked with retrieving from a mixed corpus where four se-mantically identical documents are translated into four different languages. In these cases, the data points are severely clustered by language rather than semantics. Even though the four documents possess identical meanings, their superficial linguis-tic differences cause the average cosine similarity to drop significantly to 0.73 and 0.67. This indicates that InfoNCE, a widely-used training method fails to achieve proper cross-lingual alignment, leading to the formation of language-specific islands and ultimately causing a degradation in MLIR perfor-mance. To resolve these issues, we propose MIMO (Mul-tilingual Information Retrieval via Monolingual Objectives). MIMO utilizes a robust English em-bedding space from a high-performing teacher model as an absolute anchor. The student model ini-tializes its cross-lingual alignment space through a Stage 1 knowledge distillation warmup, learn-ing to map multilingual inputs into the teacher’s English semantic space. In the subsequent Stage 2, it jointly optimizes knowledge distillation and cross-lingual contrastive learning. Notably, while it was known from Wang and Isola (2020) that contrastive learning improves embedding unifor-mity, our study indicates that knowledge distilla-tion drives the alignment of the embedding space in cross-lingual environments. Building upon this discovery, MIMO effectively separates the roles of each loss function, providing an effective operating point to balance the alignment-uniformity trade-off. In summary, the main contributions of this paper are as follows: • We propose MIMO, a two-stage training pipeline for MLIR that uses a stable English semantic anchor provided by a teacher model to combine knowledge distillation and cross-lingual contrastive learning for multilingual representation learning. • We extend the Alignment-Uniformity analysis to cross-lingual settings, clarifying the distinct roles of the distillation and contrastive objec-tives and showing that their combination pro-vides a favorable trade-off between alignment and uniformity. • MIMO consistently outperforms existing cross-lingual training baselines on MLIR and multi-monolingual benchmarks. It also achieves highly competitive performance against off-the-shelf models of similar or larger parameter scales. 
+
+2 Related Works 
+
+2.1 Multilingual Retrieval Settings 
+
+Multilingual retrieval environments can be defined in various ways depending on the language com-position of the query and the corpus. Building upon the definitions discussed in the early Cross-Language Evaluation Forum (CLEF) and Neu-CLIRBench, we categorize the environments of modern retrieval benchmarks as shown in Table 1 (Braschler, 2002; Lawrie et al., 2025).                      
+
+> Setting Query Language Corpus Language
+> Monolingual IR L1(fixed) L1(fixed) Cross-Lingual IR (CLIR) L1(fixed) L2(fixed) Multi-Monolingual IR LL(same, but Lvaries)
+> Multilingual IR (MLIR) L(any) Lmixed
+> Table 1: Comparison of multilingual retrieval settings.
+> L,L1, and L2denote specific languages.
+
+Despite MLIR being the most realistic setting for global web search, recent benchmarks predom-inantly focus on Multi-Monolingual IR, where 2query and document languages are paired identi-cally (Zhang et al., 2021; Chen et al., 2024; Akram et al., 2026; Eslami et al., 2026). Even advanced mixed-corpus benchmarks like NeuCLIRBench restrict queries strictly to English (Lawrie et al., 2025), leaving a critical gap in evaluating any-to-any language retrieval. 
+
+2.2 Training Methods Contrastive Learning The InfoNCE loss is the standard dense retrieval objective, optimizing mod-els by pulling a query closer to a positive document while pushing away in-batch negatives (Karpukhin et al., 2020). However, existing multilingual re-trieval models predominantly train on monolin-gual query-document pairs (Babakhin et al., 2025). Therefore, models trained solely with this formula-tion possess a fundamental limitation in effectively bridging the semantic gap between texts written in different languages. 
+
+Cross-Lingual Alignment To enhance cross-lingual alignment, Chi et al. (2021) proposed a Cross-lingual Contrastive (XLCO) Objective that directly utilizes query-document pairs in different languages. In a similar vein, Yang et al. (2024) proposed the LaKDA loss, which minimizes the Symmetric KL Divergence between the similarity probability distributions of semantically parallel query pairs over a batch of documents. However, these methodologies share a common limitation: they remain confined to relative alignment, attempt-ing to match multilingual representations internally within the student model. Due to the absence of a stable absolute anchor, there is a distinct limit to constructing the unified high-dimensional semantic space required for high absolute retrieval perfor-mance in an MLIR environment. 
+
+Knowledge Distillation To introduce an absolute anchor, Knowledge Distillation has been actively explored. Notably, Reimers and Gurevych (2020) constructed multilingual sentence embeddings by encouraging a student model to mimic the embed-ding space of a proven English monolingual model using Mean Squared Error. While highly effective in cross-lingual transfer, its evaluation is largely confined to Multi-Monolingual scenarios and Se-mantic Textual Similarity (STS) tasks. Building upon this, our MIMO framework uti-lizes a robust English embedding space as an ab-solute anchor. We advance this approach through a novel two-stage training strategy and extend the Alignment-Uniformity analysis (Wang and Isola, 2020) to cross-lingual environments. We empir-ically demonstrate that while pure distillation is highly effective at forming cross-lingual alignment, it can compromise embedding uniformity, the core component of Information Retrieval required to discriminate subtle semantic differences among vast amounts of documents. MIMO effectively miti-gates this trade-off via joint optimization, achieving an optimal balance between robust alignment and spatial uniformity. 
+
+3 MIMO 
+
+We propose MIMO, a novel two-stage training framework for MLIR environments. MIMO adopts a Knowledge Distillation architecture that desig-nates a high-performance embedding model as the teacher and a relatively smaller multilingual language model as the student. Specifically, the teacher model observes only inputs in English throughout the training process, providing a con-stant and stable semantic anchor. The student model receives inputs of the same meaning in vari-ous languages and learns to project them into the English embedding space of the teacher model. Through this, it effectively aligns multilingual rep-resentations into a unified semantic space. 
+
+3.1 Stage 1: Cross-Lingual Distillation 
+
+The objective of the first stage of MIMO is to ini-tialize the student model’s multilingual embedding space to mimic the English embedding space of the teacher model. This encourages the student model to acquire foundational cross-lingual understanding capabilities, mapping texts from various languages into a shared semantic space prior to undertaking full-scale retrieval-specific training. 
+
+Dataset For Stage 1 training, we utilize English-Multilingual text translation pairs ( ten , t XX ) from the OPUS parallel corpus (Tiedemann, 2012; Zhang et al., 2020). Specifically, we select the same 14 target languages used in the mMARCO dataset (Bonifacio et al., 2021) for Stage 2 training, sampling up to 500,000 sentence pairs per language to ensure training balance. Details are provided in Appendix B.1. 
+
+Training The teacher model Et encodes the cor-responding English text ten , while the student model Es encodes the text tXX composed in an arbitrary language. To match the embedding dimen-sions between the two models, we apply a linear 3projection layer ψ : Rn → Rm to the output of the student model, following Kim et al. (2023). Here, 
+
+n and m are the hidden dimension sizes of the stu-dent and teacher models respectively, and ψ(z) is defined as ψ(z) = W z + b. Finally, training pro-ceeds to minimize the cosine distance between the two representations (Wang et al., 2018): 
+
+LStage 1 = 1 − cos( ψ(Es(tXX )) , E t(ten )) 
+
+3.2 Stage 2: Joint Optimization for MLIR 
+
+Knowledge distillation alone is limited in address-ing the Information Retrieval task, which requires identifying the correct answer among vast candi-date documents. Therefore, Stage 2 employs a train-ing approach that combines Distillation and Con-trastive Learning. 
+
+Dataset We utilize the mMARCO parallel dataset comprising 14 languages to jointly opti-mize cross-lingual contrastive learning, which ac-quires retrieval capabilities, and knowledge distil-lation, which retains the teacher model’s knowl-edge. Each training data instance consists of an En-glish query qen and a positive passage pen , along with their corresponding translated query qXX 
+
+and positive passage pY Y in arbitrary languages: 
+
+{qen , p en , q XX , p Y Y }. The details are provided in Appendix B.2. 
+
+Embedding Distillation Loss The distillation loss is calculated by reusing the same linear pro-jection layer ψ from Stage 1. The teacher model encodes the English query qen and document pen to provide a stable target space that the student model must reach: 
+
+LDistill = [1 − cos( ψ(Es(qXX )) , E t(qen ))] + [1 − cos( ψ(Es(pY Y )) , E t(pen ))] 
+
+This loss prevents the embedding space from frag-menting by language and serves as an anchor to en-sure that the student model retains the rich semantic properties transferred from the teacher model. 
+
+Cross-lingual Contrastive Loss To secure the student model’s retrieval capabilities, we also in-clude a cross-lingual contrastive learning loss (XLCO). The student model encodes pairs of query 
+
+qXX and document pY Y composed in arbitrary, distinct languages, and the contrastive loss is calcu-lated using a temperature parameter τ and in-batch negatives pj within a batch size B as follows: 
+
+LXLCO = − log exp( s(qXX , p Y Y )/τ )
+
+PBj=1 exp( s(qXX , p j )/τ )
+
+This loss function distances the positive document from numerous negative documents, training the model to acquire the discrimination ability essential for retrieval tasks. 
+
+Joint Optimization Objective Finally, the Stage 2 training loss of MIMO is formulated as the weighted sum of these two components: 
+
+LStage 2 = λ · L XLCO + (1 − λ) · L Distill 
+
+The weight parameter λ plays a key role in bal-ancing the acquisition of retrieval discrimination (LXLCO ) and the retention of cross-lingual knowl-edge ( LDistill ). 
+
+4 Experimental Setup 
+
+4.1 Training Configuration 
+
+We use xlm-roberta-large (Conneau et al., 2020) and mmBERT-base (Marone et al., 2025) with mean pooling as our student backbones, and Qwen3-Embedding-8B (Zhang et al., 2025) as the teacher model. To enable the large-scale in-batch negatives essential for contrastive learning, we em-ploy gradient caching (Gao et al., 2021) to achieve a global batch size of 2048. We set the Stage 2 loss weight λ to 0.2. Comprehensive training details are provided in Appendix B and Appendix C. 
+
+4.2 Evaluation Benchmarks 
+
+To evaluate MIMO in MLIR environments, we uti-lize six distinct evaluation benchmarks. 
+
+MLIR We first construct an MLIR benchmark by combining high-quality parallel datasets: Bele-bele (Bandarkar et al., 2024), MLQA (Lewis et al., 2020), MultiEuP-v2 (Yang et al., 2024), and XQuAD (Artetxe et al., 2019). While these datasets inherently contain queries and semantically linked documents across multiple languages, they are con-ventionally evaluated in individual language pairs. To adapt these datasets for MLIR, we construct a unified multilingual retrieval corpus by mixing all language versions of the context passages, inspired by LAReQA (Roy et al., 2020). For each query, we treat the source-language gold context and all target-language versions of that context as positive documents, as they share completely identical se-mantics but differ only in language. In this setup, the model must successfully retrieve all relevant multilingual positive documents from the mixed corpus, regardless of language. In our experiments, 4Model Method Belebele (14) MLQA (7) XQuAD (8) MultiEuP (6) NeuCLIR22 (2) NeuCLIR23 (2) AVG                                                         
+
+> xlm-roberta-large InfoNCE 35.86 24.86 42.47 17.23 36.83 31.20 31.41 XLCO 74.02 41.95 77.50 41.02 46.99 37.62 53.18 LaKDA 73.90 41.99 77.54 41.09 46.20 36.96 52.95
+> MIMO (Ours) 84.18 49.83 86.05 47.06 55.40 41.62 60.69
+> mmBERT-base InfoNCE 31.45 25.86 39.92 15.61 40.19 32.12 30.86 XLCO 70.70 40.21 76.00 35.97 45.28 39.34 51.25 LaKDA 70.79 40.27 75.94 36.08 44.84 39.93 51.31
+> MIMO (Ours) 80.27 46.06 83.18 45.11 50.51 43.37 58.08
+
+Table 2: MLIR performance comparison of the proposed MIMO method against baselines. The numbers in parentheses indicate the number of languages evaluated for each dataset. Best results are highlighted in bold. 
+
+we utilize the subset of 14 languages that overlap with mMARCO. Furthermore, we additionally utilize the Neu-CLIR 2022 (Lawrie et al., 2023) and NeuCLIR 2023 (Lawrie et al., 2024) benchmarks, which are widely used for evaluating existing MLIR. These benchmarks require retrieving answers from a mixed corpus of Chinese (zh), Russian (ru), and Persian (fa) given an English (en) query. For fair evaluation, we filter the corpus to include only Chi-nese and Russian documents, as these languages overlap with our mMARCO training data. Fol-lowing the convention of prior studies, we use nDCG@20 as the evaluation metric for all MLIR settings (Lawrie et al., 2025). 
+
+Multi-Monolingual IR Additionally, to evalu-ate Multi-Monolingual IR performance, we con-duct evaluations on 10 languages (overlapping with mMARCO) using the MIRACL benchmark, a widely used standard for evaluating multilingual retrieval models. Unlike MLIR, this setting repre-sents a retrieval environment where the languages of the query and the search corpus are fixed to be identical. According to the official specifications, nDCG@10 is used as the evaluation metric. All evaluations are conducted using MTEB 1 (Muennighoff et al., 2022; Enevold-sen et al., 2025). Detailed descriptions and statistics of each dataset used for evaluation can be found in Appendix D. 
+
+4.3 Baselines 
+
+To evaluate the effectiveness of the MIMO method-ology, we select representative loss functions widely used in training retrievers (InfoNCE, XLCO, LaKDA) as our baselines, as discussed in Section 2. To ensure experimental rigor, all baseline models are trained under exactly the same conditions as 
+
+> 1https://github.com/ embeddings-benchmark/mteb
+
+MIMO (identical backbone models, datasets, hy-perparameters, and computing resources), differing only in the formulation of the loss function. De-tailed implementation settings for the baselines are provided in Appendix A. Additionally, to provide a broader context against established production models, we evaluate several strong off-the-shelf multilingual retrievers in a zero-shot setting. A comprehensive compar-ison and analysis of these models are detailed in Appendix E. 
+
+5 Results & Analysis 
+
+5.1 Main Results 
+
+Table 2 presents the MLIR performance (nDCG@20) evaluated on six multilingual retrieval benchmarks based on two student models. Experimental results show that the proposed MIMO framework consistently and substantially outperforms all existing training baselines across both models. Notably, InfoNCE, which utilizes only monolingual query-document pairs, exhib-ited the lowest performance. This indicates that contrastive learning alone tends to cluster embed-dings by language, leading to failures in a mixed-language corpus. While XLCO and LaKDA, which utilize cross-lingual pairs, improved performance over InfoNCE, they still fall short of MIMO. This suggests that combining knowledge distillation us-ing the teacher model’s English embedding space with contrastive learning is a robust and general-ized training methodology that endows multilin-gual information retrieval capabilities, regardless of parameter scale. 
+
+5.2 Impact of Training Stages 
+
+MIMO consists of a two-stage training pipeline: Knowledge Distillation Warmup (Stage 1) and Joint Optimization (Stage 2). Table 3 presents the ablation study results to verify the effectiveness 5Dataset Stage1 Only Stage2 Only Stage1 + Stage2                      
+
+> Belebele 83.22 73.29 84.39
+> MLQA 45.26 41.10 49.86
+> XQuAD 87.02 76.90 86.41 MultiEuP 40.70 40.24 46.99
+> NeuCLIR22 48.50 46.83 55.40
+> NeuCLIR23 39.88 38.29 41.62 AVG 57.43 52.77 60.78
+
+Table 3: MLIR performance (nDCG@20) comparison across different training stages. 
+
+of this two-stage approach. All experiments are conducted using the xlm-roberta-large backbone model. When only the Stage 1 warmup is performed (Stage 1 Only), the student model merely learns to mimic the English embeddings from the teacher rather than the retrieval task itself, and therefore underperforms the full pipeline. Nevertheless, it even surpasses XLCO and LaKDA in Table 2. This suggests that Teacher Distillation alone already pro-vides strong cross-lingual alignment. Furthermore, when the Stage 2 joint optimiza-tion loss is applied directly to the backbone without warmup (Stage 2 Only), the average retrieval per-formance is in fact the lowest among the three set-tings, falling below even the distillation-only model. This demonstrates that, prior to cross-lingual con-trastive fine-tuning, it is highly beneficial to first initialize the student model’s multilingual represen-tations into the teacher model’s English embedding space to form a foundational alignment; without this warmup, contrastive learning struggles to orga-nize the multilingual representation space. 
+
+5.3 Optimal Balance of Loss Components 
+
+In MIMO’s Stage 2 joint loss function, the weight parameter λ determines the balance between con-trastive learning ( LXLCO ) and knowledge distilla-tion ( LDistill ). Figure 2 shows the average MLIR performance according to varying values of λ,alongside the baseline performances for context. Experimental results show that pure Knowledge Distillation ( λ = 0 .0) records the lowest score among the variants, and pure XLCO ( λ = 1 .0)shows relatively high performance. This implies that learning discrimination ability through cross-lingual contrastive learning is necessary for the retrieval task. Crucially, MIMO consistently outperforms all existing baselines across the entire range of λ. The highest performance is achieved at λ = 0 .2, estab-52      
+
+> 54
+> 56
+> 58
+> 60
+> MIMO
+> InfoNCE
+> XLCO
+> LaKDA
+> Stage1
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> 32
+> 34
+> MLIR AVG
+
+Figure 2: Impact of the weight parameter λ on MLIR average performance (nDCG@20). Horizontal lines de-note the performance of the baselines and the Stage 1 warmup model. λ = 0 .0 represents pure distillation (LDistill ), while λ = 1 .0 represents pure cross-lingual contrastive learning ( LXLCO ). 
+
+lishing a substantial gap over the strongest base-lines (XLCO and LaKDA). Performance steadily decreases as λ increases beyond this point, indi-cating that the optimal operating point is achieved when blending the two losses with a higher pro-portion of Distillation. This suggests that while the discrimination power provided by contrastive learning is essential for retrieval tasks, an excessive proportion can compromise the rich knowledge dis-tilled from the teacher model. 
+
+5.4 Alignment-Uniformity Analysis 
+
+To diagnose the underlying mechanics across vary-ing λ, we extend the Alignment-Uniformity frame-work (Wang and Isola, 2020) to the MLIR domain. We evaluate this using the fully parallel Belebele dataset across 14 languages, redefining positive pairs as all 14 semantically identical documents in different languages. 
+
+Metrics Cross-lingual Alignment measures the mean squared distance between strictly parallel cross-lingual documents: 
+
+ℓalign = E(xLi ,x Lj )∥f (xLi ) − f (xLj )∥2
+
+Here, f (·) is the encoder, and (xLi , x Lj ) denotes a pair of semantically identical documents trans-lated into distinct languages Li and Lj . Crucially, this expectation is computed across all possible language pairs among the 14 Belebele languages, ensuring an evaluation of the universal semantic space. Lower ℓalign values indicate that identical 60.155       
+
+> 0.160
+> 0.165
+> 0.170
+> 0.175
+> 0.180
+> 0.185
+> 3.68 3.64 3.60 3.56
+> 0.090
+> 0.095
+> 0.100
+> 3.15 3.11 58.2
+> 60.2
+> 60.2
+> 60.3
+> 60.6
+> 60.8
+> MLIR AVG
+> Uniformity ( )
+> Cross-lingual Alignment (  )
+> =1.0
+> =0.8
+> =0.6
+> =0.4
+> =0.2
+> =0.0
+
+Figure 3: Alignment and Uniformity analysis of MIMO variants with different λ values. Lower values indicate better cross-lingual alignment and better uniformity. 
+
+semantics are closely matched regardless of lan-guage. Conversely, Uniformity calculates the pair-wise Gaussian potential: 
+
+ℓuniform = log E(x,y ) e−t∥f (x)−f (y)∥2
+
+Here, (x, y ) represents any two documents indepen-dently sampled from the entire mixed 14-language corpus, regardless of their language or meaning, and t is a hyperparameter (set to t = 2 in our ex-periment). Lower ℓuniform values signify evenly dis-tributed embeddings, securing the discriminative power essential for retrieval. 
+
+Analysis of the Trade-off Figure 3 confirms that the two loss components perform distinct roles, forming a clear trade-off. Pure knowledge distillation ( λ = 0 .0) yields the best (lowest) alignment by strongly binding multilingual representations to the teacher’s anchor. However, it severely compromises spatial unifor-mity, losing the discrimination power needed to distinguish among numerous negative documents. Conversely, pure contrastive learning ( λ = 1 .0)maximizes (scores lowest) uniformity but notice-ably degrades cross-lingual alignment. Ultimately, MIMO’s joint optimization at λ =0.2 finds an optimal balance in this trade-off. It secures sufficient spatial uniformity for robust re-trieval while preserving much of the deep cross-lingual alignment transferred from the teacher. For a broader Alignment-Uniformity comparison against existing training baselines, we provide ad-ditional analysis in Appendix F. 
+
+5.5 Language Fairness and Consistency 
+
+For a MLIR system to be trusted in a real-world environment, it must provide consistent retrieval Arabic  
+
+> German
+> Dutch
+> Spanish
+> French
+> Hindi
+> Indonesian
+> Italian
+> Japanese
+> Portuguese Russian
+> Vietnamese
+> Chinese
+> -60
+> -40
+> -20
+> 0
+> 20
+> 40
+> 60
+> InfoNCE
+> XLCO
+> LaKDA
+> MIMO (Ours)
+
+Figure 4: Radar chart of Multilingual Rank-based Con-sistency (MRC@10) across different query languages. The scores are scaled by a factor of 100. 
+
+results without language bias, regardless of the lan-guage in which the user inputs the query. To evalu-ate the linguistic fairness of the models, we adopt the Multilingual Rank-based Consistency (MRC) metric recently proposed by Yang et al. (2024). MRC evaluates whether the document rankings returned by the retrieval model remain consistent when semantically identical queries are input in different languages. 
+
+Measurement of MRC Specifically, the MRC@ k metric is calculated using a parallel query set composed of L = 14 languages from the Belebele dataset. For a specific query index i,let R(q(i,a )) denote the top-k document ranking returned for the query in target language a. The pairwise consistency between language a and another language b is computed using Spearman’s rank correlation, corr (R(q(i,a )), R (q(i,b ))) , over the union of their retrieved documents. The consistency score for query i in language a is obtained by averaging these correlation coefficients across all other L − 1 languages: 
+
+RC i 
+
+> (a)
+
+= 1
+
+L − 1
+
+X
+
+> b̸=a
+
+corr (R(q(i,a )), R (q(i,b ))) 
+
+(1) The final MRC@ k score for a particular language 
+
+a is then calculated by averaging these consistency scores across all N test queries: MRC @k(a) = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+RC i 
+
+> (a)
+
+(2) In short, a higher MRC score and a radar chart closer to a regular polygon suggest that retrieval 7Model Method ar de en es fr hi id ja ru zh AVG                                                                                         
+
+> xlm-roberta-large InfoNCE 51.88 33.75 35.74 39.20 33.61 36.86 37.88 39.01 38.81 36.44 38.32 XLCO 51.34 37.95 38.04 39.46 35.13 37.49 38.15 40.41 40.65 41.28 39.99 LaKDA 52.40 38.56 38.41 39.72 36.96 37.98 38.41 41.10 41.70 41.09 40.63
+> MIMO 53.40 43.81 42.72 43.10 43.46 41.19 39.51 44.11 47.54 42.78 44.16
+> mmBERT-base InfoNCE 50.26 35.16 35.73 39.73 33.75 36.15 36.40 40.58 36.65 34.29 37.87 XLCO 44.23 37.54 37.42 38.78 35.91 29.94 36.66 39.71 36.17 38.26 37.46 LaKDA 44.87 37.59 37.57 39.26 36.21 30.76 37.37 39.95 36.48 38.40 37.85
+> MIMO 43.65 40.28 40.79 41.38 39.09 31.78 36.56 40.26 38.88 42.46 39.51
+> Table 4: Multi-Monolingual performance comparison across different models and methods.
+
+performance is more stable and consistent across query languages, indicating lower sensitivity to the superficial language used for the query. 
+
+Language Bias in Existing Methods Figure 4 visualizes the MRC@10 scores per query lan-guage for the four training methodologies. The In-foNCE model, which relies solely on monolingual query-document pairs, exhibits severe language bias where ranking consistency is compromised depending on the query language. XLCO, which introduces cross-lingual contrastive learning, and LaKDA, which combines a distribution alignment loss specifically designed to ensure linguistic fair-ness, improved overall consistency compared to In-foNCE. However, they still exhibit irregular shapes with consistency scores fluctuating depending on the query language. 
+
+Superior Consistency of MIMO In contrast, the proposed MIMO framework consistently outper-forms the existing baseline models across all query languages, forming a broader and more uniform trajectory. Notably, MIMO’s consistency, which utilizes the teacher’s target space, is more stable than the LaKDA method, which explicitly sets cross-lingual alignment and language bias mitiga-tion as its direct training objectives. This shows that MIMO’s two-stage pipeline, combining knowl-edge distillation and contrastive learning, strongly binds multilingual representations to the teacher’s semantic space, thereby constructing a more ro-bust retrieval system unswayed by the superficial linguistic form of the query. 
+
+5.6 Multi-Monolingual Retrieval Performance 
+
+While the primary objective of this study is to im-prove the MLIR environment, it is also crucial to verify whether the proposed model can maintain and enhance robust performance in traditional re-trieval settings. To this end, we conduct additional evaluations using MIRACL, a Multi-Monolingual retrieval benchmark where the languages of the query and the search corpus remain identical. Table 4 presents the evaluation results on the MIRACL benchmark across 10 languages. Experi-mental results show that MIMO achieves the high-est average performance, substantially outperform-ing existing baselines on average for both back-bone models. InfoNCE, based on monolingual con-trastive learning, recorded the lowest average score, followed by XLCO and LaKDA. MIMO estab-lished a substantial average performance gap over LaKDA, the highest-performing baseline. These results suggest that MIMO’s two-stage joint optimization framework is not merely a lo-calized methodology addressing only the Cross-lingual Alignment problem. It indicates that the high-quality semantic knowledge transferred from the English embedding space of the teacher model enriches the overall representational power of the student model and improves the uniformity of the embedding space, thereby advancing query-document matching capabilities even within the same language. 
+
+6 Conclusion 
+
+In this paper, we propose MIMO, a two-stage train-ing framework for Multilingual Information Re-trieval (MLIR). By anchoring to a high-performing teacher’s English semantic space, MIMO com-bines knowledge distillation and cross-lingual con-trastive learning to achieve an optimal balance be-tween cross-lingual alignment and embedding uni-formity. MIMO consistently outperforms existing training baselines across both MLIR and Multi-Monolingual benchmarks. Furthermore, its strong MRC results demonstrate that MIMO delivers sta-ble, unbiased retrieval performance regardless of the query language. 8Limitations 
+
+While the proposed MIMO framework demon-strates substantial improvements in multilingual retrieval and language fairness, this study has a few limitations that point to directions for future work. First, our training and evaluation are currently confined to 14 languages that overlap with the mMARCO dataset. Although these languages cover a diverse range of language families, fur-ther research is required to scale the framework to a much broader set of languages (e.g., 100+ languages). Expanding the evaluation to include extremely low-resource languages is necessary to fully verify the universal applicability of the pro-posed methodology. Second, the training pipeline of MIMO funda-mentally relies on parallel corpora. Specifically, parallel sentence pairs for the Stage 1 warmup and translated query-document pairs for the Stage2 joint optimization. While such parallel data is be-coming increasingly accessible, the strict require-ment for translated pairs can act as a bottleneck when extending the model to underrepresented lan-guages lacking high-quality translation resources. Exploring advanced methods to reduce this depen-dency, such as leveraging unsupervised or weakly supervised cross-lingual alignment techniques, re-mains an important objective for future research. Finally, we note that our constructed MLIR benchmarks are based on parallel corpora, which in-herently rewards exact translation-level alignment. Real-world multilingual web retrieval may involve less strict parallelism and more topical diversity. 
+
+Ethics Statement 
+
+This study utilizes publicly available datasets and open-source libraries for all experiments. We ad-hered to the licenses and terms of use associated with these resources. Regarding the use of AI tools, we utilized AI assistants (ChatGPT, Gemini) exclu-sively for grammatical error correction and polish-ing the text to enhance readability. The scientific ideas and contributions presented in this paper are entirely our own. 
+
+References 
+
+Mohammad Kalim Akram, Saba Sturua, Nastia Havriushenko, Quentin Herreros, Michael Günther, Maximilian Werk, and Han Xiao. 2026. jina-embeddings-v5-text: Task-targeted embedding dis-tillation. arXiv preprint arXiv:2602.15547 .Mikel Artetxe, Sebastian Ruder, and Dani Yogatama. 2019. On the cross-lingual transferability of mono-lingual representations. CoRR , abs/1910.11856. Yauhen Babakhin, Radek Osmulski, Ronay Ak, Gabriel Moreira, Mengyao Xu, Benedikt Schifferer, Bo Liu, and Even Oldridge. 2025. Llama-embed-nemotron-8b: A universal text embedding model for multilingual and cross-lingual tasks. Preprint ,arXiv:2511.07025. Lucas Bandarkar, Davis Liang, Benjamin Muller, Mikel Artetxe, Satya Narayan Shukla, Donald Husa, Naman Goyal, Abhinandan Krishnan, Luke Zettlemoyer, and Madian Khabsa. 2024. The belebele benchmark: a parallel reading comprehension dataset in 122 lan-guage variants. In Proceedings of the 62nd Annual Meeting of the Association for Computational Lin-guistics (Volume 1: Long Papers) , pages 749–775. Luiz Bonifacio, Vitor Jeronymo, Hugo Queiroz Abonizio, Israel Campiotti, Marzieh Fadaee, Roberto Lotufo, and Rodrigo Nogueira. 2021. mmarco: A multilingual version of the ms marco passage rank-ing dataset. arXiv preprint arXiv:2108.13897 .Martin Braschler. 2002. Clef 2002—overview of results. In Workshop of the Cross-Language Evaluation Fo-rum for European Languages , pages 9–27. Springer. Jianlv Chen, Shitao Xiao, Peitian Zhang, Kun Luo, Defu Lian, and Zheng Liu. 2024. Bge m3-embedding: Multi-lingual, multi-functionality, multi-granularity text embeddings through self-knowledge distillation. 
+
+arXiv preprint arXiv:2402.03216 , 4(5). Zewen Chi, Li Dong, Furu Wei, Nan Yang, Saksham Singhal, Wenhui Wang, Xia Song, Xian-Ling Mao, He-Yan Huang, and Ming Zhou. 2021. Infoxlm: An information-theoretic framework for cross-lingual language model pre-training. In Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Hu-man Language Technologies , pages 3576–3588. Alexis Conneau, Kartikay Khandelwal, Naman Goyal, Vishrav Chaudhary, Guillaume Wenzek, Francisco Guzmán, Edouard Grave, Myle Ott, Luke Zettle-moyer, and Veselin Stoyanov. 2020. Unsuper-vised cross-lingual representation learning at scale. 
+
+Preprint , arXiv:1911.02116. Kenneth Enevoldsen, Isaac Chung, Imene Kerboua, Már-ton Kardos, Ashwin Mathur, David Stap, Jay Gala, Wissam Siblini, Dominik Krzemi´ nski, Genta Indra Winata, Saba Sturua, Saiteja Utpala, Mathieu Cian-cone, Marion Schaeffer, Gabriel Sequeira, Diganta Misra, Shreeya Dhakal, Jonathan Rystrøm, Roman Solomatin, and 67 others. 2025. Mmteb: Mas-sive multilingual text embedding benchmark. arXiv preprint arXiv:2502.13595 .Sedigheh Eslami, Maksim Gaiduk, Markus Krimmel, Louis Milliken, Bo Wang, and Denis Bykov. 2026. Diffusion-pretrained dense and contextual embed-dings. arXiv preprint arXiv:2602.11151 .
+
+9Luyu Gao, Yunyi Zhang, Jiawei Han, and Jamie Callan. 2021. Scaling deep contrastive learning batch size under memory limited setup. Preprint ,arXiv:2101.06983. Seongtae Hong, Youngjoon Jang, Hyeonseok Moon, Jungseob Lee, and Heuiseok Lim. 2026. Improv-ing semantic proximity in english-centric informa-tion retrieval through cross-lingual alignment. In 
+
+The Fourteenth International Conference on Learn-ing Representations .Zhou Hong, Chan Syin, and Kok F Lai. 1996. Multi-lingual information retrieval system. In Proc. SPIE ,volume 2916, pages 33–44. Vladimir Karpukhin, Barlas Oguz, Sewon Min, Patrick Lewis, Ledell Wu, Sergey Edunov, Danqi Chen, and Wen-tau Yih. 2020. Dense passage retrieval for open-domain question answering. In Proceedings of the 2020 conference on empirical methods in natural language processing (EMNLP) , pages 6769–6781. Seungyeon Kim, Ankit Singh Rawat, Manzil Zaheer, Sadeep Jayasumana, Veeranjaneyulu Sadhanala, Wit-tawat Jitkrittum, Aditya Krishna Menon, Rob Fergus, and Sanjiv Kumar. 2023. Embeddistill: A geomet-ric knowledge distillation for information retrieval. 
+
+arXiv preprint arXiv:2301.12005 .Dawn Lawrie, Sean MacAvaney, James Mayfield, Paul McNamee, Douglas W Oard, Luca Soldaini, and Eu-gene Yang. 2023. Overview of the trec 2022 neuclir track. arXiv preprint arXiv:2304.12367 .Dawn Lawrie, Sean MacAvaney, James Mayfield, Paul McNamee, Douglas W. Oard, Luca Soldaini, and Eu-gene Yang. 2024. Overview of the trec 2023 neuclir track. Preprint , arXiv:2404.08071. Dawn Lawrie, James Mayfield, Eugene Yang, Andrew Yates, Sean MacAvaney, Ronak Pradeep, Scott Miller, Paul McNamee, and Luca Soldani. 2025. Neuclir-bench: A modern evaluation collection for monolin-gual, cross-language, and multilingual information retrieval. arXiv preprint arXiv:2511.14758 .Patrick Lewis, Barlas Oguz, Ruty Rinott, Sebastian Riedel, and Holger Schwenk. 2020. Mlqa: Evalu-ating cross-lingual extractive question answering. In 
+
+Proceedings of the 58th annual meeting of the as-sociation for computational linguistics , pages 7315– 7330. Zehan Li, Xin Zhang, Yanzhao Zhang, Dingkun Long, Pengjun Xie, and Meishan Zhang. 2023. Towards general text embeddings with multi-stage contrastive learning. arXiv preprint arXiv:2308.03281 .Marc Marone, Orion Weller, William Fleshman, Eu-gene Yang, Dawn Lawrie, and Benjamin Van Durme. 2025. mmbert: A modern multilingual en-coder with annealed language learning. Preprint ,arXiv:2509.06888. Niklas Muennighoff, Nouamane Tazi, Loïc Magne, and Nils Reimers. 2022. Mteb: Massive text embedding benchmark. arXiv preprint arXiv:2210.07316 .Jian-Yun Nie, Michel Simard, and George Foster. 2000. Multilingual information retrieval based on paral-lel texts from the web. In Workshop of the Cross-Language Evaluation Forum for European Lan-guages , pages 188–201. Springer. Zach Nussbaum and Brandon Duderstadt. 2025. Train-ing sparse mixture of experts text embedding models. 
+
+Preprint , arXiv:2502.07972. Jeonghyun Park and Hwanhee Lee. 2025. Investigating language preference of multilingual rag systems. In 
+
+Findings of the Association for Computational Lin-guistics: ACL 2025 , pages 5647–5675. Carol Peters and Martin Braschler. 2002. The impor-tance of evaluation for cross-language system devel-opment: the clef experience. In LREC .Carol Peters, Martin Braschler, and Paul Clough. 2012. 
+
+Multilingual information retrieval: From research to practice . Springer. Razieh Rahimi, Azadeh Shakery, and Irwin King. 2015. Multilingual information retrieval in the language modeling framework. Information Retrieval Journal ,18(3):246–281. Nils Reimers and Iryna Gurevych. 2020. Making monolingual sentence embeddings multilingual using knowledge distillation. In Proceedings of the 2020 conference on empirical methods in natural language processing (EMNLP) , pages 4512–4525. Uma Roy, Noah Constant, Rami Al-Rfou, Aditya Barua, Aaron Phillips, and Yinfei Yang. 2020. Lareqa: Language-agnostic answer retrieval from a multilin-gual pool. In Proceedings of the 2020 conference on empirical methods in natural language processing (EMNLP) , pages 5919–5930. Li Si, Qiuyu Pan, and Xiaozhe Zhuang. 2017. An empir-ical analysis of user behaviour on multilingual infor-mation retrieval. The Electronic Library , 35(3):410– 426. Pothula Sujatha and P Dhavachelvan. 2011. A review on the cross and multilingual information retrieval. 
+
+International Journal of Web & Semantic Technology ,2(4):115. Jörg Tiedemann. 2012. Parallel data, tools and inter-faces in OPUS. In Proceedings of the Eighth In-ternational Conference on Language Resources and Evaluation (LREC’12) , pages 2214–2218, Istanbul, Turkey. European Language Resources Association (ELRA). Hao Wang, Yitong Wang, Zheng Zhou, Xing Ji, Di-hong Gong, Jingchao Zhou, Zhifeng Li, and Wei Liu. 2018. Cosface: Large margin cosine loss for deep face recognition. In Proceedings of the IEEE con-ference on computer vision and pattern recognition ,pages 5265–5274. 
+
+10 Liang Wang, Nan Yang, Xiaolong Huang, Linjun Yang, Rangan Majumder, and Furu Wei. 2024. Multilin-gual e5 text embeddings: A technical report. arXiv preprint arXiv:2402.05672 .Tongzhou Wang and Phillip Isola. 2020. Understanding contrastive representation learning through alignment and uniformity on the hypersphere. In International conference on machine learning , pages 9929–9939. PMLR. Jinrui Yang, Fan Jiang, and Timothy Baldwin. 2024. Language bias in multilingual information retrieval: The nature of the beast and mitigation methods. In 
+
+Proceedings of the Fourth Workshop on Multilingual Representation Learning (MRL 2024) , pages 280– 292, Miami, Florida, USA. Association for Compu-tational Linguistics. Biao Zhang, Philip Williams, Ivan Titov, and Rico Sen-nrich. 2020. Improving massively multilingual neu-ral machine translation and zero-shot translation. In 
+
+Proceedings of the 58th Annual Meeting of the Asso-ciation for Computational Linguistics , pages 1628– 1639, Online. Association for Computational Linguis-tics. Xin Zhang, Yanzhao Zhang, Dingkun Long, Wen Xie, Ziqi Dai, Jialong Tang, Huan Lin, Baosong Yang, Pengjun Xie, Fei Huang, and 1 others. 2024. mgte: Generalized long-context text representation and reranking models for multilingual text retrieval. In 
+
+Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing: Industry Track , pages 1393–1412. Xinyu Zhang, Xueguang Ma, Peng Shi, and Jimmy Lin. 2021. Mr. TyDi: A multi-lingual benchmark for dense retrieval. In Proceedings of the 1st Workshop on Multilingual Representation Learning , pages 127– 137, Punta Cana, Dominican Republic. Association for Computational Linguistics. Xinyu Zhang, Nandan Thakur, Odunayo Ogundepo, Ehsan Kamalloo, David Alfonso-Hermelo, Xi-aoguang Li, Qun Liu, Mehdi Rezagholizadeh, and Jimmy Lin. 2023. MIRACL: A multilingual retrieval dataset covering 18 diverse languages. Transactions of the Association for Computational Linguistics ,11:1114–1131. Yanzhao Zhang, Mingxin Li, Dingkun Long, Xin Zhang, Huan Lin, Baosong Yang, Pengjun Xie, An Yang, Dayiheng Liu, Junyang Lin, and 1 others. 2025. Qwen3 embedding: Advancing text embedding and reranking through foundation models. arXiv preprint arXiv:2506.05176 .
+
+11 A Baselines 
+
+We compare MIMO against three representative training strategies for multilingual retrieval. 
+
+InfoNCE The standard contrastive learning ob-jective using monolingual query-positive pairs 
+
+(qL, p L):
+
+LInfoNCE = − log exp( s(qL, p L)/τ )
+
+PBj=1 exp( s(qL, p j )/τ )
+
+where s(·, ·) denotes cosine similarity and τ =1/20 is the temperature in our experiment. Since query and document share the same language, this baseline lacks any explicit cross-lingual learning signal. 
+
+XLCO Cross-lingual Contrastive (XLCO) Ob-jective uses cross-lingual pairs (qXX , p Y Y ) where 
+
+XX ̸ = Y Y , applying the same InfoNCE formula-tion but with the query and document in different languages. This forces the model to align represen-tations across language boundaries through con-trastive learning alone. 
+
+LXLCO = − log exp( s(qXX , p Y Y )/τ )
+
+P  
+
+> pj∈B
+
+exp( s(qXX , p j )/τ )
+
+LaKDA Language-aware Knowledge Distilla-tion and Alignment (LaKDA) combines contrastive learning with cross-lingual distribution alignment. Given a query q, the probability distribution 
+
+P (pj |q) over documents pj within batch B is de-fined as: 
+
+P (pj |q) = exp( s(q, p j )/τ )
+
+P  
+
+> pk∈B
+
+exp( s(q, p k)/τ )
+
+Letting P1 and P2 be the distributions derived from two semantically parallel queries qL1 and qL2
+
+(the same query expressed in different languages), LaKDA minimizes a weighted combination of con-trastive loss and Symmetric KL Divergence: 
+
+LLaKDA = (1 − α) · L InfoNCE 
+
++ α · 12
+
+h
+
+DKL (P1∥P2) + DKL (P2∥P1)
+
+i
+
+Following the original implementation, we set α =0.5 in our experiment. 
+
+B Training Dataset Details 
+
+B.1 Stage 1: Cross-lingual Distillation 
+
+For the Stage 1 knowledge distillation warmup, we construct a parallel sentence dataset from                          
+
+> Language # of Pairs Language # of Pairs
+> Arabic (ar) 500,000 Indonesian (id) 500,000 German (de) 500,000 Italian (it) 500,000 Dutch (nl) 500,000 Japanese (ja) 192,283 English (en) 500,000 Portuguese (pt) 500,000 Spanish (es) 500,000 Russian (ru) 500,000 French (fr) 500,000 Vietnamese (vi) 278,507 Hindi (hi) 141,739 Chinese (zh) 35,407
+> Total 5,647,936
+
+Table 5: Stage 1 parallel sentence data statistics per language. 
+
+OPUS 2, which aggregates eight multilingual paral-lel corpora: Europarl, GlobalVoices, JW300, News-Commentary, OpenSubtitles, TED Talks, Tatoeba, and WikiMatrix. Each training instance is an En-glish sentence paired with its translation, forming the pair {ten , t XX }. We apply quality filters to re-move noisy pairs: minimum length of 10 charac-ters, maximum length of 512 characters, and a length ratio (longer/shorter) below 3:1. English-side deduplication is performed to prevent dupli-cate anchors across languages. Each language is capped at 500,000 pairs to limit over-representation of high-resource languages, resulting in a total of 5,647,936 training pairs across 14 languages. Ta-ble 5 summarizes the per-language statistics. 
+
+B.2 Stage 2: Joint Optimization for MLIR 
+
+For Stage 2 joint optimization, we utilize the mMARCO parallel dataset (Bonifacio et al., 2021), a multilingual translation of the MSMARCO pas-sage retrieval corpus covering 14 languages. The resulting dataset contains 415,938 {query, posi-tive} pairs across 14 languages: Arabic (ar), Ger-man (de), Dutch (nl), English (en), Spanish (es), French (fr), Hindi (hi), Indonesian (id), Italian (it), Japanese (ja), Portuguese (pt), Russian (ru), Viet-namese (vi), and Chinese (zh). To ensure fair lan-guage representation, we employ a uniform round-robin sampling strategy with per-cycle shuffling. 
+
+Data Composition for MIMO & XLCO For MIMO and XLCO, which use cross-lingual pairs 
+
+(qXX , p Y Y ) where XX ̸ = Y Y , all 182 ( 14 ×13 = 182 ) ordered language pairs appear with equal fre-quency (2,286 times each, max-min difference of 1), resulting in equal 415,938 pairs. 
+
+Data Composition for InfoNCE For InfoNCE, which uses monolingual pairs, each of the 14 lan-
+
+> 2https://opus.nlpl.eu/
+
+12 guage pairs appear 29,710 times. This uniform dis-tribution prevents any language pair from dominat-ing the training signal. 
+
+Data Composition for LaKDA For LaKDA, which requires two query languages (qXX , q Y Y )
+
+with XX ̸ = Y Y and an independent positive pas-sage p, the query language pairs (XX, Y Y ) follow the same uniform distribution as MIMO (182 pairs, 2,286 times each), while the positive passage lan-guage is sampled independently with uniform dis-tribution across 14 languages (29,710 times each). 
+
+C Training Details 
+
+Teacher Model We use Qwen3-Embedding-8B (Zhang et al., 2025) as the teacher model, which achieves top-ranking performance on MTEB (Muennighoff et al., 2022) at the time of our experiments. The teacher model has approx-imately 8 billion parameters and produces 3,584 dimensional embeddings. It is loaded in bfloat16 precision with Flash Attention 2 and remains com-pletely frozen (no gradient computation) through-out training. 
+
+Teacher Prompt Following the Qwen3-Embedding specification, the teacher model uses the following query prompt during Stage 2 encoding:          
+
+> Instruct: Given aweb search query, retrieve relevant passages that answer the query\nQuery:
+
+No prompt is applied to document inputs. The stu-dent model does not use any prompt during training or inference. Also, we note that we do not use any prompt in Stage 1 training. 
+
+Projection Layer Since the student and teacher models have different embedding dimensions (1,024 for xlm-roberta-large, 768 for mmBERT-base, and 3,584 for the teacher), we introduce a learnable linear projection ψ : Rds → Rdt to map student embeddings into the teacher’s space. This projection is initialized and trained during Stage 1, then used again in Stage 2. Importantly, the projec-tion is discarded at inference time. 
+
+Gradient Caching To achieve the large batch size of 2,048 required for effective contrastive learning, we employ the gradient cache tech-nique (Gao et al., 2021). Forward passes are com-puted in mini-batches of 32 samples, and gradi-                                
+
+> Hyperparameter Stage 1 Stage 2
+> Optimizer AdamW AdamW Learning rate 1×10 −42×10 −5
+> Warmup ratio 0.1 0.1 Batch size (per GPU) 128 2,048 Max seq length (student) 256 512 Max seq length (teacher) 256 512 Epochs 11Mixed Precision bfloat16 bfloat16 GPUs 2×H100 2×H100
+> λ(contrastive weight) —0.2 InfoNCE scale ( 1/τ )—20.0
+> Table 6: Hyperparameters for Stage 1 and Stage 2 train-ing.
+
+ents are accumulated and propagated after all mini-batches are processed. This enables the use of batch sizes that would otherwise exceed GPU memory. 
+
+Hyperparameters Table 6 summarizes the hy-perparameters for each training stage. 
+
+D Evaluation Benchmarks 
+
+All evaluations are conducted using MTEB (Muen-nighoff et al., 2022). Table 7 provides a compre-hensive summary of all evaluation datasets. 
+
+D.1 MLIR Benchmarks 
+
+We evaluate MLIR performance on four bench-marks where queries in any language must retrieve relevant documents from a mixed multilingual cor-pus. For all MLIR benchmarks, we use nDCG@20 as the evaluation metric following the convention of prior studies (Lawrie et al., 2025). 
+
+Belebele Belebele is a multilingual machine read-ing comprehension dataset spanning 122 language variants. Based on the FLORES-200 benchmark, each instance consists of a short passage and a corresponding multiple-choice question. For the retrieval task, we utilize the question stem as the query and the passage as the positive document. A defining feature of Belebele is its full parallelism: the entire set of questions and passages represents strictly parallel content across all 122 languages. For our evaluation, we select the 14 languages that overlap with the mMARCO dataset: Arabic (ar), German (de), Dutch (nl), English (en), Spanish (es), French (fr), Hindi (hi), Indonesian (id), Italian (it), Japanese (ja), Portuguese (pt), Russian (ru), Viet-namese (vi), and Chinese (zh). 
+
+XQuAD XQuAD is a cross-lingual QA bench-mark consisting of a subset of the SQuAD v1.1 13 development set. The dataset was constructed by translating both the questions and the paragraphs from English into 10 target languages. This rig-orous human translation process guarantees that XQuAD is fully parallel; every question and para-graph has an exact, semantically aligned counter-part in all other languages. We utilize the 8 lan-guages intersecting with mMARCO: Arabic (ar), German (de), English (en), Spanish (es), Hindi (hi), Russian (ru), Vietnamese (vi), and Chinese (zh). 
+
+MLQA MLQA is a multi-way aligned extrac-tive QA benchmark covering seven languages. Un-like Belebele or XQuAD, MLQA is designed to be multi-way parallel; each QA instance is aligned across a subset of languages (typically four) rather than the entire set. This structure results from min-ing parallel sentences where overlaps exist across varying language combinations to maximize lin-guistic diversity. Consequently, queries are also not fully parallel across all seven languages for every instance. Instead, for a given document, queries ex-ist only in the specific subset of languages aligned with that document. Despite this partial parallelism, the dataset ensures that within each 4-way subset, the questions and contexts are semantically equiva-lent. Since all 7 languages overlap with mMARCO, we utilize the language set for evaluation: Arabic (ar), German (de), English (en), Spanish (es), Hindi (hi), Vietnamese (vi), and Simplified Chinese (zh). 
+
+MultiEup-v2 Following Yang et al. (2024), we utilize MultiEup-v2 as an MLIR benchmark. The task is defined as retrieving the relevant parliamen-tary speech segment (document) given a subject descriptor (query). The dataset is constructed from European Parliament proceedings, where profes-sional archivists manually assign official subject descriptors (e.g., ‘International Human Rights’) to specific speech segments. Since the descriptors are professionally translated into 24 languages, the same information can be expressed as multilingual queries. In this framework, the ground truth is the specific speech text that was originally tagged with the descriptor by human experts. We use the 6 lan-guages that overlap with mMARCO: German (de), English (en), Spanish (es), French (fr), Italian (it), and Portuguese (pt). 
+
+NeuCLIR We evaluate on NeuCLIR 2022 and NeuCLIR 2023 under a true MLIR setting, in which a single English query must retrieve relevant docu-ments from a corpus that mixes multiple languages,                      
+
+> Dataset # Queries # Corpus # Langs
+> Belebele 12,600 6,832 14 MLQA 42,245 36,799 7XQuAD 9,520 1,920 8MultiEuP 10,686 35,444 6NeuCLIR’22 49 19,049 2NeuCLIR’23 63 33,512 2
+> Table 7: Evaluation benchmark statistics.
+
+following the multilingual retrieval definition of NeuCLIRBench (Lawrie et al., 2025). Construct-ing this setting requires care, because the MTEB NeuCLIR hard-negatives subsets 34 are organized per language. To make this to a MLIR setting, we (i) take the original English (en) queries of NeuCLIR-Bench 5, (ii) pool the Chinese (zh) and Russian (ru) hard-negatives corpora into a single mixed collec-tion, excluding Persian (fas) as it lies outside our 14 training languages, and (iii) judge relevance using the union of the per-language cross-lingual rele-vance judgments ( qrels.rus ∪ qrels.zho )provided by NeuCLIRBench, matched to each En-glish query by its identifier. We keep NeuCLIR 2022 and 2023 as separate tracks, since their query sets are disjoint, and report nDCG@20 consistent with the other MLIR benchmarks. We note that Belebele, XQuAD, MLQA, Neu-CLIR (and its hard negatives mined versions) are all utilized in MMTEB (Enevoldsen et al., 2025), while MultiEup-v2 is adopted to evaluate MLIR tasks following Yang et al. (2024). 
+
+D.2 Multi-Monolingual Benchmark 
+
+For Multi-Monolingual IR evaluation, we use the MIRACL benchmark (Zhang et al., 2023) with hard negatives version 6 across 10 languages: Arabic (ar), Chinese (zh), English (en), French (fr), Ger-man (de), Hindi (hi), Indonesian (id), Japanese (ja), Russian (ru), and Spanish (es). Unlike MLIR, this setting evaluates retrieval where the query and cor-pus share the same language. We use nDCG@10 as the evaluation metric following the official bench-mark specifications. 
+
+> 3https://huggingface.co/datasets/mteb/ NeuCLIR2022RetrievalHardNegatives
+> 4https://huggingface.co/datasets/mteb/ NeuCLIR2023RetrievalHardNegatives
+> 5https://huggingface.co/datasets/ neuclir/bench
+> 6https://huggingface.co/datasets/mteb/ MIRACLRetrievalHardNegatives
+
+14 Model Size Belebele MLQA XQuAD MultiEuP NeuCLIR22 NeuCLIR23 AVG                                                                   
+
+> Large Models ( ≥1B)
+> Qwen3-Embedding-8B (Teacher) 8B 96.29 69.28 95.02 50.88 68.87 55.35 72.62 gte-Qwen2-1.5B-Instruct 1.5B 56.71 30.39 56.45 8.70 33.42 19.48 34.19
+> Small Models ( <1B)
+> Qwen3-Embedding-0.6B 0.6B 81.16 55.88 86.52 43.10 59.35 48.19 62.37 bge-m3 0.6B 84.02 57.33 89.89 43.77 43.19 40.03 59.71 nomic-embed-text-v2-moe 0.5B 78.52 53.82 84.66 43.90 47.67 46.22 59.13 multilingual-e5-large-instruct 0.6B 40.76 35.81 48.60 24.27 55.52 49.28 42.37 multilingual-e5-large 0.6B 61.51 43.01 69.98 30.87 9.69 18.55 38.93
+> MIMO (Ours) 0.6B 84.18 49.83 86.05 47.06 55.40 41.62 60.69
+
+Table 8: MLIR performance (nDCG@20) comparison against strong off-the-shelf multilingual embedding models. Models are grouped by their parameter scale. We highlight the xlm-roberta-large model trained with MIMO. 
+
+E Comparison with Off-the-Shelf Models 
+
+To provide a broader context for the performance of MIMO, we evaluate several off-the-shelf multi-lingual embedding models in a zero-shot setting on our MLIR benchmarks. As shown in Table 8, MIMO operates within the small models category (0.6B scale). Despite its relatively small size, MIMO achieves a highly com-petitive average score of 60.69. Notably, it substan-tially outperforms both multilingual-e5-large and multilingual-e5-large-instruct, which share the ex-act same backbone architecture (Wang et al., 2024). Furthermore, it surpasses both the nomic-embed-text-v2-moe (Nussbaum and Duderstadt, 2025), bge-m3 (Chen et al., 2024) and the much larger 1.5B gte-Qwen2-1.5B-Instruct (Li et al., 2023). It is particularly noteworthy that off-the-shelf mod-els like the nomic-embed-text-v2-moe and bge-m3 rely heavily on extensive hard negative mining pipelines to achieve their performance. In stark con-trast, MIMO achieves this highly competitive per-formance utilizing only simple in-batch negatives on standard parallel corpora, without requiring any complex hard negative mining. This highlights the inherent strength and alignment capability of the proposed training objective. Predictably, MIMO trails slightly behind heav-ily engineered production models like Qwen3-Embedding-0.6B (Zhang et al., 2025) within the same size category. We emphasize that this re-maining performance gap stems from vast differ-ences in engineering scale rather than the fun-damental training objective. Specifically, Qwen3-Embedding-0.6B is trained on massive, propri-etary datasets, incorporating billions of carefully mined hard-negative pairs and complex multi-stage pipelines. In contrast, MIMO was trained on a highly restricted set of datasets. Therefore, while the Qwen3-Embedding-0.6B model represent the upper bound of current in-dustry capabilities, MIMO’s performance demon-strates the orthogonal value of our proposed loss formulation. Integrating the MIMO objective into such large-scale production pipelines could yield even stronger cross-lingual alignment in future re-search. 
+
+F Additional Alignment-Uniformity Analysis 0.83      
+
+> 3.58 3.54 3.50
+> 0.15
+> 0.17
+> 0.19
+> 0.21
+> 3.39 3.37 3.35
+> 31.4
+> 53.0
+> 53.2
+> 60.8
+> MLIR AVG
+> Uniformity ( )
+> Cross-lingual Alignment (  )
+> InfoNCE
+> XLCO
+> LaKDA
+> MIMO
+
+Figure 5: Alignment and Uniformity analysis of base-lines and MIMO. Lower values indicate better cross-lingual alignment and better uniformity. 
+
+In Section 5.4, we analyzed the Alignment-Uniformity trade-off strictly within the variations of MIMO’s joint optimization weight λ. To pro-vide a broader context, Figure 5 extends this anal-ysis to compare MIMO against the baseline train-ing methodologies: InfoNCE, XLCO, and LaKDA. The results vividly demonstrate the fundamental limitations of existing baselines and the superiority 15 Model Method Belebele (14) MLQA (7) XQuAD (8) MultiEuP (6) NeuCLIR22 (2) NeuCLIR23 (2) AVG                             
+
+> mmBERT-base (cls) InfoNCE 29.85 24.92 38.03 15.04 39.21 33.87 30.15 XLCO 67.89 38.51 71.94 34.63 40.13 34.41 47.92 LaKDA 68.13 38.67 72.21 34.87 40.72 34.87 48.24
+> MIMO (Ours) 78.48 44.61 81.24 44.72 51.19 41.78 57.01
+
+Table 9: MLIR performance comparison using the mmBERT-base model with [CLS] pooling. 
+
+of the MIMO framework. 
+
+InfoNCE fails in cross-lingual alignment The InfoNCE model, trained solely on monolingual pairs, exhibits an excessively poor cross-lingual alignment loss (approximately 0.83 ). This visual-izes the phenomenon discussed in Figure 1, where the model completely fails to bridge the semantic gap across different languages, clustering solely by superficial linguistic forms. Consequently, it records the lowest MLIR average performance. 
+
+Trade-off in XLCO and LaKDA Methodolo-gies explicitly utilizing cross-lingual pairs, such as XLCO and LaKDA, successfully reduce the align-ment loss to around 0.19. However, this comes at a severe cost to uniformity, which degrades sub-stantially (shifting rightwards to approximately -3.37). This indicates that while relative alignment techniques pull parallel documents together, their embedding spaces severely collapse. They lose the spatial uniformity strictly necessary to discriminate among a vast pool of negative documents, trapping them in a sub-optimal trade-off. 
+
+MIMO balances alignment and uniformity In stark contrast, MIMO successfully breaks this trade-off barrier. By anchoring to the teacher’s sta-ble English semantic space and jointly optimizing the objectives, MIMO secures the most optimal position in the bottom-left quadrant. It achieves the best (lowest) cross-lingual alignment ( ∼0.15) while maintaining excellent uniformity ( ∼-3.57). This ideal geometric structure of the embedding space translates directly to the highest MLIR per-formance (60.78), establishing a massive gap over all existing baselines. 
+
+G Variant of Pooling Strategy 
+
+In Section 5.1, we employed mean pooling to derive sequence-level embeddings from the stu-dent backbones. To verify that the effectiveness of the proposed MIMO framework is robust and not strictly dependent on a specific pooling method, we conduct an additional evaluation using the [CLS] token representation. Table 9 presents the MLIR performance of the mmBERT-base model trained and evaluated using [CLS] pooling. The experimental results demon-strate that MIMO consistently maintains its supe-riority over all baseline methodologies. Specifi-cally, MIMO achieves an average nDCG@20 of 57.01, establishing a substantial gap of 8.77%p over LaKDA, the strongest baseline in this setting. While the absolute average performance of [CLS] pooling (57.01) is slightly lower than that of mean pooling (58.09), the relative performance trends across the training methods remain identical. This confirms that MIMO’s joint optimization strat-egy fundamentally improves MLIR performance regardless of the underlying pooling mechanism used. 16

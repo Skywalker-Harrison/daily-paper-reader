@@ -1,0 +1,364 @@
+Title: MURMUR: An Efficient Inference System for Long-Form ASR
+
+URL Source: https://arxiv.org/pdf/2606.01483v1
+
+Published Time: Tue, 02 Jun 2026 02:55:55 GMT
+
+Number of Pages: 11
+
+Markdown Content:
+# MURMUR : An Efficient Inference System for Long-Form ASR 
+
+Wei-Tzu Lee Keisuke Kamahori Baris Kasikci 
+
+University of Washington 
+
+{rubywtl, kamahori, barisk}@uw.edu 
+
+Abstract 
+
+Long-form automatic speech recognition (ASR) requires both high accuracy and low la-tency, but existing systems force a trade-off between the two. Chunk-based pipelines pro-cess audio in parallel windows for low latency, but lose cross-chunk context and need brittle heuristics to align speakers and timestamps at boundaries. Long-context ASR models resolve everything in a single pass for better accuracy, but are an order of magnitude slower. We pro-pose M URMUR , an inference system that over-comes this trade-off by operating at two lev-els. At the inter-chunk level, we revisit the chunk-based pipeline for modern long-context ASR, treating chunk size as a tunable hyper-parameter, and show that intermediate chunk sizes strike a good balance of accuracy and latency. At the intra-chunk level, we exploit attention sparsity through a sliding window KV cache eviction policy applied to both output and speech tokens. On AMI-IHM, M URMUR 
+
+matches single-pass accuracy while reducing latency by 4.2×, with further gains from token eviction at less than 1% relative tcpWER degra-dation. The code of M URMUR is available at 
+
+https://github.com/uw-syfi/Murmur 
+
+1 Introduction 
+
+Long-form automatic speech recognition (ASR) is increasingly central to many real-world speech applications, such as meetings, lectures, and clini-cal interactions (Fox et al., 2024; McCowan et al., 2005; Rousseau et al., 2012; Chen et al., 2021; Chiu et al., 2017). However, it remains challenging to achieve both high accuracy and efficiency (Flynn and Ragni, 2026). ASR models typically have limitations in input length. For example, OpenAI’s Whisper can only transcribe up to 30 seconds of audio in a sin-gle inference pass (Radford et al., 2023). Chunk-based cascaded pipelines such as WhisperX (Bain et al., 2023) mitigate this mismatch by partition-ing long recordings into shorter speech segments that are transcribed independently. Downstream alignment and diarization modules are then used to reconcile segment-level predictions into a coherent transcript. While effective, independent processing of audio segments can introduce errors in transcrip-tion, speaker attribution, and timestamp generation due to the loss of cross-segment context (§2). More recently, ASR models based on large lan-guage models (LLMs) have been proposed to pro-cess long-form audio in a single shot (Peng et al., 2026; Huo et al., 2026). Rather than relying on chunk-based systems, they treat the complex heuris-tics of such systems as the generation task itself, subsuming the entire pipeline into a single infer-ence pass. For example, VibeVoice-ASR can tran-scribe up to 60 minutes of continuous audio (Peng et al., 2026). However, scaling inference to such long contexts remains computationally expensive. As the sequence length grows, attention computa-tion and KV-cache management become increas-ingly costly during autoregressive decoding, re-sulting in high inference latency. By contrast, chunk-based systems such as WhisperX operate on bounded-length segments and can process multiple segments concurrently, yielding lower end-to-end latency. To overcome this trade-off, we propose M UR -
+
+> MUR
+
+, an inference system for long-form ASR that achieves the accuracy of long-context models while maintaining the latency of the chunk-based ap-proach. MURMUR operates at two granularities to achieve low inference latency and high transcrip-tion accuracy with long-context ASR models. At the inter-chunk level, we treat chunk size as a tunable parameter. Unlike traditional models, modern models impose no strict input-length lim-its, giving us greater flexibility in our chunking decisions. Based on a careful study of how chunk size affects accuracy and latency (§2.2), we find that a 300s chunk size strikes a good balance. 1          
+
+> arXiv:2606.01483v1 [cs.LG] 31 May 2026 Voice
+> Activity
+> Detection
+> chunk 0
+> chunk 1
+> chunk N
+> Stitch
+> transcript 0
+> transcript 1
+> transcript N
+> ASR
+> Model
+> (a) Chunk-based systems (e.g., WhisperX)
+> chunk 0 transcript 0
+> Long-context
+> ASR
+> Model
+> (b) Long-context ASR models (e.g., VibeVoice ASR)
+> (c) Murmur (ours)
+> Voice
+> Activity
+> Detection
+> chunk 0
+> chunk 1
+> chunk N
+> Stitch
+> (sort + re-alignment)
+> transcript 0
+> transcript 1
+> transcript N
+> ✅latency ❌accuracy
+> ✅latency ✅accuracy
+> ❌latency ✅accuracy
+> chunk 0
+> chunk 1
+> chunk N
+> Long-context
+> ASR
+> Model
+> attention sparsity
+
+Figure 1: Comparison of inference approaches for long-form automatic speech recognition (ASR). Chunk-based systems divide audio into smaller segments and process them independently in batches, whereas long-context models perform inference on the entire recording in a single pass. M URMUR combines larger chunks with sparse attention mechanisms to maintain accuracy while improving inference efficiency. 
+
+At the intra-chunk level, we implement a sliding-window based KV cache eviction policy. This is based on the observation that speech tokens exhibit extreme attention sparsity in VibeVoice-ASR, with fewer than 25% of speech tokens needed to retain 99% of total attention weights on 24 of 28 layers (§2.3). We evaluate MURMUR on VibeVoice-ASR model (Peng et al., 2026) with AMI (McCowan et al., 2005), Tedlium3 (Hernandez et al., 2018), and Earnings21 (Del Rio et al., 2021) datasets. MURMUR matches single-pass accuracy on AMI-IHM while reducing latency by 4.2×, with further gains from speech token eviction at less than 1% relative tcpWER degradation. In summary, we make the following contribu-tions. 1. We present a systematic analysis of chunk size as a hyperparameter for long-context ASR, characterizing its effect on transcription accu-racy, speaker attribution, temporal alignment, and inference latency across clean and noisy conditions. 2. We design M URMUR , an inference system for long-form ASR that combines VAD-guided chunked parallel inference with intra-chunk KV cache eviction, producing end-to-end tran-scriptions with timestamps and speaker labels without external post-processing modules. 
+
+Method WER DER tcpWER Latency 
+
+WhisperX 22.5% 23.6% 35.5% 38.8s 
+
+VibeVoice-ASR 19.2% 9.4% 25.7% 370.7s 
+
+Table 1: Error rates and latency on AMI-IHM (Mc-Cowan et al., 2005). Failed clips due to repetition loops are excluded (total of 2/14 for VibeVoice-ASR) 
+
+2 Background and Motivation 
+
+2.1 Existing Approaches 
+
+Long-form ASR systems fall into two categories. 
+
+Chunk-based systems such as WhisperX (Bain et al., 2023) segment audio into fixed 30-second windows and process each independently, relying on heuristics for boundary stitching with an ad-ditional phoneme model and speaker diarization. 
+
+Single-shot approach utilizing long-context models, such as VibeVoice-ASR (Peng et al., 2026), pro-cesses entire recordings in one autoregressive pass, natively producing timestamps and speaker labels without external post-processing. 
+
+2.2 How Does Longer Context Help? 
+
+Chunk-based systems achieve low latency through parallel inference, but context fragmentation causes systematic error propagation. Long-context ASR models address this by maintaining speaker and temporal context across the full recording, avoid-ing the boundary reconciliation errors that plague chunk-based pipelines (Peng et al., 2026; Huo et al., 2026) As Table 1 shows, the gap is modest on WER alone (what was said), but stark on tcpWER (who 2said what, and when): chunk-based systems that handle speaker and timing as an afterthought pay a heavy price on the metric that actually matters for downstream applications. The cost is latency: a 10 × slowdown that makes single-shot inference impractical at scale. Single-shot inference also suffers from robust-ness failures. Autoregressive models are prone to repetition loops, where the decoder collapses into repeating a phrase or token sequence indefi-nitely (Ahn et al., 2026). While this failure mode can occur in chunk-based systems too, its impact is contained: a failure in one chunk does not affect other chunks. In single-shot inference over a full recording, a repetition loop is catastrophic; the en-tire request fails and must be discarded. Two of 14 AMI-IHM recordings fail outright with single-shot inference, despite our attempts to adjust repetition penalties, and are excluded from the reported met-rics, meaning the accuracy numbers understate the true deployment risk. Moreover, prior work has shown that longer context is not always beneficial; beyond a certain point, additional context increases the reasoning burden on the language model and can reduce accuracy (Liu et al., 2023). Rather than accepting this as a fixed trade-off, we ask: how much context does a long-context ASR model actually need? To answer this question, we first analyze how we can combine chunk-based sys-tems with modern long-context models. Unlike the original WhisperX, we can use a chunk size larger than 30 seconds in this case. Figure 2 shows the effect of chunk size with VibeVoice-ASR for the AMI-IHM (McCowan et al., 2005) dataset, measur-ing accuracy and latency. Results reveal that accuracy plateaus on clean au-dio beyond a moderate context length, while harder conditions such as noisy or overlapping speech can degrade with longer windows as acoustic confu-sion accumulates. An intermediate chunk size of 
+
+c = 300 s matches or exceeds single-shot accuracy across conditions while enabling batched parallel inference, reducing latency by up to 3.7×. The single-pass baseline reports a higher average error rate due to catastrophic failures on two recordings excluded from its metrics, meaning the accuracy advantage of 300s chunks is likely understated. We therefore fix c = 300 s as our operating point. 
+
+2.3 Sparsity Across Speech Tokens 
+
+While 300s chunks match single-pass accuracy, they leave latency on the table: the 300s chunk size   
+
+> Figure 2: Error rate metrics across chunk sizes on the AMI-IHM dataset for VibeVoice. Solid blue curves show chunked VibeVoice performance, orange dashed lines denote the VibeVoice single-pass baseline, and Green dotted lines indicate WhisperX performance.
+> Figure 3: Latency and accuracy comparison across sys-tems. Error rates include failed clips (repetition loop failures counted as 100% error), reflecting real-world de-ployment robustness. M URMUR achieves lower latency than single-pass inference while maintaining compara-ble accuracy, and avoids the catastrophic failures that inflate single-pass error rates on longer recordings.
+
+takes 10× longer than the 30s chunk size because it generates more tokens autoregressively. This raises a natural question: can we further reduce inference latency given 300s chunks? 
+
+We focus on exploiting sparsity in attention oper-ations. Profiling a representative 44-minute record-ing processed in 300s chunks, we find that decod-ing dominates end-to-end latency (95.3% of model time), and within decoding, attention accounts for 74.6% of the end-to-end latency—making it the primary optimization target. We profile full atten-tion weight matrices using eager attention across 30s and 300s chunks on both clean (TED talks) and noisy (AMI meetings) conditions. Figure 4 shows the resulting heatmaps, where larger chunks visually reveal greater opportunities to exploit spar-sity. As shown in Figure 5, this attention is highly sparse: at any individual decode step, fewer than 25% of speech tokens account for 99% of attention 3Figure 4: Comparison between 30s and 300s chunks on layer 26 head 0. Smaller chunks are denser and local, while larger chunks are sparser and show temporal patterns. 
+
+weight across most layers.   
+
+> Figure 5: Per-layer breakdown of attention token categories during decode. Each bar represents 100% of tokens in the key-value cache, partitioned into four mutually exclusive groups: speech tokens required to re-tain 99% of total attention weight (kept speech), speech tokens outside that set (evictable speech), decoded to-kens within the 99% set (kept text), and decoded tokens outside it (evictable text). Results are averaged across 8 chunks from 4 meetings with 2500 decode steps per chunk.
+
+3 Method 
+
+MURMUR processes long-form audio in three stages: chunked parallel inference, KV cache eviction within each chunk, and output stitching with cross-chunk realignment. Figure 1 gives an overview. 
+
+3.1 Chunked Inference 
+
+Let A denote a full audio recording of duration 
+
+T seconds. We first apply a VAD model to iden-tify speech segment boundaries {s1, s 2, . . . , s n}.Segments are greedily merged to construct chunks 
+
+{C1, C 2, . . . , C m} where each chunk satisfies 
+
+|Ci| ≤ c = 300 s, the operating point identified in §2.2. Chunks are submitted as a batch to an inference engine (vLLM (Kwon et al., 2023) or our custom backend) to amortize the GPU idle time across concurrent requests. 
+
+3.2 KV Cache Eviction 
+
+VibeVoice-ASR structures each inference as a se-quence of [system prompt] [speech tokens] [system prompt] [text tokens] . The model autoregressively generates text tokens conditioned on the full speech token sequence. This structure motivates treating speech and output tokens sepa-rately in our eviction policy, as they occupy distinct regions of the KV cache with different attention patterns. Speech tokens exhibit the diagonal spar-sity described in §2.3, while output tokens show strong recency bias. These patterns are observed consistently across layers, particularly in deeper layers (Figure 6). Formally, let K, V ∈ RL×d denote the key and value matrices for a sequence of L tokens at a given layer. The attention weight of the j-th generation token over token i is: 
+
+αji = exp( q⊤ 
+
+> j
+
+ki/√d)
+
+P 
+
+> i′
+
+exp( q⊤ 
+
+> j
+
+ki′ /√d) (1) Motivated by these distinct attention patterns, we consider three eviction configurations: output-token eviction, speech-token eviction with a delay-and-shift policy, and a hybrid that combines both. 
+
+Output Token Eviction. We follow the StreamingLLM formulation (Xiao et al., 2024), retaining nsink attention sink tokens and a sliding window of w recent tokens while evicting the remainder (Algorithm 1). 
+
+Algorithm 1 Output Token Eviction (StreamingLLM-style) 
+
+Require: KV cache C, sink count nsink , window size w 
+
+> 1:
+
+for each decode step j do  
+
+> 2:
+
+K ← {1, . . . , n sink } ∪{max(1 , j −w+1) , . . . , j } 
+
+> 3:
+
+Evict {ki, vi | i / ∈ K} from C 
+
+> 4:
+
+end for Speech Token Eviction. The heatmap analysis in §2.3 reveals that the active attention region forms a stable diagonal band advancing steadily across decoding steps. We introduce a delay phase of 
+
+d steps during which the window is held fixed, allowing the model to attend to early audio context before eviction begins (Algorithm 2). At step j, the retained set is: 
+
+Rj = {1, . . . , n sink } ∪ { lj , . . . , l j + w} (2) 4Figure 6: Variance across attention heads for different layers. The diagonal pattern indicates that heads consistently attend to the sliding window, particularly in the speech and output sections at later layers. 
+
+where lj = 0 for j < d and advances by one each step thereafter. 
+
+Algorithm 2 Speech Token Eviction 
+
+Require: KV cache C, delay d, window size w 
+
+> 1:
+
+l ← 0 
+
+> 2:
+
+for each decode step j do  
+
+> 3:
+
+if j ≥ d then l ← l + 1  
+
+> 4:
+
+end if  
+
+> 5:
+
+K ← { l, . . . , l + w − 1} 
+
+> 6:
+
+Evict {ki, vi | i / ∈ K} from C 
+
+> 7:
+
+end for Theoretical Speedup. Eviction reduces the ef-fective KV cache size seen by the attention kernel at each decode step. The theoretical attention cost ratio over T decode steps is: 
+
+ρ =
+
+PTj=1 (Ls + j)
+
+PTj=1 (nsink + w + j)= Ls · T + T (T +1) 2
+
+(nsink + w) · T + T (T +1) 2
+
+(3) For a 300s chunk ( Ls ≈ 2,250 , T ≈ 2,700 ), output token eviction ( nsink = 4 , w = 1 ,024 )yields ρ ≈ 1.51 ×, while speech token eviction (nsink = 512 , w = 1 ,536 ) yields ρ ≈ 1.06 ×, re-flecting the conservative window size required to preserve accuracy. Observed speedups are lower due to the delay phase and cache management over-head introduced by eviction. 
+
+3.3 Output Stitching 
+
+VibeVoice-ASR natively produces per-token times-tamps ˆt(i) 
+
+> j
+
+relative to the start of chunk Ci. We recover absolute timestamps as: 
+
+t(i) 
+
+> j
+
+= ˆ t(i) 
+
+> j
+
++ offset (Ci) (4) where offset (Ci) = P 
+
+> k<i
+
+|Ck| is the start time of 
+
+Ci within the full recording. Speaker stitching is more subtle. A naive ap-proach would force external diarization labels di-rectly onto the model output, discarding the intra-chunk speaker context that long-context ASR has already resolved. Instead, we treat the model’s in-ternal speaker assignments as ground truth within 
+
+each chunk, and use diarization only to recon-cile cross-chunk identity. We compute a permu-tation mapping π(i) : S(i) → S (i+1) that maxi-mizes agreement between the model’s speaker la-bels and the diarization result in the boundary re-gion between adjacent chunks, applied iteratively to produce globally consistent labels across the full recording. This lets us leverage the long-context model’s intra-chunk speaker tracking without prop-agating external diarization errors into regions the model already handles well. 
+
+4 Evaluation 
+
+4.1 Experimental Setup 
+
+All experiments use VibeVoice-ASR (Peng et al., 2026), a ∼9B-parameter long-context ASR model that natively produces timestamped, speaker-attributed transcriptions in a single autoregressive pass. We focus on this model because it is currently the only open-source frontier model capable of pro-ducing timestamped, speaker-attributed transcrip-tions in a single pass; proprietary alternatives are inaccessible for systems-level inference research, and other open-source models are either fine-tuned on specific datasets, limiting generalizability, or lack speaker and timestamp output entirely, making them incomparable on tcpWER, our primary met-ric. Voice activity detection uses Pyannote (Bredin et al., 2019). We serve VibeVoice-ASR on our cus-tom inference engine on a single NVIDIA H100 80GB GPU with a batch size of 16 chunks. We also provide a vLLM (Kwon et al., 2023) implementa-tion for chunked inference; our eviction policy is not currently supported in vLLM. The maximum number of new tokens is set to 32,768 for record-5ings within the model’s nominal context length of 60 minutes; for shorter recordings, it is scaled as 
+
+⌊32 ,768 × d/d nominal ⌋ where d is the recording du-ration in seconds, and dnominal is 3600 seconds. Decoding is greedy (temperature 0), and we use a fixed random seed; under this configuration, the inference engine produces deterministic outputs, so all reported metrics correspond to a single run rather than an average over multiple seeds. on long-form English audio benchmarks: Tedlium3, Earn-ings21, and two conditions of the AMI Meeting Corpus (Rousseau et al., 2012; Del Rio et al., 2021; McCowan et al., 2005), a standard benchmark for multi-speaker meeting transcription consisting of scenario-based four-speaker meetings ranging from approximately 10 to 60 minutes in duration. The single-pass baseline processes each full recording without chunking. For the results, we report failed clips (which occur in a single pass) because a 100% error rate would distort the actual capability of these models. The total compute for all experi-ments is approximately 100 GPU-hours. The details of each dataset are as follows: • AMI-IHM : Individual headset microphones provide high per-speaker signal quality with minimal cross-talk, representing a favorable acoustic condition. We use the standard test split (16 recordings, 8.7 hours). • AMI-SDM : A single distant microphone in-troduces reverberation, background noise, and speaker overlap, representing a more challeng-ing real-world condition. We use the standard test split (16 recordings, 8.7 hours). • Tedlium3 is a widely used long-form English dataset built from TED Talks. It does not include timestamps or speaker information, so we use it only for word error rate comparison. We evaluate on the test split (11 talks, 2.47 hours). • Earnings21 is a corpus of corporate earnings calls. VibeVoice-ASR cannot process record-ings longer than 1 hour in a single pass, so 16 of 44 recordings are excluded from single-pass evaluation; all 44 are evaluated using chunked inference (19.63 hours total). 
+
+4.2 Metrics 
+
+We report four complementary metrics. Word Er-ror Rate (WER) measures transcription accuracy as the normalized edit distance between hypothe-sis and reference, without accounting for speaker attribution. Diarization Error Rate (DER) mea-sures the fraction of audio incorrectly attributed to a speaker, independently of transcription accuracy. 
+
+Concatenated minimum-permutation WER (cp-WER) extends WER to the multi-speaker setting by optimizing over speaker permutations before com-puting WER over concatenated per-speaker tran-scripts (Watanabe et al., 2020). Time-constrained minimum-permutation WER (tcpWER) further penalizes hypotheses whose timestamps do not align with the reference (Watanabe et al., 2020). We treat tcpWER as our primary metric because it jointly captures transcription accuracy, speaker attribution, and temporal alignment, all of which are essential for downstream applications such as meeting summarization and search. 
+
+4.3 Results Overall Accuracy vs. Chunk Size Across all datasets, accuracy improves with chunk size up to a certain point, then plateaus or degrades — with the turning point arriving earlier for cleaner audio (Tedlium3, Earnings21) and later for noisier con-ditions (IHM), consistent with our hypothesis that acoustic complexity determines how much context is useful. The key takeaway is that single-pass in-ference is not necessary to match single-pass accu-racy: an intermediate chunk size of 300s achieves comparable results at a fraction of the latency. Note that the single-pass baseline on SDM is particularly misleading at face value — 7 of 14 recordings fail outright due to repetition loops and are excluded from reported metrics. Counting fail-ures as 100% error, chunked inference outperforms single-pass by a substantial margin, and critically, contains failures to individual chunks rather than losing the entire request. 
+
+Intra-Chunk Optimization: KV Cache Eviction 
+
+We apply StreamingLLM-style KV cache evic-tion (Xiao et al., 2024) to 300s chunks, retaining attention sink tokens and a sliding window of recent tokens while evicting the remainder. This proves surprisingly effective: modest eviction causes min-imal accuracy degradation (Table 2), confirming that ASR decoding has little dependence on earlier output context and that attention is concentrated on recent tokens and a small set of early sink tokens. We further push optimization by evicting speech tokens. Unlike output tokens, speech tokens are 6Table 2: Effect of KV cache eviction strategies on AMI-IHM at 300s chunk size and batch size 16. Best result per metric in bold .                                               
+
+> System WER (%) DER (%) cpWER (%) tcpWER (%) Total (s) Speed-up VibeVoice Single-pass baseline 19.21 9.42 24.84 25.68 370.73 baseline WhisperX 22.51 23.62 33.48 35.54 38.81 9.55 ×
+> MURMUR : Chunked, no eviction 19.80 8.45 22.36 24.92 100.8 3.68 ×
+> + Output token eviction (s4 w1024) 19.89 8.52 22.36 25.01 97.6 3.79 ×
+> + Speech token eviction (d512 w1024) 20.41 8.77 23.19 25.29 88.43 4.20 ×
+> + Both eviction 20.23 8.63 22.96 25.73 96.1 3.85 ×
+
+Figure 7: WER across chunk sizes for all evalua-tion datasets. Cleaner datasets (Tedlium3, Earnings21) plateau earlier, while noisier conditions (IHM, SDM) benefit from longer context up to a point, consistent with our acoustic complexity hypothesis. 
+
+prefilled rather than generated: they occupy a fixed region of the KV cache that every decode step must attend over. Evicting unused speech tokens thus directly reduces attention cost at each step, consistent with our observation that attention over speech tokens is highly sparse (§2.3). We im-plement this with custom KV cache management with full batched inference support at batch size 16. Speech token eviction achieves a tcpWER of 25.29%—nearly matching the no-eviction baseline (24.92%)—confirming that the majority of speech tokens are safely evictable with minimal accuracy cost. Across eviction configurations, output-only evic-tion yields a 3.85 × speedup over single-pass in-ference, speech-only yields 4.20 ×, and combining both yields 3.79 ×, where the overhead of manag-ing two concurrent eviction policies partially off-sets the individual gains. Combined with chunked inference, these inter- and intra-chunk optimiza-tions together achieve up to 4.20 × speedup over single-pass inference while maintaining competi-tive accuracy. 
+
+5 Discussion 
+
+Our results suggest that speech recognition has a sharp and well-defined optimal context length, with 
+
+c = 300 s matching or exceeding single-shot accu-racy across conditions. We attribute this to three compounding factors. First, acoustic noise and reverberation degrade signal quality progressively over longer windows, increasing the probability of transcription errors that cannot be recovered. Sec-ond, speaker overlap and turn-taking patterns in meetings create complex diarization boundaries; longer chunks force the model to track more speak-ers over more time, increasing the risk of identity confusion. Interestingly, the gap between WER and tcp-WER improvement curves indicates that temporal alignment is the primary beneficiary of longer con-text, not word-level transcription. This has prac-tical implications: if an application requires only transcription without timestamps, a shorter chunk size may be sufficient. The stark difference between IHM and SDM conditions further supports the noise-compounding hypothesis: the far-field condition, with higher baseline noise, saturates earlier and degrades more severely at long context lengths. The modest speedup from speech token eviction relative to the high observed sparsity reflects a fun-damental tension: while the majority of speech tokens carry negligible attention weight in aggre-gate, identifying which tokens are safe to evict re-quires content-aware selection beyond what a fixed sliding window can provide. We find that finer-grained windows increase eviction aggressiveness but degrade accuracy significantly, confirming that the evictable tokens are not contiguous and cannot be captured by a simple positional policy. This motivates future work on adaptive speech token se-lection strategies, such as query-aware or acoustic-feature-guided eviction policies. 76 Related Work 
+
+6.1 Long-Form Automatic Speech Recognition 
+
+Transformer-based ASR systems were initially trained on short utterances, with Whisper (Rad-ford et al., 2023) setting the de facto 30-second context window, a limit inherited from utterance-boundary segmentation of labeled speech (Radford et al., 2023; Flynn and Ragni, 2026). For longer au-dio in meetings, lectures, and clinical settings (Fox et al., 2024; McCowan et al., 2005; Rousseau et al., 2012; Chen et al., 2021; Chiu et al., 2017), chunk-based systems such as WhisperX (Bain et al., 2023) split recordings into fixed windows and stitch re-sults with heuristics for timestamps and diariza-tion, at the cost of boundary errors and pipeline complexity. More recent LLM-based long-context ASR models (Huo et al., 2026; Peng et al., 2026) transcribe entire recordings in a single pass, na-tively producing speaker-attributed, timestamped output; VibeVoice-ASR (Peng et al., 2026) handles up to 60 minutes of audio but suffers from repe-tition failures and substantially higher inference latency, motivating intermediate operating points. 
+
+6.2 Efficiency for Speech Model Inference 
+
+Prior work on efficient speech model inference spans model compression, optimized serving run-times, and attention sparsity. For the Whisper fam-ily, distillation (Gandhi et al., 2023), low-rank ap-proximation (Kamahori et al., 2025), joint distilla-tion and quantization (Shao et al., 2024), and KV cache architectural changes (Zhang et al., 2026) reduce model size and compute, while dedicated runtimes such as faster-whisper (Klein, 2023) and VoxServe (Kamahori et al., 2026) accelerate serv-ing via operator fusion, quantization, dynamic batching, and streaming-aware scheduling. Separately, a large body of work on long-context text LLMs exploits attention sparsity at inference: StreamingLLM (Xiao et al., 2024) and H2O (Zhang et al., 2023) retain static sink or heavy-hitter tokens, while SnapKV (Li et al., 2024), PyramidKV (Cai et al., 2024), Quest (Tang et al., 2024), and Tac-tic (Zhu et al., 2025) select tokens dynamically us-ing query-aware signals. On the speech side, Early Attentive Sparsification (Xu et al., 2025) brings this idea to ASR encoders . M URMUR instead exploits the dynamic, diagonally shifting sparsity specific to long-context autoregressive ASR decoding , evict-ing speech tokens from the KV cache via a sliding window that follows the audio timeline. 
+
+7 Conclusion 
+
+We have shown that chunk size is a consequential hyperparameter for long-context ASR, with inter-mediate values of 300 seconds offering the best trade-off between transcription quality and infer-ence latency on the AMI Meeting Corpus. Single-pass inference achieves the lowest WER on meet-ings it can process, but fails catastrophically on longer or noisier recordings. Very short chunks (30 seconds) are fast but sacrifice substantial accuracy. Our findings suggest that speech has an earlier and sharper optimal context length than text, driven by the compounding effects of acoustic noise and speaker complexity. We hope this work motivates further investigation into context-aware inference strategies for long-form speech. 
+
+8 Limitations 
+
+MURMUR is designed for long-context ASR mod-els that natively produce timestamped, speaker-attributed transcriptions in a single autoregressive pass. This capability is currently limited to a small class of models; architecturally constrained models such as Whisper (Radford et al., 2023) require ex-ternal post-processing for speaker and timestamp information and cannot be directly compared on tcpWER, making cross-model validation on our primary metric infeasible at this time. As this class of end-to-end long-context ASR models grows, we expect the findings on optimal chunk size and at-tention sparsity structure to generalize. All experiments are conducted in English. The behavior of long-context ASR under other lan-guages, particularly those with different prosodic structures, morphological complexity, or turn-taking conventions, remains an open question. 
+
+9 Ethics Statement 
+
+Licenses and Intended Use. All artifacts used in this work are publicly released under licenses that permit research use, and our usage is consis-tent with their intended uses. For datasets, we use the AMI Meeting Corpus (CC BY 4.0) (Mc-Cowan et al., 2005), TED-LIUM 3 (CC BY-NC-ND 3.0) (Rousseau et al., 2012), and Earnings21 (CC BY-SA 4.0). For models and software, we use VibeVoice-ASR (MIT License) (Peng et al., 2026), Whisper (MIT) (Radford et al., 2023), WhisperX (BSD-4-Clause) (Bain et al., 2023), pyannote.audio 8(MIT), and vLLM (Apache 2.0) (Kwon et al., 2023). We release our M URMUR implementation under the Apache 2.0 license. 
+
+Data and Risks. This work uses the AMI Meet-ing Corpus, a publicly available dataset collected under informed consent. All experiments involve transcription of pre-existing recordings and do not involve human subjects or the collection of new data. The AMI, TED-LIUM, and Earnings21 datasets are widely used English research bench-marks and, to our knowledge, do not contain per-sonally identifying information beyond what speak-ers consented to share. Automatic transcription systems of the kind studied here could be misused for surveillance; we encourage responsible deploy-ment with appropriate consent and access controls. 
+
+References 
+
+Hoseong Ahn, Jeongyun Chae, Yoonji Park, and Kyuhong Shim. 2026. Whisper-cd: Accurate long-form speech recognition using multi-negative con-trastive decoding. Preprint , arXiv:2603.06193. Max Bain, Jaesung Huh, Tengda Han, and Andrew Zis-serman. 2023. WhisperX: Time-accurate speech tran-scription of long-form audio. In Proc. Interspeech .Hervé Bredin, Ruiqing Yin, Juan Manuel Coria, Gre-gory Gelly, Pavel Korshunov, Marvin Lavechin, Diego Fustes, Hadrien Titeux, Wassim Bouaziz, and Marie-Philippe Gill. 2019. pyannote.audio: neural building blocks for speaker diarization. Preprint ,arXiv:1911.01255. Zefan Cai, Yichi Zhang, Bofei Gao, Yuliang Liu, Yucheng Li, Tianyu Liu, Keming Lu, Wayne Xiong, Yue Dong, Junjie Hu, and 1 others. 2024. Pyra-midkv: Dynamic kv cache compression based on pyramidal information funneling. arXiv preprint arXiv:2406.02069 .Guoguo Chen, Shuzhou Chai, Guanbo Wang, Jiayu Du, Wei-Qiang Zhang, Chao Weng, Dan Su, Daniel Povey, Jan Trmal, Junbo Zhang, and 1 others. 2021. Gigaspeech: An evolving, multi-domain asr cor-pus with 10,000 hours of transcribed audio. arXiv preprint arXiv:2106.06909 .Yukang Chen, Shengju Qian, Haotian Tang, Xin Lai, Zhijian Liu, Song Han, and Jiaya Jia. 2023. Lon-gLoRA: Efficient fine-tuning of long-context large language models. arXiv preprint arXiv:2309.12307 .Chung-Cheng Chiu, Anshuman Tripathi, Katherine Chou, Chris Co, Navdeep Jaitly, Diana Jaunzeikare, Anjuli Kannan, Patrick Nguyen, Hasim Sak, Ananth Sankar, and 1 others. 2017. Speech recogni-tion for medical conversations. arXiv preprint arXiv:1711.07274 .Miguel Del Rio, Natalie Delworth, Ryan Wester-man, Michelle Huang, Nishchal Bhandari, Joseph Palakapilly, Quinten McNamara, Joshua Dong, Pi-otr Zelasko, and Miguel Jetté. 2021. Earnings-21: A practical benchmark for asr in the wild. arXiv preprint arXiv:2104.11348 .Robert Flynn and Anton Ragni. 2026. Beyond the utter-ance: An empirical study of very long context speech recognition. IEEE Transactions on Audio, Speech and Language Processing , 34:910–920. Jennifer Drexler Fox, Desh Raj, Natalie Delworth, Quinn McNamara, Corey Miller, and Migüel Jetté. 2024. Updated corpora and benchmarks for long-form speech recognition. In ICASSP 2024-2024 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pages 13246– 13250. IEEE. Sanchit Gandhi, Patrick Von Platen, and Alexander M Rush. 2023. Distil-whisper: Robust knowledge distil-lation via large-scale pseudo labelling. arXiv preprint arXiv:2311.00430 .François Hernandez, Vincent Nguyen, Sahar Ghan-nay, Natalia Tomashenko, and Yannick Estève. 2018. 
+
+TED-LIUM 3: Twice as Much Data and Corpus Repartition for Experiments on Speaker Adaptation ,page 198–208. Springer International Publishing. Mingyue Huo, Yiwen Shao, and Yuheng Zhang. 2026. Tagspeech: End-to-end multi-speaker asr and diariza-tion with fine-grained temporal grounding. Preprint ,arXiv:2601.06896. Keisuke Kamahori, Jungo Kasai, Noriyuki Kojima, and Baris Kasikci. 2025. Liteasr: Efficient automatic speech recognition with low-rank approximation. In 
+
+Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing , pages 3430–3442. Keisuke Kamahori, Wei-Tzu Lee, Atindra Jha, Rohan Kadekodi, Stephanie Wang, Arvind Krishnamurthy, and Baris Kasikci. 2026. Voxserve: Streaming-centric serving system for speech language models. 
+
+arXiv preprint arXiv:2602.00269 .Guillaume Klein. 2023. faster-whisper: Faster whisper transcription with ctranslate2. GitHub repository. Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph E. Gonzalez, Hao Zhang, and Ion Stoica. 2023. Effi-cient memory management for large language model serving with PagedAttention. In Proc. SOSP .Yuhong Li, Yingbing Huang, Bowen Yang, Bharat Venkitesh, Acyr Locatelli, Hanchen Ye, Tianle Cai, Patrick Lewis, and Deming Chen. 2024. Snapkv: Llm knows what you are looking for before gener-ation. Advances in Neural Information Processing Systems , 37:22947–22970. 
+
+9Alexander H Liu, Andy Ehrenberg, Andy Lo, Clé-ment Denoix, Corentin Barreau, Guillaume Lam-ple, Jean-Malo Delignon, Khyathi Raghavi Chandu, Patrick von Platen, Pavankumar Reddy Muddireddy, and 1 others. 2025. Voxtral. arXiv preprint arXiv:2507.13264 .Nelson F. Liu, Kevin Lin, John Hewitt, Ashwin Paran-jape, Michele Bevilacqua, Fabio Petroni, and Percy Liang. 2023. Lost in the middle: How language mod-els use long contexts. Preprint , arXiv:2307.03172. Iain McCowan, Jean Carletta, Wessel Kraaij, Si-mone Ashby, Sebastien Bourban, Mike Flynn, Mael Guillemot, Thomas Hain, Jaroslav Kadlec, Vasilis Karaiskos, and 1 others. 2005. The AMI meeting cor-pus. In Proc. International Conference on Methods and Techniques in Behavioral Research .Zhiliang Peng, Jianwei Yu, Yaoyao Chang, Zilong Wang, Li Dong, Yingbo Hao, Yujie Tu, Chenyu Yang, Wenhui Wang, Songchen Xu, and 1 others. 2026. Vibevoice-asr technical report. arXiv preprint arXiv:2601.18184 .Alec Radford, Jong Wook Kim, Tao Xu, Greg Brock-man, Christine McLeavey, and Ilya Sutskever. 2023. Robust speech recognition via large-scale weak su-pervision. In Proc. ICML .Anthony Rousseau, Paul Deléglise, and Yannick Esteve. 2012. Ted-lium: an automatic speech recognition dedicated corpus. In LREC , pages 125–129. Hang Shao, Bei Liu, Wei Wang, Xun Gong, and Yan-min Qian. 2024. Dq-whisper: Joint distillation and quantization for efficient multilingual speech recog-nition. In 2024 IEEE Spoken Language Technology Workshop (SLT) , pages 240–246. IEEE. Masao Someki, Shikhar Bharadwaj, Atharva Anand Joshi, Chyi-Jiunn Lin, Jinchuan Tian, Jee-weon Jung, Markus Müller, Nathan Susanj, Jing Liu, and Shinji Watanabe. 2025. Context-driven dynamic pruning for large speech foundation models. arXiv preprint arXiv:2505.18860 .Jiaming Tang, Yilong Zhao, Kan Zhu, Guangxuan Xiao, Baris Kasikci, and Song Han. 2024. Quest: Query-aware sparsity for efficient long-context llm inference. 
+
+arXiv preprint arXiv:2406.10774 .Shinji Watanabe and 1 others. 2020. CHiME-6 chal-lenge: Tackling multispeaker speech recognition for unsegmented recordings. In Proc. CHiME Workshop .Guangxuan Xiao, Yuandong Tian, Beidi Chen, Song Han, and Mike Lewis. 2024. Efficient streaming language models with attention sinks. Preprint ,arXiv:2309.17453. Zifei Xu, Sayeh Sharify, Hesham Mostafa, Tristan Webb, Xin Wang, and 1 others. 2025. Early attentive sparsification accelerates neural speech transcription. 
+
+arXiv preprint arXiv:2506.15912 .Han Yin, Yafeng Chen, Chong Deng, Luyao Cheng, Hui Wang, Chao-Hong Tan, Qian Chen, Wen Wang, and Xiangang Li. 2026. Speakerlm: End-to-end versatile speaker diarization and recognition with multimodal large language models. Preprint , arXiv:2508.06372. Sen Zhang, Jianguo Wei, Wenhuan Lu, Xianghu Yue, Wei Li, Qiang Li, Pengcheng Zhao, Ming Cai, and Luo Si. 2026. Whisper-mla: Reducing gpu mem-ory consumption of asr models based on mha2mla conversion. In ICASSP 2026-2026 IEEE Interna-tional Conference on Acoustics, Speech and Signal Processing (ICASSP) , pages 18412–18416. IEEE. Zhenyu Zhang, Ying Sheng, Tianyi Zhou, Tianlong Chen, Lianmin Zheng, Ruisi Cai, Zhao Song, Yuan-dong Tian, Christopher Ré, Clark Barrett, Zhangyang Wang, and Beidi Chen. 2023. H 2o: Heavy-hitter ora-cle for efficient generative inference of large language models. Preprint , arXiv:2306.14048. Kan Zhu, Tian Tang, Qinyu Xu, Yile Gu, Zhichen Zeng, Rohan Kadekodi, Liangyu Zhao, Ang Li, Arvind Krishnamurthy, and Baris Kasikci. 2025. Tactic: Adaptive sparse attention with clustering and dis-tribution fitting for long-context llms. arXiv preprint arXiv:2502.12216 .
+
+A Baseline Configuration 
+
+A.1 WhisperX 
+
+We compare against WhisperX (Bain et al., 2023) using Whisper large-v3 as the backbone, running in float16 precision on the same NVIDIA H100 GPU as M URMUR . The original WhisperX paper reports results with Whisper large-v2; we instead use large-v3 because it is a stronger and more re-cent checkpoint, is the current default in the up-stream WhisperX codebase, and gives WhisperX its best published WER on long-form English meet-ing audio, making it the most competitive baseline for our comparison. The pipeline follows the four-stage structure documented in the official WhisperX repository 1:(i) batched ASR with the faster-whisper back-end at an internal batch size of 16 and language forced to English, (ii) forced phoneme-level align-ment with a wav2vec2 model to recover word-level timestamps, (iii) speaker diarization with 
+
+pyannote.audio via the DiarizationPipeline ,and (iv) word-to-speaker assignment using the aligned timestamps. Stages (ii) and (iii) run in 
+
+float32 on both WhisperX and M URMUR , so the precision comparison is restricted to the ASR pass.  
+
+> 1We verified our integration against the reference imple-mentation at https://github.com/m-bain/whisperX ; all stage boundaries, model choices, and default hyperparameters match the upstream codebase.
+
+10 B Ablation Studies 
+
+Table 3 reports tcpWER and latency for three slid-ing window sizes at a fixed sink count of 4, applied to 300s chunks on AMI-IHM. As expected, reduc-ing the window size decreases latency at the cost of accuracy: the full-cache baseline achieves the lowest tcpWER (25.167%), while a window of 256 tokens cuts latency by over 12 seconds but raises tcpWER to 28.747%. This trade-off motivates a more targeted eviction strategy for speech tokens, specifically described next. 
+
+Table 3: Effect of StreamingLLM window size on error rates(%), inference time, and compression rate (chunk = 300s, Batch size = 16, AMI-IHM).                                 
+
+> S/W WER tcpWER Infer (s) kept (%) full 19.80 25.01 82.5 100 4 / 1024 19.89 25.83 79.9 64.9 4 / 512 19.95 27.01 75.5 55.1 4 / 256 19.98 27.793 72.4 50.0 8 / 1024 19.87 25.89 77.4 65.2 8 / 512 19.99 26.43 75.9 54.9 8 / 256 19.92 28.60 72.0 50.1
+
+B.1 Speech Token Eviction Policy 
+
+We evaluate the effect of sliding window size and delay on speech token eviction. The window cov-ers a contiguous block of w tokens and advances in lock-step with decoding, preceded by a delay phase of d steps during which the window is held fixed to allow the model to attend to early audio context be-fore eviction begins. Table 4 reports results across window sizes and delay configurations. 
+
+Table 4: Effect of speech token eviction window size and delay on error rates(%), inference time, and com-pression rate (chunk = 300s, Batch size = 16, AMI-IHM).                           
+
+> S / W WER tcpWER Infer (s) kept (%) full 19.80 25.01 82.5 100 256 / 1024 22.40 31.18 76.7 93.2 256 / 1538 20.76 26.38 75.7 97.2 512 / 1024 20.41 25.77 75.1 93.1 512 / 1538 19.83 25.04 75.2 97.2
+
+C Failure Analysis 
+
+We identify two failure modes that affect both chun-ked and single-pass inference, though with a differ-ent impact. 
+
+Repetition Loops. Autoregressive decoding can collapse into repeating a token or phrase indefi-nitely (e.g., "yeah ha ha ha ha ha ha ..." ), a known failure mode of sequence-to-sequence mod-els (Ahn et al., 2026). We attempted to mitigate this by varying the repetition penalty hyperparame-ter across several values, but found no setting that reliably prevented loops without degrading tran-scription quality on non-failing recordings. 
+
+Timestamp Inversions. A second failure mode produces intervals where the predicted end time precedes the start time (e.g., start=2633.97s, end=2633.90s ). These inversions are detected and filtered during output stitching, but indicate that timestamp predictions are occasionally unreli-able. 
+
+D Transcription Normalization 
+
+All hypotheses and references are normalized be-fore scoring. We apply the following steps in order: 1. Lowercasing. All characters are converted to lowercase. 2. Punctuation removal. All punctuation marks are stripped. 3. Filler word removal. Filled pauses ( um , uh ,
+
+hm ) are deleted. 4. Bracket stripping. Bracketed non-speech labels produced by VibeVoice-ASR (e.g. 
+
+[Human Sounds] , [Laughter] ) are removed. These labels are generated by the model to flag non-speech acoustic events and would otherwise inflate WER artificially. Normalization is applied identically to both the hypothesis and the reference transcripts to ensure comparability. 11
