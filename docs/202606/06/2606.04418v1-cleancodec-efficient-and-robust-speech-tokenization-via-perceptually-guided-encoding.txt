@@ -1,0 +1,339 @@
+Title: CleanCodec: Efficient and Robust Speech Tokenization via Perceptually Guided Encoding
+
+URL Source: https://arxiv.org/pdf/2606.04418v1
+
+Published Time: Thu, 04 Jun 2026 00:39:48 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+# CleanCodec: Efficient and Robust Speech Tokenization via Perceptually Guided Encoding 
+
+Eugene Kwek 
+
+Pennsylvania State University 
+
+eugene.kwek.1@gmail.com 
+
+Feng Liu 
+
+Drexel University 
+
+fl397@drexel.edu 
+
+Rui Zhang 
+
+Pennsylvania State University 
+
+rmz5227@psu.edu 
+
+Wenpeng Yin 
+
+Pennsylvania State University 
+
+wenpeng@psu.edu 
+
+Abstract 
+
+Neural audio codecs are a key component of speech processing pipelines, compressing au-dio into discrete tokens for downstream mod-eling. However, existing codecs struggle to balance reconstruction quality with token ef-ficiency, often encoding perceptually irrele-vant information such as background noise and recording artifacts at the expense of linguisti-cally and acoustically meaningful content. We reframe audio tokenization as a selective infor-mation bottleneck problem and propose Clean-Codec, a denoising audio codec which learns to encode only perceptually important features and discard imperceptible information. At just 12.5 tokens per second, CleanCodec achieves state-of-the-art tokenization efficiency, substan-tially outperforming existing codecs in speaker similarity and speech intelligibility. Evalua-tions on downstream text-to-speech and voice conversion tasks further demonstrate improved performance and up to 17x faster inference, highlighting significant efficiency gains. 1.
+
+1 Introduction 
+
+The rise of Large Language Model (LLM)-based audio generation, latent diffusion-based Text-to-Speech (TTS), and multimodal speech integration has driven an urgent need for efficient discrete acoustic representations. A key component of these pipelines is the neural audio codec, which com-presses speech into token sequences that down-stream models can process. These tokens must si-multaneously preserve acoustic and semantic infor-mation for effective downstream task performance while maintaining high reconstruction quality. A key gap between the audio and text modalities is tokenization efficiency. Unlike raw text, audio waveforms of speech contain non-linguistic infor-mation such as speaker identity, background noise, 
+
+> 1Inference and training code will be released on Github.
+
+and other acoustic information. As a reuslt, au-dio codecs require significantly higher token rates than text tokenizers - often hundreds of tokens per second of audio. This presents significant chal-lenges towards LLM-based audio approaches, as even modestly long audio requires thousands of tokens to model, making it challenging to capture long-term dependencies and increasing computa-tional costs. Encoding this information using as few tokens as possible remains a primary focus to improve the efficiency of downstream audio tasks. Despite recent progress, existing audio codecs face challenges when balancing reconstruction quality with token efficiency. Semantic codecs utilize features from self-supervised models like WavLM (Chen et al., 2022), HuBERT (Hsu et al., 2021), and wav2vec2 (Baevski et al., 2020), effi-ciently capturing linguistic information. However, these approaches fail to encode non-linguistic in-formation like timbre and prosody, causing low-quality audio reconstruction. Acoustic codecs em-ploy VQ-VAE (van den Oord et al., 2017) archi-tectures for high-fidelity reconstruction, but they often use multiple codebooks, causing high token rates. Meanwhile, disentangled codecs separate au-dio into time-invariant global representations and time-dependent tokens, achieving low token rates but struggling to faithfully recreate the original au-dio, especially on out-of-domain distributions. In this work, we reframe speech tokenization as a selective information bottleneck problem. We ar-gue that rather than treating audio compression as a task of maximally preserving all signal information, the ideal audio codec should only encode salient information and discard perceptually insignificant features such as background noise and recording artifacts. To operationalize this principle, we in-troduce CleanCodec, a denoising audio codec that learns to encode only perceptually important fea-tures. We achieve this by proposing a novel joint training objective that couples standard audio re-
+
+> arXiv:2606.04418v1 [cs.SD] 3 Jun 2026
+
+10 20 50 100 200 
+
+0.4
+
+0.6
+
+0.8
+
+1 
+
+> CleanCodec Qwen3
+> Mimi
+> BiCodec
+> XCodec2
+> WavTokenizer
+> FocalCodec
+> Kanade
+
+Token Rate (t/s) 
+
+> SIM ( ↑)
+
+10 20 50 100 200 
+
+0
+
+2
+
+4
+
+6
+
+8
+
+10  
+
+> CleanCodec Qwen3
+> Mimi
+> BiCodec
+> XCodec2
+> WavTokenizer
+> FocalCodec
+> Kanade
+
+Token Rate (t/s) 
+
+> WER ( ↓)
+> Figure 1: Left: SIM vs. Token rate. Right: WER vs. Token rate. CleanCodec substantially improves over existing codecs with similar token rate.
+
+construction with a speech enhancement task that removes unimportant features before encoding, in addition to conditioning objectives that promote the encoding of linguistic and timbre information. With a token rate of just 12.5 tokens per second, CleanCodec achieves SOTA tokenization efficiency while preserving semantic and timbre information more effectively than existing codecs. Our contributions are as follows: • We propose a novel codec training framework that jointly optimizes for audio reconstruction and speech enhancement, ensuring that only salient information is preserved. • We introduce CleanCodec, a denoising audio codec trained using our framework. Accord-ing to benchmarks, CleanCodec achieves su-perior reconstruction for a given information budget compared to existing audio codecs, demonstrating superior encoding efficiency. • We demonstrate how CleanCodec enables im-proved robustness in downstream tasks such as speech recognition and TTS. 
+
+2 Related Work 
+
+Existing approaches to speech tokenization broadly fall into two families. Semantic tokenizers use SSL models like HuBERT (Hsu et al., 2021) and wav2vec2 (Baevski et al., 2020) map audio to linguistically meaningful representations via self-supervised learning (SSL) and k-means cluster-ing, capturing phonetic structure well but discard-ing prosodic and acoustic detail. Acoustic codecs (Défossez et al., 2023; Wang et al., 2023; Zhang et al., 2024; Li et al., 2025) instead train encoder-decoder networks with reconstruction losses and vector quantization (VQ) (Gray, 1984) to discretize audio into compact code vectors. While acoustic codecs achieve high-fidelity reconstruction, they typically rely on multi-codebook designs such as residual vector quantization (RVQ) (Chen et al., 2010) — for instance, DAC (Kumar et al., 2023b) employs 9 RVQ layers — which adds substantial complexity to downstream modeling and results in token rates far exceeding text-focused tokenizers. Single-codebook designs have emerged as a promising alternative, streamlining both training and inference while enabling more seamless inte-gration with text-based language models (Parker et al., 2025). WavTokenizer (Ji et al., 2025) achieves 40 tokens per second using k-means clustering and random awakening strategies, and Single-Codec (Li et al., 2024) leverages a special-ized BiLSTM (Hochreiter and Schmidhuber, 1997) architecture to preserve reconstruction quality with a single quantizer. More recently, FocalCodec (Lib-era et al., 2025) introduces a focal modulation-based compressor-quantizer-decompressor archi-tecture operating at ultra-low token rates (12.5 - 50 t/s) with a single binary codebook. However, our experiments show that these single-codebook ap-proaches continue to struggle to balance compres-sion with both reconstruction quality and effective semantic representation, particularly at low token rates. A parallel line of work has pursued disentan-gled codecs (Ju et al., 2024; Pan et al., 2024; Ren et al., 2024), which aim to separate linguis-tic content from non-linguistic information such as speaker identity and background noise. Kanade (Huang et al., 2026) uses SSL features as encoder inputs alongside a narrow information bottleneck to achieve clean, unsupervised disentanglement. By operating on SSL features, Kanade inherits a struc-tured latent space in which content and speaker information are easily separable, yielding strong lexical availability and prosody preservation with a single token stream. Nevertheless, using SSL features as inputs limits generalization to out-of-distribution and unseen acoustic domains, and the use of recurrent or attention-based sequence mod-eling constrains the codec to the input lengths seen during training. 
+
+3 Methodology 
+
+3.1 Architecture 
+
+Our architecture is illustrated in Figure 2. Clean-Codec is comprised of (1) a disentangled VQVAE-style autoencoder operating on log-mel spectro-grams and (2) a Vocos vocoder (Siuzdak, 2024) to convert mel spectrograms into raw audio. When encoding audio, CleanCodec converts the audio waveform to a mel spectrogram, reconstructs the mel spectrogram after encoding it in a discrete to-ken form, then converts the mel spectrogram back into a waveform. Notably, this avoids relying on SSL features as input, which can lead to loss of non-linguistic information and a lack of robustness. We argue that mel features are also superior to using raw audio waveforms as input, as used by HH-Codec (Xue et al., 2025) and VibeVoice (Peng et al., 2025), because mel spectrograms align more closely with human perception of audio. Convert-ing the input audio to a mel spectrogram reduces the temporal resolution from 24 kHz to 62.5 Hz. 
+
+Local Encoder. We adopt a fully convolutional architecture, using 1D ConvNeXt (Liu et al., 2022) blocks as proposed in Vocos (Siuzdak, 2024). After passing through the local encoder, encoder outputs are further downsampled by a factor of 5 to reach the desired token rate of 12.5 t/s. Then, we use finite scalar quantization (FSQ) (Mentzer et al., 2024) to quantize encoder outputs. FSQ is single-codebook, parameter-free, and avoids codebook divergence caused by traditional VQ. We use code-book levels of [8, 8, 8, 8 ,8] for a total of 32,768 possible codes. ConvNeXt  ConvNeXt   
+
+> Pool
+> FSQ
+> Global emb Linear
+> concat Audio Tokens
+> ConvNeXt ConvNeXt
+> Pred spk emb
+> Vocoder
+> Cosine loss Pred SSL features
+> Cosine loss
+> L2 loss
+> Adversarial
+> loss Noisy audio Downsample Upsample Noisy mel
+> spectrogram Pred clean mel
+> spectrogram Pred clean audio Local Encoder Global Encoder Semantic Decoder Acoustic Decoder
+
+Figure 2: Architecture of CleanCodec, along with loss sources used during training. 
+
+Global Encoder. Our global encoder architec-ture is inspired by Kanade (Huang et al., 2026), us-ing modified ConvNeXt blocks from NeXt-TDNN (Heo et al., 2024). After passing through the global encoder, we then apply attentive statistics pooling (Okabe et al., 2018) to obtain a single global em-bedding for the entire utterance. We use a global embedding size of 256, which is concatenated to the audio tokens during the decoding phase. 
+
+Semantic-Acoustic Dual Decoder. Audio codecs are frequently trained to encode both acous-tic and semantic features to best preserve linguistic and non-linguistic information. We achieve this by employing a dual-decoder architecture. After receiving audio tokens augmented with the global embedding, we upsample to recover the original temporal resolution of 62.5 Hz. Then, the path of computation splits into two branches. The acous-tic decoder reconstructs the original mel spectro-gram, while the semantic decoder reconstructs SSL features produced by WavLM-large (Chen et al., 2022), a self-supervised audio model with rich se-mantic features. This ensures that our token rep-resentation contains both semantic and acoustic information, leading to high-quality reconstruction. Similarly to the local encoder, we use 1D Con-vNeXt blocks for both decoders. 
+
+Vocoder. Finally, the reconstructed mel spectro-gram is then passed through a Vocos-based vocoder (Siuzdak, 2024) to convert it to an audio waveform. The vocoder is an important aspect of the codec, as it directly influences reconstruction quality. There-fore, we train our own Vocos model with increased depth and width for better reconstruction. 
+
+3.2 Training Framework 3.2.1 Motivation 
+
+As token rate decreases, it becomes increasingly challenging to accurately reconstruct audio. This is because audio is composed of a mixture of per-ceptually important information, such as linguistic content and speaker timbre, as well as perceptu-ally unimportant information, such as background noise, reverberation, or microphone quality. Ex-isting audio codecs attempt to preserve all infor-mation in the original audio, typically by recon-structing the mel spectrogram or raw waveform. However, we argue that some aspects of audio are more important than others. The ideal audio codec should ignore all perceptually unimportant infor-mation and allocate its limited bitrate on encoding only perceptually important components of audio, since this will maximize the perceived quality of the reconstructed audio. With this principle, we develop several training strategies to promote the encoding of only relevant speech information. 
+
+3.2.2 Speech enhancement 
+
+In addition to training with a standard audio recon-struction task, we jointly use a speech enhancement training objective. During training, we corrupt speech utterances with a variety of audio degra-dations and supervise the model to reconstruct the original clean signal. This causes our model to ignore and remove perceptually unimportant infor-mation added by these degradations, allowing it to prioritize encoding important linguistic and audi-tory information. We use a degradation pipeline based on Nakata et al. (2025), with each degrada-tion applied with a probability of 50%: 1. Reverberation: We generate random RT60 and rectangular dimensions from U(0 .1, 2.0) 
+
+seconds and U(2 , 20) m, respectively. Then, we use pyroomacoustics (Scheibler et al., 2018) to simulate room impulse responses (RIRs). We filter any RIRs of size > 50000 
+
+samples to avoid excessive reverberation. 2. Background noise: We randomly sample a noise recording from a dataset pool of Au-dioSet (Gemmeke et al., 2017), FSD50K (Fon-seca et al., 2022), and WHAM! (Wichern et al., 2019). We add this to the clean utter-ance with SNR sampled from U(15 , 30) dB. 3. Low-pass filter: We use a biquad lowpass filter with a cutoff frequency ranging from 2-8 kHz. 4. Resampling: The utterance is resampled to one of {16 , 22 .05 } kHz before being resam-pled back to 24 kHz. 5. Codec: We applied MP3 compression with a random bitrate between 32-245 kbps. 
+
+3.2.3 Global Conditioning 
+
+Conditioning model outputs on SSL features is a frequently-employed technique to better preserve linguistic information. However, we believe that speaker timbre is also important to preserve. Thus, we design a novel conditioner to facilitate the en-coding of speaker information. Recall that dis-entangled codecs attempt to encode linguistic in-formation in the local encoder and non-linguistic information like timbre in the global encoder. As a result, we condition the global encoder using a pre-trained speaker verification (SV) model. This en-ables stronger gradient signals to reach the global encoder, enabling better preservation of speaker timbre information. Specifically, we use TitaNet-large (Koluguri et al., 2022), a self-supervised speaker recognition model trained on over 100,000 speakers. We apply a learned linear projection from our global embed-ding to TitaNet’s embedding space and train the encoder to to maximize its cosine similarity with the pretrained embeddings. To our knowledge, this is the first time speaker recognition models have been used to condition audio codecs for improved speaker reconstruction. 3.2.4 Training objectives 
+
+We use the following notation: • m: true log-mel spectrogram of utterance • s: true SSL features from WavLM-large • g: true speaker embedding from TitaNet-large • ˆg: pred embedding from global encoder • ˆm: pred log-mel spectrogram from acoustic decoder • ˆs: pred SSL features from semantic decoder The autoencoder uses three loss sources: 1. L2 loss between the original mel spectrogram and the output produced by the acoustic de-coder, denoted Lmel :
+
+Lmel = || m − ˆm|| 2
+
+2. Cosine loss between the semantic representa-tion produced by WavLM-large and the output produced by the semantic decoder, denoted 
+
+Lssl . Formally, assuming cos( x, y ) is the co-sine similarity between x and y,
+
+Lssl = 1 − cos( s, ˆs)
+
+3. Cosine loss between the speaker embedding produced by TitaNet-large and the output from the global encoder, denoted Lemb . As-suming p is a learned linear projection, 
+
+Lemb = 1 − cos( g, p (ˆ g)) 
+
+Vocoder training uses the adversarial training recipe from Vocos (Siuzdak, 2024). We use a multi-period discriminator (Kong et al., 2020) and a multi-band STFT discriminator at multiple timescales (Jang et al., 2021). The vocoder loss is composed of multiscale mel spectrogram loss (Lee et al., 2023), adversarial loss, and feature matching loss. We find that training the autoencoder and vocoder together from scratch leads to bad perfor-mance because the high reconstruction error early in training leads to adversarial training collapse, corroborating results found in Xue et al. (2025). Instead, we adopt a two stage framework. In the first stage, we train the autoencoder and vocoder in-dependently. Critically, the bottleneck-contrained autoencoder is trained without adversarial training, avoiding training divergence. After both models have converged, we then fine-tune both models in an end-to-end fashion. We find this vastly improves training stability and reconstruction quality. 
+
+4 Experiments 
+
+4.1 Training Setup 
+
+We train CleanCodec on the full training set of LibriTTS-R (Koizumi et al., 2023), consisting of 585 hours of read speech from 2,456 speakers, as well as a 1,800-hour subset from the Emilia-YODAS dataset (He et al., 2025), bringing the to-tal dataset size to approximately 2,400 hours. To evaluate the scaling performance of CleanCodec, we train model variants with a downsampling fac-tor of 1 and 2 (as opposed to 5), achieving token rates of 62.5 t/s and 31.25 t/s, respectively. We refer to these models as CleanCodec@62.5, Clean-Codec@31.25, and CleanCodec@12.5. Additional training details can be found in Appendix A. 
+
+4.2 Baselines 
+
+We compare our method with a variety of re-cent SOTA audio codecs, including Mimi (Défos-sez et al., 2024), BiCodec (Wang et al., 2025), XCodec2 (Ye et al., 2025), WavTokenizer (Ji et al., 2025), FocalCodec (Libera et al., 2025), Qwen3-TTS-Tokenizer (Qwen3) (Team, 2026), and Kanade (Huang et al., 2026). 
+
+4.3 Evaluation 
+
+We evaluate reconstructed audio on: • Speaker identity: Speaker embedding cosine similarity (SIM) using ReDimNet-M speaker verification model (Yakovlev et al., 2024). We use ReDimNet-M instead of the more com-mon WavLM-SV because it is a stronger SV model and provides greater discriminability between baselines. • Reconstruction faithfulness: L1 distance be-tween log-mel spectrograms (Mel L1). • Speech intelligibility: word/character error rate (WER/CER) using 
+
+parakeet-tdt-0.6B-v2 speech recog-nition model (Sekoyan et al., 2025). These metrics are computed relative to the Parakeet transcription of the original audio so that the ground truth has a WER/CER of 0. • Quality: UTMOS (Saeki et al., 2022), SI-SDR from the Torchaudio-Squim evaluation suite (Kumar et al., 2023a). We also report the token rate of each audio codec. Smaller token rates compress audio more aggres-sively, so codecs with higher token rates should LibriTTS test-clean LibriTTS test-other Token Rate WER CER SIM UTMOS SI-SDR Mel L1 WER CER SIM UTMOS SI-SDR Mel L1 (t/s) (↓) (↓) (↑) (↑) (↑) (↓) (↓) (↓) (↑) (↑) (↑) (↓)GT – 0.0 0.0 1.00 4.20 26.49 0.00 0.0 0.0 1.00 4.01 24.44 0.00 
+
+Token Rate > 100 t/s 
+
+Qwen3 200 1.3 0.7 0.90 4.27 27.99 0.29 2.6 1.4 0.90 4.09 27.85 0.29 
+
+Token Rate ≥ 50 t/s 
+
+Mimi 100 3.5 1.9 0.72 3.86 17.48 0.56 7.5 4.4 0.70 3.63 17.21 0.56 Qwen3 100 2.6 1.4 0.72 3.92 19.45 0.38 4.7 2.5 0.72 3.73 20.20 0.38 BiCodec 50 2.6 1.3 0.78 4.25 26.49 0.55 6.2 3.4 0.77 4.07 26.14 0.62 XCodec2 50 2.6 1.5 0.77 4.20 23.51 0.39 5.4 3.1 0.75 4.01 23.47 0.40 Qwen3 50 7.9 4.5 0.31 2.65 9.01 0.63 15.8 9.4 0.30 2.51 8.91 0.61 CleanCodec@62.5 62.5 1.3 0.6 0.90 4.23 22.94 0.29 2.7 1.6 0.89 4.06 22.83 0.29 
+
+CleanCodec@31.25 31.25 1.7 0.9 0.88 4.27 22.02 0.33 3.6 1.9 0.87 4.10 22.12 0.33 
+
+Token Rate < 50 t/s 
+
+WavTokenizer 40 9.0 5.0 0.62 3.81 19.98 0.46 19.1 11.5 0.61 3.63 20.94 0.47 FocalCodec 12.5 8.3 4.5 0.45 4.21 25.19 0.78 16.8 9.7 0.42 4.05 25.25 0.79 Kanade 12.5 4.0 2.1 0.65 4.22 23.60 0.57 8.2 4.5 0.64 4.10 23.77 0.59 CleanCodec@12.5 12.5 2.7 1.4 0.86 4.32 21.96 0.44 5.7 3.2 0.84 4.17 21.73 0.44 
+
+Table 1: Evaluation results on LibriTTS test-clean and test-other. 
+
+have better metrics. As a result, we classify our baselines by token rate, and compare our method against baselines of similar token rate. Specifically, we compare CleanCodec@12.5 with baselines be-low 50 t/s, and compare CleanCodec@62.5 and CleanCodec@31.25 with baselines above 50 t/s. We take care to ensure that our models generally have a lower token rate than the baselines they are comparing to so that our improvements cannot be confounded with using a higher token rate. 
+
+4.4 Speech Reconstruction 
+
+We evaluate all baselines on the test-clean and test-other splits of LibriTTS (Zen et al., 2019), con-taining 8.6 and 6.7 hours, respectively. Our re-sults can be found in Table 1, with bold strongest results and underlined second-strongest. Clean-Codec@12.5 achieves either the first or second-strongest results in the vast majority of benchmarks, achieving a new SOTA result. Notably, Clean-Codec@12.5 improves substantially over existing baselines in SIM (0.86 vs 0.64) and WER (2.7 vs 4.0) scores, even achieving competitive results with other codecs with token rates >50 t/s. This indi-cates that CleanCodec@12.5 achieves much better speaker reconstruction and speech intelligibility compared to other audio codecs. Extending our methodology to higher token rates, we see that CleanCodec’s performance consistently improves as token rate increases. CleanCodec@31.25 surpasses both BiCodec and XCodec2 in 5 of 6 benchmarks, despite these codecs using a 60% higher token rate. In addi-tion, CleanCodec@62.5 achieves competitive per-formance with Qwen3-TTS-Tokenizer while hav-ing a 3x lower token rate. Token Rate WER CER SIM UTMOS SI-SDR Mel L1 (t/s) (↓) (↓) (↑) (↑) (↑) (↓)                                                                                                         
+
+> Expresso
+> GT –0.0 0.0 1.00 3.43 24.15 0.00 WavTokenizer 40 19.7 11.4 0.49 2.95 16.56 0.53 FocalCodec 12.5 21.0 11.3 0.34 3.75 22.53 0.89 Kanade 12.5 9.3 4.9 0.55 3.38 22.81 0.61 CleanCodec@12.5 12.5 3.9 1.9 0.82 3.55 22.99 0.45
+> AISHELL-3
+> GT ––0.0 1.00 2.68 21.78 0.00 WavTokenizer 40 –6.1 0.50 2.45 18.90 0.52 FocalCodec 12.5 –15.0 0.24 3.68 25.43 0.79 Kanade 12.5 –7.5 0.47 3.18 24.45 0.58 CleanCodec@12.5 12.5 –1.5 0.84 3.04 22.41 0.39
+> CML-TTS
+> GT –0.0 0.0 1.00 3.03 22.55 0.00 WavTokenizer 40 29.6 14.8 0.58 2.71 20.51 0.47
+> FocalCodec 12.5 54.4 29.9 0.35 3.58 24.94 0.75 Kanade 12.5 42.1 21.4 0.57 3.42 23.98 0.59 CleanCodec@12.5 12.5 12.1 5.1 0.78 3.47 22.11 0.65
+
+Table 2: Evaluation results on OOD speech. Full results in Table 7. 
+
+To demonstrate the robustness of our model, we also evaluate using a variety of out-of-domain datasets, including Expresso (Nguyen et al., 2023), AISHELL-3 (Shi et al., 2020), and CML-TTS (Con-neau et al., 2022), covering expressive, multilin-gual, and in-the-wild speech. Table 2 contains OOD results, with full results in Appendix B due to page limit constraints. Despite not explicitly being trained for any of these domains, we find that Clean-Codec achieves strong results compared to other audio codecs, maintaining or improving its lead against baselines. In particular, we find that audio codecs with low token rates exhibit significantly degraded speech intelligibility on OOD datasets. However, CleanCodec@12.5 experiences much less degradation, achieving competitive WER/CER in Expresso and AISHELL-3. 
+
+4.5 Disentanglement Effectiveness 
+
+Disentangled codecs aim to separate audio into speaker characteristics (located in the global repre-sentation) and the linguistic content (located in the local representation). To measure the disentangle-ment performance, we train models on (1) speaker verification performance using only the global rep-resentation and (2) speech recognition performance using only the local representation. For the speaker verification task, we directly use the global repre-sentation as the speaker embedding. We conduct speaker verification experiments using VoxCeleb-1 (Nagrani et al., 2017). We evaluate using equal error rate (EER) and accuracy (ACC) based on the closest speaker centroid. For speech recognition, we train decoder-only transformers on local audio tokens from LibriTTS. We evaluate using the Lib-riTTS test-clean split with WER and CER. We com-pare CleanCodec with our disentangled baselines: BiCodec and Kanade. We do not test against older disentangled codecs like FACodec (Ju et al., 2024) and TiCodec (Ren et al., 2024) because they have been shown to have noncompetitive performance compared to our baselines. Our results can be found in Table 3. Our models achieve SOTA results in both tasks, indicating that CleanCodec separates linguistic and timbre infor-mation the best compared to our baselines. We attribute this to our global and local encoders with TitaNet and WavLM conditioning, respectively. SV ASR Token Rate ACC EER WER CER (t/s) (↑) (↓) (↓) (↓)BiCodec 50 99.15 1.52 6.2 3.4 Kanade 12.5 96.82 3.38 8.1 4.0 CleanCodec@62.5 62.5 99.99 0.23 4.7 2.6           
+
+> CleanCodec@31.25 31.25 99.98 0.22 4.8 2.7 CleanCodec@12.5 12.5 99.92 0.58 5.6 3.0
+
+Table 3: SV and ASR results for disentangled codecs. 
+
+4.6 Downstream Tasks 
+
+We evaluate our model on two downstream tasks: 1. Voice conversion (VC): Given source and reference audio clips, convert the source clip to the reference voice while preserving the source linguistic content. As shown in Huang et al. (2026), non-disentangled codecs sig-nificantly underperform at VC tasks, so we compare our method against BiCodec and Kanade. To obtain voice-converted audio, we extract global and local representations from the source and reference audio. Then, we pass the global embedding from the reference au-dio and the local tokens from the source audio through the decoder to obtain the converted audio. We evaluate using VCTK (Yamagishi et al., 2019), a 40-hour dataset of parallel ut-terances from 109 speakers, using WER/CER (linguistic similarity), SIM (speaker similar-ity), and UTMOS (quality). 2. Text-to-speech (TTS): Given a reference au-dio and a text, generate audio of the refer-ence voice speaking the given text. We train decoder-only transformers on local audio to-kens from LibriTTS. We evaluate using Seed-TTS-eval (Anastassiou et al., 2024), and also report the training time and inference speed. Token Rate SIM UTMOS WER CER (t/s) (↑) (↑) (↓) (↓)GT – 1.00 4.10 0.0 0.0 BiCodec 50 0.47 3.87 1.3 0.7 Kanade 12.5 0.52 4.21 2.2 1.1 CleanCodec@62.5 62.5 0.70 3.93 0.8 0.3           
+
+> CleanCodec@31.25 31.25 0.76 3.95 0.9 0.4 CleanCodec@12.5 12.5 0.81 4.09 1.4 0.7
+
+Table 4: VC results for disentangled codecs on VCTK. 
+
+VC results can be found in Table 4. Clean-Codec achieves the highest speaker similarity by a wide margin (0.81 for CleanCodec@12.5 vs 0.52 for Kanade). Although BiCodec achieved strong speaker similarity in the speech reconstruction task, we observed that changing the global encoding rarely changed the speaker’s identity, indicating that BiCodec stores significant speaker information in the local audio tokens. As a result, it performed poorly on this task. CleanCodec also appears to exhibit this behavior, albeit to a lesser degree, as both speaker similarity and UTMOS scores moder-ately degrade as token rate increases. Nevertheless, it still achieves SOTA results in 3 of 4 metrics. TTS results can be found in Table 5. Here, the efficiency advantages of using a lower token rate become clear. Both training and inference speed are inversely proportional to the token rate, allow-ing a TTS model using CleanCodec to have 10x faster training and 17x faster inference compared to using Qwen3-TTS-Tokenizer. In addition, us-ing a lower token rate shortens training sequences, allowing better modeling of audio. These factors combine for CleanCodec to achieve SOTA results compared to baselines, both in terms of efficiency and performance. This indicates that the resulting audio tokens produced by CleanCodec contains rich information for speech synthesis. Token Rate Train Time RTF (RTFx) SIM WER (t/s) (hh:mm, ↓) (↓, ↑) (↑) (↓)Qwen3 200 10:02 2.930 (0.3x) 0.36 9.1 Mimi 100 05:11 1.452 (0.7x) 0.34 10.8 XCodec2 50 02:44 0.688 (1.5x) 0.40 4.9 BiCodec 50 02:49 0.691 (1.4x) 0.51 5.2 WavTokenizer 40 02:19 0.552 (1.8x) 0.37 16.6 FocalCodec 12.5 00:58 0.172 (5.8x) 0.31 12.2 Kanade 12.5 00:59 0.169 (5.9x) 0.45 5.6 CleanCodec 12.5 01:00 0.170 (5.9x) 0.56 3.9 
+
+Table 5: TTS results on Seed-TTS-eval. 
+
+4.7 Efficiency Analysis 
+
+We also conduct a thorough efficiency analysis of CleanCodec, measuring its inference speed as well as how efficiently it utilizes its codebook. We move this analysis to Appendix C due to page limit con-straints. 
+
+4.8 Ablation Study 
+
+We conduct an extensive ablation study to validate the design choices used, with results in Table 6: WER CER SIM UTMOS SI-SDR Mel L1 (↓) (↓) (↑) (↑) (↑) (↓)Baseline 2.7 1.4 0.86 4.32 21.96 0.44 One-stage training 4.1 2.2 0.80 4.01 18.58 0.57 HuBERT SSL cond. 2.9 1.4 0.85 4.32 22.03 0.45 No SSL cond. 8.1 4.3 0.84 4.34 22.56 0.42 WavLM global cond. 2.9 1.5 0.77 4.32 21.55 0.44 No global cond. 2.8 1.5 0.74 4.33 21.88 0.43 No denoise 3.4 1.7 0.82 4.24 20.55 0.41 
+
+Table 6: Ablation study. 
+
+1. Two-stage training: We jointly train the au-toencoder and vocoder from scratch, instead of training each separately followed by end-to-end fine-tuning. This causes significant degra-dations in all metrics. Early during training, we find the model struggles to fool the discrim-inators, leading to high early reconstruction loss that never recovers after training. 2. SSL conditioning: We experiment with re-moving the SSL reconstruction branch from our decoder. Although there is a slight im-provement in non-linguistic quality metrics like UTMOS and SI-SDR, there is a sharp drop in linguistic metrics, with a 3x increase in WER and CER. We also replace HuBERT-large with WavLM-large as the pretrained SSL model. We see that performance is very simi-lar, indicating that CleanCodec is not sensitive to the choice of SSL model. 3. Global conditioning: We remove the global conditioning loss from the TitaNet-large speaker verification model. This causes a drop in speaker similarity without significant changes to other metrics. We also replace TitaNet with WavLM-SV, and find that this harms speaker reconstruction, corroborating our claim that WavLM-SV is subpar for suffi-ciently discriminating between speakers. 4. Speech enhancement: We retrain our models without any changes to input audio. This led to a moderate degradation in 5 of 6 metrics, indicating that our speech enhancement frame-work is effective in prioritizing the encoding of perceptually significant information. 
+
+5 Conclusion 
+
+We introduce CleanCodec, a denoising disentan-gled audio codec that achieves state-of-the-art per-formance at 12.5 tokens per second by selectively encoding perceptually important audio information. Through joint speech enhancement training, SSL and speaker conditioning, and a two-stage train-ing framework, CleanCodec demonstrates superior reconstruction quality, disentanglement, and down-stream task efficiency compared to existing codecs. 
+
+Limitations 
+
+Although CleanCodec achieves strong disentan-glement results, the voice conversion task demon-strates that this disentanglement degrades as token rate increases. Determining how to effectively de-code local and global information for codecs with high token rates remains an area of future work. In addition, it is unclear how the downstream improve-ments scale across different compute budgets, as the gaps between the codecs may shrink if trained for longer. Finally, we acknowledge the potential risks of advancing speech tokenization capabilities, such as facilitating deepfake technology, although we believe the benefits of improved speech model-ing outweigh these risks. 
+
+References 
+
+Philip Anastassiou, Jiawei Chen, Jitong Chen, Yuanzhe Chen, Zhuo Chen, Ziyi Chen, Jian Cong, Lelai Deng, Chuang Ding, Lu Gao, Mingqing Gong, Peisong Huang, Qingqing Huang, Zhiying Huang, Yuanyuan Huo, Dongya Jia, Chumin Li, Feiya Li, Hui Li, and 27 others. 2024. Seed-tts: A family of high-quality versatile speech generation models. CoRR ,abs/2406.02430. Alexei Baevski, Yuhao Zhou, Abdelrahman Mohamed, and Michael Auli. 2020. wav2vec 2.0: A framework for self-supervised learning of speech representations. In Advances in Neural Information Processing Sys-tems 33: Annual Conference on Neural Information Processing Systems 2020, NeurIPS 2020, December 6-12, 2020, virtual .Sanyuan Chen, Chengyi Wang, Zhengyang Chen, Yu Wu, Shujie Liu, Zhuo Chen, Jinyu Li, Naoyuki Kanda, Takuya Yoshioka, Xiong Xiao, Jian Wu, Long Zhou, Shuo Ren, Yanmin Qian, Yao Qian, Jian Wu, Michael Zeng, Xiangzhan Yu, and Furu Wei. 2022. Wavlm: Large-scale self-supervised pre-training for full stack speech processing. IEEE J. Sel. Top. Signal Process. , 16(6):1505–1518. Yongjian Chen, Tao Guan, and Cheng Wang. 2010. Ap-proximate nearest neighbor search by residual vector quantization. Sensors , 10(12):11259–11273. Alexis Conneau, Min Ma, Simran Khanuja, Yu Zhang, Vera Axelrod, Siddharth Dalmia, Jason Riesa, Clara Rivera, and Ankur Bapna. 2022. FLEURS: few-shot learning evaluation of universal representations of speech. In IEEE Spoken Language Technology Work-shop, SLT 2022, Doha, Qatar, January 9-12, 2023 ,pages 798–805. IEEE. Jade Copet, Felix Kreuk, Itai Gat, Tal Remez, David Kant, Gabriel Synnaeve, Yossi Adi, and Alexandre Défossez. 2023. Simple and controllable music gen-eration. In Advances in Neural Information Pro-cessing Systems 36: Annual Conference on Neural Information Processing Systems 2023, NeurIPS 2023, New Orleans, LA, USA, December 10 - 16, 2023 .Alexandre Défossez, Jade Copet, Gabriel Synnaeve, and Yossi Adi. 2023. High fidelity neural audio compres-sion. Trans. Mach. Learn. Res. , 2023. Alexandre Défossez, Laurent Mazaré, Manu Orsini, Amélie Royer, Patrick Pérez, Hervé Jégou, Edouard Grave, and Neil Zeghidour. 2024. Moshi: a speech-text foundation model for real-time dialogue. CoRR ,abs/2410.00037. Eduardo Fonseca, Xavier Favory, Jordi Pons, Frederic Font, and Xavier Serra. 2022. FSD50K: an open dataset of human-labeled sound events. IEEE ACM Trans. Audio Speech Lang. Process. , 30:829–852. Jort F. Gemmeke, Daniel P. W. Ellis, Dylan Freedman, Aren Jansen, Wade Lawrence, R. Channing Moore, Manoj Plakal, and Marvin Ritter. 2017. Audio set: An ontology and human-labeled dataset for audio events. In 2017 IEEE International Conference on Acoustics, Speech and Signal Processing, ICASSP 2017, New Orleans, LA, USA, March 5-9, 2017 ,pages 776–780. IEEE. Robert M. Gray. 1984. Vector quantization. IEEE Assp Magazine , 1(2):4–29. Haorui He, Zengqiang Shang, Chaoren Wang, Xuyuan Li, Yicheng Gu, Hua Hua, Liwei Liu, Chen Yang, Jiaqi Li, Peiyang Shi, Yuancheng Wang, Kai Chen, Pengyuan Zhang, and Zhizheng Wu. 2025. Emilia: A large-scale, extensive, multilingual, and diverse dataset for speech generation. CoRR ,abs/2501.15907. Hyunjun Heo, Ui-Hyeop Shin, Ran Lee, Youngju Cheon, and Hyung-Min Park. 2024. Next-tdnn: Mod-ernizing multi-scale temporal convolution backbone for speaker verification. In IEEE International Con-ference on Acoustics, Speech and Signal Processing, ICASSP 2024, Seoul, Republic of Korea, April 14-19, 2024 , pages 11186–11190. IEEE. Sepp Hochreiter and Jürgen Schmidhuber. 1997. Long short-term memory. Neural computation , 9(8):1735– 1780. Wei-Ning Hsu, Benjamin Bolte, Yao-Hung Hubert Tsai, Kushal Lakhotia, Ruslan Salakhutdinov, and Abdel-rahman Mohamed. 2021. Hubert: Self-supervised speech representation learning by masked prediction of hidden units. IEEE ACM Trans. Audio Speech Lang. Process. , 29:3451–3460. Zhijie Huang, Stephen McIntosh, Daisuke Saito, and Nobuaki Minematsu. 2026. Kanade: A simple dis-entangled tokenizer for spoken language modeling. 
+
+CoRR , abs/2602.00594. Won Jang, Dan Lim, Jaesam Yoon, Bongwan Kim, and Juntae Kim. 2021. Univnet: A neural vocoder with multi-resolution spectrogram discriminators for high-fidelity waveform generation. In 22nd Annual Con-ference of the International Speech Communication Association, Interspeech 2021, Brno, Czechia, August 30 - September 3, 2021 , pages 2207–2211. ISCA. Shengpeng Ji, Ziyue Jiang, Wen Wang, Yifu Chen, Minghui Fang, Jialong Zuo, Qian Yang, Xize Cheng, Zehan Wang, Ruiqi Li, Ziang Zhang, Xiaoda Yang, Rongjie Huang, Yidi Jiang, Qian Chen, Siqi Zheng, and Zhou Zhao. 2025. Wavtokenizer: an efficient acoustic discrete codec tokenizer for audio language modeling. In The Thirteenth International Confer-ence on Learning Representations, ICLR 2025, Sin-gapore, April 24-28, 2025 . OpenReview.net. Zeqian Ju, Yuancheng Wang, Kai Shen, Xu Tan, De-tai Xin, Dongchao Yang, Eric Liu, Yichong Leng, Kaitao Song, Siliang Tang, Zhizheng Wu, Tao Qin, Xiangyang Li, Wei Ye, Shikun Zhang, Jiang Bian, Lei He, Jinyu Li, and Sheng Zhao. 2024. Natural-speech 3: Zero-shot speech synthesis with factorized codec and diffusion models. In Forty-first Interna-tional Conference on Machine Learning, ICML 2024, Vienna, Austria, July 21-27, 2024 , Proceedings of Machine Learning Research, pages 22605–22623. PMLR / OpenReview.net. Yuma Koizumi, Heiga Zen, Shigeki Karita, Yifan Ding, Kohei Yatabe, Nobuyuki Morioka, Michiel Bacchi-ani, Yu Zhang, Wei Han, and Ankur Bapna. 2023. Libritts-r: A restored multi-speaker text-to-speech corpus. In 24th Annual Conference of the Inter-national Speech Communication Association, Inter-speech 2023, Dublin, Ireland, August 20-24, 2023 ,pages 5496–5500. ISCA. Nithin Rao Koluguri, Taejin Park, and Boris Ginsburg. 2022. Titanet: Neural model for speaker representa-tion with 1d depth-wise separable convolutions and global context. In IEEE International Conference on Acoustics, Speech and Signal Processing, ICASSP 2022, Virtual and Singapore, 23-27 May 2022 , pages 8102–8106. IEEE. Jungil Kong, Jaehyeon Kim, and Jaekyoung Bae. 2020. Hifi-gan: Generative adversarial networks for effi-cient and high fidelity speech synthesis. In Advances in Neural Information Processing Systems 33: An-nual Conference on Neural Information Processing Systems 2020, NeurIPS 2020, December 6-12, 2020, virtual .Anurag Kumar, Ke Tan, Zhaoheng Ni, Pranay Manocha, Xiaohui Zhang, Ethan Henderson, and Buye Xu. 2023a. Torchaudio-squim: Reference-less speech quality and intelligibility measures in torchaudio. In 
+
+IEEE International Conference on Acoustics, Speech and Signal Processing ICASSP 2023, Rhodes Island, Greece, June 4-10, 2023 , pages 1–5. IEEE. Rithesh Kumar, Prem Seetharaman, Alejandro Luebs, Ishaan Kumar, and Kundan Kumar. 2023b. High-fidelity audio compression with improved RVQGAN. In Advances in Neural Information Processing Sys-tems 36: Annual Conference on Neural Information Processing Systems 2023, NeurIPS 2023, New Or-leans, LA, USA, December 10 - 16, 2023 .Sang-gil Lee, Wei Ping, Boris Ginsburg, Bryan Catan-zaro, and Sungroh Yoon. 2023. Bigvgan: A univer-sal neural vocoder with large-scale training. In The Eleventh International Conference on Learning Rep-resentations, ICLR 2023, Kigali, Rwanda, May 1-5, 2023 . OpenReview.net. Hanzhao Li, Liumeng Xue, Haohan Guo, Xinfa Zhu, Yuanjun Lv, Lei Xie, Yunlin Chen, Hao Yin, and Zhifei Li. 2024. Single-codec: Single-codebook speech codec towards high-performance speech gen-eration. In 25th Annual Conference of the Inter-national Speech Communication Association, Inter-speech 2024, Kos, Greece, September 1-5, 2024 .ISCA. Jiaqi Li, Xiaolong Lin, Zhekai Li, Shixi Huang, Yuancheng Wang, Chaoren Wang, Zhenpeng Zhan, and Zhizheng Wu. 2025. Dualcodec: A low-frame-rate, semantically-enhanced neural audio codec for speech generation. In 26th Annual Conference of the International Speech Communication Association, In-terspeech 2025, Rotterdam, The Netherlands, 17-21 August 2025 . ISCA. Luca Della Libera, Francesco Paissan, Cem Subakan, and Mirco Ravanelli. 2025. Focalcodec: Low-bitrate speech coding via focal modulation networks. CoRR ,abs/2502.04465. Zhuang Liu, Hanzi Mao, Chao-Yuan Wu, Christoph Fe-ichtenhofer, Trevor Darrell, and Saining Xie. 2022. A convnet for the 2020s. In IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2022, New Orleans, LA, USA, June 18-24, 2022 ,pages 11966–11976. IEEE. Fabian Mentzer, David Minnen, Eirikur Agustsson, and Michael Tschannen. 2024. Finite scalar quantization: VQ-VAE made simple. In The Twelfth International Conference on Learning Representations, ICLR 2024, Vienna, Austria, May 7-11, 2024 . OpenReview.net. Arsha Nagrani, Joon Son Chung, and Andrew Zisser-man. 2017. Voxceleb: A large-scale speaker identi-fication dataset. In 18th Annual Conference of the International Speech Communication Association, In-terspeech 2017, Stockholm, Sweden, August 20-24, 2017 , pages 2616–2620. ISCA. Wataru Nakata, Yuki Saito, Yota Ueda, and Hiroshi Saruwatari. 2025. Sidon: Fast and robust open-source multilingual speech restoration for large-scale dataset cleansing. CoRR , abs/2509.17052. Tu Anh Nguyen, Wei-Ning Hsu, Antony D’Avirro, Bowen Shi, Itai Gat, Maryam Fazel-Zarandi, Tal Re-mez, Jade Copet, Gabriel Synnaeve, Michael Has-sid, Felix Kreuk, Yossi Adi, and Emmanuel Dupoux. 2023. Expresso: A benchmark and analysis of dis-crete expressive speech resynthesis. In 24th Annual Conference of the International Speech Communica-tion Association, Interspeech 2023, Dublin, Ireland, August 20-24, 2023 , pages 4823–4827. ISCA. Koji Okabe, Takafumi Koshinaka, and Koichi Shinoda. 2018. Attentive statistics pooling for deep speaker embedding. In 19th Annual Conference of the In-ternational Speech Communication Association, In-terspeech 2018, Hyderabad, India, September 2-6, 2018 , pages 2252–2256. ISCA. Yu Pan, Lei Ma, and Jianjun Zhao. 2024. Promptcodec: High-fidelity neural speech codec using disentangled representation learning based adaptive feature-aware prompt encoders. CoRR , abs/2404.02702. Julian D. Parker, Anton Smirnov, Jordi Pons, CJ Carr, Zack Zukowski, Zach Evans, and Xubo Liu. 2025. Scaling transformers for low-bitrate high-quality speech coding. In The Thirteenth International Con-ference on Learning Representations, ICLR 2025, Singapore, April 24-28, 2025 . OpenReview.net. Zhiliang Peng, Jianwei Yu, Wenhui Wang, Yaoyao Chang, Yutao Sun, Li Dong, Yi Zhu, Weijiang Xu, Hangbo Bao, Zehua Wang, Shaohan Huang, Yan Xia, and Furu Wei. 2025. Vibevoice technical report. 
+
+CoRR , abs/2508.19205. Yong Ren, Tao Wang, Jiangyan Yi, Le Xu, Jianhua Tao, Chu Yuan Zhang, and Junzuo Zhou. 2024. Fewer-token neural speech codec with time-invariant codes. In IEEE International Conference on Acous-tics, Speech and Signal Processing, ICASSP 2024, Seoul, Republic of Korea, April 14-19, 2024 , pages 12737–12741. IEEE. Takaaki Saeki, Detai Xin, Wataru Nakata, Tomoki Koriyama, Shinnosuke Takamichi, and Hiroshi Saruwatari. 2022. UTMOS: utokyo-sarulab system for voicemos challenge 2022. In 23rd Annual Confer-ence of the International Speech Communication As-sociation, Interspeech 2022, Incheon, Korea, Septem-ber 18-22, 2022 , pages 4521–4525. ISCA. Robin Scheibler, Eric Bezzam, and Ivan Dokmanic. 2018. Pyroomacoustics: A python package for audio room simulation and array processing algorithms. In 
+
+2018 IEEE International Conference on Acoustics, Speech and Signal Processing, ICASSP 2018, Cal-gary, AB, Canada, April 15-20, 2018 , pages 351–355. IEEE. Monica Sekoyan, Nithin Rao Koluguri, Nune Tade-vosyan, Piotr Zelasko, Travis M. Bartley, Nikolay Karpov, Jagadeesh Balam, and Boris Ginsburg. 2025. Canary-1b-v2 & parakeet-tdt-0.6b-v3: Efficient and high-performance models for multilingual ASR and AST. CoRR , abs/2509.14128. Yao Shi, Hui Bu, Xin Xu, Shaoji Zhang, and Ming Li. 2020. AISHELL-3: A multi-speaker mandarin TTS corpus and the baselines. CoRR , abs/2010.11567. Hubert Siuzdak. 2024. Vocos: Closing the gap between time-domain and fourier-based neural vocoders for high-quality audio synthesis. In The Twelfth Inter-national Conference on Learning Representations, ICLR 2024, Vienna, Austria, May 7-11, 2024 . Open-Review.net. Qwen Team. 2026. Qwen3-tts technical report. CoRR ,abs/2601.15621. Aäron van den Oord, Oriol Vinyals, and Koray Kavukcuoglu. 2017. Neural discrete representation learning. In Advances in Neural Information Pro-cessing Systems 30: Annual Conference on Neural Information Processing Systems 2017, December 4-9, 2017, Long Beach, CA, USA , pages 6306–6315. Chengyi Wang, Sanyuan Chen, Yu Wu, Ziqiang Zhang, Long Zhou, Shujie Liu, Zhuo Chen, Yanqing Liu, Huaming Wang, Jinyu Li, Lei He, Sheng Zhao, and Furu Wei. 2023. Neural codec language models are zero-shot text to speech synthesizers. CoRR ,abs/2301.02111. Xinsheng Wang, Mingqi Jiang, Ziyang Ma, Ziyu Zhang, Songxiang Liu, Linqin Li, Zheng Liang, Qixi Zheng, Rui Wang, Xiaoqin Feng, Weizhen Bian, Zhen Ye, Sitong Cheng, Ruibin Yuan, Zhixian Zhao, Xinfa Zhu, Jiahao Pan, Liumeng Xue, Pengcheng Zhu, and 6 others. 2025. Spark-tts: An efficient llm-based text-to-speech model with single-stream decoupled speech tokens. CoRR , abs/2503.01710. Gordon Wichern, Joe Antognini, Michael Flynn, Licheng Richard Zhu, Emmett McQuinn, Dwight Crow, Ethan Manilow, and Jonathan Le Roux. 2019. Wham!: Extending speech separation to noisy envi-ronments. In 20th Annual Conference of the Inter-national Speech Communication Association, Inter-speech 2019, Graz, Austria, September 15-19, 2019 ,pages 1368–1372. ISCA. Rongkun Xue, Yazhe Niu, Shuai Hu, Zixin Yin, Yongqiang Yao, and Jing Yang. 2025. Hh-codec: High compression high-fidelity discrete neu-ral codec for spoken language modeling. CoRR ,abs/2507.18897. Ivan Yakovlev, Rostislav Makarov, Andrei Balykin, Pavel Malov, Anton Okhotnikov, and Nikita Tor-gashov. 2024. Reshape dimensions network for speaker recognition. In 25th Annual Conference of the International Speech Communication Associa-tion, Interspeech 2024, Kos, Greece, September 1-5, 2024 . ISCA. Junichi Yamagishi, Christophe Veaux, and Kirsten Mac-Donald. 2019. CSTR VCTK corpus: English multi-speaker corpus for CSTR voice cloning toolkit (ver-sion 0.92). Zhen Ye, Xinfa Zhu, Chi-Min Chan, Xinsheng Wang, Xu Tan, Jiahe Lei, Yi Peng, Haohe Liu, Yizhu Jin, Zheqi Dai, Hongzhan Lin, Jianyi Chen, Xingjian Du, Liumeng Xue, Yunlin Chen, Zhifei Li, Lei Xie, Qiuqiang Kong, Yike Guo, and Wei Xue. 2025. Llasa: Scaling train-time and inference-time compute for llama-based speech synthesis. CoRR ,abs/2502.04128. Heiga Zen, Viet Dang, Rob Clark, Yu Zhang, Ron J. Weiss, Ye Jia, Zhifeng Chen, and Yonghui Wu. 2019. Libritts: A corpus derived from librispeech for text-to-speech. In 20th Annual Conference of the Inter-national Speech Communication Association, Inter-speech 2019, Graz, Austria, September 15-19, 2019 ,pages 1526–1530. ISCA. Xin Zhang, Dong Zhang, Shimin Li, Yaqian Zhou, and Xipeng Qiu. 2024. Speechtokenizer: Unified speech tokenizer for speech language models. In The Twelfth International Conference on Learning Representa-tions, ICLR 2024, Vienna, Austria, May 7-11, 2024 .OpenReview.net. 
+
+A Training Hyperparameters 
+
+The local encoder and acoustic decoder both use a 16-layer, 768-dim ConvNeXt backbone with a depthwise kernel size of 27 and an MLP intermedi-ate size of 3072. The semantic decoder is identical to the acoustic decoder, but with a kernel size of 53. The global encoder is an 8-layer, 512-dim ConvNeXt backbone with a depthwise kernel size of 7 and an MLP intermediate size of 1536. The vocoder is a 16-layer, 1536-dim ConvNeXt back-bone with a depthwise kernel size of 5 and an MLP intermediate size of 4608. In total, the autoencoder contains 243M parameters and the vocoder con-tains 228M parameters, for a total model size of 471M parameters. However, the semantic decoder can be discarded after training, reducing parameter count to 396M parameters. During the first training stage, we independently train the autoencoder and vocoder for 1M steps each. We use audio samples of length 230,400 sam-ples (9.6 seconds) with a batch size of 4. All utter-ances under this length are repeated, then trimmed to the desired length. We also apply a high-pass filter to all audio samples with a cutoff frequency of 80 Hz, as well as loudness normalization with a peak amplitude of 0.75. We optimize using AdamW (β1 = 0 .8, β 2 = 0 .9, wd = 0 .01) and a cosine learning rate schedule initialized at 1e-4. During the second stage, we decrease the learning rate to 2e-6 and jointly train the autoencoder and vocoder in an end-to-end fashion for 200K steps. All other hyperparameters remain the same. Train-ing was conducted using 1x A100 80GB GPU for one week. In downstream ASR and TTS tasks, we use 16-layer, 4-head, 512-dim LLaMA-style transform-ers with a total of 96M parameters. For ASR models, we use training sequences of the format 
+
+<audio tokens><BOS><text><EOS> . Only text tokens are used for computing crossentropy loss. For TTS models, we use training sequences of the format <prompt tokens><text><BOS><audio tokens><EOS> . Only the audio tokens are used for computing crossentropy loss. For disentan-gled codecs, we prepend the global embedding to the beginning of the training sequence. Fol-lowing Copet et al. (2023) for multi-codebook codecs, we flatten tokens and use a combined vocabulary, as this achieves the strongest perfor-mance. In both ASR and TTS tasks, models are trained for 10K steps with a batch size of 2400 seconds. We optimize the model using AdamW 
+
+(β1 = 0 .9, β 2 = 0 .95 , wd = 0 .1) and a cosine learning rate schedule initialized at 1e-3. 
+
+B Out-Of-Distribution Reconstruction Results 
+
+See Table 7 for full OOD results. Token Rate WER CER SIM UTMOS SI-SDR Mel L1 (t/s) (↓) (↓) (↑) (↑) (↑) (↓)                                                                                                                                                                                                                                                                                                            
+
+> Expresso
+> GT –0.0 0.0 1.00 3.43 24.15 0.00
+> Token Rate >100 t/s
+> Qwen3 200 1.5 0.6 0.89 3.50 25.38 0.29
+> Token Rate ≥50 t/s
+> Mimi 100 5.5 3.0 0.63 3.07 15.94 0.58 Qwen3 100 2.9 1.4 0.68 3.23 21.15 0.38 BiCodec 50 4.5 2.4 0.74 3.42 23.94 0.53 XCodec2 50 4.3 2.1 0.73 3.34 22.88 0.41 Qwen3 50 13.0 7.3 0.25 2.22 10.22 0.65 CleanCodec@62.5 62.5 1.9 0.9 0.87 3.43 23.07 0.31
+> CleanCodec@31.25 31.25 2.4 1.2 0.86 3.47 22.87 0.35
+> Token Rate <50 t/s
+> WavTokenizer 40 19.7 11.4 0.49 2.95 16.56 0.53 FocalCodec 12.5 21.0 11.3 0.34 3.75 22.53 0.89 Kanade 12.5 9.3 4.9 0.55 3.38 22.81 0.61 CleanCodec@12.5 12.5 3.9 1.9 0.82 3.55 22.99 0.45
+> AISHELL-3
+> GT ––0.0 1.00 2.68 21.78 0.00
+> Token Rate >100 t/s
+> Qwen3 200 –0.5 0.89 2.96 24.05 0.30
+> Token Rate ≥50 t/s
+> Mimi 100 –1.9 0.57 2.61 18.38 0.55 Qwen3 100 –1.3 0.68 2.77 22.09 0.37 BiCodec 50 –1.0 0.77 2.92 22.72 0.55 XCodec2 50 –1.1 0.76 2.83 22.79 0.40 Qwen3 50 –17.8 0.24 2.02 9.71 0.63 CleanCodec@62.5 62.5 –0.5 0.88 2.89 23.06 0.29
+> CleanCodec@31.25 31.25 –0.7 0.87 2.97 22.88 0.32
+> Token Rate <50 t/s
+> WavTokenizer 40 –6.1 0.50 2.45 18.90 0.52 FocalCodec 12.5 –15.0 0.24 3.68 25.43 0.79 Kanade 12.5 –7.5 0.47 3.18 24.45 0.58 CleanCodec@12.5 12.5 –1.5 0.84 3.04 22.41 0.39
+> CML-TTS
+> GT –0.0 0.0 1.00 3.03 22.55 0.00
+> Token Rate >100 t/s
+> Qwen3 200 3.2 1.4 0.92 3.15 24.54 0.30
+> Token Rate ≥50 t/s
+> Mimi 100 11.0 5.1 0.69 2.67 16.46 0.55 Qwen3 100 6.3 2.5 0.72 2.74 20.57 0.37
+> BiCodec 50 8.9 3.8 0.77 3.17 22.79 0.48 XCodec2 50 6.2 2.6 0.81 3.18 23.16 0.38 Qwen3 50 23.4 11.5 0.30 1.85 9.32 0.56 CleanCodec@62.5 62.5 5.4 2.4 0.83 3.41 22.86 0.50 CleanCodec@31.25 31.25 6.4 2.7 0.82 3.33 21.72 0.55
+> Token Rate <50 t/s
+> WavTokenizer 40 29.6 14.8 0.58 2.71 20.51 0.47
+> FocalCodec 12.5 54.4 29.9 0.35 3.58 24.94 0.75 Kanade 12.5 42.1 21.4 0.57 3.42 23.98 0.59 CleanCodec@12.5 12.5 12.1 5.1 0.78 3.47 22.11 0.65
+
+Table 7: Full evaluation results on OOD speech. C Efficiency Analysis 
+
+C.1 Codebook efficiency 
+
+We compare the codebook utilization of Clean-Codec using normalized entropy: Normalized Entropy = − 1log N
+
+> N
+
+X
+
+> x=1
+
+p(x) log( p(x)) .
+
+Results are reported in Table 8. Our model has the second-highest normalized entropy, behind only BiCodec, indicating very efficient codebook usage. 
+
+C.2 Codec inference efficiency 
+
+We report time the encoding and decoding speed of all audio codecs in this work in Table 9. Although CleanCodec contains more parameters than most baselines, it still achieves competitive inference speed, with the lowest encoding RTF and third-lowest total RTF, making it a strong choice for lightweight applications. Model Entropy ( ↑)BiCodec 0.995            
+
+> SpeechTokenizer 0.984 Kanade 0.976 X-Codec2 0.965 StableCodec 0.962 FACodec 0.953 DualCodec 0.923 Mimi 0.914 WavTokenizer 0.885 PAST 0.824 TiCodec 0.623 CleanCodec@12.5 0.985
+
+Table 8: Normalized entropy of different audio codecs. Baseline results reported from Huang et al. (2026). Model Params Enc RTF (RTFx) Dec RTF (RTFx) Total RTF (RTFx) 
+
+(↓, ↑) (↓, ↑) (↓, ↑)
+
+Qwen3 171M 0.0035 (284x) 0.0059 (169x) 0.0094 (106x) Mimi 96M 0.0032 (317x) 0.0024 (415x) 0.0055 (180x) BiCodec 156M 0.0061 (164x) 0.0024 (414x) 0.0085 (117x) X-Codec2 823M 0.0146 (68x) 0.0027 (368x) 0.0174 (57x) WavTokenizer 81M 0.0026 (379x) 0.0012 (802x) 0.0039 (257x) FocalCodec 145M 0.0027 (376x) 0.0009 (1123x) 0.0036 (282x) Kanade 207M 0.0035 (284x) 0.0021 (473x) 0.0056 (177x) CleanCodec@12.5 396M 0.0011 (928x) 0.0034 (291x) 0.0045 (221x) 
+
+Table 9: Codec encoding/decoding efficiency. Total RTF measures the speed of both encoding and decoding.
