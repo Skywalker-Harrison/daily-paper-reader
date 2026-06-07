@@ -6,92 +6,71 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-06
-- 运行时间：2026-06-06 20:15:24 UTC
+- 最新运行日期：2026-06-07
+- 运行时间：2026-06-07 19:24:56 UTC
 - 运行状态：成功
-- 本次总论文数：24
-- 精读区：9
+- 本次总论文数：17
+- 精读区：2
 - 速读区：15
 
 ### 今日简报（AI）
-今日研究聚焦零样本语音合成与语音翻译，两篇精读论文均获9分高分。值得关注Chatterbox-Flash的流式零样本TTS技术，以及语音到语音翻译模型的基准结果。推荐深入阅读速读中的SwanVoice，其支持长对话零样本合成。
-- 详情：[/202606/06/README](/202606/06/README)
+今日共处理17篇论文，精读2篇高分研究：SALSA和Komi-Yazva平行语料库。最值得关注的方向是通过学习激活向量优化LLM语音感知（SALSA），以及低资源语言翻译的评估协议（Komi-Yazva）。建议优先阅读这两篇精读论文，速读中的MOSS-Audio技术报告可作为语音领域补充。
+- 详情：[/202606/07/README](/202606/07/README)
 
 ### 精读区论文标签
-1. [Chatterbox-Flash: Prior-Calibrated Block Diffusion for Streaming Zero-Shot TTS](/202606/06/2605.30748v2-chatterbox-flash-prior-calibrated-block-diffusion-for-streaming-zero-shot-tts)  
-   标签：评分：9.0/10、query:speech-tech
-   evidence：零样本文本转语音块扩散模型
-2. [Benchmarking Speech-to-Speech Translation Models](/202606/06/2606.03241v1-benchmarking-speech-to-speech-translation-models)  
-   标签：评分：9.0/10、query:speech-tech
-   evidence：语音到语音翻译的统一基准框架
-3. [Task-Vector Arithmetic for Emotional Expressivity Control in Language-Model-Based Text-to-Speech](/202606/06/2606.05367v1-task-vector-arithmetic-for-emotional-expressivity-control-in-language-model-based-text-to-speech)  
-   标签：评分：9.0/10、query:qwen-tts
-   evidence：使用任务向量算术在Qwen3-TTS模型上实现情感控制
-4. [UniVoice: A Unified Model for Speech and Singing Voice Generation](/202606/06/2606.05852v1-univoice-a-unified-model-for-speech-and-singing-voice-generation)  
-   标签：评分：9.0/10、query:speech-tech
-   evidence：统一的语音和歌声生成
-5. [GLASS: GRPO-Trained LoRA for Acoustic Style Steering in Zero-Shot Text-to-Speech](/202606/06/2606.05889v1-glass-grpo-trained-lora-for-acoustic-style-steering-in-zero-shot-text-to-speech)  
-   标签：评分：9.0/10、query:qwen-tts
-   evidence：通过GRPO调整语速的可控TTS
-6. [A Systematic Analysis of Linguistic Features in AI-Generated Text Detection Across Domains and Models](/202606/06/2606.04177v1-a-systematic-analysis-of-linguistic-features-in-ai-generated-text-detection-across-domains-and-models)  
-   标签：评分：8.0/10、query:fie-rag
-   evidence：系统分析284个语言学特征用于AI生成文本检测，与事实性检测相关
-7. [TextWand: A Unified Framework for Scene Text Editing](/202606/06/2606.05730v1-textwand-a-unified-framework-for-scene-text-editing)  
-   标签：评分：8.0/10、query:mtg-bench
-   evidence：场景文本编辑基准，用于图像中的文本生成
-8. [Towards Truly Multilingual ASR: Generalizing Code-Switching ASR to Unseen Language Pairs](/202606/06/2606.05846v1-towards-truly-multilingual-asr-generalizing-code-switching-asr-to-unseen-language-pairs)  
+1. [SALSA: Speech Aware LLM Adaptation via Learned Steering Activation Vectors](/202606/07/2606.00460v1-salsa-speech-aware-llm-adaptation-via-learned-steering-activation-vectors)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：码切换ASR泛化到未见语言对
-9. [SpeechJBB: Probing Safety Alignment and Comprehension in Large Audio Language Models under Code-Switched Speech](/202606/06/2606.06037v1-speechjbb-probing-safety-alignment-and-comprehension-in-large-audio-language-models-under-code-switched-speech)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：针对代码切换语音下大型音频语言模型的安全对齐与理解能力，构建音频越狱数据集进行基准测试
+   evidence：多语言语音和代码切换评估
+2. [A Komi-Yazva--Russian Parallel Corpus and Evaluation Protocol for Zero- and Few-Shot LLM Translation](/202606/07/2606.06420v1-a-komi-yazva--russian-parallel-corpus-and-evaluation-protocol-for-zero--and-few-shot-llm-translation)  
+   标签：评分：8.0/10、query:cross-lang
+   evidence：针对低资源语言零样本和少样本LLM翻译的评估协议
 
 ### 速读区论文标签
-1. [SwanVoice: Expressive Long-Form Zero-Shot Speech Synthesis for Both Monologue and Dialogue](/202606/06/2605.30993v1-swanvoice-expressive-long-form-zero-shot-speech-synthesis-for-both-monologue-and-dialogue)  
+1. [How Far Do Auto-Interpretation Labels Generalize: A Controlled Study Across Languages, Scripts, and Rewordings](/202606/07/2606.00356v1-how-far-do-auto-interpretation-labels-generalize-a-controlled-study-across-languages-scripts-and-rewordings)  
+   标签：评分：7.0/10、query:cross-lang
+   evidence：跨语言脚本标签泛化研究
+2. [MOSS-Audio Technical Report](/202606/07/2606.01802v1-moss-audio-technical-report)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：表达性长格式零样本语音合成
-2. [SALSA: Speech Aware LLM Adaptation via Learned Steering Activation Vectors](/202606/06/2606.00460v1-salsa-speech-aware-llm-adaptation-via-learned-steering-activation-vectors)  
+   evidence：统一的音频-语言模型，支持语音理解和转录
+3. [MOSS-Audio Technical Report](/202606/07/2606.01802v2-moss-audio-technical-report)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：面向多语言和代码切换语音的语音感知大模型适应方法
-3. [WavTTS: Towards High-Quality Zero-Shot TTS via Direct Raw Waveform Modeling](/202606/06/2606.03455v1-wavtts-towards-high-quality-zero-shot-tts-via-direct-raw-waveform-modeling)  
+   evidence：语音理解模型，支持转录和音频描述
+4. [Beyond "To whom it may concern": Tailoring Machine Translation to Audience and Intent](/202606/07/2606.03259v1-beyond-to-whom-it-may-concern-tailoring-machine-translation-to-audience-and-intent)  
+   标签：评分：7.0/10、query:cross-lang
+   evidence：基于LLM的跨50种语言的目的驱动机器翻译系统评估
+5. [WavTTS: Towards High-Quality Zero-Shot TTS via Direct Raw Waveform Modeling](/202606/07/2606.03455v1-wavtts-towards-high-quality-zero-shot-tts-via-direct-raw-waveform-modeling)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：通过直接原始波形建模的零样本TTS
-4. [A Pocket Offline Model for Simultaneous Speech Translation as CUNI Submission to IWSLT 2026](/202606/06/2606.03948v1-a-pocket-offline-model-for-simultaneous-speech-translation-as-cuni-submission-to-iwslt-2026)  
+   evidence：首个直接原始波形生成的高质量零样本TTS模型
+6. [Reasoning over Grammar: Can Synthetic Linguistic Reasoning Traces Enhance Low-Resource Machine Translation?](/202606/07/2606.03782v1-reasoning-over-grammar-can-synthetic-linguistic-reasoning-traces-enhance-low-resource-machine-translation)  
+   标签：评分：7.0/10、query:cross-lang
+   evidence：研究结构化语言学推理轨迹以增强低资源机器翻译
+7. [AlignAtt4LLM: Fast AlignAtt for Decoder-Only LLMs at IWSLT 2026 Simultaneous Speech Translation Task](/202606/07/2606.03967v1-alignatt4llm-fast-alignatt-for-decoder-only-llms-at-iwslt-2026-simultaneous-speech-translation-task)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：同时语音翻译涉及多语种语音识别
-5. [Read What You Hear: Reference-Free Hypotheses Evaluation with Acoustic Discrepancy](/202606/06/2606.04680v1-read-what-you-hear-reference-free-hypotheses-evaluation-with-acoustic-discrepancy)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：利用TTS模型进行无参考ASR假设评估
-6. [FontFusion: Enhancing Generative Text in Diffusion Models with Typographic Conditioning](/202606/06/2606.06066v1-fontfusion-enhancing-generative-text-in-diffusion-models-with-typographic-conditioning)  
+   evidence：同时语音翻译系统，结合ASR和MT处理多语种
+8. [TextWand: A Unified Framework for Scene Text Editing](/202606/07/2606.05730v1-textwand-a-unified-framework-for-scene-text-editing)  
    标签：评分：7.0/10、query:mtg-bench
-   evidence：扩散模型中用于文字渲染的字体条件控制
-7. [RCEM: Embedder Equipped with Query Rewriting Skill for Robust Conversational Search in Distributional Shift](/202606/06/2606.01697v1-rcem-embedder-equipped-with-query-rewriting-skill-for-robust-conversational-search-in-distributional-shift)  
-   标签：评分：6.0/10、query:fie-rag
-   evidence：用于RAG的对话式稠密检索模型
-8. [SpeechEditBench: A Bilingual Multi-Attribute Benchmark for Instruction-Guided Speech Editing](/202606/06/2606.01804v1-speecheditbench-a-bilingual-multi-attribute-benchmark-for-instruction-guided-speech-editing)  
+   evidence：统一的场景文本编辑框架，包括生成和全面基准
+9. [M2S-AVSR: Modality-aware Multi-view Self-supervised Representation for Robust Audio-Visual Speech Recognition](/202606/07/2606.05763v1-m2s-avsr-modality-aware-multi-view-self-supervised-representation-for-robust-audio-visual-speech-recognition)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：音视频语音识别用于鲁棒ASR
+10. [Learning Emotion-discriminative Representations for Zero-Shot Cross-lingual Speech Emotion Recognition](/202606/07/2606.06200v1-learning-emotion-discriminative-representations-for-zero-shot-cross-lingual-speech-emotion-recognition)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：零样本跨语言语音情感识别
+11. [Echo: A Joint-Embedding Predictive Architecture for Speaker Diarization and Speech Recognition in a Shared Latent Space](/202606/07/2606.01909v1-echo-a-joint-embedding-predictive-architecture-for-speaker-diarization-and-speech-recognition-in-a-shared-latent-space)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：双语多属性指令引导语音编辑基准
-9. [CleanCodec: Efficient and Robust Speech Tokenization via Perceptually Guided Encoding](/202606/06/2606.04418v1-cleancodec-efficient-and-robust-speech-tokenization-via-perceptually-guided-encoding)  
+   evidence：联合嵌入架构用于说话人日志和语音识别
+12. [EntangleCodec: A Unified Discrete Audio Tokenizer via Semantic-Acoustic Entanglement](/202606/07/2606.02739v1-entanglecodec-a-unified-discrete-audio-tokenizer-via-semantic-acoustic-entanglement)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：用于高效语音标记化的去噪音频编解码器，可应用于多语言TTS
-10. [QO-Bench: Diagnosing Query-Operator-Preserving Retrieval over Typed Event Tuples](/202606/06/2606.04646v1-qo-bench-diagnosing-query-operator-preserving-retrieval-over-typed-event-tuples)  
-   标签：评分：6.0/10、query:fie-rag
-   evidence：诊断性基准测试，评估查询算子保持的RAG系统，与事实性推理的RAG评估相关
-11. [Test-Time Compute Scaling for ASR with Depth-Conditioned Looped Transformers](/202606/06/2606.04678v1-test-time-compute-scaling-for-asr-with-depth-conditioned-looped-transformers)  
+   evidence：统一的语义-声学音频分词器，支持多语言语音生成任务
+13. [Entity Binding Failures in Speech LLM Reasoning: Diagnosis and Chain-of-Thought Intervention](/202606/07/2606.04474v1-entity-binding-failures-in-speech-llm-reasoning-diagnosis-and-chain-of-thought-intervention)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：ASR测试时计算扩展
-12. [Multilingual Long-Form Speech Instruction Following: KIT's Submission to IWSLT 2026](/202606/06/2606.04730v1-multilingual-long-form-speech-instruction-following-kits-submission-to-iwslt-2026)  
+   evidence：诊断语音大语言模型在推理任务中的实体绑定失败
+14. [ComplexityMT: Benchmarking the Interaction Between Text Complexity and Machine Translation](/202606/07/2606.05421v1-complexitymt-benchmarking-the-interaction-between-text-complexity-and-machine-translation)  
+   标签：评分：6.0/10、query:cross-lang
+   evidence：涵盖阿拉伯语在内的文本复杂度与机器翻译交互的基准
+15. [Multi-task Learning is Not Enough: Representational Entanglement in Dual-output Second Language Speech Recognition](/202606/07/2606.06065v1-multi-task-learning-is-not-enough-representational-entanglement-in-dual-output-second-language-speech-recognition)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：多语言长语音指令跟随系统
-13. [Agent-Orchestrated Adaptive RAG: A Comparative Study on Structured and Multi-Hop Retrieval](/202606/06/2606.05658v1-agent-orchestrated-adaptive-rag-a-comparative-study-on-structured-and-multi-hop-retrieval)  
-   标签：评分：6.0/10、query:fie-rag
-   evidence：自适应RAG框架，包含查询分解和迭代检索，对少样本事实性推断有用
-14. [Revisiting Lexicon Evaluation in Unsupervised Word Discovery](/202606/06/2606.06183v1-revisiting-lexicon-evaluation-in-unsupervised-word-discovery)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：零资源语音中的词典评估
-15. [FiLM-Based Speaker Conditioning of a SpeechLLM for Pathological Speech Recognition](/202606/06/2606.06211v1-film-based-speaker-conditioning-of-a-speechllm-for-pathological-speech-recognition)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：基于FiLM的说话人条件用于病理语音识别
+   evidence：分析韩语和英语第二语言语音识别中双输出的表示纠缠问题
 
 
 <div class="dpr-home-promo-card">

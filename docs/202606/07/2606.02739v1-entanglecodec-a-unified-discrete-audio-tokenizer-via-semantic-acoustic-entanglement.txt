@@ -1,0 +1,676 @@
+Title: EntangleCodec: A Unified Discrete Audio Tokenizer via Semantic-Acoustic Entanglement
+
+URL Source: https://arxiv.org/pdf/2606.02739v1
+
+Published Time: Wed, 03 Jun 2026 00:06:05 GMT
+
+Number of Pages: 17
+
+Markdown Content:
+# EntangleCodec: A Unified Discrete Audio Tokenizer via Semantic-Acoustic Entanglement 
+
+Hui Li ∗ Yangfan Gao ∗ Junlin Shang Changhao Jiang Tao Gui Qi Zhang Xuanjing Huang 
+
+Fudan University 
+
+{hui_li25}@m.fudan.edu.cn 
+
+∗Equal contribution 
+
+Abstract 
+
+Audio tokenizers serve as the discrete interface between continuous audio and Audio Language Models (ALMs), but existing tokenizers often struggle to support both understanding and gen-eration. Reconstruction-oriented codecs pre-serve acoustic fidelity but lack rich semantics, while semantic-aware tokenizers typically rely on separate semantic and acoustic streams, in-troducing redundancy or misalignment. We propose EntangleCodec , a unified discrete audio tokenizer that learns caption-aligned semantic-acoustic representations before quan-tization. By aligning audio with rich captions rather than ASR transcripts, EntangleCodec captures linguistic content, speaker identity, emotion, prosody, and acoustic scenes within a compact token stream. A flow-matching dif-fusion decoder further enables high-quality re-construction across speech, music, and general audio. EntangleCodec achieves reconstruction qual-ity competitive with specialized codecs, out-performs all codec-based baselines on audio understanding by up to +7.4% on MMAR, and supports both TTS and TTA genera-tion in a unified framework. Furthermore, EntangleCodec-based audio language models demonstrate strong scaling behavior: even at 
+
+0.6B parameters, the model surpasses special-ized continuous-representation LLMs with over 
+
+13B parameters across three benchmarks us-ing 22 × fewer parameters; scaling to 8B fur-ther establishes new state-of-the-art results on MMAR, highlighting that representation qual-ity is as critical as model scale in audio lan-guage modeling. Code and model weights are available at https://github.com/luckyerr/ EntangleCodec .
+
+1 Introduction 
+
+The recent success of large language models has motivated growing interest in Audio Language Models (ALMs), spanning speech, music, and     
+
+> 20 40 60 80 100
+> AudioBoxScore (music)
+> AudioBoxScore (sound)
+> UTMOS
+> MMAU-mini MMAR
+> TTS (WER ↓)
+> TTA (CLAP)
+> EntangleCodec
+> Xcodec2
+> Xcodec
+> WavTokenizer
+> Mimi
+> SpeechTokenizer
+> EnCodec
+> DAC
+
+Figure 1: Comprehensive tokenizer comparison across seven dimensions (normalized 0–100; TTS WER in-verted so higher = better).Reconstruction: AudioBoxS-core (music/sound), UTMOS; Understanding: MMAU-mini, MMAR; Generation: TTS (WER ↓), TTA (CLAP). 
+
+general audio understanding and generation. Acentral challenge is how to represent audio as discrete tokens that are both semantically infor-mative and acoustically faithful. Existing audio tokenizers often favor one side of this trade-off: reconstruction-oriented codecs preserve fine acous-tic detail but provide limited semantic information, while semantic-aware tokenizers introduce addi-tional semantic streams that require fusion with acoustic representations. Moreover, semantic su-pervision is often limited to ASR transcripts, ig-noring non-textual cues such as speaker identity, emotion, prosody, acoustic scenes, and musical structure. We propose EntangleCodec , a unified dis-crete audio tokenizer that learns caption-aligned semantic-acoustic representations before quantiza-tion. Instead of separating semantic and acous-tic information into independent streams, Entan-1
+
+> arXiv:2606.02739v1 [cs.SD] 1 Jun 2026
+
+gleCodec integrates them within a shared pre-quantization representation, reducing the need for late fusion. To enrich semantic supervision, we align audio with rich captions rather than ASR transcripts through contrastive learning, enabling the resulting tokens to capture linguistic content as well as speaker, affective, prosodic, and environ-mental cues. A flow-matching diffusion decoder then reconstructs high-quality audio from the dis-crete tokens, allowing the same tokenizer to sup-port TTS, TTA, and audio QA without task-specific architectural changes. 
+
+Key empirical findings. EntangleCodec achieves reconstruction quality comparable to specialized codecs despite its unified design (UTMOS: 3.96 vs. 4.02). For audio understanding, it outperforms all codec-based baselines by up to +7.4% on MMAR. Furthermore, a 0.6B 
+
+EntangleCodec-based language model surpasses specialized continuous-representation models with over 13B parameters across MMAR, MMAU-mini, and MMAU, using 22 × fewer parameters; scaling to 8B further establishes new state-of-the-art results on MMAR ( 42.6% ). These results highlight that tokenizer representation quality is as critical as model scale in audio language modeling. Our main contributions are: • EntangleCodec , a unified codec-based tokenizer that learns semantic-acoustic entangled represen-tations before quantization, reducing the need for dual-stream separation and late fusion while maintaining competitive reconstruction quality. • Caption-aligned discrete representation learn-ing , which goes beyond ASR-only supervision by contrastively aligning audio representations with rich captions covering linguistic content, speaker identity, emotion, prosody, and acoustic scenes, leading to more expressive discrete audio tokens. • A unified audio language modeling framework 
+
+for TTS, TTA, and audio QA, requiring no task-specific tokenizer or architectural modification and demonstrating the broad applicability of En-tangleCodec across both generation and under-standing tasks. 
+
+2 Related Work 
+
+2.1 Audio Codec and Tokenization 
+
+Neural audio codecs provide the foundation for discrete audio language modeling. Early codecs such as SoundStream (Zeghidour et al., 2021) and EnCodec (Défossez et al., 2023) introduced resid-ual vector quantization (RVQ) for high-fidelity re-construction at low bitrates, while DAC (Kumar et al., 2023) further improved codebook utiliza-tion and reconstruction quality. Recent tokeniz-ers focus more explicitly on language-model com-patibility: WavTokenizer (Ji et al., 2025) reduces token rates while preserving perceptual quality, Mimi (Défossez et al., 2024) supports streaming-friendly tokenization, and SpeechTokenizer (Zhang et al., 2024), XCodec (Ye et al., 2025a), and XCodec2 (Ye et al., 2025b) introduce semantic-aware designs for speech generation and audio modeling. Most existing codecs follow one of two routes. Reconstruction-oriented codecs use a single acous-tic encoder but provide limited semantic infor-mation for downstream reasoning. Semantic-aware codecs often introduce separate semantic and acoustic streams, which improves task rele-vance but requires additional fusion between in-dependently learned representations. In contrast, EntangleCodec learns a caption-aligned semantic-acoustic representation before quantization, aiming to preserve both reconstruction fidelity and seman-tic richness within a unified discrete token stream. 
+
+2.2 Audio-Language Models for Understanding 
+
+Audio-language models extend LLMs to speech, music, and general audio understand-ing. LTU (Gong et al., 2024) and Audio Flamingo (Kong et al., 2024) connect audio encoders with language models for audio question answering, while MU-LLaMA (Liu et al., 2024) and GAMA (Ghosh et al., 2024) target music understanding and general audio reasoning. SALMONN (Tang et al., 2024) combines speech and audio encoders to handle diverse audio tasks, and Qwen2-Audio (Chu et al., 2024) further improves performance through stronger audio encoders and language model backbones. These systems typically rely on continuous audio representations produced by dedicated encoders. Such representations are effective for understand-ing, but they are not naturally suited to autoregres-2Encoder             
+
+> Acoustic
+> Encoder
+> Semantic
+> Encoder
+> Unified
+> Encoder
+> Text
+> Encoder
+> Fusion
+> VQ
+> VQ VQ
+> Unified Encoder Text
+> Encoder
+> …
+> Training Strategy
+> VQ
+> FM Decoder
+> Unified Encoder Text
+> Encoder
+> Stage 1
+> Stage 2
+> VQ
+> FM Decoder
+> Flow -Matching Decoder
+> ……
+> …
+> (b) Dual Encoder (c) Unified Encoder
+> ASR caption
+> Decoder
+> (a) Single Encoder
+> Decoder
+> Speech Speech Speech / Music /
+> General Sound
+> A middle -aged male
+> speaker with a deep,
+> measured voice reads ”I
+> wonder where …”
+> Rich caption
+> ……
+> train only
+> align
+> Discriminator
+> supervise
+
+Figure 2: Overview of EntangleCodec. Compared with single-encoder acoustic codecs and dual-encoder semantic-acoustic codecs, EntangleCodec learns caption-aligned unified tokens that support both reconstruction and down-stream audio-language tasks. The right panel shows the two-stage training strategy: joint codec learning with rich captions, followed by decoder refinement. 
+
+sive audio generation. EntangleCodec instead pro-vides discrete audio tokens that can be consumed by LLMs, enabling audio understanding and gener-ation to share the same token interface. 
+
+2.3 Text-Conditioned Audio Generation 
+
+Text-conditioned audio generation includes text-to-speech (TTS) and text-to-audio (TTA). Autore-gressive models such as AudioLM (Borsos et al., 2023) and VALL-E (Wang et al., 2023) demon-strate the effectiveness of predicting discrete audio tokens for speech generation, while TTA models often rely on text-audio alignment signals such as CLAP (Elizalde et al., 2023) to synthesize audio from natural language descriptions. Strong TTS systems such as NaturalSpeech3 (Ju et al., 2024) and CosyVoice (Du et al., 2024) achieve high-quality speech synthesis, whereas general TTA sys-tems focus on environmental sound, music, and acoustic scenes. Despite this progress, TTS and TTA are usually treated with separate modeling pipelines, tokeniz-ers, or conditioning mechanisms. EntangleCodec provides a unified discrete representation for both speech and general audio, allowing TTS and TTA to be formulated as text-conditioned token predic-tion tasks within the same audio language modeling framework. 
+
+3 Methods 
+
+3.1 Overview 
+
+EntangleCodec aims to build a unified discrete audio representation that simultaneously supports both understanding and generation tasks. As illus-trated in Figure 2, the overall architecture consists of three core components: a unified encoder, a discrete quantizer, and a diffusion-based decoder. The fundamental distinction from existing audio tokenizers lies in two key design decisions: first, employing a single shared encoder rather than dual encoders to jointly model semantic and acoustic in-formation in the same representation space; second, achieving semantic alignment through rich audio captions rather than ASR transcripts, encoding mul-timodal semantics beyond text. 
+
+3.2 Unified Encoder Unified Modeling. To obtain a discrete represen-tation suitable for both audio understanding and generation, EntangleCodec integrates semantic and acoustic cues within the same pre-quantization rep-resentation. Unlike dual-encoder tokenizers that fuse separately extracted semantic and acoustic fea-tures, our encoder directly maps the input audio into a unified semantic-acoustic feature sequence, which is subsequently quantized into discrete to-kens. Given a Mel-spectrogram M ∈ R128 ×Tm , we 3first project it into a Denc -dimensional sequence: 
+
+M′ = Linear( M⊤) ∈ RTm×Denc . (1) After prepending a learnable [CLS] token c ∈ RD,the encoder input becomes 
+
+E = [ c; M′] ∈ R(Tm+1) ×Denc . (2) This sequence is processed by the Transformer-based encoder: 
+
+H′ = Encoder( E) ∈ R(Tm+1) ×Denc . (3) We discard the [CLS] token and use the remain-ing frame-level outputs H ∈ RTm×Denc as the unified semantic-acoustic representation for sub-sequent quantization. By performing semantic-acoustic integration before quantization, Entangle-Codec avoids an explicit late-fusion module and provides a shared representation space for both re-construction and downstream audio understanding. 
+
+Rich Semantic Alignment. To enrich the se-mantic content of the unified audio representa-tion, EntangleCodec aligns audio with rich captions rather than ASR transcripts. Unlike transcripts that mainly preserve linguistic content, rich captions additionally describe speaker attributes, emotion, prosody, acoustic scenes, and sound events, pro-viding a broader supervision signal for semantic-acoustic representation learning. Notably, these rich captions are automatically generated by a large language model (LLM), which comprehensively characterizes the multi-dimensional semantic at-tributes of audio in natural language, thereby pro-viding the encoder with a substantially richer su-pervision signal than conventional ASR transcripts, details in Appendix C.2. We implement this alignment through audio-text contrastive learning. Given the encoder output H′,we take the class-token representation hcls = H′
+
+> 0
+
+as the global audio embedding and project it into a 
+
+Dalign -dimensional space: 
+
+a = Proj audio (hcls ) ∈ RDalign , (4) 
+
+temb = TextEncoder( t) ∈ RDalign , (5) where t denotes the rich caption generated by the LLM, and TextEncoder( ·) is a 12-layer Trans-former text encoder. The audio and text embed-dings are then aligned using a CLIP-style con-trastive loss, encouraging the unified encoder to en-code semantic cues beyond transcript-level content while retaining the acoustic information required for reconstruction. 
+
+Pre-quantization Processing. The unified rep-resentation H is projected to Dquant dimensions via a two-layer MLP and is L2-normalized to sat-isfy the constraints of single-codebook vector quan-tization: 
+
+h = MLP VQ (H) ∈ RTm×Dquant , ˜h = h
+
+∥h∥2
+
+.
+
+(6) The normalized representation ˜h is then fed into a single-codebook vector quantizer for discretization, producing the final token sequence. 
+
+3.3 Diffusion-based Decoder 
+
+The diffusion decoder reconstructs Mel-spectrograms from the quantized representation 
+
+Zq using Rectified Flow (Lipman et al., 2023). The decoder is implemented as a Llama-style Transformer flow predictor, taking the noisy Mel-spectrogram xt, a time-step embedding, and 
+
+Zq as a conditioning prefix as input, and predicting the velocity field: 
+
+vθ(xt, t, Zq) ∈ RTm×128 . (7) 
+
+3.4 Training Objectives and Inference 
+
+EntangleCodec adopts a two-stage training strategy. The first stage jointly trains the audio encoder, text encoder, quantizer, and diffusion decoder, enabling the encoder to capture rich multimodal semantics through contrastive learning. The second stage freezes the encoder and quantizer, discards the text encoder, and trains only the decoder to refine re-construction quality. 
+
+Stage 1: Semantic Learning and Joint Opti-mization. The total loss consists of three compo-nents: 
+
+Lstage1 = Lflow + Lcontrast + Lvq (8) 
+
+Flow Matching Loss Lflow is based on the Recti-fied Flow objective. Given an interpolated sample 
+
+xt = (1 −(1 −σmin )t)z+tx, the decoder is trained to predict the velocity field: 
+
+Lflow = Et, x,z [∥vθ(xt, t, Zq) − (x − (1 − σmin )z)∥1]
+
+(9) 
+
+Contrastive Loss Lcontrast aligns audio with LLM-generated captions via a CLIP-style bidirectional cross-entropy loss, enabling the encoder to learn 4rich semantics including speaker characteristics, emotion, and prosody: 
+
+Lcontrast = 12 (La2t + Lt2a ) (10) 
+
+VQ Commitment Loss Lvq stabilizes quantization and prevents codebook collapse: 
+
+Lvq = ∥sg (˜h) − zq∥22 + β∥˜h − sg (zq)∥22 (11) 
+
+Stage 2: Refining Reconstruction Quality. 
+
+The encoder and quantizer are frozen, and only the decoder is updated using the reconstruction-oriented flow and VQ objectives together with an adversarial loss (Appendix B.3). This stage improves perceptual reconstruction quality while preserving the semantic-acoustic representation learned in Stage 1. The two stages are trained for 500k and 200k steps respectively, with 10% conditional dropout applied throughout to support classifier-free guid-ance. 
+
+Inference. For audio reconstruction , Zq is ob-tained by encoding and quantizing the input audio. For conditional generation (e.g., TTS, TTA), an autoregressive LLM predicts token indices from the text condition, and the corresponding codebook embeddings serve as Zq. Both modes share the same decoder and differ only in the source of dis-crete tokens. Sampling is performed with a single Euler step, with optional classifier-free guidance: 
+
+˜vθ = (1 + γ) vθ(xt, t, Zq) − γ vθ(xt, t, ∅), (12) where ∅ denotes the null condition and γ = 1 .0
+
+by default. The resulting Mel-spectrogram is con-verted to a waveform using the Vocos vocoder. 
+
+4 Experiments 
+
+4.1 Experimental Setup 4.1.1 Datasets Training Data. We train EntangleCodec on a diverse corpus covering speech, music, and gen-eral audio, including LibriSpeech (Panayotov et al., 2015), MusicBench (Melechovský et al., 2024), AudioSet (Gemmeke et al., 2017), Audio-Caps (Kim et al., 2019), and WavCaps (Mei et al., 2023). Downstream audio language models are trained on task-specific instruction and generation data for audio understanding, TTS, and TTA. De-tailed dataset statistics are provided in Appendix C. 
+
+Evaluation Data. We evaluate reconstruction on held-out speech, music, and general-audio test sets, audio understanding on MMAR (Yang et al., 2025), MMAU-mini (Sakshi et al., 2025), and MMAU (Sakshi et al., 2025), and audio generation on standard TTS and TTA benchmarks. Detailed evaluation sets are listed in Appendix C. 
+
+4.1.2 Implementation Details 
+
+EntangleCodec is trained in two stages: Stage 1 jointly learns the tokenizer and decoder with re-construction, contrastive, and VQ losses; Stage 2 freezes the tokenizer and refines the decoder for reconstruction. After training, EntangleCodec is frozen and used to train Qwen3-series audio lan-guage models (Team, 2025) for understanding and generation. Detailed optimization settings and hy-perparameters are provided in Appendix B.2. 
+
+4.1.3 Baselines 
+
+We compare EntangleCodec along three dimen-sions. For reconstruction, we evaluate against representative neural audio codecs under matched compression settings using official pretrained checkpoints. For audio understanding, we use a codec-controlled setting where identical Qwen3-0.6B (Team, 2025) language models are trained on tokens from different codecs, isolating the ef-fect of tokenization. We additionally compare with specialized continuous-representation audio LLMs using official checkpoints or reported results when available. For generation, we follow the same codec-controlled protocol for TTS and TTA. The full list of baselines is provided in Appendix D. 
+
+4.1.4 Evaluation Metrics 
+
+We evaluate reconstruction with UTMOS (Saeki et al., 2022), PESQ (Rix et al., 2001), voiced/un-voiced F1, and AudioBoxScore (Vyas et al., 2023); audio understanding with accuracy; TTS with WER and UTMOS; and TTA with CLAP Score (Elizalde et al., 2023). Lower WER is better, while higher values are better for all other met-rics. Detailed metric definitions are provided in Appendix F. 
+
+4.2 Results and Analysis 4.2.1 Finding 1: EntangleCodec Maintains Strong Reconstruction Quality 
+
+▷ EntangleCodec achieves reconstruction quality comparable to specialized neural codecs while pro-viding a unified semantic-acoustic representation. 
+
+5Model T./L. Speech Sound Music UTMOS ↑ F1 ↑ STOI ↑ SIM ↑ AudioBoxScore AudioBoxScore 
+
+GT / 4.08 0.98 1.00 1.00 3.64/5.16/4.30/5.84 5.93/6.43/5.24/6.59 DAC-Codec 50/1 1.30 0.97 0.62 0.25 3.16/3.99/4.25/5.07 3.58/3.97/5.18/4.61 EnCodec 75/1 1.57 0.92 0.77 0.25 3.39/4.86/3.46/5.63 4.92/5.32/4.74/5.52 WavTokenizer 75/1 3.79 0.98 0.90 0.65 2.84/3.99/3.04/5.07 3.59/4.39/4.18/5.16 SpeechTokenizer 50/1 1.27 0.97 0.64 0.17 2.48/4.10/2.43/5.20 2.34/3.85/2.88/5.00 Xcodec 50/1 3.42 0.97 0.85 0.48 3.48/4.66/4.11/5.62 6.25/6.75/5.82/6.92 
+
+Mimi 50/4 3.03 0.97 0.85 0.50 3.14/4.25/3.67/5.24 4.12/4.81/5.26/5.37 Xcodec2 50/1 4.02 0.98 0.88 0.76 3.13/4.14/3.08/5.27 3.26/4.26/4.08/5.45 WavTokenizer 40/1 3.58 0.97 0.85 0.48 3.11/4.30/3.58/5.19 4.78/5.34/5.29/5.61 
+
+EntangleCodec 50/1 3.96 0.98 0.87 0.66 3.12/4.50/3.36/5.45 4.98/5.70/5.10/5.88      
+
+> Table 1: Tokenizer reconstruction quality comparison. Bold = best result; underline = second best (GT excluded).
+> ∆denotes improvement of EntangleCodec over the second-best baseline.
+
+Model TPS/VQ Layers MMAU-mini ↑ MMAU ↑ MMAR ↑ Average ↑
+
+WavTokenizer 75/1 32.7 32.3 26.9 30.6 SpeechTokenizer 400/8 31.9 31.6 25.9 29.8 Xcodec 50/1 32.0 32.6 24.2 29.6 Xcodec2 50/1 26.8 25.7 24.6 25.7 XY-Tokenizer 100/8 31.6 30.1 24.9 28.9 
+
+EntangleCodec (Ours) 50/1 34.2 35.1 34.3 34.5 
+
+∆ vs. 2nd best +1.5 +2.5 +7.4 +3.9    
+
+> Table 2: Audio understanding performance. All discrete-tokenizer models share the same Qwen3-0.6B backbone.
+> Bold = best; underline = second best. ∆denotes improvement over the second-best baseline.
+
+Speech reconstruction. EntangleCodec achieves a UTMOS of 3.96 (second only to XCodec2 at 4.02), matches the best baseline on F1 ( 0.98 ), and remains competitive on STOI and SIM. Learning a semantic-aware representation does not come at the cost of speech reconstruction quality. 
+
+Sound and music reconstruction. Entangle-Codec ranks second on both sound ( 4.11 ) and mu-sic ( 5.42 ) AudioBoxScore, trailing only XCodec which lacks semantic alignment. EntangleCodec is the only tokenizer that consistently ranks among the top performers across all three audio do-mains, confirming that semantic-acoustic entangle-ment and reconstruction fidelity are complementary rather than conflicting objectives. 
+
+4.2.2 Finding 2: Representation Quality Improves Audio Understanding 
+
+▷ Under controlled comparisons, EntangleCodec produces more effective discrete tokens for audio understanding; the resulting small audio LLM also remains competitive with much larger specialized models. 
+
+Codec-controlled comparison. Table 2 com-pares different tokenizers under the same Qwen3-0.6B backbone and training setup, isolating the effect of the codec itself. EntangleCodec achieves 
+
+34.2% on MMAU-mini, 35.11% on MMAU, and 
+
+34.3% on MMAR, outperforming the best discrete codec baseline by +1.5% , +2.51% , and +7.4% ,respectively, establishing a new state-of-the-art among discrete tokenizer-based audio LLMs. The consistent improvements across all three bench-marks indicate that EntangleCodec tokens provide stronger semantic cues for downstream reasoning than reconstruction-oriented codec tokens. 
+
+Comparison with continuous-representation audio LLMs. Figure 3 compares EntangleCodec-LLM against continuous-representation audio 6Model TPS/VQ Layers TTS (Speech) TTA (Sound) WER ↓ UTMOS ↑ AudioBox Score ↑ CLAP ↑
+
+WavTokenizer 75/1 17.2 1.29 2.85/3.39/2.48/5.20 0.01 Xcodec 50/1 25.6 2.95 3.58/5.06/4.72/6.01 0.03 Xcodec2 50/1 23.2 1.53 3.07/5.11/2.51/4.37 0.02 XY-Tokenizer 100/8 12.1 2.95 3.17/4.81/3.02/6.01 0.04 
+
+EntangleCodec 50/1 9.8 3.89 3.29/4.85/3.19/5.75 0.17 
+
+∆ vs. 2nd best −2.3 +0 .94 −0.21 +0 .13 
+
+Table 3: Audio generation performance. All discrete-tokenizer models share the same Qwen3-0.6B backbone. Bold 
+
+= best; underline = second best. ∆ denotes improvement over the second-best baseline. TTS WER: lower is better (shown inverted for ∆). 
+
+0 2 4 6 8 10 12 14 
+
+10 
+
+15 
+
+20 
+
+25 
+
+30 
+
+35 
+
+40 
+
+45 
+
+50 
+
+55 
+
+60 
+
+> LTU
+> LTU AS
+> Flamingo
+> MU-LLaMA
+> GAMA
+> SALAMONN
+> Qwen2-Audio
+> 52.3
+> 56.2
+> 34.2
+
+Parameters (B) 
+
+> MMAU-mini (%)
+
+(a) MMAU-mini 
+
+0 2 4 6 8 10 12 14 
+
+10 
+
+15 
+
+20 
+
+25 
+
+30 
+
+35 
+
+40 
+
+45 
+
+50 
+
+55 
+
+60  
+
+> LTU
+> LTU AS
+> Flamingo
+> MU-LLaMA
+> GAMA SALAMONN
+> Qwen2-Audio
+> 50.6
+> 52.6 (#1)
+> 35.1
+
+Parameters (B) 
+
+> MMAU (%)
+
+(b) MMAU 
+
+0 2 4 6 8 10 12 14 
+
+10 
+
+15 
+
+20 
+
+25 
+
+30 
+
+35 
+
+40 
+
+45 
+
+50 
+
+55 
+
+60  
+
+> LTU
+> LTU AS
+> Flamingo
+> MU-LLaMA
+> GAMA
+> SALAMONN
+> Qwen2-Audio
+> 41.8 42.6 (#1)
+> 34.3
+> fewer params
+
+Parameters (B) 
+
+> MMAR (%)
+
+(c) MMAR      
+
+> Other Baselines SALAMONN (13B) Qwen2-Audio (8.4B) EntangleCodec (4B) EntangleCodec (8B) EntangleCodec (0.6B)
+
+Figure 3: Parameter efficiency across audio understanding benchmarks. EntangleCodec scales consistently from 0.6B to 8B, achieving the best results on MMAU at 8B and on MMAR at both 4B and 8B, while outperforming larger specialized audio LLMs with fewer parameters. 
+
+LLMs. At only 0.6B parameters, EntangleCodec-LLM already surpasses all discrete-tokenizer baselines and outperforms several much larger continuous-representation models, including SALMONN-13B by +0.3% , +0.6% , and +1.1% 
+
+on MMAU-mini, MMAU, and MMAR, and GAMA-7B by +3.1% , +1.6% , and +7.9% , despite using 22 × fewer parameters than SALMONN. These results demonstrate that a well-designed discrete codec is not inherently a bottleneck for audio understanding — with sufficiently rich token representations, discrete-tokenizer LLMs can match or exceed continuous-representation systems at a fraction of the model size. 
+
+Effect of scaling. As shown in Figure 3, EntangleCodec-based LLMs scale effectively from 
+
+0.6B to 4B and 8B parameters, with consistent and substantial gains across all benchmarks. At 4B, the model achieves 52.3% , 50.6% , and 41.8% on MMAU-mini, MMAU, and MMAR, surpassing Qwen2-Audio-8.4B on MMAU-mini by +3.1% de-spite fewer parameters. Scaling to 8B further im-proves performance to 56.2% , 52.6% , and 42.6% ,achieving state-of-the-art results on MMAU-mini and matching Qwen2-Audio on MMAU while sur-passing all baselines on MMAR. The strong scal-ing behavior indicates that EntangleCodec pro-vides a solid representational foundation that con-tinues to benefit from increased language model capacity, suggesting that the performance gap with continuous-representation systems will narrow fur-ther as model scale grows. 
+
+4.2.3 Finding 3: Unified Tokens Support Audio Generation 
+
+▷ The same EntangleCodec tokens can be used for TTS and TTA generation without introducing 
+
+7Configuration T./L. Speech AudioBox Score UTMOS ↑ F1 ↑ STOI ↑ SIM ↑ Sound Music EntangleCodec 50/1 3.96 0.98 0.87 0.66 3.12/4.50/3.36/5.45 4.98/5.70/5.10/5.88 
+
+w/o Contrastive Loss 50/1 3.04 ↓0.92 0.97 ↓0.01 0.82 ↓0.05 0.50 ↓0.16 2.89/4.21/2.77/5.34 4.10/5.29/4.31/5.63 w/o Rich Caption 50/1 3.24 ↓0.72 0.97 ↓0.01 0.83 ↓0.04 0.51 ↓0.15 2.64/3.92/2.69/5.13 3.65/4.71/3.45/5.34 w/o Stage 2 50/1 3.40 ↓0.56 0.98 = 0.85 ↓0.02 0.54 ↓0.12 2.84/4.22/2.76/5.34 4.35/5.53/4.35/5.79     
+
+> Table 4: Ablation study on key components of EntangleCodec. Bold = best (full model); superscript ↓indicates degradation from full model.
+
+task-specific tokenizers or separate acoustic repre-sentations. 
+
+Text-to-speech. Table 3 shows that Entangle-Codec achieves a WER of 9.8% and a UTMOS of 3.89 on TTS, ranking first among all codec-controlled baselines on both metrics. Compared to the second-best baseline, WER is reduced by 2.3 points and UTMOS improves by +0 .94 , demon-strating that the proposed tokenizer preserves suffi-cient acoustic and prosodic information for intelli-gible and natural speech synthesis. 
+
+Text-to-audio. For TTA, EntangleCodec achieves a CLAP Score of 0.17 , outperforming the second-best baseline by +0 .13 —more than 
+
+4× the score of XY-Tokenizer (0.04). While Au-dioBoxScore is slightly below Xcodec ( −0.21 on average), Xcodec exhibits substantially degraded TTS performance (WER 25.6%), suggesting that its acoustic fidelity comes at the cost of semantic alignment. The strong CLAP improvement is consistent with the understanding results: caption-aligned semantic-acoustic tokens provide richer conditioning signals for generating audio that matches textual descriptions. 
+
+4.3 Ablation Studies 
+
+We isolate the contribution of three core design choices in EntangleCodec: the audio-text con-trastive learning objective, the richness of semantic supervision, and the two-stage training strategy. All ablated variants use the same architecture (Table 4). 
+
+Effect of Contrastive Learning. Removing the contrastive loss ( w/o contrast ) leads to the most pronounced degradation among the ablated vari-ants: UTMOS drops by 0.92 (3.96 → 3.04) and SIM drops by 0.16 (0.66 → 0.50), with consistent declines in AudioBoxScore for both sound and mu-sic. These results show that contrastive alignment is not merely an auxiliary semantic objective; it substantially shapes the encoder representation. By aligning audio features with text-level semantics, the contrastive objective encourages more struc-tured representations that remain compatible with high-quality reconstruction. 
+
+Effect of Rich Captions vs. ASR-Only Super-vision. Replacing rich audio captions with ASR transcripts ( w/o rich semantic ) yields a smaller but consistent degradation across all metrics. UTMOS drops by 0.72 and SIM by 0.15 , while AudioBoxS-core for both sound and music also declines. The gap between w/o contrast and w/o rich seman-tic suggests that ASR-only contrastive alignment still provides useful semantic supervision, but rich captions offer additional information beyond tran-script content, including speaker attributes, emo-tion, prosody, and acoustic scenes. This supports our hypothesis that ASR-only supervision provides an incomplete semantic signal for unified audio tokenization. 
+
+5 Conclusion 
+
+We presented EntangleCodec , a unified dis-crete audio tokenizer that learns caption-aligned semantic-acoustic representations for both audio understanding and generation. By combining rich caption alignment with a flow-matching decoder, EntangleCodec supports reconstruction, TTS, TTA, and audio QA without task-specific tokenizers or architectural changes. Experiments show Entangle-Codec achieves competitive reconstruction quality, improves codec-based audio understanding by up to +7.4% on MMAR, and enables a 0.6B audio LLM to surpass specialized models exceeding 13B 
+
+parameters. These results highlight the importance of representation quality in audio language model-ing. 8Limitations 
+
+While EntangleCodec demonstrates strong perfor-mance across multiple tasks, several limitations warrant further exploration and improvement. 
+
+Fine-grained Semantic Modeling. Although EntangleCodec uses rich audio captions to encode multimodal semantics, the granularity of seman-tics remains limited by annotation quality. For subtle semantic features—such as nuanced emo-tional shifts, complex musical harmonies, or spe-cific acoustic scene details—current captions may not fully capture them. Finer-grained semantic modeling may require more detailed annotations or self-supervised learning methods. 
+
+Limited Exploration of Larger Scales. Due to computational resource and data constraints, our scaling experiments are limited to 8B parameters and a moderate amount of training data. While the consistent gains from 0.6B to 8B suggest that En-tangleCodec would continue to benefit from further scaling, experiments at larger scales (e.g., 30B or 70B) remain unexplored. Furthermore, as param-eters scale up, reconstruction and understanding tasks may have different demands on model ca-pacity, and the optimal parameter allocation and architectural balance between the two objectives may shift. We leave a more comprehensive scaling analysis, along with strategies for balancing re-construction and understanding under larger-scale training, to future work as resources permit. 
+
+References 
+
+Philip Anastassiou, Jiawei Chen, Jitong Chen, Yuanzhe Chen, Zhuo Chen, Ziyi Chen, Jian Cong, Lelai Deng, Chuang Ding, Lu Gao, Mingqing Gong, Peisong Huang, Qingqing Huang, Zhiying Huang, Yuanyuan Huo, Dongya Jia, Chumin Li, Feiya Li, Hui Li, and 27 others. 2024. Seed-tts: A family of high-quality versatile speech generation models. CoRR ,abs/2406.02430. Zalán Borsos, Raphaël Marinier, Damien Vincent, Eu-gene Kharitonov, Olivier Pietquin, Matthew Sharifi, Dominik Roblek, Olivier Teboul, David Grangier, Marco Tagliasacchi, and Neil Zeghidour. 2023. Audi-olm: A language modeling approach to audio genera-tion. IEEE ACM Trans. Audio Speech Lang. Process. ,31:2523–2533. Yunfei Chu, Jin Xu, Qian Yang, Haojie Wei, Xipin Wei, Zhifang Guo, Yichong Leng, Yuanjun Lv, Jinzheng He, Junyang Lin, Chang Zhou, and Jingren Zhou. 2024. Qwen2-audio technical report. CoRR ,abs/2407.10759. Alexandre Défossez, Jade Copet, Gabriel Synnaeve, and Yossi Adi. 2023. High fidelity neural audio compres-sion. Trans. Mach. Learn. Res. , 2023. Alexandre Défossez, Laurent Mazaré, Manu Orsini, Amélie Royer, Patrick Pérez, Hervé Jégou, Edouard Grave, and Neil Zeghidour. 2024. Moshi: a speech-text foundation model for real-time dialogue. CoRR ,abs/2410.00037. Konstantinos Drossos, Samuel Lipping, and Tuomas Virtanen. 2019. Clotho: An audio captioning dataset. 
+
+CoRR , abs/1910.09387. Zhihao Du, Qian Chen, Shiliang Zhang, Kai Hu, Heng Lu, Yexin Yang, Hangrui Hu, Siqi Zheng, Yue Gu, Ziyang Ma, Zhifu Gao, and Zhijie Yan. 2024. Cosyvoice: A scalable multilingual zero-shot text-to-speech synthesizer based on supervised semantic tokens. CoRR , abs/2407.05407. Benjamin Elizalde, Soham Deshmukh, Mahmoud Al Ismail, and Huaming Wang. 2023. CLAP learning audio concepts from natural language supervision. In 
+
+IEEE International Conference on Acoustics, Speech and Signal Processing ICASSP 2023, Rhodes Island, Greece, June 4-10, 2023 , pages 1–5. IEEE. Jort F. Gemmeke, Daniel P. W. Ellis, Dylan Freedman, Aren Jansen, Wade Lawrence, R. Channing Moore, Manoj Plakal, and Marvin Ritter. 2017. Audio set: An ontology and human-labeled dataset for audio events. In 2017 IEEE International Conference on Acoustics, Speech and Signal Processing, ICASSP 2017, New Orleans, LA, USA, March 5-9, 2017 ,pages 776–780. IEEE. Sreyan Ghosh, Sonal Kumar, Ashish Seth, Chandra Ki-ran Reddy Evuru, Utkarsh Tyagi, S. Sakshi, Oriol Nieto, Ramani Duraiswami, and Dinesh Manocha. 2024. GAMA: A large audio-language model with advanced audio understanding and complex reason-ing abilities. In Proceedings of the 2024 Confer-ence on Empirical Methods in Natural Language Processing, EMNLP 2024, Miami, FL, USA, Novem-ber 12-16, 2024 , pages 6288–6313. Association for Computational Linguistics. Yuan Gong, Hongyin Luo, Alexander H. Liu, Leonid Karlinsky, and James R. Glass. 2024. Listen, think, and understand. In The Twelfth International Con-ference on Learning Representations, ICLR 2024, Vienna, Austria, May 7-11, 2024 . OpenReview.net. Shengpeng Ji, Ziyue Jiang, Wen Wang, Yifu Chen, Minghui Fang, Jialong Zuo, Qian Yang, Xize Cheng, Zehan Wang, Ruiqi Li, Ziang Zhang, Xiaoda Yang, Rongjie Huang, Yidi Jiang, Qian Chen, Siqi Zheng, and Zhou Zhao. 2025. Wavtokenizer: an efficient acoustic discrete codec tokenizer for audio language modeling. In The Thirteenth International Confer-ence on Learning Representations, ICLR 2025, Sin-gapore, April 24-28, 2025 . OpenReview.net. Zeqian Ju, Yuancheng Wang, Kai Shen, Xu Tan, De-tai Xin, Dongchao Yang, Eric Liu, Yichong Leng, 
+
+9Kaitao Song, Siliang Tang, Zhizheng Wu, Tao Qin, Xiangyang Li, Wei Ye, Shikun Zhang, Jiang Bian, Lei He, Jinyu Li, and Sheng Zhao. 2024. Natural-speech 3: Zero-shot speech synthesis with factorized codec and diffusion models. In Forty-first Interna-tional Conference on Machine Learning, ICML 2024, Vienna, Austria, July 21-27, 2024 , Proceedings of Machine Learning Research, pages 22605–22623. PMLR / OpenReview.net. Chris Dongjoo Kim, Byeongchang Kim, Hyunmin Lee, and Gunhee Kim. 2019. Audiocaps: Generating captions for audios in the wild. In Proceedings of the 2019 Conference of the North American Chap-ter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT 2019, Minneapolis, MN, USA, June 2-7, 2019, Volume 1 (Long and Short Papers) , pages 119–132. Associa-tion for Computational Linguistics. Zhifeng Kong, Arushi Goel, Rohan Badlani, Wei Ping, Rafael Valle, and Bryan Catanzaro. 2024. Audio flamingo: A novel audio language model with few-shot learning and dialogue abilities. In Forty-first In-ternational Conference on Machine Learning, ICML 2024, Vienna, Austria, July 21-27, 2024 , Proceedings of Machine Learning Research, pages 25125–25148. PMLR / OpenReview.net. Rithesh Kumar, Prem Seetharaman, Alejandro Luebs, Ishaan Kumar, and Kundan Kumar. 2023. High-fidelity audio compression with improved RVQGAN. In Advances in Neural Information Processing Sys-tems 36: Annual Conference on Neural Information Processing Systems 2023, NeurIPS 2023, New Or-leans, LA, USA, December 10 - 16, 2023 .Yaron Lipman, Ricky T. Q. Chen, Heli Ben-Hamu, Max-imilian Nickel, and Matthew Le. 2023. Flow match-ing for generative modeling. In The Eleventh Inter-national Conference on Learning Representations, ICLR 2023, Kigali, Rwanda, May 1-5, 2023 . Open-Review.net. Samuel Lipping, Parthasaarathy Sudarsanam, Konstanti-nos Drossos, and Tuomas Virtanen. 2022. Clotho-aqa: A crowdsourced dataset for audio question an-swering. In 30th European Signal Processing Con-ference, EUSIPCO 2022, Belgrade, Serbia, August 29 - Sept. 2, 2022 , pages 1140–1144. IEEE. Shansong Liu, Atin Sakkeer Hussain, Qilong Wu, Chen-shuo Sun, and Ying Shan. 2024. Mumu-llama: Multi-modal music understanding and generation via large language models. CoRR , abs/2412.06660. Xinhao Mei, Chutong Meng, Haohe Liu, Qiuqiang Kong, Tom Ko, Chengqi Zhao, Mark D. Plumbley, Yuexian Zou, and Wenwu Wang. 2023. Wavcaps: A chatgpt-assisted weakly-labelled audio caption-ing dataset for audio-language multimodal research. 
+
+CoRR , abs/2303.17395. Jan Melechovský, Zixun Guo, Deepanway Ghosal, Navonil Majumder, Dorien Herremans, and Soujanya Poria. 2024. Mustango: Toward controllable text-to-music generation. In Proceedings of the 2024 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (Volume 1: Long Papers), NAACL 2024, Mexico City, Mexico, June 16-21, 2024 ,pages 8293–8316. Association for Computational Linguistics. Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur. 2015. Librispeech: An ASR corpus based on public domain audio books. In 
+
+2015 IEEE International Conference on Acoustics, Speech and Signal Processing, ICASSP 2015, South Brisbane, Queensland, Australia, April 19-24, 2015 ,pages 5206–5210. IEEE. Alec Radford, Jong Wook Kim, Tao Xu, Greg Brock-man, Christine McLeavey, and Ilya Sutskever. 2023. Robust speech recognition via large-scale weak su-pervision. In International Conference on Machine Learning, ICML 2023, 23-29 July 2023, Honolulu, Hawaii, USA , Proceedings of Machine Learning Re-search, pages 28492–28518. PMLR. Antony W. Rix, John G. Beerends, Michael P. Hol-lier, and Andries P. Hekstra. 2001. Perceptual eval-uation of speech quality (pesq)-a new method for speech quality assessment of telephone networks and codecs. In IEEE International Conference on Acous-tics, Speech, and Signal Processing, ICASSP 2001, 7-11 May, 2001, Salt Palace Convention Center, Salt Lake City, Utah, USA, Proceedings , pages 749–752. IEEE. Takaaki Saeki, Detai Xin, Wataru Nakata, Tomoki Koriyama, Shinnosuke Takamichi, and Hiroshi Saruwatari. 2022. UTMOS: utokyo-sarulab system for voicemos challenge 2022. In 23rd Annual Confer-ence of the International Speech Communication As-sociation, Interspeech 2022, Incheon, Korea, Septem-ber 18-22, 2022 , pages 4521–4525. ISCA. S. Sakshi, Utkarsh Tyagi, Sonal Kumar, Ashish Seth, Ramaneswaran Selvakumar, Oriol Nieto, Ramani Du-raiswami, Sreyan Ghosh, and Dinesh Manocha. 2025. MMAU: A massive multi-task audio understanding and reasoning benchmark. In The Thirteenth Inter-national Conference on Learning Representations, ICLR 2025, Singapore, April 24-28, 2025 . OpenRe-view.net. Changli Tang, Wenyi Yu, Guangzhi Sun, Xianzhao Chen, Tian Tan, Wei Li, Lu Lu, Zejun Ma, and Chao Zhang. 2024. SALMONN: towards generic hearing abilities for large language models. In The Twelfth International Conference on Learning Representa-tions, ICLR 2024, Vienna, Austria, May 7-11, 2024 .OpenReview.net. Qwen Team. 2025. Qwen3 technical report. CoRR ,abs/2505.09388. Zeyue Tian, Yizhu Jin, Zhaoyang Liu, Ruibin Yuan, Xu Tan, Qifeng Chen, Wei Xue, and Yike Guo. 2025. 
+
+10 Audiox: Diffusion transformer for anything-to-audio generation. CoRR , abs/2503.10522. Apoorv Vyas, Bowen Shi, Matthew Le, Andros Tjandra, Yi-Chiao Wu, Baishan Guo, Jiemin Zhang, Xinyue Zhang, Robert Adkins, William Ngan, Jeff Wang, Ivan Cruz, Bapi Akula, Akinniyi Akinyemi, Brian Ellis, Rashel Moritz, Yael Yungster, Alice Rakotoari-son, Liang Tan, and 5 others. 2023. Audiobox: Uni-fied audio generation with natural language prompts. 
+
+CoRR , abs/2312.15821. Chengyi Wang, Sanyuan Chen, Yu Wu, Ziqiang Zhang, Long Zhou, Shujie Liu, Zhuo Chen, Yanqing Liu, Huaming Wang, Jinyu Li, Lei He, Sheng Zhao, and Furu Wei. 2023. Neural codec language models are zero-shot text to speech synthesizers. CoRR ,abs/2301.02111. LLM-Core Xiaomi. 2025. Mimo-audio: Audio language models are few-shot learners. CoRR ,abs/2512.23808. Jian Yang, Dacheng Yin, Yizhou Zhou, Fengyun Rao, Wei Zhai, Yang Cao, and Zheng-Jun Zha. 2025. MMAR: towards lossless multi-modal auto-regressive probabilistic modeling. In IEEE/CVF Con-ference on Computer Vision and Pattern Recogni-tion, CVPR 2025, Nashville, TN, USA, June 11-15, 2025 , pages 7974–7985. Computer Vision Founda-tion / IEEE. Zhen Ye, Peiwen Sun, Jiahe Lei, Hongzhan Lin, Xu Tan, Zheqi Dai, Qiuqiang Kong, Jianyi Chen, Jiahao Pan, Qifeng Liu, Yike Guo, and Wei Xue. 2025a. Codec does matter: Exploring the semantic shortcoming of codec for audio language model. In Thirty-Ninth AAAI Conference on Artificial Intelligence, Thirty-Seventh Conference on Innovative Applications of Artificial Intelligence, Fifteenth Symposium on Ed-ucational Advances in Artificial Intelligence, AAAI 2025, Philadelphia, PA, USA, February 25 - March 4, 2025 , pages 25697–25705. AAAI Press. Zhen Ye, Xinfa Zhu, Chi-Min Chan, Xinsheng Wang, Xu Tan, Jiahe Lei, Yi Peng, Haohe Liu, Yizhu Jin, Zheqi Dai, Hongzhan Lin, Jianyi Chen, Xingjian Du, Liumeng Xue, Yunlin Chen, Zhifei Li, Lei Xie, Qiuqiang Kong, Yike Guo, and Wei Xue. 2025b. Llasa: Scaling train-time and inference-time compute for llama-based speech synthesis. CoRR ,abs/2502.04128. Neil Zeghidour, Alejandro Luebs, Ahmed Omran, Jan Skoglund, and Marco Tagliasacchi. 2021. Sound-stream: An end-to-end neural audio codec. CoRR ,abs/2107.03312. Heiga Zen, Viet Dang, Rob Clark, Yu Zhang, Ron J. Weiss, Ye Jia, Zhifeng Chen, and Yonghui Wu. 2019. Libritts: A corpus derived from librispeech for text-to-speech. In 20th Annual Conference of the Inter-national Speech Communication Association, Inter-speech 2019, Graz, Austria, September 15-19, 2019 ,pages 1526–1530. ISCA. Xin Zhang, Dong Zhang, Shimin Li, Yaqian Zhou, and Xipeng Qiu. 2024. Speechtokenizer: Unified speech tokenizer for speech language models. In The Twelfth International Conference on Learning Representa-tions, ICLR 2024, Vienna, Austria, May 7-11, 2024 .OpenReview.net. 
+
+11 Hyperparameter Value                         
+
+> Denc 768
+> Dalign 512
+> Dquant 14 GPUs 8 NVIDIA A100 80GB Optimizer AdamW AdamW β1, β 20.9, 0.999 Weight decay 10 −2
+> Gradient clipping 1.0 Stage 1 learning rate 2×10 −4
+> LR scheduler ReduceLROnPlateau Scheduler patience 5 epochs LR reduction factor 0.5 Stage 2 learning rate 1×10 −4
+> Per-GPU batch size 32 Gradient accumulation 4Effective batch size 256 Stage 1 steps 500k Stage 2 steps 200k Conditional dropout 10%
+
+Table 5: Training hyperparameters of EntangleCodec. 
+
+A Claim of the Usage of AI Assistants 
+
+In preparing this manuscript, AI assistants were used only to improve the clarity, style, and readabil-ity of selected passages. They did not contribute to the study design, methodological development or implementation, data collection or analysis, or the generation of the manuscript’s primary scientific contributions. All substantive research decisions, analyses, interpretations, and conclusions remain the sole responsibility of the authors. 
+
+B Implementation Details 
+
+B.1 Audio Preprocessing 
+
+All audio is resampled to 24 kHz. Log-Mel spec-trograms are extracted with 128 Mel bins, a Hann window of 1024 samples (42.7 ms), a hop size of 480 samples (20 ms), and an FFT size of 1024, yielding a frame rate of 50 Hz. The log-Mel val-ues are computed from power spectrograms and normalized to zero mean and unit variance per ut-terance using statistics estimated on the training set. During training, we randomly crop 10-second segments; utterances shorter than 10 seconds are padded with silence. At inference, arbitrary-length audio is processed without padding or chunking. 
+
+B.2 Hyperparameters 
+
+Table 5 and Table 6 summarize the hyperparame-ters used for EntangleCodec and the downstream audio language models.                       
+
+> Component Hyperparameter Value
+> Audio LM Understanding Base model Qwen3-0.6B Pretraining steps 50k Pretraining LR 3×10 −5
+> SFT steps 10k SFT LR 1×10 −5
+> Audio LM Generation Base model Qwen3-0.6B Tasks TTS and TTA Training epochs 3Batch size 256 Learning rate 3×10 −5
+> Inference CFG scale γ1.0 Vocoder Vocos
+
+Table 6: Training and inference hyperparameters of downstream audio language models. 
+
+B.3 Adversarial Decoder Refinement 
+
+In Stage 2, we introduce an adversarial objective to improve the perceptual quality of reconstructed Mel-spectrograms. The unified encoder, vector quantizer, and a pre-trained discriminator are kept frozen, and only the flow-matching decoder is up-dated. The discriminator acts as a fixed perceptual critic, providing adversarial supervision by compar-ing reconstructed Mel-spectrograms with ground-truth ones. This encourages the decoder to produce reconstructions that are both close to the target and perceptually realistic. The objective of Stage 2 is 
+
+Lstage2 = Lflow + Lvq + Ladv , (13) where all loss weights are set to 1.0. Since the en-coder and quantizer remain frozen, the adversarial signal only affects the decoder and does not modify the learned semantic-acoustic token representation. 
+
+C Dataset Details 
+
+C.1 Training Corpus Statistics 
+
+Table 7 summarizes the datasets used to train Entan-gleCodec, covering three audio domains. In total, the training corpus comprises approximately 3,200 hours of audio. 
+
+C.2 Rich Audio Caption Generation 
+
+A central contribution of EntangleCodec is the use of rich audio captions rather than ASR transcripts for semantic alignment. We generate captions us-ing MIMO-Audio (Xiaomi, 2025) with a structured prompt designed to elicit descriptions across four semantic dimensions: (1) Speaker attributes — gender, estimated age, accent, speaking style, emotional state; 12 (2) Acoustic environment — indoor/outdoor, re-verberation level, presence and type of background noise; (3) Musical attributes — tempo, key, instru-mentation, mood, dynamics; (4) Sound events — event type, approximate onset and offset, spatial characteristics. For music-only clips, speaker attributes are omitted; for speech-only clips, musical attributes are omitted. For LibriSpeech and LibriTTS, the original ASR transcript is appended to the caption as an addi-tional semantic anchor. The following examples illustrate the qualitative difference between ASR transcripts and our rich captions across all three audio domains. 
+
+C.3 LLM Training Data 
+
+Table 8 summarizes the datasets used for audio language model training across understanding and generation tasks. 
+
+D Baselines 
+
+We establish baselines along three evaluation di-mensions: tokenizer reconstruction quality, audio understanding, and audio generation. 
+
+Tokenizer Reconstruction Quality. We com-pare EntangleCodec with seven state-of-the-art neu-ral audio codecs: DAC (Kumar et al., 2023), En-Codec (Défossez et al., 2023), WavTokenizer (Ji et al., 2025), SpeechTokenizer (Zhang et al., 2024), XCodec (Ye et al., 2025a), Mimi (Défossez et al., 2024), and XCodec2 (Ye et al., 2025b). All codec baselines are evaluated using their official pre-trained checkpoints under matched compression settings whenever applicable. 
+
+Audio Understanding. We evaluate Entangle-Codec under a codec-controlled setting by training identical Qwen3-0.6B (Team, 2025) language mod-els on discrete tokens produced by different codecs, while keeping the model architecture, training data, and optimization setup fixed. This isolates the ef-fect of tokenizer quality on downstream understand-ing performance. In addition, we compare with specialized continuous-representation audio LLMs equipped with dedicated audio encoders, including LTU (Gong et al., 2024), LTU-AS (Gong et al., 2024), Audio Flamingo (Kong et al., 2024), MU-LLaMA (Liu et al., 2024), GAMA (Ghosh et al., 2024), SALMONN (Tang et al., 2024), and Qwen2-Audio (Chu et al., 2024), using official checkpoints or reported results when available. 
+
+Audio Generation. For generation tasks, we fol-low the same codec-controlled protocol as in au-dio understanding: identical LLM architectures are trained on discrete tokens produced by differ-ent codecs, with the training and decoding setup kept fixed. This allows us to directly assess how tokenizer quality affects downstream generation performance. 
+
+E Benchmark Details 
+
+E.1 Audio Understanding Benchmarks MMAR. MMAR (Yang et al., 2025) is a multi-domain audio reasoning benchmark containing 1,000 single-choice questions across three domains: speech (covering speaker characteristics, emotion, prosody, and dialogue understanding), music (cov-ering music theory, instrument recognition, and mood), and environmental sound (covering event recognition, scene classification, and causal rea-soning). Each question has four answer choices. We report top-1 accuracy following the standard zero-shot evaluation protocol. 
+
+MMAU-mini and MMAU. MMAU (Sakshi et al., 2025) is a large-scale audio understanding benchmark with 9000 questions spanning sound events, music, and speech. MMAU-mini is a strat-ified subset of 1,000 questions designed for rapid evaluation while maintaining the full benchmark’s distributional properties. All models are evaluated zero-shot with top-1 accuracy as the primary met-ric. 
+
+Example Questions. The following examples illustrate the type of reasoning required by each benchmark and contrast the responses of EntangleCodec-LLM with a strong baseline. 
+
+E.2 Generation Benchmarks SEED-TTS. SEED-TTS (Anastassiou et al., 2024) evaluates TTS systems on a diverse set of 2,000 utterances spanning multiple speakers and speaking styles. We report WER measured by Whisper-large-v3 (Radford et al., 2023) as the pri-mary intelligibility metric, and UTMOS for natu-ralness. 
+
+AudioCaps (TTA). The AudioCaps (Kim et al., 2019) test set contains 45.2k clips, each paired with five human-written captions. We use the first caption as the generation condition. CLAP Score is computed as the cosine similarity between the 13 Domain Dataset Hours Clips Avg. Dur. (s) 
+
+Speech LibriSpeech (Panayotov et al., 2015) 960.0 281,241 12.3 LibriTTS (Zen et al., 2019) 585.0 147,616 14.3 Music MusicBench (Melechovský et al., 2024) 327.0 52,768 22.3 Sound AudioSet (Gemmeke et al., 2017) 1,154.0 415,440 10.0 AudioCaps (Kim et al., 2019) 105.8 38,118 10.0 WavCaps (Mei et al., 2023) 127.0 45,720 10.0 
+
+Total 3,200 959,693 
+
+Table 7: Training data statistics for EntangleCodec. 
+
+Speech Caption Example — LibriSpeech, male speaker, read speech 
+
+ASR Transcript: 
+
+“He looked out across the grey expanse of water and said nothing for a long time.” 
+
+Rich Caption (Ours): 
+
+“A middle-aged male speaker with a deep, measured voice reads “He looked out across the grey expanse of water and said nothing for a long time" aloud at a slow, deliberate pace. The tone is calm and somewhat solemn, conveying a reflective mood. The speaker has a mild British Received Pronunciation accent. The recording is clean and studio-quality, with very low background noise and minimal room reverberation. No music or non-speech sound events are present.” 
+
+Figure 4: Example of a rich speech caption generated by our captioning pipeline. 
+
+Task Dataset / Type Samples 
+
+Under-standing MusicQA (Melechovský et al., 2024) / Music QA 70,011 ClothoAQA (Lipping et al., 2022) / Sound QA 21,114 COMPA-R (Ghosh et al., 2024) / Speech reasoning 1,198,648 TTS LibriSpeech (Panayotov et al., 2015) / (text, speech) 281,241 LibriTTS (Zen et al., 2019) / (text, speech) 354,780 TTA IFCaps (Tian et al., 2025) / (caption, audio) 24,000 AudioCaps (Kim et al., 2019) / (cap-tion, audio) 38,118 
+
+Table 8: Audio language model training data. 
+
+CLAP text embedding of the condition and the CLAP audio embedding of the generated output. 
+
+Clotho (TTA). The Clotho (Drossos et al., 2019) evaluation split contains 1,045 clips with five cap-tions each. We follow the same evaluation proto-col as AudioCaps. Clotho covers a broader range of acoustic scenes and environmental sounds with longer, more descriptive captions, providing a com-plementary evaluation to AudioCaps. 
+
+LibriTTS Reconstruction. To complement the LibriSpeech reconstruction results in Table 1, we additionally evaluate all tokenizers on LibriTTS 
+
+Model UTMOS ↑ F1 ↑ STOI ↑ SIM ↑
+
+GT 4.06 0.98 1.00 1.00 DAC 1.28 0.97 0.61 0.24 EnCodec 1.54 0.92 0.75 0.23 WavTokenizer 3.76 0.98 0.89 0.63 SpeechTokenizer 1.25 0.97 0.63 0.16 Xcodec 3.40 0.97 0.84 0.46 Mimi 3.09 0.99 0.85 0.50 Xcodec2 4.00 0.99 0.87 0.75 EntangleCodec 3.94 0.99 0.86 0.65 
+
+Table 9: Reconstruction quality on LibriTTS test-clean .
+
+Bold = best; underline = second best (GT excluded). 
+
+test-clean (Zen et al., 2019). LibriTTS features longer utterances (average 14.3 s vs. 12.3 s for Lib-riSpeech) and more diverse speaking styles includ-ing expressive and conversational speech, provid-ing a more challenging reconstruction testbed. Re-sults are reported in Table 9. The LibriTTS results are consistent with those reported on LibriSpeech in the main paper: En-tangleCodec achieves an UTMOS of 3.94 , within 0.06 points of the top-performing Xcodec2 (4.00) and substantially ahead of reconstruction-focused codecs such as DAC (1.28) and EnCodec (1.54). The slight overall drop compared to LibriSpeech results (e.g., WavTokenizer: 3.79 → 3.76) is consis-tent across all methods, attributable to the greater prosodic variability and longer utterance lengths in LibriTTS. 14 Music Caption Example — MusicBench, piano solo 
+
+> Rich Caption (Ours):
+> “A solo piano piece in a minor key, played at a slow to moderate tempo of approximately 72 BPM. The melody is introspective and melancholic, with a sparse left-hand accompaniment using sustained bass notes. Dynamic range is moderate, with soft passages punctuated by occasional crescendos. The recording has a natural concert-hall reverb. No vocals or other instruments are present. The overall mood is contemplative and slightly sorrowful.”
+
+Figure 5: Example of a rich music caption generated by our captioning pipeline. 
+
+> Sound Caption Example — AudioSet, urban environment
+> Rich Caption (Ours):
+> “A busy urban street soundscape recorded outdoors. Continuous traffic noise forms the background, with cars passing at irregular intervals. A car horn honks twice in quick succession approximately 2 seconds into the clip. Faint footsteps on pavement are audible in the right channel. The acoustic environment has moderate urban reverberation, consistent with a narrow street between medium-height buildings. No speech or music is present.”
+
+Figure 6: Example of a rich sound caption generated by our captioning pipeline. 
+
+F Evaluation Metrics 
+
+Reconstruction Quality. We evaluate tokenizer reconstruction using complementary objective and perceptual metrics. UTMOS (Saeki et al., 2022) is a deep learning-based predictor of mean opin-ion score (MOS) for speech naturalness, ranging from 1 to 5, where higher is better. STOI mea-sures the intelligibility of speech signals, ranging from 0 to 1, where higher values indicate better intelligibility. F1 Score evaluates voiced/unvoiced frame classification accuracy, where higher is bet-ter. For sound and music, we additionally report 
+
+AudioBoxScore (Vyas et al., 2023), which aver-ages four sub-scores to assess overall audio quality across domains. 
+
+Audio Understanding. We report Accuracy for audio understanding tasks, following the standard evaluation protocol of each benchmark. 
+
+Audio Generation. For TTS, we report WER 
+
+(Word Error Rate), measured by an automatic speech recognition system, where lower is bet-ter. We also report UTMOS for naturalness assess-ment. For TTA, we report CLAP Score (Elizalde et al., 2023), which measures semantic alignment between generated audio and the conditioning text description. 
+
+G Token Space UMAP Visualization 
+
+We visualize EntangleCodec representations with UMAP to examine whether the learned tokens capture meaningful semantic structure. For each audio clip, we compute the mean token embed-ding and project it to two dimensions. As shown in Figure 10, EntangleCodec forms clear domain-level clusters for speech, music, and general sound, while also exhibiting meaningful intra-domain or-ganization, such as acoustic/electronic music and slow tempo patterns. We further visualize the joint audio–text embed-ding space used for caption alignment. The au-dio and caption clusters are closely aligned across domains, indicating that rich caption supervision encourages the tokenizer to encode semantic in-formation beyond reconstruction-oriented acoustic detail. These visualizations support the quantitative results, showing that EntangleCodec learns discrete representations that are both acoustically grounded and semantically structured. 15 MMAR Example 1 — Speech: Behavior Recognition 
+
+Audio A clip of a male speaker performing a vocal imitation, with exaggerated tonal patterns and rhythmic speech, recorded in an indoor environment. 
+
+Question Why did the speaker sing a song at the end? 
+
+(A) To express awe for the lion 
+
+(B) To showcase his musical talent 
+
+(C) To imitate Africans 
+
+Ground Truth: (C) To imitate Africans 
+
+EntangleCodec-LLM (0.6B): (C) To imitate Africans ✓
+
+XCodec2-LLM (0.6B): (B) To showcase his musical talent ×
+
+Speechtokenizer-LLM (0.6B): (B) To express awe for the lion ×
+
+The rhythmic and tonal characteristics of the vocal performance carry cultural imitation cues. EntangleCodec’s rich caption supervision enables the model to distinguish intentional imitation from musical performance. 
+
+Figure 7: MMAR Example 1 — Speech: Behavior Recognition. 
+
+MMAR Example 2 — Music: Humor Reduction 
+
+Audio A clip of a musical piece with a comedic tone, featuring a notable pitch pattern that contributes to its humorous effect. 
+
+Question How to make this song less funny? 
+
+(A) Change the note F# to F 
+
+(B) Change the key from F major to C major 
+
+(C) Change the note D to C# 
+
+(D) Change the note F# to D 
+
+Ground Truth: (D) Change the note F# to D 
+
+EntangleCodec-LLM (0.6B): (D) Change the note F# to D ✓
+
+XCodec2-LLM (0.6B): (A) Change the note F# to F ×
+
+The humorous effect stems from the unexpected use of F#, which creates a comedic tension. Replacing it with D resolves this tension naturally. EntangleCodec’s fine-grained pitch supervision enables the model to identify the specific note responsible for the comedic character of the piece. 
+
+Figure 8: MMAR Example 2 — Music: Humor Reduction. 
+
+16 MMAR Example — Sound: Fine-grained Audio Discrimination 
+
+Audio A clip ending with a brief water-related sound, requiring fine-grained discrimination between two acoustically similar sound events. 
+
+Question Is the sound at the end of the audio pouring water or spitting water? 
+
+(A) Pouring water sound 
+
+(B) Spitting water sound 
+
+Ground Truth: (B) Spitting water sound 
+
+EntangleCodec-LLM (0.6B): (B) Spitting water sound ✓
+
+XCodec2-LLM (0.6B): (A) Pouring water sound ×
+
+The two sounds share similar acoustic properties but differ in subtle spectral and temporal patterns. EntangleCodec’s fine-grained audio caption supervision enables the model to capture these nuanced distinctions, while XCodec2-LLM conflates the two acoustically similar sound events. 
+
+Figure 9: MMAR Example — Sound: Fine-grained Audio Discrimination. 
+
+(a) Audio–text UMAP center distances. (b) Per-clip mean token embeddings. 
+
+Figure 10: UMAP visualization of EntangleCodec representations. Left: audio and caption embeddings are projected into a shared space, where smaller center distances indicate closer audio–text alignment. Right: per-clip mean token embeddings form clear domain-level clusters for speech, music, and general sound, with additional intra-domain structure. 
+
+17
