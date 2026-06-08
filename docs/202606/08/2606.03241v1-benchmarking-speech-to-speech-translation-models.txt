@@ -1,0 +1,1100 @@
+Title: Benchmarking Speech-to-Speech Translation Models
+
+URL Source: https://arxiv.org/pdf/2606.03241v1
+
+Published Time: Wed, 03 Jun 2026 00:42:44 GMT
+
+Number of Pages: 34
+
+Markdown Content:
+# Benchmarking Speech-to-Speech Translation Models 
+
+Alkis Koudounas † Hayato Futami † Quentin Jodelet †
+
+Osamu Take † Shinji Watanabe ‡ Emiru Tsunoo ††Sony Group Corporation, Japan ‡Carnegie Mellon University, USA 
+
+Alkis.Koudounas@sony.com 
+
+Abstract 
+
+Speech-to-speech translation (S2ST) has ad-vanced rapidly, but offline evaluation lacks a unified protocol: studies report non-overlapping metric subsets, preventing direct comparisons. We introduce COMPASS, a uni-fied and reproducible benchmarking framework integrating 46 metrics across eight dimensions, and deploy it on 1,248 model-language config-urations from FLEURS and CVSS, spanning cascaded and end-to-end architectures over ten language pairs. Architectures exhibit comple-mentary strengths: best-vs-worst gaps exceed 30% on naturalness and speaker preservation but remain within a few points on translation quality, so single-metric rankings systemati-cally misrepresent system quality. Correlation filtering reduces 46 metrics to 10 per direc-tion, with three axes requiring different metrics across X →EN and EN →X (e.g., TER/UTMOS vs. ChrF++/NISQA-MOS); these subsets pre-serve rankings (Spearman’s ρ > 0.80 ) while cutting evaluation time by ≈ 2.5×. Human val-idation across dubbing, podcasts, and medical domains shows standalone MOS predictors fail to predict listener preference, while top domain-specific metrics correlate with human judgment (ρ ≥ 0.90 ). We release COMPASS as a foun-dation for domain-aware S2ST evaluation. 
+
+1 Introduction 
+
+Speech-to-speech translation (S2ST) is a core tech-nology for communication (Lee et al., 2022; Ah-mad et al., 2024; Abdulmumin et al., 2025), power-ing applications from video dubbing and live broad-casting to real-time conversation and accessibil-ity. Recent progress spans both cascaded pipelines chaining automatic speech recognition (ASR), ma-chine translation (MT), and text-to-speech (TTS) synthesis (Bentivogli et al., 2021), and end-to-end models (Barrault et al., 2023a; Xu et al., 2025a,b). However, while streaming and simultaneous se-tups have advanced (Gaido et al., 2025), offline S2ST evaluation still lacks a widely adopted uni-fied protocol. A robust system must ensure accu-rate translation, natural speech, speaker and emo-tion preservation, and temporal alignment. Since each dimension uses its own metric family, studies often report non-overlapping subsets, preventing cross-paper comparisons. No standardized toolkit ensures consistent metric computation, and it re-mains unclear which metrics matter per use case. As Table 1 shows, while translation accuracy mat-ters across the board, deployment scenarios differ in their additional priorities: dubbing requires lip-syncing and isochrony, podcasts emphasize speaker consistency and naturalness, and medical settings demand the strictest accuracy. No uniform metric set fits all use cases, yet existing frameworks fail to operationalize these domain distinctions, leaving practitioners unable to choose the right system. To close this gap, we introduce the first 
+
+COMP rehensive AS sessment Suite (COMPASS) for benchmarking offline S2ST systems. COM-PASS unifies 40+ metrics across 8 dimensions: translation quality, evaluated both on the intermedi-ate translated text (to isolate translation from syn-thesis errors) and on ASR transcripts of the synthe-sized speech (to capture end-to-end output quality), audio naturalness, speaker consistency, prosody & emotion, isochrony, isometry, and lip sync. The framework is modular, letting users select met-rics per use case, and reproducible via a single toolkit. We deploy COMPASS in the largest empir-ical S2ST evaluation study to date, benchmarking cascaded and end-to-end architectures across 1,248 model-language configurations, ten languages, and both directions (EN ↔X) on FLEURS (Conneau et al., 2023) and CVSS (Jia et al., 2022b). Our analysis shows no architecture dominates: best-vs-worst gaps exceed 30% on naturalness and speaker preservation yet stay within a few points on trans-lation quality, making single-metric rankings mis-leading. Many widely used metrics are also highly 1                                                 
+
+> arXiv:2606.03241v1 [cs.CL] 2 Jun 2026 Metric dimension Live Video Lecture/ Conversation/ Podcast*/ News/ interpreting dubbing* EDU Medical* Audiobook Broadcast Translation Quality ⋆⋆⋆ ⋆⋆ ⋆⋆⋆ ⋆⋆⋆ ⋆⋆ ⋆⋆⋆
+> Naturalness ⋆⋆ ⋆⋆⋆ ⋆⋆ ⋆⋆⋆ ⋆⋆⋆ ⋆⋆
+> Speaker consistency ⋆⋆ ⋆⋆⋆ ⋆⋆ ⋆⋆ ⋆⋆⋆ ⋆⋆
+> Prosody / Emotion preservation ⋆⋆ ⋆⋆⋆ ⋆⋆⋆ ⋆⋆ ⋆⋆⋆ ⋆⋆
+> Isochrony / Isometry ⋆⋆ ⋆⋆⋆ ××⋆⋆ ⋆
+> Lip-syncing ×⋆⋆⋆ ××××
+> Table 1: Taxonomy relevance across S2ST use cases ( ⋆ ⋆ ⋆ : critical, ⋆: secondary, ×: irrelevant). Levels reflect structural application constraints (e.g., visual sync for dubbing vs. strict semantic fidelity for medical dialogue). We selected three domains with * for human evaluation to see correlation with COMPASS.
+
+correlated; through correlation-based filtering, we identify compact subsets preserving discriminative power, with X →EN and EN →X requiring differ-ent metrics on three axes (text quality: TER vs. ChrF++; naturalness: UTMOS vs. NISQA-MOS; speaker/prosody: speaker similarity vs. energy con-tour) due to asymmetric bottlenecks in source vari-ability and target synthesis. Finally, human evalu-ation across dubbing, podcasts, and medical con-texts shows that standalone MOS predictors can correlate negatively with emotional fidelity, while top domain-specific metrics correlate strongly with human judgment (Spearman’s ρ ≥ 0.90) and COM-PASS rankings match human preference rankings across domains. 
+
+Contributions. Our main contributions are: (i) We introduce COMPASS, the first unified, modular framework for offline S2ST evaluation, integrat-ing 40+ metrics across 8 axes; (ii) We conduct a large evaluation study, covering 1,248 model-language configurations on FLEURS and CVSS; (iii) We identify compact, data-driven metric sub-sets via correlation filtering, reducing 46 metrics to 10 per direction (with 3 axes differing across X→EN and EN →X), preserving rankings (Spear-man’s ρ > 0.80) while cutting evaluation time by 
+
+≈ 2.5×; (iv) We run a human evaluation proving automatic metrics must be domain-aware; and (v) We release the COMPASS toolkit to support fair, reproducible, and domain-aware S2ST evaluation. 
+
+2 Related Work 
+
+S2ST Models. Early S2ST systems chained ASR, MT, and TTS in a cascaded pipeline (Lavie et al., 1997; Nakamura et al., 2006). Modern direct end-to-end models (Jia et al., 2019, 2022a; Nachmani et al., 2024) and large multilingual systems such as SeamlessM4T (Barrault et al., 2023a,b) and the Qwen-Omni family (Xu et al., 2025a,b) now unify speech and text translation in a single architecture. Cascaded systems remain competitive by combin-ing specialized models like Whisper (Radford et al., 2023), NLLB (Costa-Jussà et al., 2022), Gemma (Kamath et al., 2025), and CosyVoice (Du et al., 2025). COMPASS evaluates both paradigms under a unified protocol. 
+
+S2ST Evaluation Metrics. S2ST evaluation bor-rows from adjacent fields, typically selecting met-rics most established or best correlated with hu-man judgment. Translation quality is assessed via, among others, BLEU (Papineni et al., 2002) and ChrF++ (Popovi´ c, 2017), alongside learned metrics such as COMET (Rei et al., 2020) and BLASER (Chen et al., 2023). Audio naturalness is most often measured with UTMOS (Saeki et al., 2022) and NISQA (Mittag et al., 2021), top VoiceMOS 1 per-formers, though alternatives exist (Cooper et al., 2022). Speaker preservation typically uses em-bedding similarity from ECAPA-TDNN (Desplan-ques et al., 2020) or WavLM (Chen et al., 2022), while prosody and emotion consistency rely on Au-toPCP (Barrault et al., 2023b) and emotion recog-nition models (Ma et al., 2024). Timing aspects (isochrony, isometry) have been studied mainly in dubbing (Lakew et al., 2022; Effendi et al., 2022; Chronopoulou et al., 2023). 
+
+Toward a Unified Evaluation. Adjacent fields have converged toward shared evaluation protocols, supported by standard corpora such as FLEURS (Conneau et al., 2023) and CVSS (Jia et al., 2022b) and domain-specific sets like MELD-ST (Chen et al., 2024) and MultiMed-ST (Le-Duc et al., 2025). Text translation relies on standardized met-ric suites (BLEU, chrF, COMET) despite ongoing concerns about human correlation (Mathur et al., 2020; Freitag et al., 2021). Speech-to-text trans-lation (S2TT) has followed: recent IWSLT of-fline tracks adopted a shared set (COMET, BLEU, chrF, TER), with COMET as the primary rank-ing metric since 2024 (Ahmad et al., 2024; Ab-
+
+> 1sites.google.com/view/voicemos-challenge
+
+2dulmumin et al., 2025), while simultaneous S2TT has converged around unified streaming toolkits (Gaido et al., 2025). Offline S2ST lacks a compa-rable protocol: state-of-the-art models report per-formance over heterogeneous, paper-specific axes; for instance, SeamlessM4T evaluates, among oth-ers, ASR-BLEU, BLASER, and AutoPCP (Bar-rault et al., 2023a), TransVIP adds duration-based metrics (Le et al., 2024), and other systems mix or omit perceptual and timing dimensions (Cheng et al., 2025; Hu et al., 2025), with further incon-sistencies in metric implementations (e.g., ASR backends for ASR-BLEU). COMPASS fills this gap by unifying 46 metrics into a single toolkit. 
+
+3 The COMPASS-S2ST Framework 
+
+COMPASS combines a structural evaluation taxon-omy, a unified metric catalogue, and a data-driven filtering pipeline to select compact metric subsets. 
+
+3.1 Design Goals 
+
+COMPASS targets 4 core principles: (i) multi-dimensionality : capturing distinct quality axes since no single metric fits all applications; (ii) 
+
+modularity : utilizing self-contained components so users can customize or extend specific metrics according to their use cases; (iii) reproducibility :providing a single toolkit with fixed checkpoints and deterministic configurations; (iv) domain-awareness : enabling domain-specific metric sub-sets validated by human judgment. 
+
+3.2 A Priori Taxonomy of S2ST Evaluation 
+
+We organize S2ST evaluation along eight axes, mapping to real-world application needs (Ta-ble 1). These span core communicative require-ments (translation, naturalness) alongside special-ized context-driven constraints (e.g., timing for dubbing vs. prosodic richness for audiobooks). 1. Translation Quality (Text) : text-level ade-quacy and fluency of the translation, measured on the text output. 2
+
+2. Translation Quality (ASR) : translation quality measured on ASR transcripts of the synthe-sized audio, plus audio-grounded measures, e.g., BLASER and phoneme-level accuracy. 3. Audio Naturalness : perceptual quality of the synthesized speech. 
+
+> 2For end-to-end systems, we use the intermediate text produced alongside the synthesized speech, while for cascades, we use the MT text feeding into the TTS module. This ensures text-based metrics are applied consistently across both.
+
+4. Speaker Consistency : preservation of the source speaker identity. 5. Prosody & Emotion : pitch, energy, rhythm, articulation, and emotional consistency. 6. Isochrony : temporal alignment between source and target speech. 7. Isometry : length compression and character or word ratios between source and target. 8. Lipsync : visual-acoustic alignment between source and target speech via viseme matching. These axes consolidate the evaluation dimensions adopted across recent S2ST systems and surveys (Barrault et al., 2023a,b; Le et al., 2024; Brannon et al., 2023), jointly covering translation, percep-tual, identity, prosodic, and timing aspects. Empiri-cally, our data collapse these into six non-redundant dimensions (Sec. 5). However, the original eight dimensions remain distinct, as the collapse reflects 
+
+currently available system profiles rather than re-dundancy of conceptual axes. 
+
+3.3 Metric Catalogue 
+
+COMPASS integrates 46 metrics from established ASR, MT, TTS, and S2TT evaluation. Transla-tion quality is measured on both translated text and ASR transcripts via BLEU (Papineni et al., 2002), ChrF/ChrF++ (Popovi´ c, 2015, 2017), TER (Snover et al., 2006), COMET-DA and COMET-Kiwi (Rei et al., 2022), and Semantic Score (Phukon et al., 2025). Speech translation quality is also assessed via BLASER (Chen et al., 2023), while WER measures intelligibility. Audio naturalness uses UTMOS (Saeki et al., 2022) and NISQA-MOS (Mittag et al., 2021), top VoiceMOS predictors and de facto S2ST standards (Le et al., 2024; Cheng et al., 2025). Speaker consistency is tracked via speaker embedding cosine similarity (Chen et al., 2022). Prosody and emotion span three sub-axes: (i) prosodic contours via AutoPCP (Barrault et al., 2023b), F0/energy similarity, and speech-rate Spearman correlations over chars/syllables/words (Barrault et al., 2023b); (ii) emotion via emotion match and embedding similarity (Ma et al., 2024); and (iii) articulation via phoneme error rate, for-mant deviation, and amplitude envelope similar-ity. Isochrony covers delta duration, relative du-ration error (RDE), speech overlap, duration ra-tio, and speech-length compliance (Brannon et al., 2023; Le et al., 2024), capturing absolute, rela-tive, and overlap-based alignment. Isometry uses delta words/chars, char length ratio (LR), char com-3Input Metrics               
+
+> Translation
+> Quality
+> Speaker
+> Similarity
+> Audio
+> Naturalness
+> …
+> N Model
+> Configurations
+> L Language
+> Pairs
+> M Metrics in C categories
+> N x L system -level
+> score vectors
+> Spearman ρ
+> Within -
+> category
+> correlation
+> Cross -
+> category
+> correlation
+> System Configs
+> Test Sets
+> Input
+> Corr. Methods
+> Correlation
+> Analysis
+> 1) Discriminability
+> Variance of system -
+> level scores
+> Data Collection
+> Pairwise
+> Correlation
+> Selection
+> & Ranking
+> Ranking via
+> Composite Score
+> 2)Cross -Language
+> Stability
+> Mean pairwise correlation
+> across language pairs
+> 3) Independenc e
+> 1-|ρ| with other groups
+> 4)Literature Adoption
+> Metric prevalence
+> in literature
+> 1) Prune metrics
+> Keep a few uncorrelated
+> metrics per each group
+> Group Refinement
+> Cross -Group Redun -
+> dancy Assessment
+> 3) Compute
+> Silhouette scores
+> 2) Metric Projection
+> Output
+> Compact Metri c Set
+> Distinct groups Minimized corr.
+> Until  Low Silhouette (<0.25) and high
+> cross -group  ρ (>0.70), iteratively  merge
+
+Figure 1: Data-driven filtering pipeline for COMPASS metrics. 
+
+pliance, and chars-per-second (CPS) ratio (Bran-non et al., 2023; Lakew et al., 2022), tracking text-length compression at surface and rate level. Lip-sync assesses video-audio alignment via viseme DTW and co-occurrence scores (Brannon et al., 2023), focusing on phonetic mouth shapes. Full metrics list and toolkits in Appendix B. 
+
+3.4 From 46 Metrics to a Compact Set 
+
+To reduce metric redundancy, we implement a data-driven filtering pipeline, depicted in Fig. 1. 
+
+Input. For each metric m, we aggregate its utterance-level scores to the system level, yield-ing one vector of system scores per metric. 
+
+Correlation Analysis. We compute pairwise Spearman |ρ| correlations between metrics, treat-ing each as the vector of its system-level scores to capture how similarly two metrics rank systems. We convert correlation into distance matrices D
+
+= 1 −| ρ| and apply hierarchical clustering at thresh-old 0.15 ( |ρ| > 0.85) to group redundant metrics. 
+
+Selection & Ranking. Within each cluster, we rank metrics on four complementary criteria: • Discriminability (Dm): the coefficient of vari-ation across systems; it measures how well the metric separates systems: low variance indicates poor discriminative power. • Cross-language stability (Cm): the mean Spearman ρ of system rankings across lan-guage pairs; it captures ranking consistency regardless of the language evaluated. • Independence (Im): defined as 1−| ρm|, where 
+
+|ρm| is the mean absolute correlation with all other metrics; higher values signify unique information content. • Literature adoption (Lm): a normalized usage score ( [0 , 1] ) based on evaluation frequency in published S2TT and S2ST papers; higher values reflect stronger community adoption. Each component is min-max normalized to [0,1] and combined into a ranking score per metric: 3
+
+score( m) = 14
+
+ Dm + Cm + Im + Lm
+
+ (1) A sensitivity analysis perturbing each weight by 
+
+±20% yielded stable rankings (Spearman’s ρ > 
+
+0.80), justifying the unweighted formula. The highest-scoring metrics per cluster become its rep-resentatives, with the count scaled to cluster size. 
+
+Group Refinement & Output. We iteratively merge cross-dimension groups whose representa-tives remain correlated ( ρcross > 0.70 or silhou-ette < 0.25), yielding a final compact set of non-redundant metrics organized into distinct empirical dimensions. Full pipeline details in Appendix D. 
+
+Computational Cost. On an A6000 GPU, running the full metric suite takes nearly 10,845s ( ≈3h) per configuration (CVSS), with neural metrics domi-nating. The compact subsets reduce this cost by roughly 2.5 × (4,300s) while preserving system rankings against the full 46-metric suite (Spear-man’s ρ > 0.80 across both directions), making domain-aware evaluation practical for iterative de-velopment without sacrificing comparability. 
+
+4 Experimental Setup 
+
+Datasets. We employ two widely used corpora: 
+
+FLEURS (Conneau et al., 2023) is a read-speech corpus. We evaluate both translation directions (X ↔EN) on the official test split across ten lan-guages.: Arabic ( ar ), German ( de ), Spanish ( es ), French ( fr ), Hindi ( hi ), Italian ( it ), Japanese ( ja ), Korean ( ko ), Portuguese ( pt ), and Chinese ( zh ). These languages are jointly supported by the bench-
+
+> 3
+
+Lm introduces a popularity bias, but as one of 4 equally-weighted components, it cannot dominate selection; it breaks ties in favor of comparability with prior work. 
+
+4marked systems and span different language fami-lies, covering both Latin and non-Latin scripts. 
+
+CVSS (Jia et al., 2022b) (built on CoVoST 2 (Wang et al., 2020)): we use it as a source-audio and reference-text resource (X →EN), 4 as our metrics evaluate the synthesized output against the text ref-erence. We use 8 language pairs, excluding hi 
+
+and ko , absent in CVSS. For efficiency, metrics are computed on the first 1,000 utterances per pair. 
+
+Systems. We benchmark end-to-end and cascaded architectures covering dominant paradigms: direct spanning dedicated S2ST models and multimodal speech LLMs, two-stage S2TT+TTS, three-stage ASR+MT+TTS. Full list of 1,248 system-language configurations is in Appendix C. 
+
+End-to-end systems. We evaluate four models in standard inference mode: SeamlessM4T-Medium and Large-v2 (Barrault et al., 2023b), Qwen2.5-Omni and Qwen3-Omni (Xu et al., 2025a,b). 
+
+S2TT+TTS cascades. We pair eight S2TT mod-els with two speech synthesis systems. For S2TT, we consider Whisper-Lv2 and Lv3 (Radford et al., 2023), 5 SeamlessM4T-Medium and Lv2, Gemma-4 E4B (Google, 2026), Voxtral-Small (Liu et al., 2025), Qwen2.5-Omni, and Qwen3-Omni. As TTS models, we use Chatterbox-TTS (Resemble AI, 2025) and CosyVoice3 (Du et al., 2025). 
+
+ASR+MT+TTS cascades. We evaluate three-stage cascaded pipelines combining: ASR (Whisper-Lv2 and Lv3, SeamlessM4T-Medium and Lv2), MT (NLLB-200 (Costa-Jussà et al., 2022), Gemma-3-27B (Kamath et al., 2025), Qwen3-8B (Yang et al., 2025)), and TTS (CosyVoice3 and Chatterbox). 
+
+Evaluation Protocol. The pipeline transcribes tar-get audios via Whisper-Lv3, computes all metrics, then averages to system-level (WER is inverted to Word Accuracy in visualizations, so higher is better). All setups use identical inputs, fixed check-points, greedy decoding, and constant seeds, ensur-ing variance reflects genuine system behavior. 
+
+Reproducibility check. We compared BLEU/ASR-BLEU for SeamlessM4T-Lv2 to the original re-port (Barrault et al., 2023b) to validate correctness. Our scores align within ±0.8 points across all lan-guages (mean abs. difference: 0.3), with minimal variations attributable to normalization and ASR versioning, confirming absence of systematic bias.                       
+
+> 4We exclude EN →X because synthetic English audio paired with target references would bias the evaluation.
+> 5X→EN only, since Whisper does not support EN →X.
+> Dir. Dimension Representatives
+> X→EN
+> Translation (ASR) COMET-DA ,WER
+> Translation (Text) COMET-DA ,TER
+> Audio Naturalness UTMOS
+> Speaker & Prosody Speaker Sim ,SR Chars Spearman
+> Isochrony RDE ,Delta Duration
+> Isometry Chars Length Compliance
+> EN →X
+> Translation (ASR) COMET-DA ,WER
+> Translation (Text) COMET-DA ,ChrF++
+> Audio Naturalness NISQA-MOS
+> Speaker & Prosody Energy Contour Sim ,SR Chars Spearman
+> Isochrony RDE ,Delta Duration
+> Isometry Chars Length Compliance
+
+Table 2: Compact metric subsets, X →EN and EN →X. 
+
+5 Results 
+
+We organize the results across FLEURS and CVSS around four research questions (RQs): 
+
+RQ1: Which metrics are redundant, and which carry an independent signal? 
+
+RQ2: Do X →EN and EN →X require the same evaluation metrics? 
+
+RQ3: Does any single S2ST architecture dominate across all evaluation dimensions? 
+
+RQ4: How do language proficiency profiles differ across architectures and language families? To keep comparisons tractable while maximizing diversity, we select one representative per archi-tectural family, i.e., the system with the highest mean rank across the six compact-set axes, com-puted per direction, with ties broken by literature adoption. 6 Specifically, we evaluate one system per paradigm: Qwen3-Omni ( Q3O , SpeechLLM), Seamless-Large v2 (SeamL , dedicated S2ST), Voxtral+Chatterbox (S2TT+TTS ), and Whisper-Lv3+Gemma3+CosyVoice3 ( ASR+MT+TTS ). 
+
+RQ1: Metric Redundancy. The filtering pipeline (Sec. 3.4) reduces the initial metrics to a compact set spanning six empirical dimensions (Table 2). In Appendix E.2, we analyze a t-SNE projection in system-score space (Fig. 4) and Spearman cor-relation matrices (Fig. 5) to confirm these metrics form distinct, non-overlapping clusters. Empiri-cally, several original axes show strongly correlated scores across our benchmarked systems. On our read-speech benchmarks, Speaker Consistency and 
+
+Prosody & Emotion merge into a single cluster due to high cross-system correlation, and Lipsync is absorbed into Isochrony for the same reason. Con-versely, Isochrony and Isometry remain distinct: their top representatives, RDE and Chars Com-
+
+> 6Findings are robust to this choice: re-running second-best systems preserves architectural ordering across all dimensions.
+
+5Figure 2: Models’ performance on key metrics. FLEURS X →EN (left), EN →X (middle), CVSS X →EN (right). 
+
+pliance, correlate weakly ( ρ = -0.55 in EN →X; 
+
+ρ = 0.26 in X →EN), confirming speech and text alignment capture separate failure modes (Rozanov et al., 2024). Most cross-dimension metric pairs maintain low correlations ( |ρ| < 0.50). A con-trol analysis on the spontaneous MELD-ST corpus weakens the speaker-prosody merge ( ρ ≈ 0.75, Ap-pendix E.3), but the link remains strong. This six-dimensional collapse likely reflects the joint vari-ance profiles of current S2ST architectures on pre-dominantly read-speech benchmarks, rather than conceptual equivalence: read-speech corpora may suppress prosodic and emotional variability, inflat-ing the correlation between speaker- and prosody-related metrics, while spontaneous-speech evalua-tion could decouple them further. Similarly, con-temporary models excelling at voice cloning tend to preserve prosody and articulation simultaneously, so their errors vary jointly. We thus maintain the full 8-axis taxonomy as COMPASS’s core concep-tual framework, treating the 6-dimensional group-ing as an empirical snapshot to be re-estimated as architectures and benchmarks evolve. 
+
+RQ2: Direction-Specific Metric Subsets. Opti-mal metrics for X →EN and EN →X differ in com-position and dependency structure, reflecting dis-tinct bottlenecks (Table 2). X →EN retains speaker similarity while EN →X preserves energy contour similarity : source-side speaker variability domi-nates the former, target-side prosodic synthesis the latter. Text evaluation shifts from TER in X →EN (tracking word-level edits in morphologically sim-ple English) to ChrF++ in EN →X, which better handles non-English morphology and CJK scripts (Popovi´ c, 2017). Naturalness moves from UT-MOS (X →EN) to NISQA-MOS (EN →X), con-sistent with their training profiles: UTMOS is op-timized for English (Saeki et al., 2022), whereas NISQA-MOS uses a multilingual mixture (Mittag et al., 2021), generalizing better across target lan-guages. Internal correlations mirror this asymmetry. In X →EN, acoustic , prosodic , and timing metrics form an entangled block, with |ρ| in the 0.3-0.5
+
+range across WER, COMET-DA, NISQA-MOS, speech rate correlation, energy contour similarity, and ∆ duration. Conversely, in EN →X, they de-couple into two distinct clusters: one isolating text quality , another linking naturalness , speaker simi-larity , and prosodic rate . This divergence implies that evaluating a single translation direction under-tests critical dimensions of the opposite path. 
+
+RQ3: Architectural Trade-Offs. Fig. 2 confirms no single architecture dominates: cascades excel at timing and speaker preservation thanks to dedicated TTS, while end-to-end models produce more natu-ral speech and avoid error propagation; translation quality is comparable across paradigms. The trade-off is highly asymmetric: best-vs-worst gaps ex-ceed 30% on naturalness and speaker preservation but are minimal on translation quality. COMET-DA alone suggests rough equivalence, whereas voice or timing metrics yield radically different rankings, directly motivating COMPASS: single-metric S2ST evaluations are structurally misleading , hiding the dimensions where architectural families actually diverge (further details in Appendix E.5). 
+
+RQ4: Language Proficiency Profiles. We map each system’s language proficiency by averaging normalized scores across six dimensions (Fig. 3 X→EN; EN →X in Appendix E.7, Fig. 9). End-to-end models show more symmetric profiles across languages and directions than cascades, likely re-flecting their jointly trained encoder-decoder dis-tributing capacity across all language pairs. On FLEURS X →EN, Q3O remains stable across Ger-manic, Romance, and CJK languages, consistent with its broad multilingual pretraining. Cascades exhibit severe directional asymmetry tied to com-ponent coverage: ASR+MT+TTS matches end-to-end models on FLEURS FR/IT →EN but collapses 6Figure 3: Language proficiency, FLEURS (top) and CVSS (bottom), X →EN. 4 models, Voxtral+Chatterbox (S2TT+TTS ), Whisper+Gemma+Cosyvoice ( ASR+MT+TTS ), Seamless (dedicated), and Qwen3Omni (SpeechLLM). 
+
+on EN →HI/KO, where TTS data is scarcer; this demonstrates performance is thus bounded by the weakest component per language. On CVSS, 
+
+ASR+MT+TTS also falls behind on Romance sources, suggesting its FLEURS advantage reflects corpus-specific conditions rather than genuine language coverage. SeamL shows the opposite pattern: com-pressed on FLEURS X →EN with the lowest CJK scores, yet competitive on EN →X (e.g., DE, FR). 7
+
+6 Human Evaluation 
+
+To anchor COMPASS in real-world preferences, our human evaluation tests whether distinct do-mains require unique metric subsets and validates which metrics align best with human judgment. 
+
+Domains. We evaluate three domains chosen to span the range of practical S2ST applications: • Dubbing (MELD-ST (Chen et al., 2024), EN ↔JA): Short, emotionally rich dialogue clips demanding precise timing, lip-sync, and prosody. We select 25 emotion-dense clips per direction (15-20s each; 50 total) using an automated difficulty metric (Appendix F.1). • Podcasts (EuroParl Multimedia Centre, 8
+
+EN ↔{DE, ES, FR, IT}): long-form conver-sational speech prioritizing naturalness and content fidelity. We manually segment and extract six 30-second clips per direction per language pair (48 total). 
+
+> 7These proficiency differences are observational: disen-tangling training data, architecture, and benchmark coverage would require controlled ablations beyond our scope.
+> 8https://multimedia.europarl.europa.eu
+
+• Medical (MultiMed-ST (Le-Duc et al., 2025), EN ↔ZH): clinician-patient dialogues requir-ing exact accuracy. We select 20 clips per di-rection, single-speaker (8-14s each; 40 total), manually verified to contain medical terms. Across all domains, we benchmark the four rep-resentative systems alongside ground-truth refer-ences where available (see Appendix F.1). 
+
+Annotation protocol. Each clip is evaluated by three independent native speakers of the target lan-guage with business-level English proficiency. An-notators listen to source and synthesized target au-dios, rating them on a 5-point Likert scale across di-mensions including translation quality, naturalness, speaker similarity, prosody, and domain-specific usability metrics 9 (questionnaire in Appendix F.2). 
+
+Inter-Annotator Agreement (IAA). Agreement profiles vary by domain (Tables 9-11 in Ap-pendix F.3). Podcast ratings are highly reliable across all dimensions ( α = 0.87-1.00), reaching near-perfect consensus on overall quality (α =0.98). Medical annotations remain consistently robust ( α = 0.76-0.89), anchoring strongest on real-world trust (α = 0.89), lowest on prosody (α =0.76). Conversely, dubbing shows lower baseline agreement ( α = 0.68-0.85); while translation ac-curacy and overall quality remain highly stable (α ≈ 0.85), human alignment drops significantly on highly granular temporal traits like lip sync 
+
+(α = 0.68) and timing (α = 0.72). This variance 
+
+> 9For medical dialogues, annotators are provided with refer-ence text and a domain glossary to ensure accurate judgments.
+
+7yields two key insights. First, dimensions with the lowest human consensus are precisely where auto-mated metrics are most valuable. Because tracking fine-grained audio timing is difficult for human judges to score consistently, automated metrics fill an important evaluation gap. Second, these distinct agreement profiles empirically support the a priori taxonomy in Table 1: human priorities vary across applications, confirming that evaluation configura-tions should shift with the deployment context. 
+
+Metric-Human Alignment. We compute system-level Spearman ρ between COMPASS scores and averaged human ratings, with bootstrap 95% CIs over 1,000 resamples; correlations are reliable only when |ρ|’s lower bound exceeds 0.5. 10 Unless oth-erwise specified, reported values average across questions and directions within each domain; per-domain recommended subsets are in Appendix F.5. 
+
+Dominant metrics shift across domains. Strongest predictors of human judgment vary by context. Translation-quality metrics ( COMET-DA , Semantic Score , ChrF++ ) lead in podcasts ( ρ = 0.82, CI: [0.75, 0.95]) and medical dialogues ( ρ = 1.00 for COMET-DA (Text) on EN →ZH, CI: [0.72, 1.00]); prosody and timing metrics ( AutoPCP , CPS Ratio , ∆ Duration ) dominate dubbing ( ρ = 0.91, CI: [0.78, 0.99]; ρ = -1.00 for CPS Ratio on EN →JA, CI: [-1.00, -0.77]); isometry metrics (Chars Compliance , Chars LR ) are uniquely pre-dictive of podcast naturalness and overall quality (ρ ∈ [0.95, 1.00], CIs ≥ [0.72, 1.00]), suggest-ing excessive translation length disrupts long-form listening regardless of semantic accuracy. This domain-conditional ordering broadly aligns with Table 1’s priorities and confirms that no single met-ric subset transfers across domains: each applica-tion demands a distinct evaluation configuration. 
+
+MOS predictors mislead. UTMOS and NISQA-MOS 
+
+yield near-zero or negative correlations across all domains; NISQA-MOS even correlates negatively with emotional preservation in dubbing ( ρ = -0.90, CI: [-1.00, -0.69]), suggesting clean synthesis can strip expressive prosody. MOS predictors appear to capture acoustic quality but fail to predict the higher-level dimensions listeners actually weigh. 
+
+Automatic metrics fill gaps where human consensus degrades. Domains with the lowest IAA (dubbing           
+
+> 10 Rankings are computed over four to five systems (MultiMed-ST does not have ground-truth target audios), so ρ
+> can saturate at ±1.00 for monotonic relationships; saturation indicates consistent ranking, not tight quantitative alignment.
+
+timing α=0.72, lipsync α=0.68) show the strongest automatic predictions ( ρ ≥ 0.94 for ∆ Duration 
+
+and Speech Overlap ). Conversely, dimensions where humans agree strongly but no metric reliably predicts, e.g., real-world trust in medical ( α=0.89), motivate future specialized evaluation components. 
+
+Takeaways. Across domains, COMET-DA and 
+
+Semantic Score correlates the strongest with human judgment (|ρ| ≥ 0.79), while 
+
+UTMOS /NISQA-MOS fail universally. Beyond this core, optimal metric subsets diverge by domain: prosody/timing for dubbing, isometry for podcasts, and text-level translation for medical, confirming that S2ST evaluation must be domain-conditional (top-10 metrics in Table 12, Appendix F.4). 
+
+System Rankings. Human evaluation confirms no single architecture dominates, and preference rank-ings align with COMPASS : both place SeamL last (zero first-preference votes across all domains) and identify cascades as strongest on translation-critical tasks. In podcast X →EN, S2TT+TTS matches the ground-truth reference (50% each), the only in-stance where a system rivals human production; this edge disappears in EN →X, where ground truth wins 89% of clips. In dubbing, human tracks win across all clips, with EN →JA scoring much lower than JA →EN, likely reflecting limited Japanese paired training data rather than architectural limits. For medical dialogues, ASR+MT+TTS is preferred 70% of the time in both directions, showing that a dedicated MT component outweighs end-to-end integration; Q3O ranks second (17%), the only con-text where an end-to-end model beats a two-stage cascade (detailed rankings in Appendix F.6). 
+
+7 Conclusion 
+
+We introduced COMPASS, the first framework for offline S2ST evaluation, combining 46 met-rics across 8 axes. Evaluating 1,248 configurations reveals dimensional trade-offs across architectures, direction-specific metric requirements, and substan-tial redundancy in current evaluation practice. Hu-man evaluations confirm that effective metrics must adapt to deployment context, while MOS predic-tors fail to capture global preference. Key gaps remain for future work: no automatic metric pre-dicts real-world trust in medical contexts, dubbing timing shows low human consensus, and broader spontaneous-speech evaluation is needed to test whether the empirical 6-axes collapse persists as architectures and benchmarks evolve. 8Limitations 
+
+While COMPASS provides the largest empirical evaluation of offline Speech-to-Speech Translation to date, we acknowledge some limitations. 
+
+Read-speech bias in benchmarks. Both FLEURS and CVSS consist of read speech, which under-represents the prosodic and emotional variabil-ity of natural conversation and may weaken the discriminative power of prosody- and emotion-related metrics. Our human evaluation on MELD-ST (dubbing) and Multimedia EuroParl (podcasts) partly mitigates this by including spontaneous, emotionally rich material, but extending COM-PASS to spontaneous-speech corpora such as Vox-Populi (Wang et al., 2021) is a natural next step. 
+
+ASR self-evaluation loop. ASR-based metrics rely on Whisper-Lv3 , the same model used as the front-end in several cascaded systems. This shared back-bone may introduce an evaluation bias in favour of Whisper-based cascades. A control experiment (50 samples per language pair) with an alternative ASR backbone (Pratap et al., 2024) confirmed that rela-tive rankings remain stable (Spearman’s ρ > 0.82 ), so this bias does not affect our main conclusions. 
+
+Noisy source audio. Speaker and prosody met-rics compare the synthesized output against the source audio directly. On data such as FLEURS, noisy source recordings can penalize systems that correctly denoise the input, as the clean synthetic embedding drifts from the noisy reference embed-ding. COMPASS does not currently apply source-side speech enhancement before metric computa-tion, highlighting an open challenge in decoupling speech enhancement quality from translation fi-delity during evaluation. 
+
+Offline evaluation only. COMPASS benchmarks fully formed utterances and does not track latency-related metrics such as Average Lagging and re-lated scores (Ma et al., 2019, 2020; Papi et al., 2022). End-to-end systems are evaluated on equal footing with cascaded models, hiding real-time de-ployment and inference costs trade-offs. 
+
+Sentence-level human evaluation. Our human an-notators evaluated short clips of up to 30 seconds. Long-form phenomena such as speaker voice drift, cumulative timing delays, or progressive halluci-nation over longer audios are not captured by the current evaluation design. 
+
+EN →X grounded in a single corpus. Our EN →Xanalysis is grounded in FLEURS alone, since CVSS contains only synthetic English source au-dio in this direction. Extending COMPASS to ad-ditional EN →X corpora is a natural next step to confirm the generality of our direction-specific rec-ommendations. 
+
+Empirical grouping is system-dependent. The six-dimensional empirical grouping reflects the current generation of S2ST systems and may shift as ar-chitectures evolve, particularly if future systems decouple speaker, prosody, and articulation. We therefore release both the eight-dimensional taxon-omy and the filtering pipeline, rather than a fixed metric set, so that the empirical grouping can be re-estimated as the field evolves. 
+
+GPU non-determinism. Some neural metrics (e.g., COMET, BLASER, WavLM-based speaker simi-larity) rely on GPU atomic operations whose ac-cumulation order is non-deterministic, introducing run-to-run variance on the order of 1e-3. This noise is below the between-system score gaps reported in our analysis and does not alter system rankings. 
+
+Ethics Statement 
+
+Annotator compensation and conditions. Human annotators were recruited through two channels: professional annotators compensated above the lo-cal minimum wage for their time, and voluntary researcher annotators with relevant domain exper-tise. Annotators were informed of the purpose of the study and provided consent before participat-ing. No personally identifiable information was collected during the annotation process. 
+
+Licensing and data usage. All datasets used in this work (FLEURS, CVSS, MELD-ST, MultiMed-ST) are publicly available and used in accordance with their respective licenses. Podcast evaluation au-dio was downloaded from the official European Parliament Multimedia Centre and used in accor-dance with its terms of use. The medical evalua-tion data (MultiMed-ST) contains clinician-patient dialogues: we use only the portions released for research purposes and do not attempt to re-identify any individuals. The benchmark code will be re-leased under a commercial license upon acceptance. Note that licenses for the underlying metrics and pretrained checkpoints vary by source and may impose additional restrictions; we detail each in Appendix B. 
+
+Dual-use and potential risks. COMPASS is an evaluation framework, not a generative system; 9we release no fine-tuned models and benchmark only publicly available systems. Nonetheless, the S2ST models evaluated here could be misused for voice cloning, unauthorized dubbing, or mislead-ing audio content. COMPASS itself may also be misinterpreted if applied outside the tested condi-tions: metric recommendations are grounded in our benchmarked systems, languages, and domains, and transferring them to unsupported languages, low-resource settings, or specialized domains (e.g., legal, emergency) without re-validation may yield misleading rankings. In high-stakes contexts such as medical S2ST, our results show that no au-tomatic metric reliably predicts real-world trust; COMPASS scores must not substitute for expert human review before deployment. We encourage users to treat COMPASS as a diagnostic tool that complements, rather than replaces, human judg-ment, and to consider the ethical implications of deploying S2ST systems in sensitive domains. 
+
+Societal impact. Reliable evaluation frameworks are a prerequisite for the responsible deployment of S2ST technology. By identifying which met-rics correlate with human judgment and which do not, COMPASS reduces the risk of systems being deployed based on misleading automatic scores. We hope this work contributes to more transparent and accountable evaluation practices in the speech translation community. 
+
+Ethics review. This research, including the human evaluation protocol and data collection procedures, was reviewed and approved by our institution’s internal AI Ethics board. 
+
+Usage of AI assistants. We used AI assistants for proofreading, table formatting, and assistance with data preparation scripts. All scientific content, ex-perimental design, analysis, and conclusions are the authors’ own. 
+
+References 
+
+Idris Abdulmumin, Victor Agostinelli, Tanel Alumäe, Antonios Anastasopoulos, Luisa Bentivogli, Ondˇ rej Bojar, Claudia Borg, Fethi Bougares, Roldano Cat-toni, Mauro Cettolo, Lizhong Chen, William Chen, Raj Dabre, Yannick Estève, Marcello Federico, Mark Fishel, Marco Gaido, Dávid Javorský, Marek Kasztel-nik, and 33 others. 2025. Findings of the IWSLT 2025 evaluation campaign. In Proceedings of the 22nd International Conference on Spoken Language Translation (IWSLT 2025) , pages 412–481, Vienna, Austria (in-person and online). Association for Com-putational Linguistics. Ibrahim Said Ahmad, Antonios Anastasopoulos, Ondˇ rej Bojar, Claudia Borg, Marine Carpuat, Roldano Cattoni, Mauro Cettolo, William Chen, Qianqian Dong, Marcello Federico, Barry Haddow, Dávid Ja-vorský, Mateusz Krubi´ nski, Tsz Kin Lam, Xutai Ma, Prashant Mathur, Evgeny Matusov, Chandresh Mau-rya, John P. McCrae, and 25 others. 2024. FIND-INGS OF THE IWSLT 2024 EVALUATION CAM-PAIGN. In Proceedings of the 21st International Conference on Spoken Language Translation (IWSLT 2024) , pages 1–11, Bangkok, Thailand (in-person and online). Association for Computational Linguis-tics. Antonios Anastasopoulos, Loïc Barrault, Luisa Ben-tivogli, Marcely Zanon Boito, Ondˇ rej Bojar, Roldano Cattoni, Anna Currey, Georgiana Dinu, Kevin Duh, Maha Elbayad, and 1 others. 2022. Findings of the IWSLT 2022 evaluation campaign. In Proceedings of the 19th international conference on spoken lan-guage translation (IWSLT 2022) , pages 98–157. Alexei Baevski, Yuhao Zhou, Abdelrahman Mohamed, and Michael Auli. 2020. wav2vec 2.0: A framework for self-supervised learning of speech representations. 
+
+Advances in neural information processing systems ,33:12449–12460. Loïc Barrault, Yu-An Chung, Mariano Cora Meglioli, David Dale, Ning Dong, Paul-Ambroise Duquenne, Hady Elsahar, Hongyu Gong, Kevin Heffernan, John Hoffman, and 1 others. 2023a. Seamlessm4t: Mas-sively multilingual & multimodal machine transla-tion. arXiv preprint arXiv:2308.11596 .Loïc Barrault, Yu-An Chung, Mariano Coria Megli-oli, David Dale, Ning Dong, Mark Duppenthaler, Paul-Ambroise Duquenne, Brian Ellis, Hady Elsahar, Justin Haaheim, and 1 others. 2023b. Seamless: Mul-tilingual expressive and streaming speech translation. 
+
+arXiv preprint arXiv:2312.05187 .Luisa Bentivogli, Mauro Cettolo, Marco Gaido, Alina Karakanta, Alberto Martinelli, Matteo Negri, and Marco Turchi. 2021. Cascade versus direct speech translation: Do the differences still make a differ-ence? In Proceedings of the 59th Annual Meet-ing of the Association for Computational Linguistics and the 11th International Joint Conference on Natu-ral Language Processing (Volume 1: Long Papers) ,pages 2873–2887. Paul Boersma. 2001. Praat, a system for doing pho-netics by computer. Glot International , 5(9/10):341– 345. William Brannon, Yogesh Virkar, and Brian Thompson. 2023. Dubbing in practice: A large scale study of hu-man localization with insights for automatic dubbing. 
+
+Transactions of the Association for Computational Linguistics , 11:419–435. Mingda Chen, Paul-Ambroise Duquenne, Pierre An-drews, Justine Kao, Alexandre Mourachko, Holger Schwenk, and Marta R Costa-jussà. 2023. BLASER: 
+
+10 A text-free speech-to-speech translation evaluation metric. In Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Vol-ume 1: Long Papers) , pages 9064–9079. Sanyuan Chen, Chengyi Wang, Zhengyang Chen, Yu Wu, Shujie Liu, Zhuo Chen, Jinyu Li, Naoyuki Kanda, Takuya Yoshioka, Xiong Xiao, and 1 oth-ers. 2022. Wavlm: Large-scale self-supervised pre-training for full stack speech processing. IEEE Journal of Selected Topics in Signal Processing ,16(6):1505–1518. Sirou Chen, Sakiko Yahata, Shuichiro Shimizu, Zheng-dong Yang, Yihang Li, Chenhui Chu, and Sadao Kurohashi. 2024. MELD-ST: An emotion-aware speech translation dataset. In Findings of the Asso-ciation for Computational Linguistics: ACL 2024 ,pages 10118–10126. Sitong Cheng, Weizhen Bian, Xinsheng Wang, Ruibin Yuan, Jianyi Chen, Shunshun Yin, Yike Guo, and Wei Xue. 2025. UniSS: Unified expressive speech-to-speech translation with your voice. arXiv preprint arXiv:2509.21144 .Alexandra Chronopoulou, Brian Thompson, Prashant Mathur, Yogesh Virkar, Surafel M Lakew, and Mar-cello Federico. 2023. Jointly optimizing translations and speech timing to improve isochrony in automatic dubbing. arXiv preprint arXiv:2302.12979 .Alexis Conneau, Kartikay Khandelwal, Naman Goyal, Vishrav Chaudhary, Guillaume Wenzek, Francisco Guzmán, Edouard Grave, Myle Ott, Luke Zettle-moyer, and Veselin Stoyanov. 2020. Unsupervised cross-lingual representation learning at scale. In Pro-ceedings of the 58th annual meeting of the associa-tion for computational linguistics , pages 8440–8451. Alexis Conneau, Min Ma, Simran Khanuja, Yu Zhang, Vera Axelrod, Siddharth Dalmia, Jason Riesa, Clara Rivera, and Ankur Bapna. 2023. Fleurs: Few-shot learning evaluation of universal representations of speech. In 2022 IEEE Spoken Language Technology Workshop (SLT) , pages 798–805. IEEE. Erica Cooper, Wen-Chin Huang, Tomoki Toda, and Junichi Yamagishi. 2022. Generalization ability of mos prediction networks. In ICASSP 2022-2022 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pages 8442–8446. IEEE. Marta R Costa-Jussà, James Cross, Onur Çelebi, Maha Elbayad, Kenneth Heafield, Kevin Heffernan, Elahe Kalbassi, Janice Lam, Daniel Licht, Jean Maillard, and 1 others. 2022. No language left behind: Scaling human-centered machine translation. arXiv preprint arXiv:2207.04672 .Brecht Desplanques, Jenthe Thienpondt, and Kris De-muynck. 2020. ECAPA-TDNN: Emphasized chan-nel attention, propagation and aggregation in TDNN based speaker verification. In Proc. Interspeech 2020 ,pages 3830–3834. Zhihao Du, Changfeng Gao, Yuxuan Wang, Fan Yu, Tianyu Zhao, Hao Wang, Xiang Lv, Hui Wang, Chongjia Ni, Xian Shi, and 1 others. 2025. Cosyvoice 3: Towards in-the-wild speech genera-tion via scaling-up and post-training. arXiv preprint arXiv:2505.17589 .Johanes Effendi, Yogesh Virkar, Roberto Barra-Chicote, and Marcello Federico. 2022. Duration modeling of neural tts for automatic dubbing. In ICASSP 2022-2022 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pages 8037– 8041. IEEE. Markus Freitag, George Foster, David Grangier, Viresh Ratnakar, Qijun Tan, and Wolfgang Macherey. 2021. Experts, errors, and context: A large-scale study of human evaluation for machine translation. Transac-tions of the Association for Computational Linguis-tics , 9:1460–1474. Marco Gaido, Sara Papi, Mauro Cettolo, Matteo Negri, and Luisa Bentivogli. 2025. Simulstream: Open-source toolkit for evaluation and demonstration of streaming speech-to-text translation systems. arXiv preprint arXiv:2512.17648 .Google. 2026. Gemma4. https://ai.google.dev/ gemma/docs/core . Accessed: 2026-05-13. Yuxuan Hu, Haibin Wu, Ruchao Fan, Xiaofei Wang, Heng Lu, Yao Qian, and Jinyu Li. 2025. SLM-S2ST: A multimodal language model for direct speech-to-speech translation. In 2025 IEEE Automatic Speech Recognition and Understanding Workshop (ASRU) ,pages 1–8. IEEE. Ye Jia, Michelle Tadmor Ramanovich, Tal Remez, and Roi Pomerantz. 2022a. Translatotron 2: High-quality direct speech-to-speech translation with voice preser-vation. In International conference on machine learn-ing , pages 10120–10134. PMLR. Ye Jia, Michelle Tadmor Ramanovich, Quan Wang, and Heiga Zen. 2022b. CVSS corpus and massively mul-tilingual speech-to-speech translation. In Proceed-ings of the thirteenth language resources and evalua-tion conference , pages 6691–6703. Ye Jia, Ron J Weiss, Fadi Biadsy, Wolfgang Macherey, Melvin Johnson, Zhifeng Chen, and Yonghui Wu. 2019. Direct speech-to-speech translation with a sequence-to-sequence model. In Proc. Interspeech 2019 , pages 1123–1127. Aishwarya Kamath, Johan Ferret, Shreya Pathak, Nino Vieillard, Ramona Merhej, Sarah Perrin, Tatiana Matejovicova, Alexandre Ramé, Morgane Rivière, Louis Rouillard, and 1 others. 2025. Gemma 3 tech-nical report. arXiv preprint arXiv:2503.19786 , 4. Klaus Krippendorff. 2011. Agreement and information in the reliability of coding. Communication methods and measures , 5(2):93–112. 
+
+11 Surafel M Lakew, Yogesh Virkar, Prashant Mathur, and Marcello Federico. 2022. Isometric MT: Neural ma-chine translation for automatic dubbing. In ICASSP 2022-2022 IEEE International Conference on Acous-tics, Speech and Signal Processing (ICASSP) , pages 6242–6246. IEEE. Alon Lavie, Alex Waibel, Lori Levin, Michael Finke, Donna Gates, Marsal Gavalda, Torsten Zeppenfeld, and Puming Zhan. 1997. JANUS-III: Speech-to-speech translation in multiple languages. In 1997 IEEE international conference on acoustics, speech, and signal processing , volume 1, pages 99–102. IEEE. Chenyang Le, Yao Qian, Dongmei Wang, Long Zhou, Shujie LIU, Xiaofei Wang, Midia Yousefi, Yanmin Qian, Jinyu Li, and Michael Zeng. 2024. TransVIP: Speech to speech translation system with voice and isochrony preservation. In The Thirty-eighth Annual Conference on Neural Information Processing Sys-tems .Khai Le-Duc, Tuyen Tran, Bach Phan Tat, Nguyen Kim Hai Bui, Quan Dang Anh, Hung-Phong Tran, Thanh Thuy Nguyen, Ly Nguyen, Tuan Minh Phan, Thi Thu Phuong Tran, and 1 others. 2025. MultiMed-ST: Large-scale many-to-many multilingual medical speech translation. In Proceedings of the 2025 Con-ference on Empirical Methods in Natural Language Processing , pages 11838–11963. Ann Lee, Peng-Jen Chen, Changhan Wang, Jiatao Gu, Sravya Popuri, Xutai Ma, Adam Polyak, Yossi Adi, Qing He, Yun Tang, and 1 others. 2022. Direct speech-to-speech translation with discrete units. In 
+
+Proceedings of the 60th Annual Meeting of the As-sociation for Computational Linguistics (Volume 1: Long Papers) , pages 3327–3339. Jianhua Lin. 1991. Divergence measures based on the shannon entropy. IEEE Transactions on Information theory , 37(1):145–151. Alexander H Liu, Andy Ehrenberg, Andy Lo, Clé-ment Denoix, Corentin Barreau, Guillaume Lam-ple, Jean-Malo Delignon, Khyathi Raghavi Chandu, Patrick von Platen, Pavankumar Reddy Muddireddy, and 1 others. 2025. Voxtral. arXiv preprint arXiv:2507.13264 .Mingbo Ma, Liang Huang, Hao Xiong, Renjie Zheng, Kaibo Liu, Baigong Zheng, Chuanqiang Zhang, Zhongjun He, Hairong Liu, Xing Li, and 1 oth-ers. 2019. STACL: Simultaneous translation with implicit anticipation and controllable latency using prefix-to-prefix framework. In Proceedings of the 57th Annual Meeting of the Association for Compu-tational Linguistics , pages 3025–3036. Xutai Ma, Mohammad Javad Dousti, Changhan Wang, Jiatao Gu, and Juan Pino. 2020. SIMULEVAL: An evaluation toolkit for simultaneous translation. In 
+
+Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations , pages 144–150. Ziyang Ma, Zhisheng Zheng, Jiaxin Ye, Jinchao Li, Zhifu Gao, Shiliang Zhang, and Xie Chen. 2024. emotion2vec: Self-supervised pre-training for speech emotion representation. In Findings of the Associa-tion for Computational Linguistics: ACL 2024 , pages 15747–15760. Nitika Mathur, Timothy Baldwin, and Trevor Cohn. 2020. Tangled up in BLEU: Reevaluating the eval-uation of automatic machine translation evaluation metrics. In Proceedings of the 58th annual meet-ing of the association for computational linguistics ,pages 4984–4997. Gabriel Mittag, Babak Naderi, Assmaa Chehadi, and Sebastian Möller. 2021. NISQA: A deep cnn-self-attention model for multidimensional speech quality prediction with crowdsourced datasets. Interspeech 2021 .Eliya Nachmani, Alon Levkovitch, Yifan Ding, Chulayuth Asawaroengchai, Heiga Zen, and Michelle Tadmor Ramanovich. 2024. Translatotron 3: Speech to speech translation with monolingual data. In ICASSP 2024-2024 IEEE International Con-ference on Acoustics, Speech and Signal Processing (ICASSP) , pages 10686–10690. IEEE. Satoshi Nakamura, Konstantin Markov, Hiromi Nakaiwa, Gen-ichiro Kikui, Hisashi Kawai, Takatoshi Jitsuhiro, J-S Zhang, Hirofumi Yamamoto, Eiichiro Sumita, and Seiichi Yamamoto. 2006. The ATR multilingual speech-to-speech translation system. IEEE Transactions on Audio, Speech, and Language Processing , 14(2):365–376. Sara Papi, Marco Gaido, Matteo Negri, and Marco Turchi. 2022. Over-generation cannot be rewarded: Length-adaptive average lagging for simultaneous speech translation. In Proceedings of the Third Work-shop on Automatic Simultaneous Translation , pages 12–17. Kishore Papineni, Salim Roukos, Todd Ward, and Wei-Jing Zhu. 2002. Bleu: a method for automatic evalu-ation of machine translation. In Proceedings of the 40th annual meeting of the Association for Computa-tional Linguistics , pages 311–318. Bornali Phukon, Xiuwen Zheng, and Mark Hasegawa-Johnson. 2025. Aligning ASR Evaluation with Hu-man and LLM Judgments: Intelligibility Metrics Us-ing Phonetic, Semantic, and NLI Approaches. In 
+
+Interspeech 2025 , pages 5708–5712. Maja Popovi´ c. 2015. chrF: character n-gram F-score for automatic MT evaluation. In Proceedings of the tenth workshop on statistical machine translation ,pages 392–395. Maja Popovi´ c. 2017. chrF++: words helping character n-grams. In Proceedings of the second conference on machine translation , pages 612–618. Matt Post. 2018. A call for clarity in reporting BLEU scores. In Proceedings of the Third Conference on 
+
+12 Machine Translation: Research Papers , pages 186– 191, Belgium, Brussels. Association for Computa-tional Linguistics. Vineel Pratap, Andros Tjandra, Bowen Shi, Paden Tomasello, Arun Babu, Sayani Kundu, Ali Elkahky, Zhaoheng Ni, Apoorv Vyas, Maryam Fazel-Zarandi, and 1 others. 2024. Scaling speech technology to 1,000+ languages. Journal of Machine Learning Re-search , 25(97):1–52. Alec Radford, Jong Wook Kim, Tao Xu, Greg Brock-man, Christine McLeavey, and Ilya Sutskever. 2023. Robust speech recognition via large-scale weak su-pervision. In International conference on machine learning , pages 28492–28518. PMLR. Ricardo Rei, José G. C. de Souza, Duarte Alves, Chrysoula Zerva, Ana C Farinha, Taisiya Glushkova, Alon Lavie, Luisa Coheur, and André F. T. Martins. 2022. COMET-22: Unbabel-IST 2022 submission for the metrics shared task. In Proceedings of the Seventh Conference on Machine Translation (WMT) ,pages 578–585. Association for Computational Lin-guistics. Ricardo Rei, Craig Stewart, Ana C Farinha, and Alon Lavie. 2020. COMET: A neural framework for MT evaluation. In Proceedings of the 2020 conference on empirical methods in natural language processing (emnlp) , pages 2685–2702. Resemble AI. 2025. Chatterbox-TTS. https:// github.com/resemble-ai/chatterbox . GitHub repository. Nikolai Rozanov, Vikentiy Pankov, Dmitrii Mukhutdi-nov, and Dima Vypirailenko. 2024. IsoChronoMeter: A simple and effective isochronic translation evalua-tion metric. In Proceedings of the Ninth Conference on Machine Translation , pages 372–379. Takaaki Saeki, Detai Xin, Wataru Nakata, Tomoki Koriyama, Shinnosuke Takamichi, and Hiroshi Saruwatari. 2022. UTMOS: UTokyo-SaruLab Sys-tem for VoiceMOS Challenge 2022. In Proc. Inter-speech 2022 , pages 4521–4525. Matthew Snover, Bonnie Dorr, Rich Schwartz, Linnea Micciulla, and John Makhoul. 2006. A study of trans-lation edit rate with targeted human annotation. In 
+
+Proceedings of the 7th Conference of the Association for Machine Translation in the Americas: Technical Papers , pages 223–231. Changhan Wang, Morgane Riviere, Ann Lee, Anne Wu, Chaitanya Talnikar, Daniel Haziza, Mary Williamson, Juan Pino, and Emmanuel Dupoux. 2021. Voxpop-uli: A large-scale multilingual speech corpus for rep-resentation learning, semi-supervised learning and interpretation. In Proceedings of the 59th Annual Meeting of the Association for Computational Lin-guistics and the 11th International Joint Conference on Natural Language Processing (Volume 1: Long Papers) , pages 993–1003. Changhan Wang, Anne Wu, and Juan Pino. 2020. Cov-ost 2 and massively multilingual speech-to-text trans-lation. arXiv preprint arXiv:2007.10310 .Jin Xu, Zhifang Guo, Jinzheng He, Hangrui Hu, Ting He, Shuai Bai, Keqin Chen, Jialin Wang, Yang Fan, Kai Dang, Bin Zhang, Xiong Wang, Yunfei Chu, and Junyang Lin. 2025a. Qwen2.5-omni technical report. Jin Xu, Zhifang Guo, Hangrui Hu, Yunfei Chu, Xiong Wang, Jinzheng He, Yuxuan Wang, Xian Shi, Ting He, Xinfa Zhu, and 1 others. 2025b. Qwen3-omni technical report. arXiv preprint arXiv:2509.17765 .An Yang, Anfeng Li, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chang Gao, Chengen Huang, Chenxu Lv, and 1 others. 2025. Qwen3 technical report. arXiv preprint arXiv:2505.09388 .Tianyi Zhang*, Varsha Kishore*, Felix Wu*, Kilian Q. Weinberger, and Yoav Artzi. 2020. Bertscore: Eval-uating text generation with bert. In International Conference on Learning Representations .
+
+13 A The COMPASS Toolkit 
+
+The COMPASS toolkit is organized around a met-ric registry that maps each metric to its implemen-tation, expected inputs, and directionality (higher-or lower-is-better). The pipeline runs end-to-end from raw audio inputs to per-system, per-language, and per-dimension scores, with all intermediate artefacts cached for reproducibility. Adding a new metric requires only a single registry entry and a compute function, making the framework easy to extend as the field evolves. 
+
+Text pre-processing. Before computing transla-tion metrics, all hypothesis and reference texts are passed through a common normalization step that removes redundant whitespace, normalizes Uni-code punctuation, and applies language-specific lower-casing where appropriate. 11 The same nor-malization is applied uniformly across all transla-tion quality metrics. 
+
+Hardware. We run the entire evaluation bench-mark on a single NVIDIA A6000 GPU (48GB) under Linux (Ubuntu 24.04, kernel 6.17, x86_64). This also includes neural metrics (Whisper-Lv3 (Radford et al., 2023), COMET (Rei et al., 2020, 2022), BLASER (Chen et al., 2023), UTMOS-v2 (Saeki et al., 2022), NISQA-MOS (Mittag et al., 2021), WavLM-SV (Chen et al., 2022), Au-toPCP (Barrault et al., 2023b), Wav2Vec2 phoneme (Baevski et al., 2020), Emotion2Vec base plus (Ma et al., 2024)). 
+
+Timing Analysis. To evaluate operational throughput, we benchmarked computation times on a fixed subset of 100 samples across the IT →EN translation direction. 12 For the FLEURS (Conneau et al., 2023) dataset, running the full metric suite required 1,597 seconds ( ≈0.45h), whereas the non-redundant compact set completed execution in 689 seconds (2.3 × reduction). Similarly, on the CVSS dataset (Jia et al., 2022b), computing the full evaluation suite took 1,085 seconds, which dropped down to 430 seconds when utilizing the compact subset. This substantial reduction in compute footprint demonstrates that domain-specific metric configurations make iterative system development far more practical.  
+
+> 11 We rely on Whisper normalizers, available under MIT license: github.com/openai/whisper/normalizers .
+> 12 Timing profiles were collected by benchmarking the first 100 consecutive utterances from each evaluation dataset.
+
+B Detailed Metric Catalogue 
+
+This section provides details on the full set of 46 metrics integrated into COMPASS, organized by the eight a priori evaluation dimensions described in Section 3.2. For each metric, we report what it measures, the toolkit used, and the underlying model checkpoint where applicable. All metrics are computed with deterministic configurations (greedy decoding, fixed sampling rate of 16 kHz) to ensure reproducibility. 
+
+B.1 Translation Quality (Text) 
+
+These metrics evaluate the textual translation pro-duced by the system. All texts are normalized through a common pre-processing step before scor-ing (see Appendix A). • BLEU (Papineni et al., 2002): corpus- and sentence-level n-gram precision with brevity penalty. Computed with SacreBLEU 13 (Post, 2018) using tokenize=None , which auto-selects the tokenizer based on the target language: zh for Chinese, ja-mecab for Japanese, ko-mecab for Korean, and 13a (mte-val) otherwise. • ChrF (Popovi´ c, 2015): character-level F-score measuring character n-gram overlap up to length 6. Computed with sacreBLEU 
+
+(word_order=0 ) using a default recall-biased 
+
+β = 2 .• ChrF++ (Popovi´ c, 2017): character-level F-score augmented with word n-grams up to length 2 to incorporate word-order constraints. Computed with sacreBLEU (word_order=2 ). • TER (Snover et al., 2006): translation edit rate calculating the minimum edits (insertions, deletions, substitutions, block shifts) normal-ized by reference length. Computed with 
+
+sacreBLEU ’s TER class. • COMET-DA (Rei et al., 2020): reference-based learned metric using a XLM-RoBERTa (Conneau et al., 2020) encoder fine-tuned on human Direct Assessments. We use the official wmt22-comet-da model checkpoint. 14 
+
+• COMET-Kiwi (Rei et al., 2022): reference-free quality estimation metric predicting hu-man quality scores directly from source  
+
+> 13 SacreBLEU ( github.com/mjpost/sacrebleu ) comes with Apache-2.0 license.
+> 14 huggingface.co/Unbabel/wmt22-comet-da ,which has Apache 2.0 license.
+
+14 and hypothesis embeddings. We use the 
+
+wmt22-cometkiwi-da checkpoint. 15 
+
+• SemScore (Phukon et al., 2025): weighted combination of NLI entailment 16 BERTScore, and phonetic similarity. BERTScore (Zhang* et al., 2020) uses the language-appropriate backbone with rescaled baseline; pho-netic similarity uses Soundex + Jaro-Winkler via jellyfish .17 Default weights are 0.4012 (NLI), 0.2785 (BERTScore), 
+
+0.3201 (phonetic). For non-English target lan-guages, the phonetic weight is redistributed to NLI and BERTScore proportionally. 
+
+B.2 Translation Quality (ASR) 
+
+These metrics apply text-based translation metrics to ASR transcripts of the synthesized audio, plus audio-grounded measures. 
+
+Reference ASR system. All following ASR-based metrics rely on transcripts produced by Whisper-large-v3, 18 with language-conditioned generation and default decoding. • ASR-BLEU, ASR-ChrF, ASR-ChrF++, ASR-TER : identical configuration to their text coun-terparts (Appendix B.1), evaluated by swap-ping the model text output with its Whisper ASR transcript. • COMET-DA (ASR), COMET-Kiwi (ASR), Sem-Score (ASR) : text-based embedding and neural metrics applied directly to ASR transcripts to evaluate quality without using ground-truth source text scripts. • Corpus WER : word error rate of ASR tran-scripts against reference translations, com-puted with jiwer ,19 after the same text nor-malization used for BLEU. Empty-reference pairs are filtered out. For CJK languages, we use Character Error Rate (CER) in the EN →Xtranslation. 
+
+Audio grounded. These metrics evaluate trans-lation quality directly from the raw acoustic wave-forms without intermediate text transcription or automatic speech recognition.  
+
+> 15 huggingface.co/Unbabel/wmt22-cometkiwi-da , hav-ing CC-BY-NC-SA license.
+> 16 huggingface.co/ynie/roberta-large-nli ,MIT li-cense
+> 17 github.com/jamesturk/jellyfish, MIT license
+> 18 huggingface.co/openai/whisper-large-v3 , Apache 2.0 license
+> 19 github.com/jitsi/jiwer , Apache 2.0 license
+
+• BLASER 2.0 (Chen et al., 2023): text-free, audio-grounded translation similarity. Com-puted as 1 − cos( esrc , etgt ), where embed-dings are obtained from language-specific SONAR speech encoders. 20 
+
+• Phoneme F1 : token-level F1 of phoneme bag overlap between source and target audio. Phonemes are extracted with a wav2vec 2.0 model (Baevski et al., 2020) fine-tuned to rec-ognize phonetic labels in multiple languages 21 
+
+(greedy CTC decoding). • Phoneme Distribution Similarity : defined as 1 − JSD( psrc , p tgt ), where psrc and ptgt 
+
+are normalized phoneme histograms over the union vocabulary, and JSD is the Jensen-Shannon divergence (Lin, 1991). 
+
+B.3 Audio Naturalness 
+
+These metrics assess the perceptual quality and intelligibility of the synthesized speech, indepen-dently of the source. • UTMOS-v2 (Saeki et al., 2022): neural mean opinion score predictor. It estimates synthe-sized speech naturalness by extracting acous-tic features via an SSL backbone fine-tuned on diverse human ratings. 22 Score range: [1 , 5] .• NISQA-MOS (Mittag et al., 2021): non-intrusive speech quality predictor that mod-els multidimensional quality profiles includ-ing distortion, noisiness, and color. We in-voke the official NISQA repository 23 with the 
+
+nisqa_tts.tar TTS-tuned weights. Score range: [1 , 5] .• Intelligibility PPL : token-level perplexity of phoneme posteriors from the same wav2vec 2.0 model fine-tuned on multilingual pho-netic labels introduced above, defined as 
+
+exp( H(pt)) , where H(pt) is the per-frame en-tropy of the CTC distribution. Lower values indicate higher structural intelligibility and clearer acoustic articulation through more con-fident, sharp phoneme predictions. 
+
+> 20 github.com/facebookresearch/SONAR , with license either MIT or non-commercial depending on the specific lan-guage
+> 21 huggingface.co/facebook/wav2vec2-lv60-espeak ,Apache 2.0 license
+> 22 github.com/sarulab-speech/UTMOSv2, MIT license
+> 23 https://github.com/gabrielmittag/NISQA , code re-leased under MIT license, models released under CC BY-NC-SA 4.0
+
+15 B.4 Speaker Consistency 
+
+This dimension measures how well the synthesized speech preserves the identity of the source speaker. • Speaker Similarity : cosine similarity between L2-normalized x-vector embeddings of source and synthesized audio, extracted with the WavLM model (Chen et al., 2022), 24 fine-tuned for speaker verification. 
+
+B.5 Prosody & Emotion Global prosody. These metrics compare prosodic properties of the source and synthesized speech at the utterance level, capturing pitch, energy, rhythm, and tempo agreement. • AutoPCP (Barrault et al., 2023b): prosody comparator that scores how closely the prosody of the synthesized target speech matches the source speech. We use the of-ficial Meta implementation released as part of the stopes library. 25 
+
+• F0 Contour Similarity : Pearson correlation between source and target F0 contours, after linear interpolation to a common length. F0 is extracted with the librosa library 26 (default settings). • Energy Contour Similarity : Pearson correla-tion between RMS energy contours computed via librosa ,27 after linear interpolation. • Rhythm Similarity : Pearson correlation be-tween onset-strength envelopes computed via 
+
+librosa .28 
+
+• Tempo Ratio : min( tsrc , t tgt )/ max( tsrc , t tgt ),where tempos are estimated with librosa .
+
+Local prosody. All local prosody metrics use Meta’s stopes eval.local_prosody toolkit (Bar-rault et al., 2023b). • Forced alignment. We use the official forced aligner released within the fairseq library 29 to produce word-level timestamps. • VAD refinement. Pause boundaries are refined with the stopes built-in VAD (window size 
+
+> 24 huggingface.co/microsoft/wavlm-base-plus-sv ,MIT license
+> 25 github.com/facebookresearch/stopes , under MIT license (although some code and models follow CC BY-NC 4.0 26 librosa.org/librosa.pyin , licensed under the permis-sive ISC license
+> 27 librosa.org/librosa.feature.rms
+> 28 librosa.org/librosa.onset.onset_strength
+> 29 fairseq2_nar_t2u_aligner
+
+512), which produces per-frame speech prob-abilities used to refine inter-word silence du-rations. • Speaking Rate (SR Word / Syllable / Char): 
+
+number of words, syllables, or characters per second of net speech (excluding pauses). The corpus-level metrics SR Word/Syllable/Char Spearman are the Spearman rank correlations between source and target speaking rates over all utterances in a system, capturing whether the model preserves relative speaking-rate variation across the corpus. • LP Mean Joint Score : per-utterance product of three normalized agreement signals between source and target: (i) speaking-rate ratio agree-ment, (ii) pause-position agreement after dy-namic time warping of word boundaries, and (iii) pause-duration agreement. The score is averaged across utterances. • LP Weighted Joint Score : same as LP Mean Joint Score, but utterances are weighted by source duration, giving more importance to longer utterances. 
+
+Emotion. These metrics measure how well the emotional content of the source speech is preserved in the synthesized output. All metrics employ the emotion2vec model (Ma et al., 2024), 30 with the standard 8-class label set (neutral, calm, happy, sad, angry, fearful, disgust, surprised). • Emotion Match : agreement between top-1 emotion labels predicted on source and syn-thesized audio. • Emotion Probability Similarity : it is computed as 1 − JSD( psrc , p tgt ) between source and target emotion probability distributions over the same 8 classes. • Emotion Embedding Similarity : cosine simi-larity between hidden-state embeddings of the same Emotion2Vec classifier, mean-pooled across the time dimension. 
+
+Articulation. These metrics compare the fine-grained acoustic-phonetic properties of source and synthesized speech, capturing pronunciation accu-racy and articulatory similarity. • Phoneme Error Rate (PER) : edit distance be-tween phoneme sequences of source and tar-get audio, normalized by source phoneme length. The phonemes are extracted with  
+
+> 30 huggingface.co/emotion2vec_plus_base ,licensed under MIT license
+
+16 the wav2vec 2.0 model fine-tuned for the phoneme recognition task, with greedy CTC. • Formant Deviation : mean absolute deviation between F1, F2, and F3 formants of source and target, extracted with Parselmouth ,31 aPython interface to Praat (Boersma, 2001). Formants are computed with the Burg method (max 5 formants, 5500 Hz ceiling). • Amplitude Envelope Similarity : Pearson cor-relation between Hilbert-transform amplitude envelopes of source and synthesized audio, after linear interpolation to a common length. 
+
+B.6 Isochrony 
+
+These metrics measure the temporal alignment be-tween source and synthesized speech, capturing duration agreement and speech-length compliance. • Delta Duration : |dtgt − dsrc | in seconds. It captures the absolute discrepancy between tar-get and source audio lengths, penalizing over-generation or truncations regardless of input scale. Lower is better. • RDE (Relative Duration Error) : |dtgt −
+
+dsrc |/d src , the source-normalized duration er-ror. This scales the absolute duration differ-ence relative to the input length, allowing uni-form alignment error comparisons across both short utterances and long speech segments. • Speech Overlap : temporal overlap (in sec-onds) between source and target speech re-gions after voice activity detection (VAD), nor-malized by source duration (Le et al., 2024). VAD is performed with silero-vad .32 
+
+• Duration Ratio : dtgt /d src , the raw duration ratio. It quantifies expansion or compression behaviors globally, where values above 1.0 in-dicate systematic target elongation and values below 1.0 reveal speech compression trends. • SLC 0.2 / SLC 0.4 (%) : speech-length compli-ance (Lakew et al., 2022; Le et al., 2024), the percentage of utterances whose duration ra-tio falls within ±20% or ±40% of the source duration. 
+
+B.7 Lip-Sync 
+
+These metrics estimate the visual-acoustic align-ment between source and synthesized speech, cap-turing how well the lip movements implied by the  
+
+> 31 github.com/YannickJadoul/Parselmouth ,GPL-3.0 license.
+> 32 github.com/snakers4/silero-vad , MIT license.
+
+target audio would match those of the source. Be-cause our evaluation framework operates strictly on acoustic data, we model these traits exclusively at the phonetic level by mapping speech to visemes (the visual equivalents of phonemes). We use viseme tables 33 to map each aligned phone to its corresponding viseme set, following the procedure in (Brannon et al., 2023). • Lipsync Viseme DTW : dynamic time warp-ing similarity between viseme sequences ex-tracted from source and synthesized audio. • Lipsync Co-occurrence : fraction of time-aligned frames in which source and target visemes match, after frame-level alignment of the phoneme posterior streams (Brannon et al., 2023). 
+
+B.8 Isometry & Length 
+
+These metrics compare the textual length of source and target translations, capturing whether the target output stays within plausible length and speaking-rate ranges relative to the source. • Delta Chars : |ctgt − csrc |, the absolute differ-ence in character counts between source and target text. • Delta Words :34 |wtgt − wsrc |, the absolute dif-ference in word counts between source and tar-get text strings, used primarily for whitespace-tokenized languages. • Char Length Ratio : ctgt /c src , quantifying the global structural expansion or contraction of the translation string. • Char Compliant (%) : percentage of utter-ances whose character length ratio falls within an acceptable range relative to the source text (Anastasopoulos et al., 2022; Lakew et al., 2022). • CPS Ratio : ratio of characters-per-second be-tween target and source, capturing whether the target speaking rate is realistic given the translation length. 
+
+C Benchmarked Systems: Detailed Description 
+
+This section provides a detailed description of all S2ST systems benchmarked in this work, grouped   
+
+> 33 docs.aws.amazon.com/polly/latest/dg/viseme
+> 34 We found it to be correlated almost perfectly ( |ρ|>0.95 )with Delta Chars across all language groups while being highly unreliable for languages without explicit word boundaries like CJK.
+
+17 Type System Checkpoint Mode Directions 
+
+> End-to-End
+
+SeamlessM4T-Medium seamless-m4t-medium E2E S2ST X↔EN SeamlessM4T-Large-v2 seamless-m4t-v2-large E2E S2ST X↔EN Qwen2.5-Omni Qwen2.5-Omni-7B Standard X↔EN Qwen2.5-Omni Qwen2.5-Omni-7B CoM X↔EN Qwen3-Omni Qwen3-Omni-30B-A3B-Instruct Standard X↔EN Qwen3-Omni Qwen3-Omni-30B-A3B-Instruct CoM X↔EN S2TT + TTS Whisper-Large-v2 + CosyVoice3 whisper-large-v2 + Fun-CosyVoice3-0.5B-2512 Cascade X→EN Whisper-Large-v2 + Chatterbox whisper-large-v2 + ChatterboxMultilingualTTS Cascade X→EN Whisper-Large-v3 + CosyVoice3 whisper-large-v3 + Fun-CosyVoice3-0.5B-2512 Cascade X→EN Whisper-Large-v3 + Chatterbox whisper-large-v3 + ChatterboxMultilingualTTS Cascade X→EN Seamless-Medium + CosyVoice3 seamless-m4t-medium + Fun-CosyVoice3-0.5B-2512 Cascade X↔EN Seamless-Medium + Chatterbox seamless-m4t-medium + ChatterboxMultilingualTTS Cascade X↔EN Seamless-Large-v2 + CosyVoice3 seamless-m4t-v2-large + Fun-CosyVoice3-0.5B-2512 Cascade X↔EN Seamless-Large-v2 + Chatterbox seamless-m4t-v2-large + ChatterboxMultilingualTTS Cascade X↔EN Gemma-4-E4B + CosyVoice3 google/gemma-4-E4B + Fun-CosyVoice3-0.5B-2512 Cascade X↔EN Gemma-4-E4B + Chatterbox google/gemma-4-E4B + ChatterboxMultilingualTTS Cascade X↔EN Voxtral-Small + CosyVoice3 Voxtral-Small-24B-2507 + Fun-CosyVoice3-0.5B-2512 Cascade X↔EN Voxtral-Small + Chatterbox Voxtral-Small-24B-2507 + ChatterboxMultilingualTTS Cascade X↔EN Qwen2.5-Omni (S2TT) + CosyVoice3 Qwen2.5-Omni-7B + Fun-CosyVoice3-0.5B-2512 Cascade X↔EN Qwen2.5-Omni (S2TT) + Chatterbox Qwen2.5-Omni-7B + ChatterboxMultilingualTTS Cascade X↔EN Qwen3-Omni (S2TT) + CosyVoice3 Qwen3-Omni-30B-A3B-Instruct + Fun-CosyVoice3-0.5B-2512 Cascade X↔EN Qwen3-Omni (S2TT) + Chatterbox Qwen3-Omni-30B-A3B-Instruct + ChatterboxMultilingualTTS Cascade X↔EN ASR + MT + TTS Whisper-v2 + NLLB + CosyVoice whisper-large-v2 + nllb-200-3.3B + Fun-CosyVoice3-0.5B-2512 Cascade X↔EN Whisper-v2 + NLLB + Chatterbox whisper-large-v2 + nllb-200-3.3B + ChatterboxMultilingualTTS Cascade X↔EN Whisper-v2 + Gemma-3-27B + CosyVoice whisper-large-v2 + gemma-3-27b-it + Fun-CosyVoice3-0.5B-2512 Cascade X↔EN Whisper-v2 + Gemma-3-27B + Chatterbox whisper-large-v2 + gemma-3-27b-it + ChatterboxMultilingualTTS Cascade X↔EN Whisper-v2 + Qwen3-8B + CosyVoice whisper-large-v2 + Qwen3-8B + Fun-CosyVoice3-0.5B-2512 Cascade X↔EN Whisper-v2 + Qwen3-8B + Chatterbox whisper-large-v2 + Qwen3-8B + ChatterboxMultilingualTTS Cascade X↔EN Whisper-v3 + NLLB + CosyVoice whisper-large-v3 + nllb-200-3.3B + Fun-CosyVoice3-0.5B-2512 Cascade X↔EN Whisper-v3 + NLLB + Chatterbox whisper-large-v3 + nllb-200-3.3B + ChatterboxMultilingualTTS Cascade X↔EN Whisper-v3 + Gemma-3-27B + CosyVoice whisper-large-v3 + gemma-3-27b-it + Fun-CosyVoice3-0.5B-2512 Cascade X↔EN Whisper-v3 + Gemma-3-27B + Chatterbox whisper-large-v3 + gemma-3-27b-it + ChatterboxMultilingualTTS Cascade X↔EN Whisper-v3 + Qwen3-8B + CosyVoice whisper-large-v3 + Qwen3-8B + Fun-CosyVoice3-0.5B-2512 Cascade X↔EN Whisper-v3 + Qwen3-8B + Chatterbox whisper-large-v3 + Qwen3-8B + ChatterboxMultilingualTTS Cascade X↔EN Seamless-M + NLLB + CosyVoice seamless-m4t-medium + nllb-200-3.3B + Fun-CosyVoice3-0.5B-2512 Cascade X↔EN Seamless-M + NLLB + Chatterbox seamless-m4t-medium + nllb-200-3.3B + ChatterboxMultilingualTTS Cascade X↔EN Seamless-M + Gemma-3-27B + CosyVoice seamless-m4t-medium + gemma-3-27b-it + Fun-CosyVoice3-0.5B-2512 Cascade X↔EN Seamless-M + Gemma-3-27B + Chatterbox seamless-m4t-medium + gemma-3-27b-it + ChatterboxMultilingualTTS Cascade X↔EN Seamless-M + Qwen3-8B + CosyVoice seamless-m4t-medium + Qwen3-8B + Fun-CosyVoice3-0.5B-2512 Cascade X↔EN Seamless-M + Qwen3-8B + Chatterbox seamless-m4t-medium + Qwen3-8B + ChatterboxMultilingualTTS Cascade X↔EN Seamless-Lv2 + NLLB + CosyVoice seamless-m4t-v2-large + nllb-200-3.3B + Fun-CosyVoice3-0.5B-2512 Cascade X↔EN Seamless-Lv2 + NLLB + Chatterbox seamless-m4t-v2-large + nllb-200-3.3B + ChatterboxMultilingualTTS Cascade X↔EN Seamless-Lv2 + Gemma-3-27B + CosyVoice seamless-m4t-v2-large + gemma-3-27b-it + Fun-CosyVoice3-0.5B-2512 Cascade X↔EN Seamless-Lv2 + Gemma-3-27B + Chatterbox seamless-m4t-v2-large + gemma-3-27b-it + ChatterboxMultilingualTTS Cascade X↔EN Seamless-Lv2 + Qwen3-8B + CosyVoice seamless-m4t-v2-large + Qwen3-8B + Fun-CosyVoice3-0.5B-2512 Cascade X↔EN Seamless-Lv2 + Qwen3-8B + Chatterbox seamless-m4t-v2-large + Qwen3-8B + ChatterboxMultilingualTTS Cascade X↔EN 
+
+Table 3: Full list of systems benchmarked in COMPASS, organized by architectural type. CoM indicates Chain-of-Modality. Checkpoints are linked in the corresponding subsection of this appendix. 
+
+by architectural type, together with the exact check-points and inference settings used. Table 3 summa-rizes the full set of systems and configurations. 
+
+C.1 End-to-End Systems 
+
+End-to-end S2ST models map source speech di-rectly to target speech within a single neural archi-tecture, without explicitly producing intermediate text in the standard inference path. We benchmark three families of end-to-end models. 
+
+SeamlessM4T. SeamlessM4T (Barrault et al., 2023a,b) is a multilingual and multitask foundation model that supports speech recognition, speech-to-text translation, text-to-text translation, and speech-to-speech translation. We use the Medium 35 (1.2B parameters) and Large-v2 36 (2.3B parameters) 
+
+35 huggingface.co/facebook/seamless-m4t-medium 
+
+36 huggingface.co/facebook/seamless-m4t-v2-large 
+
+checkpoints, both released by Meta AI. Inference is run with the official seamless_communication 
+
+library, 37 with default beam search and language to-kens set explicitly for both source and target. Seam-lessM4T provides a vocoder that directly generates target audio from intermediate speech units, en-abling fully end-to-end S2ST. We use the default speaker settings. 
+
+Qwen2.5-Omni. Qwen2.5-Omni (Xu et al., 2025a) is a multimodal large language model that natively handles text, audio, image, and video in-puts and produces both text and speech outputs. We use the 7B checkpoint officially released by Alibaba. 38 We benchmark Qwen2.5-Omni in two inference modes: (i) Standard inference , where a single prompt instructs the model to translate the 
+
+37 github.com/facebookresearch/seamless_comm. 
+
+38 huggingface.co/Qwen/Qwen2.5-Omni-7B 
+
+18 input speech and produce the target speech directly; (ii) Chain-of-modality (CoM) , where the same model is prompted to perform ASR, MT, and TTS sequentially, all within a single forward pass. This isolates each sub-task and tests whether explicit decomposition improves S2ST quality, while still using a single underlying model. 
+
+Qwen3-Omni. Qwen3-Omni (Xu et al., 2025b) is the successor to Qwen2.5-Omni, with improved multilingual coverage and audio generation qual-ity. We use the 30B released version (3B active parameters). 39 As with Qwen2.5-Omni, we bench-mark both standard and chain-of-modality in-ference modes. 
+
+C.2 Two-Stage Cascades: S2TT + TTS 
+
+In a two-stage cascade, a speech-to-text translation model directly produces target text from source speech, and a TTS model synthesizes the target au-dio from this text. This pipeline avoids the explicit ASR step but still relies on a separate TTS module. 
+
+S2TT components. We employ specific task prompts and conditioning instructions for the model backbones, strictly following the configura-tions detailed in their respective official reposito-ries: • Whisper-Large-v2 / v3 (Radford et al., 2023): encoder-decoder model trained on 680k hours of multilingual audio. 4041 Whisper supports speech translation only into English ; it is there-fore included in the X →EN cascades only. • SeamlessM4T Medium / Large-v2 : same checkpoints as above, used in S2TT mode (no vocoder). • Gemma-4-E4B (Google, 2026): alightweight multimodal model from Google DeepMind, natively supporting audio input. We use the Instruction-Tuned variant. 42 
+
+• Voxtral-Small (Liu et al., 2025): a 24B speech-language model from Mistral AI, mainly designed for speech recognition and translation. 43 
+
+• Qwen2.5-Omni / Qwen3-Omni : same check-points as above, used in S2TT-only mode (au-dio output disabled). 
+
+> 39 huggingface.co/Qwen/Qwen3-Omni-30B-A3B-IT
+> 40 huggingface.co/openai/whisper-large-v2
+> 41 huggingface.co/openai/whisper-large-v3
+> 42 huggingface.co/google/gemma-4-E4B-it
+> 43 huggingface.co/mistralai/Voxtral-Small-24B
+
+TTS components. Synthesis parameters, multi-speaker embeddings, and style conditioning tokens are controlled using the default generation configu-rations specified in the official model repositories: • CosyVoice3 (Du et al., 2025): a multilin-gual zero-shot TTS system with strong cross-lingual voice cloning capability. 44 
+
+• Chatterbox-TTS (Resemble AI, 2025): an open-source emotion-controllable and speaker-conditioning TTS model. 45 We use the English-only version for the generation of English targets, and the multilingual variant for other languages. For both TTS systems, we use a fixed reference voice prompt taken from the source utterance to enable voice preservation, and we evaluate the re-sulting speaker similarity as one of the COMPASS metrics. 
+
+C.3 Three-Stage Cascades: ASR + MT + TTS 
+
+In the most explicit pipeline, source speech is first transcribed (ASR), the transcript is then translated (MT), and the translation is finally synthesized (TTS). This decomposition is the historical base-line of S2ST and remains competitive thanks to strong individual components. 
+
+ASR components. Transcription and alignment pipelines utilize language-conditioned decoding and inference arguments aligned with the optimal defaults outlined in the official implementations: • Whisper-Large-v2 / v3 : same checkpoints as above, used for source-language transcription (multilingual ASR, not translation). • SeamlessM4T Medium / Large-v2 : same checkpoints as above, used in ASR mode. 
+
+MT components. Textual translation modules utilize standard decoding hyperparameters speci-fied by each system’s official codebase: • NLLB-200 (Costa-Jussà et al., 2022): a dedi-cated multilingual MT model from Meta. We use the 3.3B distilled variant. 46 
+
+• Gemma-3-27B (Kamath et al., 2025): a mul-tilingual instruction-tuned LLM from Google, prompted with the source-language transcript and a translation instruction. We use the 
+
+> 44 huggingface.co/FunAudioLLM/Fun-CosyVoice3-0.5B
+> 45 huggingface.co/ResembleAI/chatterbox
+> 46 huggingface.co/facebook/nllb-200-3.3B
+
+19 Instruction-Tuned variant. 47 
+
+• Qwen3-8B (Yang et al., 2025): a general-purpose multilingual LLM from Alibaba, prompted to translate the ASR transcript. 48 
+
+TTS components. The same TTS models as in the 2-stage cascades: CosyVoice3 and Chatterbox. 
+
+C.4 Inference Settings 
+
+Across all systems, we use the following inference settings to ensure deterministic and comparable results: • Greedy decoding for all neural components, unless a model’s official recipe explicitly rec-ommends beam search (in which case we use the recommended beam size). • Fixed random seeds ( seed=42 ). • Default sampling rates: 16 kHz for ASR/S2TT inputs and intermediate audio, with TTS outputs resampled to 16 kHz prior to metric computation. • No system-specific post-processing (e.g., text normalization is applied uniformly, see Ap-pendices A and B). 
+
+C.5 Configuration Count 
+
+The total number of model–language configura-tions is summarized below. • FLEURS X →EN : 46 systems × 10 language pairs = 460 configurations. • FLEURS EN →X: 42 systems × 10 language pairs = 420 configurations. • CVSS X →EN : 46 systems × 8 language pairs 
+
+= 368 configurations. • Total : 1, 248 configurations. 
+
+D The COMPASS Filtering Pipeline 
+
+Fig. 1 in the main document illustrates the full filtering pipeline. Below, we describe each step in detail. 
+
+Step 1: System-level aggregation. For each met-ric, we aggregate per-utterance scores into system-level scores by averaging across utterances and languages within each language group. 
+
+Step 2: Pairwise correlation. We compute the Spearman rank correlation ρ between every pair of metrics across systems. We decided to employ Spearman rather than Pearson because it is robust 
+
+> 47 huggingface.co/google/gemma-3-27b-it
+> 48 huggingface.co/Qwen/Qwen3-8B
+
+to scale differences and non-linear monotonic rela-tionships. 
+
+Step 3: Hierarchical clustering. We convert the correlation matrix into a distance matrix D = 1 −|ρ| and apply Ward-linkage hierarchical clustering. Clusters are formed at a distance threshold of 0.15 ,equivalent to grouping metrics with |ρ| > 0.85 .Each resulting cluster contains metrics that carry essentially the same signal across systems. 
+
+Step 4: Multi-criteria scoring. For each metric, we compute four complementary scores. • Discriminability (Dm): the coefficient of vari-ation of the metric across systems, capturing how well the metric separates systems. • Cross-language stability (Cm): the mean Spearman ρ of system rankings induced by the metric across pairs of languages, capturing whether the metric agrees on which system is better regardless of language. • Independence (Im): 1 − | ρm|, where |ρm| is the mean absolute correlation of metric m
+
+with all other metrics. Higher values indicate that the metric carries information not already captured elsewhere. • Literature adoption (Lm): a normalized usage score derived from a literature scan of S2ST and speech translation papers, preserving com-parability with prior work even when a metric is partially redundant. Each score is min-max normalized to [0 , 1] and combined as described in Equation 1. To ensure robustness, we conducted a sensitivity analysis by perturbing each weight by ±20% ; the resulting top metric rankings remained highly stable (Spear-man’s ρ > 0.80 ), justifying the unweighted formu-lation. 
+
+Step 5: Cluster representative selection. 
+
+Within each redundancy cluster, we select the met-rics with the highest recommendation score as the cluster representatives. The number of representa-tives scales with cluster size: dimensions with up to four metrics keep one representative, those with five to ten keep two, and larger dimensions keep three. 
+
+Step 6: Iterative group refinement. The can-didate set from Step 5 is internally non-redundant within each a priori dimension, but representatives from different dimensions may still carry over-lapping signal. For example, speaker-similarity, 20 prosody, and articulation representatives may all move together across systems, even though they were defined as separate dimensions a priori . We therefore refine the grouping of representatives iter-atively until the resulting groups are both internally coherent and mutually distinct: • Silhouette score : computed in the space in-duced by system-level score vectors. A low silhouette ( < 0.25 ) indicates that at least two groups carry redundant signal. • Cross-group correlation (ρcross ): the mean ab-solute Spearman correlation between repre-sentatives from different groups. A high value (> 0.70 ) indicates two groups are statistically interchangeable. While silhouette < 0.25 or ρcross > 0.70 , we merge the two most correlated groups, re-run Steps 2-5 within the merged group, and re-evaluate. The pro-cedure stops when silhouette ≥ 0.25 and all cross-group correlations are ≤ 0.70 , yielding a final com-pact set of non-redundant representatives organized into well-separated empirical dimensions. 
+
+E Detailed Benchmark Results 
+
+E.1 Dataset Statistics 
+
+Table 4 reports per-language statistics for FLEURS (both directions) and CVSS (X →EN). FLEURS provides between 370 ( ko ) and 906 ( zh ) samples per language in X →EN, and 463-633 in EN →X, with consistent average durations of 9-13s per clip. Total audio ranges from 1.2h to 2.9h per language in X →EN and 1.2h to 1.7h in EN →X. CVSS con-tributes shorter clips (3.9-6.2s) capped at 1,000 samples per pair, totalling 0.9-1.7h per language; 
+
+hi and ko are excluded as they are absent in CVSS. Source-text length varies across scripts, with CJK languages ( ja , zh , ko ) showing the lowest charac-ter counts due to denser orthography. 
+
+E.2 Compact Metric Subsets 
+
+Table 2 in the main text reports the final compact metric subsets produced by the COMPASS filter-ing pipeline for the X →EN and EN →X translation directions. To visually validate the separation of these evaluation dimensions, we present a t-SNE clustering analysis of the metrics in Figure 4 (up for X→EN, bottom for EN →X). The projections show that the metrics organize into distinct, spatially iso-lated clusters corresponding to their underlying evaluation dimensions (e.g., translation quality for Delta Duration 
+
+> RDE
+> Chars Compliance
+> UTMOS
+> SR Chars Spearman
+> Speaker Similarity
+> WER
+> COMET-DA (ASR)
+> TER (text)
+> COMET-DA (text) RDE
+> Delta Duration
+> Chars Compliance
+> COMET-DA (text)
+> ChrF++ (text)
+> COMET-DA (ASR)
+> WER
+> SR Chars Spearman
+> Energy Contour Sim
+> NISQA-MOS
+
+Figure 4: Two-dimensional t-SNE visualization of the full S2ST metric space for X →EN (up) and EN →X(bottom) translation directions. Metrics are colored ac-cording to their primary evaluation dimension. The clear spatial separation into disjoint, well-defined clus-ters highlights that the COMPASS filtering pipeline suc-cessfully identifies distinct orthogonal dimensions while minimizing intra-dimension structural redundancy. 
+
+text in black and in blue for ASR, acoustic natural-ness in green, or speech timing alignment in violet), confirming that our pipeline successfully filters out localized redundancy while retaining comprehen-sive domain coverage. Furthermore, Fig. 5 displays the pairwise Spear-man rank correlation matrices between the selected metrics for both translation directions (left for X→EN, right for EN →X). These matrices demon-strate low cross-dimensional correlation among the final selected subsets, confirming that the remain-ing components capture complementary informa-tion rather than redundant system characteristics. 21 Data Statistic ar de es fr hi it ja ko pt zh 
+
+> FLEURS X →EN
+
+#Samples 416 746 879 662 399 743 620 370 871 906 
+
+Avg Src Len 108.78 143.61 148.73 151.51 120.28 140.34 51.73 60.86 134.24 40.91 
+
+Avg Tgt Len 124.90 124.68 126.13 126.88 123.72 120.26 122.18 124.72 125.05 128.40 
+
+Avg Dur (s) 10.60 11.22 11.90 10.10 11.03 13.05 12.62 12.26 12.04 11.26 
+
+Tot Dur (h) 1.22 2.33 2.90 1.86 1.22 2.69 2.17 1.26 2.91 2.83 
+
+> FLEURS EN →X
+
+#Samples 511 611 622 600 463 590 566 485 618 633 
+
+Avg Src Len 126.52 127.59 128.33 128.44 123.86 124.92 125.14 126.16 127.23 129.81 
+
+Avg Tgt Len 110.56 147.55 151.58 153.47 121.40 147.01 53.39 62.38 136.77 41.73 
+
+Avg Dur (s) 9.32 9.50 9.56 9.58 9.30 9.38 9.41 9.47 9.51 9.64 
+
+Tot Dur (h) 1.32 1.61 1.65 1.60 1.20 1.54 1.48 1.28 1.63 1.70 
+
+> CVSS X →EN
+
+#Samples 1000 1000 1000 1000 - 1000 684 - 1000 1000 
+
+Avg Src Len 23.35 63.02 61.68 59.57 - 64.05 19.17 - 46.45 19.19 
+
+Avg Tgt Len 30.34 58.95 61.00 55.78 - 61.29 45.19 - 43.54 70.08 
+
+Avg Dur (s) 3.90 5.66 6.15 5.54 - 6.12 4.62 - 4.65 5.99 
+
+Tot Dur (h) 1.08 1.57 1.71 1.54 - 1.70 0.88 - 1.29 1.67                  
+
+> Table 4: Per-language data statistics: number of samples, average source/target text length (characters), average audio duration, and total audio duration. Note that, for CVSS, we only use the first 1,000 utterances per pair in our experiments.
+> Pair (vs. spk_sim )EN →JA JA →EN
+> AutoPCP +0.80 +0.71 Emotion embedding sim. +0.90 +0.89 F0 contour sim. -0.70 +0.94 Energy contour sim. -0.70 +0.66 Mean |ρ|(embedding-based) 0.70 0.80
+> Table 5: Pairwise Spearman ρbetween speaker similar-ity and prosody/emotion metrics on MELD-ST.
+
+E.3 Read-Speech vs. Spontaneous Decoupling of Speaker and Prosody 
+
+To test whether the empirical merge of Speaker Consistency and Prosody & Emotion (Sec. 5, RQ1) is corpus-dependent, we recompute pairwise Spear-man ρ correlations between the cluster’s represen-tative metrics on the spontaneous, emotionally rich MELD-ST corpus across our benchmarked systems (Q3O, SeamL, S2TT+TTS, ASR+MT+TTS, and ground-truth references, see Section F). 49 
+
+Setup. We aggregate utterance-level scores to the system level for the speaker metric ( Speaker Similarity ) and three prosody/emotion met-rics: AutoPCP , emotion-embedding similarity, and F0/energy contour similarity. We then compute pairwise Spearman correlations across systems for 
+
+> 49 We only employ the subset that is used for the human evaluation, containing around 133 samples per direction, later merged in 25 unique videos.
+
+each translation direction (EN →JA and JA →EN). 
+
+Results. Table 5 reports the per-pair correla-tions and aggregate mean |ρ| values. On read-speech benchmarks (FLEURS, CVSS), the speaker-prosody cluster exhibits a mean |ρ| > 0.85 , the threshold used by our filtering pipeline (Sec. 3.4) to merge correlated metrics. On MELD-ST, the av-erage drops to |ρ| ≈ 0.75 (mean of EN →JA: 0.70, JA →EN: 0.80). Prosodic-contour metrics (F0, en-ergy) decouple more sharply while embedding-based metrics (AutoPCP, emotion embedding) re-main more strongly tied to speaker similarity. 
+
+Interpretation. The partial decoupling on spon-taneous speech (mean |ρ| moves from > 0.85 on read corpora down to 0.70 -0.80 on MELD-ST) sup-ports the view that the six-dimensional empirical collapse is partly driven by the limited prosodic variability of read-speech benchmarks. However, the residual link remains strong, indicating that contemporary S2ST systems also exhibit genuinely correlated speaker and prosody behavior, likely be-cause voice-cloning components jointly transfer timbre and prosodic style. We therefore retain the eight-dimensional conceptual taxonomy and rec-ommend re-estimating the empirical grouping as new architectures and more expressive corpora be-come available. 
+
+Caveats. The analysis uses N=5 systems per di-rection, so individual ρ values are noisy. Our inter-22 Figure 5: Pairwise Spearman rank correlation ( ρ) matrices between metrics selected for the final compact subsets across X →EN (left) and EN →X (right) directions. The matrix demonstrates low cross-dimensional correlations. This confirms that the selected metrics deliver independent, complementary signals regarding system performance. 
+
+pretation rests on the direction and magnitude of the change between read- and spontaneous-speech corpora, not on individual significance levels. More details on the human evaluation on F. 
+
+E.4 Cross-Language Stability of Selected Metrics 
+
+Table 6 reports the cross-language stability score 
+
+Cm for each selected representative metric within the COMPASS evaluation suite. As introduced in Section 3.4, a score of Cm = 1 .0 indicates that the metric induces an identical relative ranking of target systems across every single language group tested, while Cm = 0 denotes completely uncorre-lated system rankings between different language cohorts. By analyzing the intersection of system rankings across geographically and structurally diverse lan-guage groupings (such as Romance and CJK ), the 
+
+Cm score allows us to identify metrics that remain reliable globally, rather than those whose discrim-inability depends artificially on a specific language family. The empirical findings reveal several key trends regarding metric robustness. First, ASR-grounded and neural text evaluation metrics show exceptionally high stability. Embedding-driven metrics like COMET-DA score consistently high (0.83 ≤ Cm ≤ 0.85 ) regardless of whether they are applied to raw text references or speech tran-scripts. WER exhibits strong global system tracking properties ( 0.85 for EN →X and 0.89 for X →EN),                                                
+
+> Dir. Metric Dimension Score
+> X→EN
+> COMET-DA TQ (ASR) 0.85
+> WER TQ (ASR) 0.89
+> COMET-DA TQ (Text) 0.85
+> TER TQ (Text) 0.72
+> UTMOS Naturalness 0.82
+> SR Chars ρSpk & Prosody 0.79
+> Speaker Sim. Spk & Prosody 0.91
+> RDE Isochrony 0.69
+> ∆Duration Isochrony 0.71
+> Chars Compliance Isometry 0.74 EN →X
+> COMET-DA TQ (ASR) 0.83
+> WER TQ (ASR) 0.85
+> COMET-DA TQ (Text) 0.83
+> ChrF++ TQ (Text) 0.75
+> NISQA-MOS Naturalness 0.74
+> SR Chars ρSpk & Prosody 0.76
+> Energy Cont. Sim. Spk & Prosody 0.85
+> RDE Isochrony 0.72
+> ∆Duration Isochrony 0.73
+> Chars Compliance Isometry 0.70
+
+Table 6: Cross-language stability ( Cm) of selected COMPASS representative metrics per direction. Higher is better. 
+
+highlighting its utility as a cross-lingual proxy for transcription accuracy. Second, modeling target speaker traits displays high stability in the X →EN direction, where Speaker Similarity achieves the highest overall consistency ( Cm = 0 .91 ). In the EN →X direction, tracking dynamic energy curves via Energy Contour Similarity provides 23 Data System COMET-DA (text) COMET-DA (ASR) Word Acc. UTMOS Spk Sim RDE Char Compl. (%)                                                                                                     
+
+> FLEURS
+> X→EN  S2TT+TTS 0.861 0.878 0.960 3.071 0.915 -0.361 18.920 ASR+MT+TTS 0.852 0.840 0.946 3.332 0.805 -0.243 24.490 SeamL 0.833 0.847 0.977 3.060 0.663 -0.404 24.812 Q3O 0.880 0.863 0.942 3.591 0.606 -0.334 24.833 Data System Text ChrF++ COMET-DA (ASR) Word Acc. NISQA-MOS SR Char Sp. RDE Char Compl. (%)
+> FLEURS
+> EN →X S2TT+TTS 54.062 0.804 0.781 2.410 0.498 -0.006 20.392 ASR+MT+TTS 57.342 0.716 0.650 2.661 0.165 -0.024 19.463 SeamL 49.931 0.798 0.756 3.654 0.169 -0.147 21.040
+> Q3O 51.321 0.777 0.746 4.321 0.166 -0.091 18.692
+> Data System COMET-DA (text) COMET-DA (ASR) Word Acc. UTMOS Spk Sim RDE Char Compl. (%)
+> CVSS
+> X→EN  S2TT+TTS 0.809 0.784 0.933 2.882 0.889 -0.391 28.881 ASR+MT+TTS 0.646 0.641 0.966 2.890 0.779 -0.327 30.603 SeamL 0.814 0.803 0.965 3.131 0.524 -0.437 33.292
+> Q3O 0.838 0.839 0.941 3.492 0.608 -0.421 31.101
+
+Table 7: Average system-level scores on FLEURS X →EN (top), EN →X (middle), and CVSS X →EN (bottom), across the target languages. Best per column in bold .
+
+an equally dependable signal ( Cm = 0 .85 ), show-ing that speaker modeling metrics retain strong rank-preservation properties even when adapting to highly divergent target acoustic environments. Fi-nally, structural constraint metrics such as Relative Duration Error ( RDE ), absolute duration difference (∆ Duration ), and character length compliance exhibit slightly lower but highly stable scores rang-ing from 0.69 to 0.74 . Because these metrics are tied fundamentally to length and timing matching, their lower baseline relative to neural metrics stems from cross-lingual differences in structural density; however, their consistent performance across both directions confirms their global validity as indepen-dent evaluation tracks. 
+
+E.5 Per-System Results 
+
+This appendix provides a comprehensive analysis of the system-level evaluations introduced in Sec-tion 5 (RQ3). We benchmark four representative systems spanning distinct architectural paradigms: 
+
+S2TT+TTS (a two-stage cascade, Voxtral + Chat-terboxTTS), ASR+MT+TTS (a three-stage cascade, Whisper-Lv3 + Gemma3 + Cosyvoice3), SeamL 
+
+(an end-to-end model, Seamless-Lv2), and Q3O (a SpeechLLM, Qwen3-Omni). The aggregate find-ings across all ten target languages for FLEURS 
+
+X → EN and EN → X, alongside the eight tar-get languages for CVSS X → EN , are detailed in Table 7. 
+
+Translation Quality (Text and ASR). System rankings for translation quality show a strong sen-sitivity. On FLEURS X → EN (Table 7 (top)), the end-to-end SpeechLLM model Q3O achieves the highest semantic text quality with a COMET-DA (text) score of 0.880, closely followed by the cascaded configurations S2TT+TTS (0.861) and 
+
+ASR+MT+TTS (0.852). This changes on the CVSS 
+
+X → EN set (Table 7 (bottom)), where Q3O 
+
+retains its lead (0.838) but the three-stage cas-cade ASR+MT+TTS collapses to 0.646. This perfor-mance drop is primarily caused by decoding loops during text generation on specific Romance lan-guages, where the model repeatedly outputs the same phrases (averaging a text COMET-DA of 
+
+≈ 0.39 for Spanish, French, and Italian). This effectively exposes the vulnerability of cascaded architectures to error propagation. Conversely, when shifting to the EN → X di-rection on FLEURS (Table 7 (middle)), the Text ChrF++ metric ranks ASR+MT+TTS highest at 57.34, followed by Q3O (51.32). Yet, looking at the 
+
+COMET-DA (ASR) metric, the ranking flips: the cascade S2TT+TTS takes the lead at 0.804, while 
+
+ASR+MT+TTS drops to 0.716. This clear divergence underscores why analyzing text-level or ASR-level metrics in isolation can yield incomplete system profiles. 
+
+Audio Naturalness. The results show a system-atic advantage for native end-to-end audio archi-tectures when synthesizing target speech. For EN → X outputs on FLEURS, the end-to-end systems outperform their cascaded counterparts by a wide margin, with Q3O securing a NISQA-MOS of 4.32 and SeamL achieving 3.65. In comparison, the cascaded systems ASR+MT+TTS and S2TT+TTS trail at 2.66 and 2.41, respectively. A similar trend oc-curs in X → EN translation directions monitored via UTMOS . On FLEURS, Q3O leads with 3.59, fol-lowed by ASR+MT+TTS (3.33) and S2TT+TTS (3.07). 24 Figure 6: Per-language system performance profiles across the final filtered COMPASS dimensions on the FLEURS X→EN evaluation set. Each radar plot displays model behavior across orthogonal axes corresponding to (a subset of) the representative metrics (including COMET-DA , 1-WER (Word Accuracy ), Speaker Sim. , UTMOS , RDE , and 
+
+> Chars Compliance ). This fine-grained layout highlights how structural system behaviors remain consistent across diverse source typologies, while isolating specific cross-lingual challenges such as character length compliance and speaker identity preservation across both close and distant language families.
+
+On CVSS, Q3O still leads at 3.49, outperforming 
+
+SeamL (3.13) and both cascades, which cluster around 2.88 and 2.89. 
+
+Speaker Identity and Prosodic Preservation. 
+
+The architectural advantages invert when evaluat-ing voice preservation, where cascaded systems dis-play a decisive edge. For X → EN tasks, the voice-cloning capabilities embedded in dedicated TTS modules allow S2TT+TTS to dominate speaker sim-ilarity scores on both FLEURS (0.92) and CVSS (0.89). The three-stage cascade ASR+MT+TTS fol-lows at 0.81 and 0.78. Meanwhile, the end-to-end models exhibit poor target speaker preservation, with SeamL scoring 0.66 / 0.52 and Q3O scoring 0.61 / 0.61. This disparity stems from a core design difference: end-to-end systems generally sample from a restricted internal pool of reference voices, making it difficult to capture individual speaker features dynamically. For EN → X tasks, track-ing prosodic variation via SR Char Sp. confirms this trend; S2TT+TTS scores 0.498, while all other systems stall between 0.165 and 0.169, failing to mirror source speaking rate dynamics. 
+
+Isochrony (Temporal Alignment). On X →
+
+EN , all evaluated systems show a systematic trend toward audio compression, as evidenced by uni-formly negative Relative Duration Error ( RDE ) val-ues. On FLEURS, ASR+MT+TTS exhibits the tight-est temporal compliance with an RDE of −0.243 ,while SeamL shows the largest temporal discrep-ancy at −0.404 . This relative ordering is main-tained on the CVSS dataset. When translating from EN → X, temporal errors narrow glob-ally, and the cascades show near-perfect tempo-ral matching. Specifically, S2TT+TTS reaches an exceptional alignment score of −0.006 , followed by ASR+MT+TTS at −0.024 , whereas SeamL lags at 
+
+−0.147 . These outcomes demonstrate that modu-lar pipelines benefit heavily from explicit duration constraints in their generation headers, whereas end-to-end systems sacrifice structural timing ac-curacy to optimize global synthesis. 
+
+Isometry (Length Compliance). Character length compliance ( Char Compl. (%) ) remains consistently low across all datasets and models, spanning a tight interval from 18.69% to 33.29%. This baseline reveals that none of these core architectures is explicitly optimized for strict length matching. On FLEURS X → EN , the end-to-end models and the text-cascaded pipeline perform within a tight window (24.49%-24.83%), whereas S2TT+TTS drops to 18.92%. On FLEURS EN → X, performance normalizes between 18.69% and 21.04%, led by SeamL . Turning to CVSS X → EN , compliance increases slightly across the board, with SeamL leading at 33.29% and S2TT+TTS following at 28.88%. The narrow 25 Figure 7: Per-language results for EN →X translation on the FLEURS dataset. These plots show how different systems perform when generating output in diverse target languages, including the CJK (Chinese, Japanese, Korean) and Romance families. The shape of the plots confirms that our selected metrics, as NISQA-MOS , ChrF++ , and 
+
+> Energy Cont. Sim. , work reliably across very different languages, keeping a clear distinction between the best and worst performing systems.
+
+variation within each dataset suggests that isomet-ric compliance is driven primarily by data-density attributes rather than by underlying model mechan-ics, leaving explicit length-control mechanisms as a key challenge for speech-to-speech translation research. 
+
+Summary of Findings. The multi-dimensional evaluation reveals a clear architectural trade-off: cascaded pipelines provide superior speaker preser-vation and precise structural duration control, but at the expense of output speech naturalness. In contrast, end-to-end systems deliver highly natural speech patterns but fail to reliably mirror source voice identity or timing boundaries. Translation quality, instead, remains competitive between both paradigms but shifts significantly depending on whether evaluation metrics target raw text refer-ences or intermediate ASR transcriptions. 
+
+E.6 Per-Language Variance Analysis 
+
+While the system-level averages discussed in Sec-tion 5 (and more in detail in the previous section) es-tablish broad performance trends across paradigms, they mask substantial language-specific variations. In this section, we provide a granular breakdown of metric behavior across individual target languages. These patterns are visually summarized via the per-language radar plots presented in Figs. 6, 7, and 8 for FLEURS X →EN, FLEURS EN →X, and CVSS X→EN, respectively. 
+
+Cascades Vulnerability to Specific Morphologies. 
+
+The per-language distributions reveal that language distance radically affects pipeline performance compared to native end-to-end models. A prime example is observed in the CVSS X → EN direc-tion for the three-stage cascade ( ASR+MT+TTS ). On paper, its semantic text translation quality seems competitive; however, looking at the language level exposes an extreme localized failure. For Ger-man ( de ) and Spanish ( es ), the system achieves a COMET-DA (text) score of 0.813 and 0.394, re-spectively. The high collapse in Spanish is caused by decoding loops during text generation on spe-cific Romance languages, where the model repeat-edly outputs identical phrases. Native end-to-end models like Q3O and SeamL remain completely insu-lated from this localized degradation, maintaining steady profiles across both language groups (e.g., maintaining ≥ 0.81 on French and Spanish alike). 
+
+Acoustic / Structural Orthogonal Dynamics. 
+
+The language breakdown further validates that voice traits and structural alignment fluctuate inde-pendently of text quality across different language families: • Speaker Consistency: The two-stage cascade (S2TT+TTS ) shows a flat, high-performing line for speaker identity ( Spk Sim ), holding above 0.84 across structural opposites like Arabic (ar : 0.849), German ( de : 0.895), and Chi-26 nese ( zh : 0.885). This confirms that dedicated voice-cloning TTS blocks decouple speaker preservation entirely from the complexity of target text syntax. • Temporal Compression Errors: Relative Du-ration Error ( RDE ) shows that temporal com-pression is a universal architectural feature rather than a language-specific trait. Across all ten languages on FLEURS X → EN , ev-ery single system outputs consistently nega-tive values. The magnitude of this compres-sion varies by language family, peaking on complex character sets like Japanese ( ja ) and Korean ( ko ), where SeamL drops to its lowest scores of −0.487 and −0.480 .• Length Constraint: Isometry matching ( Char Compl. (%) ) reveals a noise-like distribution across language pairs. On FLEURS EN → X,compliance for all systems drops below 25% across nearly all Western European targets, yet spikes asymmetrically to over 50% on Por-tuguese ( pt ) for both cascades and end-to-end setups. This highly synchronized variation across radically different systems proves that length compliance is currently driven by the natural syllable-to-character density of the tar-get data, rather than explicit behavioral con-straints inside the architectures. The per-language breakdowns underscore the core thesis behind the COMPASS framework: evalua-tion setups that rely on singular, language-agnostic averages hide critical engineering trade-offs. Com-prehensive speech translation profiling requires tracking these metrics down to localized language groupings. 
+
+E.7 Extended Language Proficiency Analysis 
+
+To quantify the performance irregularity visible across distinct language targets, we compute the Coefficient of Variation (CV) of the composite sys-tem quality scores across all evaluated language branches. The metric is defined as CV = σμ , where 
+
+σ indicates the standard deviation of the cross-lingual composite scores and μ denotes their corre-sponding mean value. A higher CV indicates that a system’s evaluation performance depends heavily on the specific target or source language branch, reflecting weaker cross-lingual generalization ca-pabilities. Table 8 reports the CV configurations for each system across both the FLEURS and CVSS 
+
+Data System CV 
+
+> FLEURS
+> X→EN
+
+Voxtral+Chatterbox 29.5% Whisper+Gemma+CosyVoice 13.5% SeamlessL 26.9% Qwen3-Omni 19.5% 
+
+> FLEURS
+> EN →X
+
+Voxtral+Chatterbox 18.2% Whisper+Gemma+CosyVoice 25.5% SeamlessL 20.2% Qwen3-Omni 16.8% 
+
+> CVSS
+> X→EN
+
+Voxtral+Chatterbox 9.8% Whisper+Gemma+CosyVoice 20.8% SeamlessL 15.8% Qwen3-Omni 10.6% 
+
+> Table 8: Composite score dispersion across individual languages grouped per system and evaluation direction. A higher CV percentage reveals lower cross-lingual ranking stability.
+
+datasets. Three main patterns emerge from this dispersion analysis, expanding upon the visual pro-files presented in the main text (Fig. 3, X →EN) and here with Fig. 9 for EN →X. First, the cascaded Whisper+Gemma+CosyVoice 
+
+pipeline achieves the lowest overall CV on FLEURS X →EN (13.5%), indicating a highly uni-form and stable cross-lingual performance profile when converting speech back into English. How-ever, its CV nearly doubles when translating in the inverse EN →X direction (25.5%), a shift driven by high score drops on complex target languages like Hindi and Korean (visualized in the expanded petal layouts of Fig. 9). Interestingly, on CVSS X →EN, this same cascade exhibits a much higher variance (20.8%) than on FLEURS, showing that its perfor-mance stability is highly corpus-dependent. Second, the end-to-end Qwen3-Omni architecture exhibits a highly robust profile across both bench-marks. While its variance is slightly higher on FLEURS X →EN (19.5%) than on EN →X (16.8%), it yields an exceptionally tight and stable cross-lingual spread on CVSS X →EN with a CV of just 10.6%, matching the tight symmetrical geometry shown in the main text’s petal plots. Third, Voxtral+Chatterbox demonstrates an inconsistent footprint across datasets and directions. It has a very high CV on FLEURS X →EN (29.5%), which drops down to 18.2% on EN →X, yet it se-cures the lowest overall variance on CVSS X →EN (9.8%). This confirms that its language proficiency 27 Figure 8: Per-language evaluation profiles across COMPASS dimensions on the CVSS X →EN dataset. These visu-alizations demonstrate the structural generalization of the compact metric subset under different corpus conditions. The plots expose localized variances in speech-length compliance and translation quality metrics, confirming that the orthogonal axes effectively isolate semantic accuracy from pure acoustic naturalness without cross-dimensional metric leakage. AR     
+
+> DE
+> ES FR
+> HI
+> IT
+> JA
+> KO PT
+> ZH
+> Voxtral+Chatterbox
+> AR
+> DE
+> ES FR
+> HI
+> IT
+> JA
+> KO PT
+> ZH
+> Whisper+Gemma+Cosyvoice
+> AR
+> DE
+> ES FR
+> HI
+> IT
+> JA
+> KO PT
+> ZH
+> SeamlessL
+> AR
+> DE
+> ES FR
+> HI
+> IT
+> JA
+> KO PT
+> ZH
+> Qwen3-Omni
+
+Figure 9: Language Proficiency Profile, FLEURS EN →X. 
+
+profile fluctuates more aggressively when handling diverse, noisier acoustic inputs (FLEURS) than when it is evaluating cleaner corpora (CVSS). These directional and corpus-driven asymme-tries further complement our findings in RQ2 by proving that X →EN and EN →X tracks present fun-damentally distinct evaluation bottlenecks, where the specific source or target language directly shifts the performance variance of the systems. 
+
+F Human Evaluation: Detailed Setup 
+
+This appendix provides the full details of the hu-man evaluation reported in Section 6 of the main document, including data construction, annotation protocol, and per-domain results. 
+
+F.1 Data Construction Dubbing (MELD-ST). We build the dubbing evaluation set from MELD-ST (Chen et al., 2024), focusing on the EN →JA and JA →EN directions. We start from the official MELD-ST alignment and group utterances by dialogue. For each dialogue, we compute the cumulative duration as the sum of its utterance durations and rank dialogues from longest to shortest. We then compute a difficulty score per dialogue, defined as the unweighted mean of four normalized components: (i) the proportion of utterances labeled with a hard emotion ( anger ,
+
+fear , sadness , disgust ); (ii) the proportion of ut-terances with non-neutral sentiment; (iii) the aver-age word count per utterance; and (iv) the average utterance duration. Each component is min-max 28 normalized to [0 , 1] before averaging. From the top-100 most difficult dialogues, we retain those with a cumulative duration between 15 and 25 sec-onds and select 25 dialogues per direction ( ≈ 133 atomic samples), for a total of 50 clips. We manu-ally verify that the EN and JA versions are correctly aligned at the dialogue level before annotation. 
+
+Podcasts (EuroParl). We construct the podcast evaluation set from audio published by the Eu-ropean Parliament Multimedia Centre. 50 We fo-cus on four language pairs in both directions: EN ↔DE, EN ↔ES, EN ↔FR, and EN ↔IT. For each language pair, we download six random pod-cast episodes, manually align the source and target audio at the segment level, and extract 30-second segments. We verify that these segments do not contain multiple speakers or background music. We select 6 segments per direction, yielding 12 segments per language pair and 48 clips in total. 
+
+Medical conversations (MultiMed-ST). We build the medical evaluation set from MultiMed-ST (Le-Duc et al., 2025), focusing on the EN →ZH and ZH →EN directions. We select 20 segments per direction, each between 8 and 14 seconds long, for a total of 40 clips. Each segment is manually inspected against four inclusion criteria: (i) the segment contains either the clinician or the patient speaking, but not both; (ii) there is no musical back-ground; (iii) there is no podcast-style overlapping speech; (iv) at least one medical term is present in the segment. Segments that fail any of these criteria are discarded and replaced. 
+
+System Selection for Human Evaluation. To provide a representative cross-section of cur-rent speech-to-speech technology, our human evaluation covers the same four core sys-tems analyzed throughout our automatic bench-marks. These configurations deliberately span distinct architectural approaches and quality tiers: the end-to-end SpeechLLM Qwen3-Omni 
+
+(referred to as Q3O ), the dedicated end-to-end SeamlessM4T-Large-v2 (referred to as 
+
+SeamL ), and two cascading pipelines represent-ing traditional structural boundaries, the two-stages Voxtral+Chatterbox (S2TT+TTS ) and the three-stages Whisper-Lv3+Gemma-3+Cosyvoice3 
+
+(ASR+MT+TTS ) suite. Evaluating this specific quad-rant allows us to directly cross-reference human 
+
+> 50 multimedia.europarl.europa.eu
+
+qualitative judgments against the stable and com-pact metric dimensions identified by the COM-PASS pipeline. Additionally, human evaluators score the original ground-truth reference audio alongside the system outputs across randomized tri-als, with the sole exception of the medical domain, where reference speech tracks are unavailable. 
+
+F.2 Annotation Protocol Interface. Annotation is performed through a custom web-based interface that presents, for each item, the source audio and the target output. 51 An-notators can replay each audio file as many times as needed before submitting their ratings. Before an-notation, all participants are provided with detailed guidelines defining each evaluation axis, the corre-sponding 5-point Likert scale anchors, and worked examples illustrating typical low-, mid-, and high-quality outputs to ensure consistent interpretation across annotators. 
+
+Annotator Profile. Each evaluation item is rated independently by three distinct annotators. All annotators are native speakers of the target non-English language and possess verified business-level English proficiency to ensure reliable source-to-target quality assessments. 
+
+Rating Framework. Multi-dimensional quality criteria are scored using standard 5-point Likert scales with explicit behavioral anchors (ranging from 1 for very poor to 5 for excellent). To evalu-ate practical utility, downstream real-world applica-bility questions use a streamlined, action-oriented 3-point categorical scale (No / Maybe / Yes). All presentation orders and system assignments are fully randomized during annotation to mitigate po-sition bias. Finally, annotators are asked to explic-itly select the best and second-best overall systems for each evaluation instance. 
+
+Dubbing Evaluation. For the entertainment do-main, annotators assess alignment by scoring both fine-grained audio-visual synchronization features and contextual translation fidelity: 
+
+Q1 Lip Sync : “Does the speech match mouth movements?” 
+
+Q2 Voice & Audio Quality : “Does the dubbed voice sound natural and clean (no artifacts)?” 
+
+> 51 For the medical domain, the reference text translation as well, while for dubbing they are provided with the entire video.
+
+29 Q3 Speaker Consistency : “Does the dubbed voice stay consistent throughout the dialogue?” 
+
+Q4 Prosody & Rhythm : “Is the intonation, rhythm, and pacing natural?” 
+
+Q5 Timing & Duration : “Does the speech dura-tion fit the scene without awkward gaps or overlaps?” 
+
+Q6 Speaker Similarity : “Does the dubbed voice match the original speaker?” 
+
+Q7 Emotional Match : “Does the dubbed speech convey the same emotion and intensity as the original scene?” 
+
+Q8 Translation Accuracy : “Is the meaning accu-rately and completely conveyed?” 
+
+Q9 Overall Quality : “What is your overall impres-sion of the dubbing quality of this clip?” 
+
+Podcast Evaluation. For the media broadcasting domain, the questions focus on long-form audio clarity, vocal identity preservation, and the acous-tic naturalness required for clean listening experi-ences: 
+
+Q1 Naturalness / Listening Comfort : “How nat-ural and comfortable does the dubbed audio feel to listen to?” 
+
+Q2 Prosody and Expressiveness : “Does the trans-lated speech sound like natural spoken lan-guage with appropriate intonation, rhythm, and emotion?” 
+
+Q3 Speaker Consistency : “Does the speaker’s voice remain consistent in tone, pitch, and quality throughout the segment?” 
+
+Q4 Content Understanding : “After listening to the dubbed audio, could you follow and un-derstand the topic being discussed?” 
+
+Q5 Translation Accuracy : “Is the meaning of the original content accurately preserved in the translation?” 
+
+Q6 Continued Listening : “Would you listen to a full podcast episode (30+ minutes) translated like this?” ( yes / no )
+
+Q7 Overall Quality : “What is your overall im-pression of the quality of this dubbed podcast segment?” 
+
+Medical Evaluation. For the healthcare domain, our questions focus on translation accuracy, techni-cal medical terminology, and whether the generated speech is safe and clear enough to be used in a real doctor-patient conversation: 
+
+Q1 Voice & Audio Quality : “Does the translated speech sound natural and clean (no artifacts)?”                                      
+
+> QJA →EN EN →JA Mean
+> Q1 Lip Sync 0.670 0.692 0.681 Q2 Voice & Audio 0.817 0.791 0.804 Q3 Speaker Consist. 0.811 0.841 0.826 Q4 Prosody & Rhythm 0.763 0.767 0.765 Q5 Timing & Duration 0.691 0.753 0.722 Q6 Speaker Similarity 0.849 0.819 0.834 Q7 Emotional Match 0.804 0.776 0.790 Q8 Translation Acc. 0.841 0.857 0.849 Q9 Overall Quality 0.885 0.823 0.854 Pref. κ(avg) 0.812 0.840 0.826
+> Table 9: Krippendorff’s αper question, MELD-ST dub-bing. The “Mean” columns display the average across the two translation directions.
+
+Q2 Prosody and Expressiveness : “Does the trans-lated speech sound like natural spoken lan-guage with appropriate intonation, rhythm, and emotion?” 
+
+Q3 Speaker Similarity : “Does the translated voice match the original speaker’s voice characteris-tics?” 
+
+Q4 Translation Accuracy : “Is the meaning of the original content accurately preserved in the translation?” 
+
+Q5 Medical Terminology Accuracy : “Are medical terms, dosages, symptoms, and instructions correctly conveyed?” 
+
+Q6 Real-World Usability / Trust : “Would you trust and use this translation service in a real doctor-patient conversation where you are the patient?” ( no / maybe / yes )
+
+Q7 Overall Quality : “What is your overall impres-sion of the quality of this medical conversation segment?” 
+
+F.3 Inter-Annotator Agreement 
+
+Tables 9, 10, and 11 provide the granular break-down of Krippendorff’s α across all evaluation questions, language pairs, and translation direc-tions. We additionally report the mean pairwise Cohen’s κ to represent agreement on explicit pref-erence judgments. 
+
+Interpretation Thresholds. We interpret anno-tation reliability following standard content analy-sis paradigms (Krippendorff, 2011). Coefficients where α ≥ 0.80 indicate highly reliable consensus; ranges where 0.67 ≤ α < 0.80 denote tentatively reliable agreement; and values where α < 0.67 
+
+represent weaker baseline alignment. 30 Question DE →EN ES →EN FR →EN IT →EN Mean                                                                                          
+
+> Source-to-English (X →EN)
+> Q1 Naturalness 0.93 0.94 0.93 0.94 0.94 Q2 Prosody 0.93 0.95 0.93 1.00 0.95 Q3 Speaker Consist. 0.89 0.88 1.00 0.93 0.93 Q4 Content Underst. 0.94 0.95 0.94 0.95 0.95 Q5 Translation Acc. 0.89 0.91 0.90 0.87 0.89 Q6 Speaker Simil 0.95 0.93 0.94 0.94 0.94 Q7 Overall Quality 1.00 1.00 1.00 1.00 1.00 Pref. κ(avg) 1.00 1.00 1.00 0.96 0.99
+> Question EN →DE EN →ES EN →FR EN →IT Mean
+> English-to-Target (EN →X)
+> Q1 Naturalness 0.90 0.87 0.97 0.94 0.92 Q2 Prosody 0.94 0.92 0.98 0.96 0.95 Q3 Speaker Consist. 0.96 0.93 0.98 0.94 0.95 Q4 Content Underst. 0.98 0.92 1.00 0.99 0.97 Q5 Translation Acc. 0.91 0.94 1.00 0.94 0.95 Q6 Speaker Simil. 0.95 0.93 0.98 0.94 0.95 Q7 Overall Quality 0.99 0.95 1.00 0.98 0.98 Pref. κ(avg) 0.98 0.92 1.00 1.00 0.98
+
+Table 10: Krippendorff’s α per evaluation question on the Multimedia Europarl data, stratified by translation di-rection ( X → EN vs. EN → X). Q6 evaluates speaker similarity using a three-point scale (no/maybe/yes). The “Mean” columns display the average within each respec-tive directional block.                              
+
+> QZH →EN EN →ZH Mean
+> Q1 Voice Quality 0.803 0.835 0.819 Q2 Prosody 0.782 0.744 0.763 Q3 Speaker Similarity 0.905 0.859 0.882 Q4 Translation Accuracy 0.846 0.880 0.863 Q5 Medical Term. Accuracy 0.843 0.815 0.829 Q6 Real-World Usability 0.876 0.910 0.893 Q7 Overall Quality 0.908 0.814 0.861 Pref. κ(avg) 0.855 0.857 0.856
+
+Table 11: Krippendorff’s α per question, MultiMed-ST medical. Q6 uses a three-point scale (no/maybe/yes). 
+
+Domain-Specific Profiles. As summarized in the main text, human consensus is tightly coupled to the underlying communicative objectives of each target domain: • EuroPodcasts: Speech evaluation within clean, narrative media conditions yields the most robust agreement profiles across the en-tire benchmark, with directional averages of scores spanning α = 0.89 -1.00 . Annota-tors achieve near-perfect consensus on overall quality ( α = 0 .98 -1.00 ) and high consistency on content understanding ( α = 0 .95 -0.97 ). • MultiMed-ST (Medical): Annotations within high-stakes clinical contexts remain consis-tently robust, with dimensional means tightly bound between α = 0 .76 and α = 0 .90 . The highest agreement is on indicators like real-world usability ( α = 0 .90 ), while it drops at its lowest on acoustic prosody ( α = 0 .76 ). • MELD-ST (Dubbing): Multimodal video dub-bing presents a much lower baseline agree-ment overall ( α = 0 .68 -0.85 ). While high-level metrics like translation accuracy ( α =0.85 ) and holistic overall quality ( α = 0 .85 )track with high stability, human consensus de-grades substantially when evaluating highly granular temporal dimensions such as lip syn-chronization ( α = 0 .68 ) and structural tim-ing/duration alignment ( α = 0 .72 ). These contrasting baselines emphasize that human evaluation data cannot be treated as a uniform gold standard, as its reliability changes inherently with the task complexity of each domain. 
+
+Cross-Domain Insights. Three insights emerge from analyzing these agreements jointly. First, high-level questions like overall quality consis-tently get the highest agreement scores in every single domain. This proves that humans are great at judging global quality, making these scores highly reliable anchors for testing automated metrics. Sec-ond, prosodic elements (like rhythm, expression, and intonation) are the hardest traits for human judges to agree on, except in perfectly clean audio environments like podcasts. This difficulty makes automated prosody metrics incredibly valuable. Fi-nally, judges align much better on high-level com-municative goals, such as whether a medical trans-lation is safe for real-world usability , than on fine-grained audio details like naturalness. This shows that humans find it easier to agree on whether a system successfully gets the job done rather than scoring its exact acoustic features. 
+
+F.4 Metric-Human Correlation: Full Results 
+
+We report Spearman ρ between system-level COM-PASS metric scores and averaged human ratings for each question and each domain. We focus on the global summaries (aggregated over all lan-guage pairs within a domain) for readability; per-language-pair results are qualitatively consistent. Given n = 4 -5 systems per correlation, all ρ val-ues should be interpreted as indicative of metric behaviour rather than statistically confirmed (see discussion in the main paper). 
+
+Methodology. For each domain, we average the three annotators’ scores per question per system per clip, then aggregate to the system level by av-31 Rank Metric Avg |ρ| COMPASS dimension                               
+
+> 1COMET-DA (ASR) 0.82 Translation Quality (ASR) 2Semantic Score (ASR) 0.79 Translation Quality (ASR) 3CPS Ratio 0.77 Isometry 4Chars LR 0.75 Isometry 5F0 Contour Similarity 0.74 Prosody & Emotion 6TER (ASR) 0.73 Translation Quality (ASR) 7AutoPCP 0.71 Prosody & Emotion 8COMET-DA (Text) 0.71 Translation Quality (Text) 9COMET-KIWI (ASR) 0.71 Translation Quality (ASR) 10 Speech Overlap 0.71 Isochrony
+
+Table 12: Top-10 automatic metrics by average |ρ|
+
+across all questions and all three domains. This is the most robust view of metric utility. 
+
+eraging over clips within each language pair. We then compute Spearman ρ between the resulting system-level human scores and the corresponding COMPASS metric scores. 
+
+Metrics that consistently fail. Several widely used metrics show near-zero or negative correla-tion with human judgment across all domains and all questions. UTMOS is a near-zero predictor in pod-casts, a negative predictor for emotional match in dubbing ( ρ = −0.14 ), and uncorrelated in medical (ρ ≈ 0.00 for overall quality). NISQA-MOS shows similar patterns, correlating strongly negatively 
+
+with emotional match in dubbing ( ρ = −0.90 ): sys-tems with perceptually clean synthesis strip out ex-pressive prosody. Speaker Similarity is weakly correlated across all three domains. These results suggest that MOS-based audio quality metrics and raw speaker similarity measures, while useful in TTS evaluation, are poor proxies for S2ST qual-ity as perceived by human listeners across diverse domains. 
+
+The isochrony paradox in dubbing. Lip Sync-ing and Timing & Duration are the least reliable human dimensions in dubbing ( α = 0 .68 and 0.72 
+
+across both directions, respectively), yet automatic timing metrics achieve perfect or near-perfect cor-relation with averaged human scores: ∆ Duration 
+
+and CPS reach ρ = −1.00 for Q5 in the EN →JA direction. This indicates that individual annotators cannot reliably judge whether speech duration fits the scene, but their average score still tracks the ground truth ordering because timing errors pro-duce consistent discomfort even when annotators cannot articulate why. Automatic metrics measure the underlying signal directly and without percep-tual noise, making them most valuable precisely where human judgment is most variable. 
+
+Direction effects in podcasts. For X →EN pod-cast pairs, the top metrics by average |ρ| across all questions are ChrF++ (ASR) and COMET-DA (ASR) 
+
+(all 0.91). For EN →X, the same five metrics lead (all ≈ 0.85). The metric set is symmetric across directions for podcasts, but the absolute correlation values are slightly higher in the X →EN direction, consistent with higher annotator agreement in that direction (annotators evaluate output in their native language). 
+
+Direction effects in dubbing. The top met-rics for JA →EN dubbing are ∆ Duration ,
+
+COMET-DA (ASR) , Tempo Ratio , and Speech Length Compliance . For EN →JA, the same five metrics lead but with a higher average |ρ| (0.756 vs 0.711), and CPS Ratio replaces Tempo Ratio 
+
+as the second-ranked metric. The shift reflects a difference in bottleneck: in JA →EN dubbing, the primary failure mode is duration mismatch of the synthesized English; in EN →JA, characters-per-second ratio captures the additional compression challenge of rendering English into Japanese mora-timed speech. 
+
+Direction effects in medical. For ZH →EN, 
+
+BLASER leads for audio quality and COMET-DA (Text/ASR) leads for translation quality. For EN →ZH, COMET-DA (Text) and COMET-KIWI (Text) are perfect predictors of overall quality (ρ = 1 .000 ), while BLASER drops in importance. The asymmetry reflects that translating into Chi-nese is more constrained by text-level translation accuracy than translating from Chinese, where audio-level rendering quality becomes the primary differentiator. 
+
+The medical terminology gap. No COMPASS metric shows reliable correlation with medical ter-minology accuracy or real-world trust across both directions. This gap represents a genuine limita-tion of current automatic evaluation for medical S2ST and motivates future work on NER-based ter-minology scoring, medical language model-based semantic similarity, and trust-calibrated evaluation protocols. 
+
+Globally robust metrics. Table 12 reports the top-10 automatic metrics ranked by average |ρ|
+
+across all questions and all three domains, pro-viding the most aggregated view of metric util-ity in our benchmark. Translation-quality metrics dominate the ranking, with COMET-DA (ASR) and 
+
+Semantic Score (ASR) leading at |ρ| = 0 .82 and 32 0.79 , respectively, confirming that semantic fidelity is the single most universally predictive dimen-sion of human judgment. Isometry ( CPS Ratio ,
+
+Chars LR ) and prosody ( F0 Contour Similarity ,
+
+AutoPCP ) metrics follow closely, indicating that length control and prosodic alignment provide complementary signal beyond pure translation ac-curacy. Importantly, no MOS-based or speaker-similarity metric appears in the top-10, reinforcing that acoustic-quality predictors do not generalize as cross-domain indicators of S2ST quality. While these global rankings highlight broadly useful met-rics, the per-domain analyses above show that the 
+
+optimal subset still varies substantially by applica-tion, motivating the domain-specific recommenda-tions that follow. 
+
+F.5 Domain-Specific Metric Recommendations 
+
+Based on the correlation analysis, we derive the fol-lowing domain-specific metric recommendations. For dubbing , the core set should include 
+
+COMET-DA (ASR) , AutoPCP , CPS Ratio , ∆
+
+Duration ,52 and Speech Overlap . Lip sync di-mensions where human agreement collapses should be evaluated with automatic metrics ( Viseme DTW ,
+
+Co-Occurrence Score ). For podcasts , the core evaluation set should in-clude COMET-DA (ASR) , Semantic Score (ASR) ,
+
+Chars Length Compliance , and AutoPCP . MOS-based naturalness metrics ( UTMOS , NISQA-MOS )should not be used as primary metrics for this do-main. For medical conversations, the core set should include COMET-DA (Text) /COMET-KIWI (Text) ,
+
+BLASER , and Semantic Score (ASR) . The trust and terminology dimensions currently lack reliable automatic proxies and represent an open evaluation challenge. These recommendations are grounded in corre-lation with human judgment rather than in theo-retical arguments alone, and they differ substan-tially across domains, directly supporting the cen-tral claim of this paper: there is no universal metric set for S2ST evaluation. 
+
+F.6 System Rankings by Human Preference 
+
+Tables 13, 14, and 15 report system rankings by first-preference rate, second-preference rate (where 
+
+> 52
+
+Interestingly, we found the median being more informa-tive than the mean.                                                                 
+
+> System Direction First rate Second rate Avg Q9
+> Official dub JA →EN 1.00 0.00 4.99
+> S2TT+TTS JA →EN 0.00 0.60 3.71 ASR+MT+TTS JA →EN 0.00 0.30 3.57 Q3O JA →EN 0.00 0.10 2.59 SeamL JA →EN 0.00 0.00 1.57 Official dub EN →JA 1.00 0.00 4.95
+> S2TT+TTS EN →JA 0.00 0.76 2.64 ASR+MT+TTS EN →JA 0.00 0.24 2.01 Q3O EN →JA 0.00 0.00 2.13 SeamL EN →JA 0.00 0.00 1.27 Official dub Both 1.00 0.00 4.97
+> S2TT+TTS Both 0.00 0.46 3.17 ASR+MT+TTS Both 0.00 0.30 2.85 Q3O Both 0.00 0.14 2.30 SeamL Both 0.00 0.00 1.42
+
+Table 13: System rankings by human preference, dub-bing. First rate = fraction of clips where this system was preferred. Q9 is the question regarding the over-all dubbing quality. Best results in bold , second-best underlined.                                                                 
+
+> System Direction First rate Second rate Avg Q7
+> Ground truth X→EN 0.50 0.28 4.72 S2TT+TTS X→EN 0.50 0.28 4.89
+> ASR+MT+TTS X→EN 0.00 0.33 3.88 Q3O X→EN 0.00 0.11 3.72 SeamL X→EN 0.00 0.00 2.33 Ground truth EN →X0.89 0.06 4.89
+> S2TT+TTS EN →X0.06 0.28 3.49 ASR+MT+TTS EN →X0.05 0.39 3.88 Q3O EN →X0.00 0.21 2.85 SeamL EN →X0.00 0.06 2.85 Ground truth Both 0.69 0.17 4.81
+> S2TT+TTS Both 0.28 0.28 4.19 ASR+MT+TTS Both 0.03 0.36 3.88 Q3O Both 0.00 0.16 3.29 SeamL Both 0.00 0.03 2.59
+
+Table 14: System rankings by human preference, pod-casts. Q7 is the question regarding the overall quality. Best results in bold , second-best underlined. 
+
+reference tracking was available), and average over-all quality score per domain and direction. 
+
+Key Observations. Three main cross-domain patterns stand out from the human preference ta-bles: First, SeamL receives zero first-preference votes across every single domain and translation direction. This represents the only completely consistent last-place result in our human evalu-ation, directly mirroring its last-place automatic scores throughout the benchmark. Second, the optimal system depends heavily on the specific domain. While the end-to-end S2TT+TTS frame-work is highly competitive with human produc-tion in clean media environments like podcasts, the three-stage cascade ( ASR+MT+TTS ) heavily domi-33 System Direction First rate Avg Q7 
+
+S2TT+TTS ZH →EN 0.20 3.42 ASR+MT+TTS ZH →EN 0.60 4.24 
+
+Q3O ZH →EN 0.20 3.53 SeamL ZH →EN 0.00 2.22 S2TT+TTS EN →ZH 0.07 3.20 ASR+MT+TTS EN →ZH 0.80 4.29 
+
+Q3O EN →ZH 0.13 3.76 SeamL EN →ZH 0.00 1.62 S2TT+TTS Both 0.13 3.31 ASR+MT+TTS Both 0.70 4.27 
+
+Q3O Both 0.17 3.64 SeamL Both 0.00 1.92 
+
+Table 15: System rankings by human preference, med-ical. Q7 is the question regarding the overall quality. No reference audio is available for this domain, thus we did not ask for the second-best candidate system. Best results in bold , second-best underlined. 
+
+nates high-stakes settings like medical dialogues. This confirms that no single architecture is best across all deployment contexts. Third, human judges confirm the directional asymmetry observed in our automatic benchmarks. Translating from English to a target language ( EN → X) is consis-tently more challenging for models than translating into English ( X → EN ). This difficulty is reflected in the lower absolute quality scores and the wider performance gaps between automated systems and human-produced references. 34
