@@ -1,0 +1,690 @@
+Title: AlignAtt4LLM: Fast AlignAtt for Decoder-Only LLMs at IWSLT 2026 Simultaneous Speech Translation Task
+
+URL Source: https://arxiv.org/pdf/2606.03967v1
+
+Published Time: Wed, 03 Jun 2026 01:40:25 GMT
+
+Number of Pages: 12
+
+Markdown Content:
+## AlignAtt4LLM: Fast AlignAtt for Decoder-Only LLMs at IWSLT 2026 Simultaneous Speech Translation Task 
+
+Quentin Fuxa 
+
+Independent Researcher 
+
+quentin.fuxa@gmail.com 
+
+Dominik Macháˇ cek 
+
+Charles University, MFF, ÚFAL & University of Edinburgh 
+
+machacek@ufal.mff.cuni.cz 
+
+Abstract 
+
+We describe AlignAtt4LLM, an IWSLT 2026 simultaneous speech translation system for En-glish to German, Italian, and Chinese. The system is a synchronous cascade: Qwen3-ASR with forced alignment produces an incremen-tally updated source transcript, and Gemma-4 E4B-it translates that prefix under an MT-side AlignAtt policy. To our knowledge, this is the first application of AlignAtt to a decoder-only LLM, where the encoder-decoder cross-attention used by earlier AlignAtt systems is absent. We recover a us-able policy by proposing (1) an explicit source span in the prompt, (2) offline selection of translation-specific alignment heads, (3) selec-tive qk-fast replay of the draft-to-source atten-tion block, and (4) runtime query/key capture that preserves model outputs bit-identically. On the IWSLT 2026 development set, Alig-nAtt4LLM outperforms the supplied baselines for the European target languages, English to German and English to Italian, in both the low-latency regime around 2 seconds and the high-latency regime below 4 seconds CU-LongYAAL. Results for English to Chinese are more mixed, but the method is not tied to Gemma-4: because AlignAtt4LLM only requires a deterministic prompt layout, cal-ibrated attention heads, and query/key cap-ture, the same policy can be reapplied to stronger translation-focused decoder-only MT backbones for non-European target languages. 
+
+1 Introduction 
+
+This paper describes the AlignAtt4LLM IWSLT 2026 submission for English to German, Italian, and Chinese simultaneous speech translation (Ade-lani et al., 2026). The system is a synchronous cas-cade: Qwen3-ASR with the Qwen3 forced aligner (Shi et al., 2026) produces an incrementally up-dated source transcript with word end times, and Gemma-4 E4B-it (Google DeepMind, 2026) trans-lates the current source text under an MT-side Alig-nAtt policy. The central contribution is to make an offline decoder-only LLM usable in simultaneous mode. Standard AlignAtt reads encoder-decoder cross-attention, but decoder-only LLMs have no such cross-attention. We instead expose the source tran-script as a known prompt span, select a small set of translation-specific self-attention heads offline, and accept only draft prefixes whose reconstructed attention signal remains within the currently avail-able source frontier. The second contribution is making the imple-mentation fast enough for computational-aware (CA) evaluation. Both ASR and MT are served through vLLM (Kwon et al., 2023), which gives the cascade one high-throughput inference stack and hot model reuse across chunks. On the MT side, this also means the policy cannot inspect a Python-visible attention matrix: self-attention is hidden inside fused kernels. We therefore capture the exact query/key tensors consumed by the de-ployed Gemma attention module and replay only the draft-to-source block needed by AlignAtt. Our implementation is available at https:// github.com/QuentinFuxa/AlignAtt4LLM .Section 2 describes the context of the task and prior work, Section 3 describes the cascade, Sec-tion 4 details the MT-side AlignAtt realization, and Section 5 reports the evaluation. 
+
+2 Background 
+
+AlignAtt (Papi et al., 2023, 2024) is a simultane-ous policy that lets an offline sequence-to-sequence model operate in simultaneous mode. At each gen-eration step, the policy derives a source position for the next target token from attention and stops gen-eration when that position crosses the accessible-source frontier. Earlier AlignAtt systems obtained 1
+
+> arXiv:2606.03967v1 [cs.CL] 2 Jun 2026
+
+this signal from encoder-decoder cross-attention. AlignAtt is currently recognized as state of the art, it has been used in e.g. by the top-performing IWSLT 2025 system (Macháˇ cek and Polák, 2025). 
+
+Offline models in simultaneous mode. Re-purposing offline models for simultaneous transla-tion is a highly promising approach because it al-lows reusing high-quality, multilingual, instruction-following models without training dedicated simul-taneous models for every language direction. How-ever, the disadvantage is that an offline model is not trained to decide when a partial source prefix is sufficient, and naive re-translation can flicker or hallucinate on incomplete input. Simultaneous poli-cies such as AlignAtt provide the missing commit decision while preserving the quality and flexibility of the offline model (Papi et al., 2023; Macháˇ cek and Polák, 2025). 
+
+Decoder-only LLMs have recently become cen-tral in high-quality text-to-text MT systems (Kocmi et al., 2024, 2025). Prior simultaneous systems have already used instruction-tuned decoder-only LLMs by prompting them with the translation di-rection, current source prefix, and already emitted target prefix (Macháˇ cek and Polák, 2025). Long context, instruction following, and in-context ex-amples make this family attractive for robust MT, but previous decoder-only simultaneous implemen-tations used LocalAgreement (Polák et al., 2022, 2023) rather than AlignAtt. LocalAgreement is a strong simultaneous policy, but it does not take ad-vantage of model-internal attention and generally introduces more latency than AlignAtt (Macháˇ cek and Polák, 2025). 
+
+Translation-specific attention heads. Liu et al. (2026) show that multilingual decoder-only LLMs contain a sparse set of heads whose attention argmaxes track source-target word alignments. This suggests a decoder-only AlignAtt path, but only if two runtime conditions are met: the source span must be identifiable in the prompt, and the policy-visible attention rows must be reconstructed from the same tensors used by the deployed infer-ence engine. Our proposed method supplies both conditions. 
+
+2.1 IWSLT 2026 Simultaneous Task Simulation environment. The IWSLT 2026 Si-multaneous Task proposes the Simulstream toolkit (Gaido et al., 2025) for simulating simultaneous translation sessions. We follow the long-form, un-segmented task setup, which allows re-translation at the evaluation interface, but AlignAtt4LLM it-self emits append-only incremental output, the mode preferred in real-world deployments where re-translation flicker could disrupt readers follow-ing the live text. 
+
+Development data. We use the official IWSLT 2026 MCIF development set. We report transla-tion quality with BLEU (Papineni et al., 2002), chrF (Popovi´ c, 2015), and XCOMET-XL (Guer-reiro et al., 2024). Translation latency is re-ported with LongYAAL (Polák et al., 2025) in both computational-unaware (CU) and computational-aware (CA) variants. 
+
+3 AlignAtt4LLM System Overview 
+
+ASR. The speech component of the cascade uses two upstream Qwen components: Qwen3-ASR-1.7B transcribes the live audio tail, and Qwen3-ForcedAligner-0.6B assigns word-level start and end times to that transcript (Shi et al., 2026). At every chunk boundary, the cascade re-transcribes the current live utterance tail and invokes the forced aligner with timestamp output enabled; the word times are therefore produced online inside our simulation run, not added later as an offline post-processing step. Adjacent ASR hypotheses are sta-bilized by a longest-common-prefix commit rule up to sentence-final punctuation, while the remaining live tail is allowed to change on the next chunk. We retain this dedicated aligner because it performed better than all the alternative candidates summa-rized in Appendix A. 
+
+MT. The translation component uses Gemma-4 E4B-it (Google DeepMind, 2026) served through vLLM (Kwon et al., 2023). With every source up-date, Gemma receives the current transcript prefix, the already accepted target prefix, and a fixed trans-lation instruction, then greedily generates a draft continuation of at most 16 new tokens. AlignAtt accepts the longest draft prefix whose alignment signal stays on the currently accessible side of the source frontier. 
+
+Synchronization. The cascade is synchronous and chunk-based. Each chunk first updates the ASR transcript prefix and then launches one MT request. Source words are considered accessible only once their end time is older than a hold-back margin; in the official IWSLT runs, this margin is 0 ms, so a word becomes accessible as soon as its aligned end time is observed (see Section 5.3 2for a reliability analysis suggesting a conservative 250 ms tail hold-back). Both regimes also delay the first MT emission until 2 seconds of source audio have accumulated. This conservative synchronous regime cleanly separates policy behavior from scheduler overlap and defines the CA setting used in our experiments. Figure 1 summarizes this chunk-synchronous run-time path. Appendix B show alternative synchro-nization modes. 
+
+Latency-quality parameters. We keep two offi-cial latency regimes. The low-latency submission uses ∆chunk = 850 ms and the high-latency sub-mission uses ∆chunk = 1500 ms. Both use the same ASR backend, Gemma-4 MT backbone, and MT-side AlignAtt realization. They also use the same per-direction top-8 MT head sets, a width-7 source-axis median filter applied before taking the source-side argmax, and a one-source-token border margin b = 1 .
+
+4 AlignAtt for Decoder-Only LLMs 
+
+This section focuses on the method that enables AlignAtt for decoder-only LLMs. 
+
+4.1 Prompt Layout 
+
+Standard AlignAtt does not directly apply be-cause a decoder-only LLM has no decoder cross-attention. We therefore make the source span ex-plicit in the causal prompt. At chunk k, the serial-ized chat prompt is a concatenation of the system prompt, live transcript prefix, translation instruc-tion, accepted translation prefix, and current draft: 
+
+p(k) =
+
+h
+
+psys ∥s(k)∥pinstr ∥y1: mk ∥ey(k)i
+
+, (1) where s(k) is the live transcript prefix returned by ASR, y1: mk is the already accepted translation pre-fix, and ey(k) is the draft proposed by Gemma-4 at the current step. The transcript prefix is therefore a contiguous prompt span with a known map ϕ(k)
+
+from source-word indices to prompt positions. Given this prompt layout, Figure 2 summarizes the conceptual shift: the policy intuition remains the same as in encoder-decoder AlignAtt, but the alignment signal must now be recovered from a prompt-structured self-attention substrate rather than read directly from cross-attention. 
+
+4.2 Selection of Alignment Heads 
+
+Not all self-attention heads carry a useful transla-tion signal. Following Liu et al. (2026), we oper-ationalize this with a two-stage offline calibration procedure under the exact prompt layout of Eq. (1) :GPT-5-mini (OpenAI, 2025) first provides word-level source-target alignments on held-out parallel text, then every Gemma head is scored with Trans-lation Score (TS), the aligned-token argmax accu-racy used by Liu et al. (2026), on those aligned examples. We retain the top k = 8 heads per lan-guage pair. This head set is fixed at inference time and is the only part of the policy that depends on of-fline calibration. The retained MT heads are sparse and concentrated in a limited late-depth region of the backbone rather than being spread uniformly; Appendix C visualizes that pattern. The policy only reads the source slice of each draft attention row, A(ℓ,h )
+
+> t,ϕ (k)(s)
+
+, but unlike encoder-decoder cross-attention, this slice is not source-normalized. Off-source mass on the accepted tar-get prefix, prompt template, and speculative suffix is therefore structural rather than implementation noise. On the 78 text-only qualitative probes used for diagnostics, drafted units allocate on average 9% to accessible source tokens, 8% to inaccessible source tokens, 81% to non-source prompt positions, and 2% to the speculative suffix; among units that the policy actually accepts, the inaccessible-source share drops from 8% to 1%. 
+
+4.3 Selective Reconstruction for the Policy 
+
+The policy never needs the full n × n self-attention matrix. It only needs draft rows against source columns. For selected heads (ℓ, h ), draft positions 
+
+t, and source positions s, we reconstruct 
+
+bA(ℓ,h ) 
+
+> t,s
+
+=exp 
+
+
+
+γ(ℓ)q(ℓ,h ) 
+
+> t
+
+· k(ℓ,h ) 
+
+> ϕ(k)(s)
+
++ mt,ϕ (k)(s)
+
+P 
+
+> j
+
+exp 
+
+
+
+γ(ℓ)q(ℓ,h ) 
+
+> t
+
+· k(ℓ,h ) 
+
+> j
+
++ mt,j 
+
+ ,
+
+(2) where q and k are the captured post-normalization tensors after rotary position embedding (RoPE; Su et al., 2021) actually consumed by the deployed at-tention module, γ(ℓ) is that module’s runtime scal-ing factor, and mt,j replays the same causal and sliding-window masks as the fused forward. We call this replay path qk-fast : it reconstructs only the policy-visible block and matches the deployed attention algebra up to floating-point reassociation relative to the fused forward. Figure 3 illustrates the capture-and-replay path: the fused runtime keeps the full attention matrix internal, while the observer stores only the selected draft queries and prompt keys needed to recompute the source-facing policy 3audio chunk k                             
+
+> raw waveform
+> streaming chunk
+> Qwen3 forced ASR
+> transcript +word-end times
+> the cat sat on
+> 0.3 s 0.7 s 1.1 s 1.5 s
+> full hypothesis (no punct.)
+> →MT
+> Local Agreement on prefix
+> Gemma-4 MT prompt
+> deterministic causal layout
+> sys s(k)instr y1: mkey(k)
+> source +target history, one causal stream
+> AlignAtt observer
+> MT-side policy path bAD,S(k)
+> draft ×source
+> frontier
+> • selective qk-fast replay
+> • runtime q/k capture
+> • policy gates the draft
+> no n×nattention ever materialized
+> committed target
+> y1: mk, append-only
+> prior new
+> next
+> never retracted
+> accepted target →target-prefix slot, step k+1
+
+Figure 1: Chunk-synchronous cascade, one step. Each chunk first updates the source prefix with Qwen3 forced ASR, then runs one Gemma-4 MT step. The MT prompt keeps the ASR transcript explicit inside the decoder-only causal layout, so the observer can capture the selected heads’ queries and keys on the deployed vLLM path and reconstruct only the draft-to-source block bAD,S(k) used by the acceptance policy. Accepted target tokens are appended to y1: mk and become the target-prefix slot of the next step’s prompt (dashed teal feedback).        
+
+> a. Standard encoder-decoder AlignAtt
+> decoder cross-attention already returns a source-only row; the policy reads it directly.
+> decoder state for yt
+> cross-attention row, source-normalized
+> accessible source future source
+> frontier
+> b. Decoder-only LLM with explicit source span
+> self-attention mixes the full causal prompt; we mark the source span, then keep only the draft-to-source slice.
+> P1S(k)acc S(k)inacc instr y1: mkey(k)
+> explicit prompt partition
+> full self-attention row; teal = source columns, gray = non-source
+
+Figure 2: How AlignAtt changes substrate between encoder-decoder and decoder-only models. (a) In the original encoder-decoder setting, the decoder already exposes a source-only cross-attention row, so the policy can gate tokens directly against the accessible source frontier: if the peak of the row falls on the accessible side, the draft token is accepted. (b) In our decoder-only MT setting, source and target history share one causal prompt. We therefore mark the source span explicitly in prompt space, isolate translation-specific heads, and reconstruct only the draft-to-source slice needed by the policy; the decision rule is otherwise the same as in (a). 
+
+block. From these per-head rows we build two source-side provenance features for each drafted to-ken: accessible-source mass πacc 
+
+t and inaccessible-source mass πinacc 
+
+t ,
+
+πacc 
+
+t = X
+
+s∈S (k)acc 
+
+¯rt(s), (3) 
+
+πinacc 
+
+t = X
+
+s∈S (k)inacc 
+
+¯rt(s), (4) where ¯rt is the head-averaged reconstructed row. We additionally normalize per-head rows online with prefix Welford statistics and apply a short median filter along the source axis before taking the source-side argmax; these operations stabilize the alignment peak without changing the underlying replayed rows. The runtime gate only thresholds 
+
+πacc 
+
+t ; the complementary πinacc 
+
+t is retained as a diagnostic split in Appendix D. 
+
+4.4 AlignAtt Acceptance Policy 
+
+The MT policy is a first-failure scan over drafted tokens. Let ˆst be the source-side argmax of the filtered row for draft token t, and let N (k)acc be the number of source words whose ASR end time is already on the accessible side of the frontier. The scan stops when one of three conditions first fires: 
+
+SOURCE -FRONTIER : ˆst ≥ N (k)acc + b, (5) 
+
+ARGMAX -MASS -WEAK : ¯rt(ˆ st) < τ argmax ,
+
+(6) 
+
+PROVENANCE -WEAK : πacc 
+
+t < τ src . (7) In the official 850/1500 ms operating points, b = 1 ,
+
+τargmax = 0 , and τsrc = 0 , so the optional argmax-mass and minimum-source-mass gates are present in the runtime but inactive in these operating points. Figure 4 makes the decision path explicit. One branch averages the retained heads and sums accessible-source mass to obtain πacc 
+
+t . The other normalizes and smooths the same replayed rows before taking the source-side argmax ˆst. The gate accepts token t if the three tests in Eqs. (5) to (7) all pass; a left-to-right first-failure scan then emits the longest accepting draft prefix and rounds back to the last completed stability unit. Here a sta-bility unit is the smallest target fragment that the 41. Fused attention forward                         
+
+> A(ℓ,h )= softmax  γQK ⊤+M
+> n×n, fused, never materialized
+> bAD,S(k)
+> Lk×Nk, only block used
+> P1S(k)acc S(k)inacc instr y1: mkD
+> instr +y1: mk
+> capture all K(ℓ,h )columns
+> P1S(k)acc S(k)inacc
+> instr y1: mkD
+> query rows in the full prompt
+> capture only
+> Q(ℓ,h )
+> D
+> (draft rows)
+> 2. Recompute Only That Block
+> Exact qk-fast recomputation from captured
+> Q/K ; then average over H, split accessible vs. inaccessible source mass, and apply the accep-tance gates.
+> S(k)acc S(k)inacc
+> source columns in local live-source order
+> D
+> draft query rows
+> bA(ℓ,h )
+> D,S(k)
+> Lkdraft rows ×Nksource columns
+
+Figure 3: Selective reconstruction with runtime capture. The n×n attention matrix A(ℓ,h ) is executed entirely inside the fused attention kernel, so the full n×n matrix is never materialized. For each AlignAtt head (ℓ, h ) ∈ H ,the observer copies K(ℓ,h ) for all positions and Q(ℓ,h ) only for the draft rows D into fixed-shape buffers. The green band y1: mk marks the committed target prefix that grows across chunks; hatched cells are never reconstructed. After the forward, Eq. (2) recomputes exactly only the draft-to-source block bAD,S(k) , which is the sole object consumed by the source-side provenance split of Eqs. (3) to (4) , where πacc  
+
+> t
+
+drives the gate and πinacc  
+
+> t
+
+is retained for diagnostics, and by the acceptance policy of this section. 
+
+tokenizer treats as safe to commit: a whitespace-delimited lexical word in spacing scripts such as EN →DE/IT, or a single CJK character in EN →ZH, so partial subword fragments are never emitted. 
+
+4.5 Runtime Query/Key Capture 
+
+Equation (2) is only useful if the deployed run-time exposes the exact queries and keys consumed by attention. In the deployed vLLM path, those tensors never appear as ordinary Python-visible objects. We therefore install a per-layer observer, copy prompt keys and draft-row queries into fixed-shape buffers, and route capture through a custom-op-style call that survives runtime graph lowering. A zero-valued sentinel dependency keeps the ob-server in the transitive fan-in of the graph output: 
+
+o′ 
+
+> ℓ
+
+= oℓ+Φ  ℓ, pos , Q(ℓ), K(ℓ), Φ ≡ 0. (8) Figure 5 separates the capture path into three stages. During setup, we patch the attention for-ward and install fixed-shape observer slots before the graph is captured. During each forward, the live observer records prompt keys and draft-row queries for the selected heads after the module’s 
+
+q/k normalization and rotary embedding, then re-turns Φ ≡ 0 back into the attention output. After the forward, a short Python-side replay reconstructs only the selective draft-to-source block consumed by the policy and by the parity suite. The sentinel add-back of Eq. (8) is therefore only a liveness device: without the additive zero, graph lowering dead-code-eliminates the observer path and no us-able Q/K buffers survive on the deployed runtime. Appendix D keeps the replay equations, parity mea-surements, and qualitative probe. 
+
+5 Results 
+
+5.1 Experimental Setup 
+
+The experiments run on a single NVIDIA A40. The MT component uses Gemma-4 E4B-it in bfloat16 through vLLM; the speech component uses Qwen3-ASR with forced alignment. In evalu-ation, we use the official IWSLT 2026 MCIF dev set ( ∼ 2.1 hours total, 21 long academic talks) resegmented by OmniSTEval. We report BLEU and chrF against the dev references, XCOMET-XL for translation adequacy (Guerreiro et al., 2024), and LongYAAL latency in its CU and CA variants (Polák et al., 2025). The streaming loop follows the Simulstream setting of unsegmented long-form au-dio with revision-capable evaluation (Gaido et al., 2025), but our cascade itself is synchronous: ASR and MT are serialized on one GPU so that policy effects are not confounded with scheduler overlap. Section 5.5 compares three MT implementa-tions on 16 text-only prompts: Transformers eager, Transformers SDPA qk-fast , and deployed vLLM 
+
+qk-fast . All use greedy decoding with the same retained head set. 5Input: reconstructed block                                                 
+
+> source s
+> draft  t
+> acc inacc
+> bA(ℓ,h )
+> t,s ,(ℓ, h )∈ H
+> Eq. (2)
+> A. Accessible-source mass
+> sum the head-averaged row on the accessible side of the frontier
+> πacc
+> t=X
+> s∈ S (k)acc
+> pt,s ,pt,s =1
+> |H|
+> X
+> (ℓ,h )∈H
+> bA(ℓ,h )
+> t,s
+> B. Stabilized source peak
+> argmax on a normalized, smoothed row ˜zof the same heads
+> ˆst=arg max
+> s∈ S (k)˜zt,s
+> ˜z: per-head prefix-online z-score, averaged over H, then width-7median filter
+> Gate gt
+> emit ytiff all three hold:
+> (i) ˆst< N (k)acc +b
+> peak stays left of the fron-tier
+> (ii) pt, ˆst≥τargmax
+> local peak mass high enough
+> (iii) πacc
+> t≥τsrc
+> enough accessible mass overall
+> optional thresholds; in-active in official runs
+> Scan
+> left →right; emit while gt=1 , drop at first gt=0
+> ✓✓✓×··
+> y1y2y3y4y5y6
+> emit y1:y3drop rest
+
+Figure 4: From the reconstructed block to an acceptance decision. The selective qk-fast reconstruction produces 
+
+bA(ℓ,h ) 
+
+> t,s
+
+for (ℓ, h ) ∈ H , with draft positions t against source positions s (left). The policy reads it through two parallel aggregations. Branch A averages the selected heads into a row pt, · and sums its mass on the accessible side of the frontier, giving the provenance score πacc  
+
+> t
+
+. Branch B returns the peak ˆst of a stabilized row ˜zt, ·, where ˜z is obtained by z-scoring each head with prefix-online Welford moments, averaging over H, and applying a width-7 median filter along the source axis. The gate gt accepts draft token t iff the peak stays on the accessible side of the frontier, the peak mass exceeds τargmax , and the accessible-source mass exceeds τsrc . A left-to-right scan emits the longest run of accepting tokens and drops the remainder at the first failure. 
+
+5.2 System Results 
+
+Table 1 reports the two official operating points together with the organizers’ no-context baselines for comparison. The pattern is consistent across EN →DE, EN →ZH, and EN →IT: the low-latency regime stays near a 2 s CU-LongYAAL, while the high-latency regime moves to a clearly stronger quality point at the expected latency cost. CA-LongYAAL is consistently below CU-LongYAAL here because OmniSTEval’s CA mode replaces each chunk-boundary audio increment by the actual wall-clock increment spent processing that chunk. Since the deployed system runs faster than real time, the CA timestamps can be earlier than the CU chunk-boundary timestamps. We read Table 1 as evidence that the AlignAtt4LLM realization sup-ports both a stable low-latency operating point and a higher-quality regime on the same decoder-only Gemma backend. Against the supplied organizers’ no-context base-lines, AlignAtt4LLM clearly wins the < 2 s and 
+
+< 4 s latency regimes for EN →DE and EN →IT. EN →ZH is mixed: our system reaches compara-ble chrF at high latency and slightly higher chrF at low latency, but the organizers’ baseline remains ahead on BLEU and XCOMET-XL. The offline diagnostic rows show substantial backbone head-room once online commitment is removed. They are not latency-comparable to the streaming runs, but they help separate model capacity from the cost of the simultaneous policy. Appendix A.1 gives the minimal setup details. Gemma-4 is not necessarily 
+
+Lang. System Reg. BLEU chrF XCOM. L. YAAL CU CA en →de Baseline low 22 .35 56 .7 0.748 1.81 n/a Ours low 28.76 62.1 0.875 2.00 1 .63 
+
+Baseline high 26 .31 59 .2 0.819 2.63 n/a Ours high 32.63 64.2 0.902 3.53 3 .14 
+
+Offline - 38.57 67.1 0.938 n/a n/a 
+
+en →zh Baseline low 40.85 34 .1 0.750 1.91 n/a Ours low 36 .01 35.0 0.743 1.95 1 .77 
+
+Baseline high 43.85 37.8 0.795 3.48 n/a Ours high 39 .86 37.8 0.778 3.27 3.09 
+
+Offline - 48.53 43.4 0.848 n/a n/a 
+
+en →it Baseline low 30 .63 62 .0 0.683 1.76 n/a Ours low 40.10 68.0 0.805 1.98 1 .62 
+
+Baseline high 37 .28 65 .4 0.781 3.30 n/a Ours high 44.46 70.1 0.841 3.48 3 .10 
+
+Offline - 49.88 73.0 0.895 n/a n/a 
+
+Table 1: Cascade results on the IWSLT 2026 dev set (21 clips, OmniSTEval long-form resegmenta-tion). Ours low rows use the low-latency setting with 
+
+∆chunk = 850 ms; Ours high rows use ∆chunk = 1500 
+
+ms. Organizer baseline rows are the no-context base-line outputs provided with CU-LongYAAL; their CA-LongYAAL was not available. Offline rows are diagnos-tic quality-only cascades with Qwen full-audio ASR fol-lowed by Gemma final-mode MT; they have no stream-ing latency score. 
+
+the optimal MT backbone for this policy: recent translation-focused decoder-only LLMs such as HY-MT-1.5 (Zheng et al., 2025) and MiLMMT-46 (Shang et al., 2026) achieve strong multilin-gual results, especially for Chinese, and require no changes to the AlignAtt implementation, though 6A. Setup: install observer before graph capture                                     
+
+> runs once, before the deployed graph is fixed
+> patched GemmaAttention.forward ,(ℓ, h )∈ H
+> Q(ℓ,h )
+> K(ℓ,h )
+> fused attention
+> n×nnever materialized
+> observer op ϕcap (Q,K)→0
+> writes slot
+> +
+> adds 0
+> output
+> Three things the patch installs:
+> •fixed-shape buffer slot per layer (pre-allocated, known dtype and stride)
+> •custom-op call site ϕcap (Q,K)→0for heads (ℓ, h )∈ H
+> •add-back edge summing ϕcap ’s zero output into the attention output
+> Why this path is retained : fixed shapes let AOT resolve every attribute; the add-back keeps ϕcap in the live fan-in, so dead-code elimination cannot remove it; outputs are bit-identical to the unpatched model.
+> B. Runtime: capture during the forward, replay after
+> observer ops run inside the deployed graph; replay runs in Python on the stored slots
+> after forward: slots hold captured tensors for (ℓ, h )∈ H
+> K(ℓ,h )
+> P
+> keys, full prompt
+> Q(ℓ,h )
+> D
+> queries, draft rows
+> softmax( γQK ⊤+M)
+> replay, Python-side
+> bA(ℓ,h )
+> D,S(k)
+> keep source cols
+> Consumers of bA:
+> policy features (Fig. 4) parity vs. eager reference
+> qualitative probe (Fig. 10) cost O(|H| LkNk)per decode step
+> One capture path, three readers : the same replayed tensor feeds the online policy, the Transformers-eager parity check, and the offline qualitative probe; cost scales with the selected heads and the short draft length, not with the full
+> LHn 2attention tensor.
+
+Figure 5: Observer lifecycle on the deployed vLLM path. Left (A), once, before graph capture: the forward of 
+
+GemmaAttention is patched so that for each selected head (ℓ, h ) ∈ H the query and key tensors also pass through an observer custom op ϕcap (dashed orange side path). The op writes the selected slices into fixed-shape, pre-allocated slots and returns a zero tensor that is added back into the attention output; this keeps the op in the live fan-in of the graph so graph optimization cannot dead-code-eliminate it, while the numerical output of the layer is unchanged. 
+
+Right (B), every forward: after the forward finishes, the observer slots hold K(ℓ,h ) 
+
+> P
+
+for the full prompt and Q(ℓ,h ) 
+
+> D
+
+for the draft rows; a short Python-side replay reapplies the module scaling and the same prompt/suffix masks used by the deployed attention kernel, then keeps the source columns to yield the selective block bA(ℓ,h ) 
+
+> D,S(k)
+
+that feeds the policy, the parity check against a Transformers reference, and the qualitative probe. 
+
+the alignment head set and acceptance thresholds would need to be recalibrated for each new back-bone. 
+
+5.3 Additional Analysis: ASR Tail Reliability 
+
+The official runs expose each Qwen3 ASR word to MT as soon as its aligned end time is observed. A post-hoc reliability analysis suggests a slightly more conservative default for future runs: clip the last 250 ms of the live ASR tail before passing the source prefix to MT. This is a policy-level tim-ing margin rather than a lexical repair. Because the Qwen path re-transcribes the live utterance tail from scratch at each chunk, the final ASR words are exactly the part most likely to be revised on the next chunk. This instability is partly masked by AlignAtt, which often stops MT before trans-lating the newest source words near the frontier. Reducing tail noise could therefore allow a less conservative acceptance policy, not only a longer hold-back. On the 21 MCIF dev talks, the ref-erence error rate of words at the current Qwen3 ASR tail end is 17.1%, but drops to 8.3% at 250 ms and then remains nearly flat. We therefore keep the reported numbers unchanged, but recommend a 250 ms ASR-tail hold-back as the maintained 
+
+Figure 6: Live-tail ASR reference error. Reference-error rate by distance to the current ASR tail; bands are 90% audio-bootstrap intervals. Qwen3 drops from 17.1% at the tail to 8.3% at 250 ms and then stays flat. Voxtral is shifted by +290 ms CU-LongYAAL; Gemma remains unshifted because its timestamps/LongYAAL are unreliable under prompt leakage. 
+
+default going forward. Appendix A gives the com-parison with the alternative ASR component pa-rameters. 7Setting XCOMET-XL ↑ CU (s) ↓ CA (s) ↓      
+
+> Top-8 heads 0.879 1.96 1.65
+> All 336 heads 0.885 2.06 1.83
+
+Table 2: Auxiliary EN →DE MT head-set compar-ison at ∆chunk = 1100 ms. Both rows use the same maintained runtime; only the MT head set changes. End-to-end quality is nearly equivalent, but all-head replay increases CU and especially CA because the observer becomes less selective while the runtime must recon-struct much more attention at each MT step. 
+
+5.4 Head Filtering Matters End-to-End 
+
+Table 2 is an auxiliary EN →DE rerun included only to isolate the MT head-set effect under the maintained qk-fast runtime. End-to-end quality is nearly equivalent, but the latency split is informa-tive. CU-LongYAAL increases by 100.3 ms, which likely means the all-head observer is slightly less precise and therefore a bit more generous on to-kens whose support extends beyond the currently available source prefix. CA-LongYAAL rises more strongly, by +179.5 ms, because replaying all 336 heads forces the runtime to reconstruct much more attention state at each MT step. We therefore read the auxiliary comparison as evidence that a small retained head set captures most of the useful MT alignment signal at much lower runtime cost. 
+
+5.5 Runtime Cost of the MT Component 
+
+The MT component must be computationally cheap enough to justify deployment. Figure 7 shows that the vLLM replay path is much cheaper than the minimal eager implementation we use as an inspec-tion reference: median cost drops from 63.7 to 25.4 ms/token, while the Transformers SDPA qk-fast re-play remains close to the eager baseline at 59.0 ms/token. This confirms that the MT contribution is not merely inspectable in principle; it is practical inside the runtime we actually deploy. 
+
+6 Conclusion 
+
+We presented a Qwen3 ASR + Gemma-4 MT cascade for simultaneous speech translation, and its key technical ingredient is an AlignAtt policy adapted to decoder-only MT. Deterministic prompt layout, offline head selection, selective attention re-play, and runtime query/key capture make the MT policy usable on the deployed vLLM path. On the dev set, this yields a low-latency operating point near 2 s CU-LongYAAL and a high-latency regime that is roughly 1.5 s slower but clearly stronger in     
+
+> Median MT decode latency
+> Per generated token on 16 fixed text-only prompts.
+> 020 40 60
+> ms/token
+> TF eager
+> reference
+> TF SDPA qk-fast
+> reference
+> vLLM qk-fast
+> system
+> 63.7
+> 59.0
+> 25.4
+> 2.5 ×faster
+
+Figure 7: Inference-time comparison of MT capture implementations. Median latency per generated token on a fixed 16-prompt text-only suite, for a minimal Transformers eager reference, a Transformers SDPA 
+
+qk-fast reference that reconstructs source rows from captured layer inputs, and the deployed vLLM qk-fast 
+
+path used by the presented system. 
+
+BLEU and XCOMET-XL. Compared with the sup-plied organizers’ no-context baselines, the system clearly wins the < 2 s and < 4 s latency regimes for English to German and Italian, while English to Chinese remains mixed: chrF is competitive, but BLEU and XCOMET-XL still favor the base-line. This appears partly tied to the Gemma-4 MT backbone, whose Chinese generations were weaker in our runs; because AlignAtt4LLM only requires a deterministic prompt layout, calibrated heads, and Q/K capture, the same policy can be ported to other decoder-only LLMs, making translation-focused backbones such as HY-MT-1.5 (Zheng et al., 2025), MiLMMT-46 (Shang et al., 2026), or a Qwen-family MT backbone, natural next tar-gets for EN →ZH. 
+
+Acknowledgements 
+
+This work was supported by Czech Opera-tional Program OP JAK, the MSCA CZ project MSCA Fellowships – Charles University 4, CZ.02.01.01/00/22_010/0013392, “LCT”. 
+
+References 
+
+David Ifeoluwa Adelani, Victor Agostinelli, Antonios Anastasopoulos, Luisa Bentivogli, Ondˇ rej Bojar, Se-bastien Bratières, Marine Carpuat, Roldano Cattoni, Mauro Cettolo, Lizhong Chen, Marcello Federico, Marco Gaido, Mahendra Gupta, HyoJung Han, Ali Hatami, David Javorský, Yejin Jeon, Marek Kasztel-nik, Antoine Laurent, and 33 others. 2026. Speech translation and metrics in 2026: Findings of the IWSLT campaign. In Proceedings of the 23rd In-ternational Conference on Spoken Language Trans-
+
+8lation (IWSLT 2026) , San Diego, California, US. As-sociation for Computational Linguistics. Marco Gaido, Sara Papi, Mauro Cettolo, Matteo Ne-gri, and Luisa Bentivogli. 2025. Simulstream: Open-source toolkit for evaluation and demonstra-tion of streaming speech-to-text translation systems. 
+
+Preprint , arXiv:2512.17648. Google DeepMind. 2026. Gemma 4 E4B-it model card. Hugging Face model card. Nuno M. Guerreiro, Ricardo Rei, Daan van Stigt, Luisa Coheur, Pierre Colombo, and André F. T. Mar-tins. 2024. xCOMET: Transparent machine trans-lation evaluation through fine-grained error detection. 
+
+Transactions of the Association for Computational Linguistics , 12:979–995. Tom Kocmi, Ekaterina Artemova, Eleftherios Avramidis, Rachel Bawden, Ondˇ rej Bojar, Kon-stantin Dranch, Anton Dvorkovich, Sergey Dukanov, Mark Fishel, Markus Freitag, Thamme Gowda, Roman Grundkiewicz, Barry Haddow, Marzena Karpinska, Philipp Koehn, Howard Lakougna, Jessica Lundin, Christof Monz, Kenton Murray, and 10 others. 2025. Findings of the WMT25 general machine translation shared task: Time to stop evaluating on easy test sets. In Proceedings of the Tenth Conference on Machine Translation , pages 355–413. Association for Computational Linguistics. Tom Kocmi, Eleftherios Avramidis, Rachel Bawden, Ondˇ rej Bojar, Anton Dvorkovich, Christian Feder-mann, Mark Fishel, Markus Freitag, Thamme Gowda, Roman Grundkiewicz, Barry Haddow, Marzena Karpinska, Philipp Koehn, Benjamin Marie, Christof Monz, Kenton Murray, Masaaki Nagata, Martin Popel, Maja Popovi´ c, and 3 others. 2024. Findings of the WMT24 general machine translation shared task: The LLM era is here but MT is not solved yet. In Proceedings of the Ninth Conference on Machine Translation , pages 1–46. Association for Computa-tional Linguistics. Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph E. Gonzalez, Hao Zhang, and Ion Stoica. 2023. Ef-ficient memory management for large language model serving with PagedAttention. Preprint ,arXiv:2309.06180. Binbin Liu, Wenhan Han, Feng Chen, Yifan Zhang, Ping Guo, Haobin Lin, Bingni Zhang, Taifeng Wang, and Yin Zheng. 2026. Token alignment heads: Unveil-ing attention’s role in LLM multilingual translation. ICLR 2026 poster, OpenReview. Dominik Macháˇ cek and Peter Polák. 2025. Simultane-ous translation with offline speech and LLM models in CUNI submission to IWSLT 2025. In Proceed-ings of the 22nd International Conference on Spoken Language Translation (IWSLT 2025) , pages 389–398, Vienna, Austria. Association for Computational Lin-guistics. OpenAI. 2025. Introducing GPT-5 for developers. Ope-nAI blog. Sara Papi, Marco Gaido, Matteo Negri, and Luisa Ben-tivogli. 2024. StreamAtt: Direct streaming speech-to-text translation with attention-based audio history se-lection. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Vol-ume 1: Long Papers) , pages 3692–3707, Bangkok, Thailand. Association for Computational Linguistics. Sara Papi, Marco Turchi, and Matteo Negri. 2023. Alig-nAtt: Using attention-based audio-translation align-ments as a guide for simultaneous speech transla-tion. In Proceedings of Interspeech 2023 , pages 3974–3978. Kishore Papineni, Salim Roukos, Todd Ward, and Wei-Jing Zhu. 2002. BLEU: A method for automatic evaluation of machine translation. In Proceedings of the 40th Annual Meeting of the Association for Com-putational Linguistics , pages 311–318, Philadelphia, Pennsylvania, USA. Association for Computational Linguistics. Peter Polák, Sara Papi, Luisa Bentivogli, and Ondˇ rej Bojar. 2025. Better late than never: Meta-evaluation of latency metrics for simultaneous speech-to-text translation. Preprint , arXiv:2509.17349. Peter Polák, Ngoc-Quan Pham, Tuan Nam Nguyen, Danni Liu, Carlos Mullov, Jan Niehues, Ondˇ rej Bo-jar, and Alexander Waibel. 2022. CUNI-KIT system for simultaneous speech translation task at IWSLT 2022. In Proceedings of the 19th International Con-ference on Spoken Language Translation (IWSLT 2022) , pages 277–285, Dublin, Ireland (in-person and online). Association for Computational Linguis-tics. Peter Polák, Brian Yan, Shinji Watanabe, Alex Waibel, and Ondˇ rej Bojar. 2023. Incremental Blockwise Beam Search for Simultaneous Speech Translation with Controllable Quality-Latency Tradeoff. In Proc. INTERSPEECH 2023 , pages 3979–3983. Maja Popovi´ c. 2015. chrF: Character n-gram F-score for automatic MT evaluation. In Proceedings of the Tenth Workshop on Statistical Machine Translation ,pages 392–395, Lisbon, Portugal. Association for Computational Linguistics. Yuzhe Shang, Pengzhi Gao, Wei Liu, Jian Luan, and Jinsong Su. 2026. Scaling model and data for multi-lingual machine translation with open large language models. Preprint , arXiv:2602.11961. Xian Shi, Xiong Wang, Zhifang Guo, Yongqi Wang, Pei Zhang, Xinyu Zhang, Zishan Guo, Hongkun Hao, Yu Xi, Baosong Yang, Jin Xu, Jingren Zhou, and Junyang Lin. 2026. Qwen3-ASR technical report. 
+
+Preprint , arXiv:2601.21337. Jianlin Su, Yu Lu, Shengfeng Pan, Ahmed Murtadha, Bo Wen, and Yunfeng Liu. 2021. RoFormer: En-hanced transformer with rotary position embedding. 
+
+Preprint , arXiv:2104.09864. 
+
+9Mao Zheng, Zheng Li, Tao Chen, Mingyang Song, and Di Wang. 2025. HY-MT1.5 technical report. 
+
+Preprint , arXiv:2512.24092. 
+
+A Additional ASR Analysis 
+
+The analysis below justifies the source ASR front end used by the cascade and the recommended source-tail default for future runs. 
+
+ASR front-end selection. We tested three ASR front ends during development: Qwen3-ASR with the Qwen3 forced aligner, Voxtral Realtime 4B, and a direct Gemma E4B ASR local-agreement probe. Table 3 summarizes the results on the the MCIF dev set. Voxtral gives the lowest final WER, but it is not real-time in our serialized single-GPU loop and its CU-LongYAAL is higher than Qwen3. It also advances the transcript with a more regular lag, whereas Qwen3 often exposes compact multi-word updates, which better matches our chunk-synchronous MT policy. Gemma E4B would be attractive as a single-model substrate, but its WER, prompt leakage on long talks, and unstable raw latency make it unsuitable here. We therefore retain Qwen3 forced ASR.                    
+
+> ASR front end WER ↓CU ↓RTF ↓Decision Qwen3 forced 8.91 0.87 s 0.34 keep Voxtral RT 4B 7.15 1.16 s 1.34 reject Gemma E4B LA 16.69 ∼1.8 s †0.51 reject
+
+Table 3: ASR front-end comparison on 21 MCIF dev talks. WER is percent and CU is CU-LongYAAL. 
+
+> †
+
+Gemma’s raw 0.32 s LongYAAL is prompt-leak-contaminated; clipping or discarding negative emissions gives about 1.8 s. 
+
+A.1 Offline Cascade Diagnostic 
+
+As a development tool that brackets the streaming numbers from above, we also ran an offline cas-cade on the same 21 MCIF dev talks: Qwen3-ASR was applied once to each complete audio file, then Gemma-4 was run in final mode on sentence-level chunks resegmented as in the streaming evalua-tion. The full-audio ASR transcripts have 7.40% weighted corpus WER against the English refer-ence (90% audio-bootstrap interval [6 .27 , 8.59] ), so the offline run sees source much closer to the reference than any online chunk. Differences be-tween offline and streaming output therefore isolate the cost of the AlignAtt commit policy and the live ASR tail from the intrinsic quality of the backbone: drops on EN →ZH that already appear here point to Gemma-4 rather than to the simultaneous policy. 
+
+B Synchronization Modes 
+
+Figure 8 summarizes alternative synchronization modes. Our cascade loads the ASR and MT models as two separate blocking vllm.LLM instances on a single GPU, which serializes every audio chunk into an ASR decode followed by an MT decode (Figure 8c). This conservative regime keeps pol-icy effects separate from scheduler overlap. Al-ternative pipelined or fully asynchronous regimes would mainly reduce CA-LongYAAL at fixed CU-LongYAAL, but would require a non-blocking scheduler and a more careful treatment of stale MT requests. We leave that scheduler axis to future work. 
+
+C MT Alignment-Head Diagnostics 
+
+See Figure 9 and Table 4.                 
+
+> Pair Top-8 TS All-336 TS Gain Aligned tokens EN →DE 90.40 68.49 +21.91 11,209 EN →ZH 93.48 65.79 +27.70 7,582 EN →IT 91.90 67.42 +24.49 12,056
+
+Table 4: MT head-set filtering ablation on held-out word-aligned dev examples. Scores are reported in points ( 100 × TS ) against gold aligned source tokens. 
+
+D Observer Replay and Qualitative Diagnostics 
+
+Below we report the prompt/suffix replay equations, one qualitative probe, and the numerical parity mea-surements on the deployed vLLM path. 
+
+D.1 Prompt-space replay details 
+
+After capture, we replay the draft rows against two key blocks: the pre-draft prompt positions P(k) and the current draft positions D(k), which form the au-toregressive suffix. Writing B(ℓ,h ) 
+
+> ⋆
+
+:= B(ℓ) 
+
+> ⋆
+
+[h] for head-specific captured tensors, γ(ℓ) for the atten-tion module’s runtime scaling factor, and M(ℓ,h )prompt 
+
+/ M(ℓ,h )draft for the corresponding sliding-window and causal/window masks, we first form the two logit blocks 
+
+P(ℓ,h ) = γ(ℓ)B(ℓ,h )dQ 
+
+ B(ℓ,h )pK 
+
+⊤ + M(ℓ,h )prompt ,
+
+(9) 
+
+R(ℓ,h ) = γ(ℓ)B(ℓ,h )dQ 
+
+ B(ℓ,h )dK 
+
+⊤ + M(ℓ,h )draft , (10) 
+
+eA(ℓ,h )  
+
+> D,P∪D
+
+= softmax row 
+
+h 
+
+P(ℓ,h )∥R(ℓ,h )i 
+
+.
+
+(11) 10 (a) Full async : one MT request at a time; relaunch over the latest shared source prefix            
+
+> ASR ASR (t)ASR (t+1 )ASR (t+2 )ASR (t+3 )ASR (t+4 )ASR (t+5 )ASR (t+6 )
+> shared source prefix (whatever ASR has committed at launch)
+> MT MT MT MT MT
+
+(b) Semi async : fixed ASR cadence; MT (i) dispatches as soon as ASR (i) commits       
+
+> ASR ASR (t)ASR (t+1 )ASR (t+2 )
+> MT MT (t)MT (t+1) MT (t+2)
+
+(c) Full sync : strict ASR/MT alternation; configuration used in our IWSLT 2026 run       
+
+> ASR/MT ASR (t)MT (t)ASR (t+1) MT (t+1) ASR (t+2) MT (t+2)
+> wall-clock time
+
+Figure 8: Synchronization regimes for ASR and MT sharing one GPU. Regime (c) is the deployed IWSLT schedule; regimes (a) and (b) illustrate less-blocking alternatives that require asynchronous request handling.            
+
+> MT alignment heads (en → { de, it, zh }mean TS) late shared-KV block (L24-L41)
+> H0
+> H1
+> H2
+> H3
+> H4
+> H5
+> H6
+> H7
+> L0 L5 L11 L17 L23 L29 L35 L41
+> TS scale
+> 0.00 0.85
+> retained MT ASR heads
+
+Figure 9: Architecture-aware view of retained MT alignment heads. Retained MT heads are sparse, late, and only partly overlap with the ASR set. 
+
+The row-wise softmax is taken over the concate-nated prompt and draft columns, so source po-sitions compete with all other causal context ex-actly as in the deployed attention row. Restricting 
+
+eA(ℓ,h )
+
+D, P∪D to the source columns ϕ(k)(s) recovers the policy-visible block of Eq. (2) . The replay cost therefore scales with the selected head set and the short draft length, not with the full LHn 2 attention tensor. 
+
+D.2 Qualitative reconstruction example 
+
+Figure 10 shows the full reconstruction stack on an EN →DE text-only MT probe: the exact prompt partition seen by the decoder, word-level aggrega-tion of the replayed rows for readability, and the four-way provenance accounting for every drafted word. The green band in Figure 10 is previously com-mitted target text reused as causal context; it is not itself the object of the gate. The orange words are the current draft scanned left-to-right by the pol-icy. We allow ˆst to move backward within a live draft when the decoder revisits earlier source ma-terial under reordering, which is why the residual prompt and suffix masses remain explicit in the decoder-only formulation. 
+
+D.3 Numerical parity 
+
+Let A(TF) denote the reference attention tensor produced by a Transformers reference forward on the identical prompt, and let ∆A = eA − A(TF) .On a curated parity set, the reference and deployed paths make bit-identical acceptance decisions and satisfy 
+
+∥∆A∥∞ ≤ 1.2 × 10 −2,
+
+∥∆A∥1/(nL k) ≤ 4 × 10 −4. (12) 11 Word-level selective reconstruction on a live MT draft 
+
+> system
+
+Translate to Ger-man. 
+
+> source
+
+we separately benchmark the eager path before we compare 
+
+it with qk fast 
+
+> accepted target prefix
+
+wir 
+
+> draft
+
+prüfen den eager pfad getrennt bevor wir ihn mit qk fast vergleichen 
+
+Draft-to-source attention (word level) Per-word provenance  
+
+> we
+> separately
+> benchmark
+> the
+> eager
+> path
+> before
+> we
+> compare
+> it
+> with
+> qk
+> fast
+> accessible inaccessible
+
+prüfen ⋆
+
+den ⋆
+
+eager ⋆
+
+pfad ⋆
+
+getrennt ⋆
+
+bevor ⋆
+
+wir ⋆
+
+ihn ⋆
+
+mit ⋆
+
+qk ⋆
+
+fast ⋆
+
+vergleichen ⋆    
+
+> 51% source
+> 83% source
+> 59% source
+> 73% source
+> 68% source
+> 75% source
+> 54% source
+> 52% source
+> 76% source
+> 55% source
+> 58% source
+> 49% source
+> attention
+> 0.00 0.68
+> acc. source inacc. source prompt suffix
+
+Figure 10: Word-level selective reconstruction on a live MT draft. Top ribbon: prompt partition into system instruction, live source, accepted target prefix, and current draft. Left panel: reconstructed draft-to-source attention from the selected AlignAtt heads, aggregated to words and split by the dashed accessibility frontier; black stars stay on the accessible side, while the first red star marks the SOURCE -FRONTIER failure. Right panel: each drafted word is decomposed into accessible-source, inaccessible-source, prompt, and suffix mass, with the numeric label giving the total source share. 
+
+12

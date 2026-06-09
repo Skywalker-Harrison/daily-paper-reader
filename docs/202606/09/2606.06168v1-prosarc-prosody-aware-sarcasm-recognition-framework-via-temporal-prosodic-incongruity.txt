@@ -1,0 +1,587 @@
+Title: ProSarc: Prosody-Aware Sarcasm Recognition Framework via Temporal Prosodic Incongruity
+
+URL Source: https://arxiv.org/pdf/2606.06168v1
+
+Published Time: Fri, 05 Jun 2026 01:12:21 GMT
+
+Number of Pages: 10
+
+Markdown Content:
+# ProSarc: Prosody-Aware Sarcasm Recognition Framework via Temporal Prosodic Incongruity 
+
+# Prathamjyot Singh ID 1, Ashima Sood ID 2, Sahil Sharma ID 3,∗∗ , Jasmeet Singh ID 11 Department of Computer Science and Engineering, Thapar Institute of Engineering and Technology, Patiala, India 
+
+2 School of Computing, Engineering and Intelligent Systems, Ulster University, Londonderry, United Kingdom 
+
+3 School of Computing, Ulster University, Belfast, United Kingdom 
+
+psingh1 be22@thapar.edu, sood-a1@ulster.ac.uk, s.sharma@ulster.ac.uk, jasmeet.singh@thapar.edu 
+
+# Abstract 
+
+We present ProSarc, an audio-only framework that de-tects sarcasm by modelling temporal prosodic incongruity , that is, the mismatch between local prosodic dynamics and the utterance-level emotional baseline. Dual encoding paths, a Global Emotion Encoder and a Temporal Prosody Encoder (BiLSTM + multi-head attention), feed a Prosodic Incongruity Analyzer that produces a scalar incongruity score for classifica-tion. Monte Carlo dropout provides uncertainty estimates, and an attention-based mechanism localises sarcastic onset with-out frame-level labels. ProSarc outperforms prior audio-only methods on MUStARD++ (F1 = 75.3) and generalises to spon-taneous (PodSarc, F1 = 62.9) and cross-lingual speech (MuSaG, F1 = 65.6). Ten-run validation confirms the contribution of in-congruity modelling (Wilcoxon p=0 .002 , Cohen’s d=1 .51 ). Human evaluation shows that model uncertainty tracks percep-tual ambiguity and predicted onsets align with human-annotated temporal windows. 
+
+Index Terms : Sarcasm Detection, Speech Prosody, Temporal Prosodic Incongruity, Uncertainty Estimation 
+
+# 1. Introduction 
+
+Sarcasm in spoken language is conveyed largely through prosodic cues, including pitch contour, timing, and intensity, rather than through lexical markers alone [1, 2, 3]. While mul-timodal systems that fuse text, audio, and vision have advanced sarcasm detection on benchmarks such as MUStARD++ [4, 5], audio is typically treated as an auxiliary signal, and detection still relies heavily on textual or visual cues [6, 7]. Audio-only approaches have received comparatively less attention. Existing methods predominantly operate on utterance-level acoustic statistics such as mean pitch, global en-ergy, and spectral summaries that discard the temporal dynam-ics through which sarcasm is actually realised [4, 5, 8]. Recur-rent and attention-based architectures implicitly encode some temporal structure [9], yet no prior audio-only system explicitly represents sarcasm as a measurable incongruity between fine-grained local prosodic dynamics and the utterance-level emo-tional baseline. We address this gap with ProSarc (Prosody-Aware Sar-casm Recognition), an audio-only framework that models sar-casm as temporal prosodic incongruity . The model encodes au-dio through two parallel paths, a Global Emotion Encoder for 
+
+> **
+
+indicates the corresponding author. 
+
+utterance-level prosodic statistics and a Temporal Prosody En-coder for frame-level dynamics, and fuses them via a Prosodic Incongruity Analyzer that produces an explicit scalar incon-gruity score for classification. Monte Carlo dropout [10] pro-vides uncertainty estimates, and an attention-based mechanism offers weak temporal localisation of sarcastic onset without re-quiring frame-level annotations. Our contributions are as follows: 1. We propose an audio-only sarcasm detection framework that 
+
+explicitly models temporal prosodic incongruity between lo-cal dynamics and a global emotional baseline, rather than relying on implicit temporal encoding or the utterance-level statistics. 2. We introduce a weak-supervision mechanism for tempo-ral sarcasm onset estimation using attention-weighted per-frame divergence, providing an interpretable temporal anal-ysis without requiring fine-grained annotations. 3. We evaluate on four benchmarks spanning scripted, sponta-neous, and cross-lingual settings, demonstrating consistent improvements over prior audio-only methods with rigorous statistical validation (Wilcoxon p=0 .002 , Cohen’s d=1 .51 ). 4. We incorporate MC dropout uncertainty estimation and vali-date through human evaluation that model confidence tracks perceptual ambiguity: predicted uncertainty identifies a zone of genuine inter-annotator disagreement ( κ=0 .34 ), and a monotonic confidence gradient aligns with human consen-sus. 
+
+# 2. Related Work 
+
+Prosodic Foundations of Sarcasm Psycholinguistic evidence establishes that sarcasm is signalled through characteristic prosodic patterns. Rockwell [1] showed that sarcastic speech exhibits lower pitch, slower rate, and greater intensity relative to sincere utterances. Cheang and Pell [2] extended this find-ing cross-linguistically, identifying language-specific pitch and timing cues in both Cantonese and English. Bryant [3] fur-ther demonstrated that prosodic exaggeration and contrastive stress serve as key markers of irony. More recently, F¨ unfgeld et al. [11] confirmed that German listeners rely on prosodic cues for irony perception, and Li et al. [12] showed a functional trade-off between prosodic and semantic channels in conveying sarcasm. Together, these studies motivate modelling sarcasm as a prosodic phenomenon rather than a purely lexical one. 
+
+Computational Sarcasm Detection Early computational work relied on textual features such as lexical incongruity and sen-
+
+> arXiv:2606.06168v1 [cs.AI] 4 Jun 2026
+
+timent polarity [13, 14, 15]. Multimodal datasets including MUStARD [5] and MUStARD++ [4] enabled fusion-based ap-proaches across text, audio, and vision, with methods such as the Multimodal Transformer [16] improving performance through cross-modal attention. However, most multimodal sys-tems are dominated by textual or visual cues and do not explic-itly model fine-grained prosodic dynamics [17]. Audio-only sarcasm detection has received less attention. Gao et al. [8] applied CNN-based transfer learning to speech, while Raghuvanshi et al. [18] showed that intra-modal tempo-ral inconsistencies are a hallmark of sarcastic intent. Recent work has focused on scalability through LLM-aided annotation for large-scale podcast data [19] and cross-lingual evaluation on German [20]. Nevertheless, existing audio-only systems rely on utterance-level features or implicit temporal encoding [21], without explicitly representing sarcasm as a measurable incon-gruity between local prosodic dynamics and global emotional context. 
+
+Uncertainty in Speech and NLP Predictive uncertainty is increasingly valued for robustness under ambiguity. Gal and Ghahramani [10] introduced MC dropout as a practical Bayesian approximation, while Lakshminarayanan et al. [22] showed that deep ensembles achieve stronger calibration. Kendall and Gal [23] decomposed predictive uncertainty into aleatoric and epistemic components for vision tasks. Despite its utility, uncertainty estimation has seen limited adoption in sar-casm detection. ProSarc incorporates MC dropout to provide an interpretable confidence signal without altering classification decisions. 
+
+# 3. Methodology 
+
+Given an audio utterance A with label y ∈ { 0, 1}, ProSarc predicts sarcasm from audio alone. Our main hypothesis is that sarcasm appears in the form of temporal prosodic incongruity 
+
+which refers to utterance-wise prosodic trends that differ from the computed emotional baseline. As illustrated in Figure 1, the model encodes audio through two parallel paths: a Global Emotion Encoder that captures utterance-level statistics, and a 
+
+Temporal Prosody Encoder that models frame-level dynamics. Their outputs are fused by a Prosodic Incongruity Analyzer that produces an explicit scalar incongruity score, which is then used for final classification. 
+
+3.1. Dual-Path Prosodic Encoding Global Emotion Encoder For each utterance we extract a 10-dimensional prosodic feature vector consisting of pitch statistics (mean, standard deviation, minimum, and maximum), energy statistics (mean and standard deviation), speaking rate estimated via the zero-crossing rate, spectral features including spectral centroid and bandwidth, and the mean of the first Mel-frequency cepstral coefficient (MFCC 1). All features are computed at the frame level (25 ms window, 10 ms hop) using librosa with 40 Mel filterbanks and aggregated to utterance-level statistics. The resulting vector f ∈ R10 is passed through a three-layer MLP: 
+
+g = MLP( f ) : 10 ReLU 
+
+−−−→ 128 BN , drop , ReLU 
+
+−−−−−−−−−−→ 128 ReLU 
+
+−−−→ 256 
+
+(1) with batch normalisation and dropout ( p=0 .2) at the second layer. The final layer directly produces the global embedding 
+
+pglobal ∈ R256 , representing the expected emotional baseline of the utterance. 
+
+Temporal Prosody Encoder A single pretrained self-supervised encoder Wav2Vec 2.0 [24], HuBERT [25], or WavLM [26] is evaluated per experiment while the downstream architecture is held fixed. We partially fine-tune each encoder by training only the last two transformer layers; lower layers are frozen as they encode general acoustic structure, whereas upper layers better capture task-relevant prosodic variation [27]. The encoder produces frame-level embeddings H ∈ RT ×768 .A double-layer bidirectional LSTM (hidden size 256 per direction) models temporal dependencies, producing forward (h→ 
+
+> t
+
+) and backward ( h← 
+
+> t
+
+) hidden states that are concatenated: 
+
+ht = [ h→ 
+
+> t
+
+; h← 
+
+> t
+
+] ∈ R512 (2) A multi-head self-attention layer ( H=4 , dk =128 , dropout 
+
+p=0 .2) captures salient prosodic: 
+
+O = softmax 
+
+ QK ⊤
+
+√dk
+
+
+
+V (3) where Q, K, V are linear projections of the BiLSTM output se-quence and ot ∈ R512 denotes the attention output at frame t.The attention outputs are projected to a compact local embed-ding using a linear layer: 
+
+˜ot = Wpot + bp, Wp ∈ R256 ×512 , ˜ot ∈ R256 (4) Temporal aggregation uses learned attention-weighted pooling with a projection vector w ∈ R256 :
+
+at = exp( w⊤ ˜ot)
+
+PTj=1 exp( w⊤ ˜oj ) , plocal =
+
+> T
+
+X
+
+> t=1
+
+at ˜ot ∈ R256 (5) where at are scalar attention weights summing to one. 
+
+3.2. Incongruity Modeling and Classification 
+
+The two path outputs are concatenated as z = [ plocal ; pglobal ] ∈
+
+R512 and passed through a dedicated MLP followed by a sig-moid to produce an explicit scalar incongruity score s:
+
+s = σ MLP( z) : 512 → 256 → 128 → 1
+
+where σ(·) denotes the sigmoid function, ensuring s ∈ [0 , 1] 
+
+and intermediate layers use ReLU activation. No auxiliary su-pervision is applied to s; it is learned directly as a gating sig-nal and used to perform adaptive fusion between the local and global representations. The predicted incongruity score is then used to perform adaptive fusion between the local and global representations. Specifically, s controls the relative contribution of global prosodic information, while (1 − s) weights the local tempo-ral representation: 
+
+pfused = (1 − s) plocal + s pglobal . (6) 
+
+pfused ∈ R256 , since it is a weighted sum of two 256-dimensional vectors. The fused representation is concatenated with the original combined embedding to preserve complemen-tary information: 
+
+h = [ pfused ; z] ∈ R768 , (7) and projected through a fusion MLP to obtain a final utterance-level representation. This design ensures that both the adap-tively fused and the original embeddings contribute to the final representation, enhancing stability and interpretability. a ProSarc Architecture 
+
+Audio 
+
+Input  Wav 2Vec 2.0 
+
+> Base
+
+HuBERT 
+
+> Base / Large
+
+WavLM     
+
+> Base / Large
+> Partial fine -tune: Frozen 1–10
+> Trainable last 2
+
+H
+
+> T×768
+
+Prosodic Stats  
+
+> Pitch, Energy, Tempo,
+> MFCCs
+> (librosa , utterance -level)
+> f
+> ∈ℝ¹⁰
+
+Temporal Prosody Encoder 
+
+BiLSTM     
+
+> 256 /dir →512 -D
+> Multi -Head
+> Self -Attention
+> QKV
+> H=4, d
+> ₖ=12 8
+> drop= 0.2
+
+Attn 
+
+Pool  
+
+> Σat·o t
+
+plocal  
+
+> ∈ℝ²⁵⁶
+
+Global Emotion Encoder 
+
+Linear 
+
++ ReLU   
+
+> 10 →128
+
+Linear 
+
++ BN 
+
++ ReLU 
+
+> 128 → 128
+> drop=0.2
+
+Linear 
+
++ ReLU   
+
+> 128 →256
+
+pglobal  
+
+> ∈ℝ²⁵⁶
+
+⊕ z
+
+∈ ℝ⁵¹² 
+
+Prosodic Incongruity Analyzer         
+
+> 512 →256 →128 →1
+> ReLU activations
+> s is used to weight l ocal vs global representations: pfused
+> (Adaptive combination of local & global)
+
+pfused 
+
+∈ ℝ²⁵⁶ 
+
+⊕
+
+z̃
+
+∈ ℝ 768 
+
+Classification Head 
+
+> MLP
+> 768→256→1
+> Sarc
+> Non -Sarc
+
+ℒ = BCEWithLogitsLoss 
+
+b Temporal Onset Estimation 
+
+Uses a t from Attn Pool & ot from Self -Attention in (a) 
+
+Attn Pooling 
+
+Weights a t
+
+Frame 
+
+Divergence d t
+
+argmax t 
+
+> (a t· d t)
+
+t* 
+
+t* = argmax t (a t · d t), dt = ‖ot − ō‖
+
+₂    
+
+> Attention -weighted per -frame divergence; evaluated by relative position.
+> 0% 25% 50% 75% 100 %
+> dominant onset ( 70 –80 %)
+> Utterance Timeline
+
+c Uncertainty Estimation 
+
+Uses Classification Head from (a) with dropout retained 
+
+Classification 
+
+> Head (drop=0.2)
+
+TMC = 10 stochastic 
+
+forward passes 
+
+Aggregate 
+
+> Prediction: mean(ŷ ᵢ)
+> Uncertainty: var(ŷ ᵢ)
+
+ŷMC 
+
+Var  
+
+> Dropout (p = 0.2) retained at inference in classification head only.
+> Uncertainty reported for interpretability; does not alter class predictions.
+> Larger encoders yield lower variance, indicating greater robustness to dropout perturbation
+> at,ot
+> classifier
+> concat
+> append
+> ht
+> →
+> ht
+> ←
+> incongruity
+> score (s)
+
+→ σ
+
+> sigmoid function implicitly
+> applied within the loss
+
+Figure 1: Architecture of ProSarc. (a) Audio is processed via two parallel paths: the Global Emotion Encoder (librosa utterance-level prosodic statistics → 3-layer MLP with dropout → pglobal ∈ R256 ) and the Temporal Prosody Encoder (SSL encoder → BiLSTM →
+
+multi-head self-attention → attention pooling → plocal ∈ R256 ). The concatenated z ∈ R512 is scored by the Prosodic Incongruity Analyzer (MLP → sigmoid → s), fused to form h ∈ R768 , and classified via a single logit with weighted BCE loss. (b) Temporal sarcasm onset estimated from attention-weighted per-frame divergence at · dt (dashed arrow: reuses at, ot from (a)). (c) Predictive uncertainty via MC dropout ( TMC =10 , p=0 .2; dashed arrow: reuses classifier from (a)). 
+
+Table 1: Computational cost and resource usage of audio encoders with partial fine-tuning (last two layers unfrozen). CO 2 estimated per single training run assuming 30 epochs, NVIDIA Tesla T4 (70 W TDP), and 0.385 kg CO 2/kWh (IEA 2022 global average). 
+
+Encoder Trainable Params Train Time /Epoch Inference Time (MC=10) GPU Memory (Train) Est. CO 2 (g) ↓
+
+OpenSMILE + SVM 6.37K features 0.12 min 0.08 s CPU only < 1Wav2Vec2 Base 7.9M 1.65 min 15.9 s 6.9 GB 22.2 HuBERT Base 8.1M 1.71 min 16.4 s 7.0 GB 23.0 WavLM Base 8.0M 1.70 min 16.9 s 7.0 GB 22.9 HuBERT Large 25.4M 3.55 min 33.5 s 12.4 GB 47.8 WavLM Large 25.2M 3.42 min 31.6 s 11.8 GB 46.1 
+
+The model is trained end-to-end using weighted binary cross-entropy with logits: 
+
+L = −y log σ(ˆ z) + (1 − y) log  1 − σ(ˆ z) , (8) where σ(·) denotes the sigmoid function implicitly applied within the loss, and class imbalance is addressed using posi-tive class weighting. All components such as pretrained en-coder, both encoding paths, incongruity analyzer, and classifier are optimized jointly under this single loss. 
+
+3.3. Temporal Onset Estimation 
+
+We estimate when sarcastic cues emerge within an utterance by identifying frames where local prosodic dynamics diverge most from the temporal mean. For each correctly classified sarcastic sample, we compute per-frame divergence: 
+
+dt = ∥ot − ¯o∥2,
+
+¯o = 1
+
+T
+
+XTj=1 oj
+
+(9) The predicted onset is the frame with the highest attention-weighted divergence: 
+
+t∗ = argmax t (at · dt) (10) where at is the learned pooling weight from Eq. 4 and dt the frame divergence. This selects frames that are both prosodically salient (high at) and locally divergent (high dt). Since fine-grained temporal annotations are unavailable, evaluation uses relative position within the utterance rather than absolute times-tamps. Table 2: Performance of ProSarc across datasets (percentages with 95% CI).                                   
+
+> Metric MUStARD++ MUStARD PodSarc MuSaG
+> Accuracy 73.29 [62.0–84.6] 74.42 [69.1–79.7] 63.60 [56.1–71.1] 61.48 [47.6–75.4] F1 Score 75.28 [65.6–84.9] 77.03 [72.3–81.8] 62.89 [54.1–71.6] 65.59 [44.5–86.7] Precision 71.62 [60.3–82.9] 71.65 [65.1–78.2] 64.46 [56.0–72.9] 65.69 [48.9–82.5] Recall 79.51 [71.2–87.8] 84.02 [74.1–93.9] 62.40 [48.7–76.1] 72.72 [34.9–100.0] ‡
+> MCC 46.78 [24.3–69.3] 49.99 [39.7–60.3] 27.59 [12.8–42.4] 22.12 [-7.3–51.5] Cohen κ46.42 [23.7–69.2] 48.60 [37.9–59.3] 27.20 [12.2–42.2] 19.57 [-10.8–49.9] AUC 78.42 [69.9–86.9] 80.58 [76.7–84.5] 67.58 [56.8–78.4] 63.24 [45.7–80.8]
+> ‡Upper bound clipped to 100; raw Wald interval exceeds the metric range due to high fold-level variance ( N=213 ).
+
+3.4. Uncertainty Estimation 
+
+Predictive uncertainty is estimated via MC dropout [10] with 
+
+TMC =10 stochastic forward passes at inference. Dropout (p=0 .2) in the classification head is retained during inference: 
+
+ˆyMC = 1
+
+TMC 
+
+> TMC
+
+X
+
+> i=1
+
+ˆyi, Var = 1
+
+TMC 
+
+> TMC
+
+X
+
+> i=1
+
+(ˆ yi − ˆyMC )2 (11) The mean serves as the final prediction and the variance as an interpretability signal; the uncertainty score does not alter class decisions. 
+
+# 4. Experimental Setup 
+
+4.1. Datasets 
+
+We evaluate ProSarc on four sarcasm benchmarks covering scripted, spontaneous, and cross-lingual settings (Table 3). MUStARD and MUStARD++ consist of short English clips from scripted television dialogues [4, 5]. PodSarc contains spontaneous podcast speech with greater acoustic variability and weaker prosodic exaggeration [19]; we evaluate on a 1,000-utterance stratified random subset (fixed seed) to match the scale of other benchmarks. MuSaG, a German-language dataset from YouTube [20], is included to probe whether prosodic in-congruity generalises across languages despite its limited size (N =213 ) [28]. All datasets use 5-fold cross-validation split. All experiments use audio-only input. Table 3: Dataset statistics (Sar./Non-Sar.; duration in seconds as [min/mean/max]).                     
+
+> Dataset Total Sar./Non-Sar. Dur. (s) Split
+> MUStARD 690 345 / 345 [1.2/4.3/9.8] 5-fold CV MUStARD++ 1203 602 / 601 [1.1/4.6/10.2] 5-fold CV PodSarc sample 1000 500 / 500 [2.0/6.8/18.5] 5-fold CV MuSaG 213 119 / 94 [1.5/5.2/14.1] 5-fold CV
+
+4.2. Baseline Models 
+
+We compare against baselines that span a range of represen-tation capacity to isolate the contribution of learned temporal features. A random baseline (uniform class sampling) estab-lishes the chance-level lower bound. OpenSMILE + SVM [29] tests whether hand-crafted prosodic statistics suffice for clas-sification. Three SSL encoder families, namely, Wav2Vec 2.0 (Base) [24], HuBERT (Base, Large) [25], and WavLM (Base, Large) [26] have been used to evaluate the effect of model ca-pacity and pretraining objective on downstream sarcasm detec-tion. Table 1 summarises computational cost across all config-urations. 
+
+4.3. Implementation Details 
+
+All models are implemented in PyTorch and trained on a single NVIDIA Tesla T4 (16 GB). Training uses the Adam optimiser with a learning rate of 2e − 5, batch size 4, and early stop-ping (patience 5) on validation F1-score. Pretrained encoders are partially fine-tuned: only the final two transformer layers are unfrozen, while all lower layers serve as frozen feature ex-tractors [30]. We set a fixed random seed (42). Dropout ( p=0 .2)is applied in the classification head and retained at inference for MC dropout sampling [10]. We report F1-score as the primary metric, supplemented by Accuracy, Precision, Recall, MCC, Cohen’s κ, and AUC-ROC to account for class imbalance. Re-sults are reported as percentages with 95% confidence intervals over 5-fold cross-validation. (Table 2). 
+
+# 5. Results and Analysis 
+
+5.1. Main Results 
+
+The performance of the proposed ProSarc is summarized in Ta-ble 2. ProSarc achieves its strong performance on the MUS-tARD dataset, with an accuracy of 74.4% and an F1-score of 77.0%, and on MUStARD++ (73.3% and 75.3%), which are scripted TV dialogue dataset. The performance on sponta-neous datasets such as PodSarc is slightly lower (63.6% ac-curacy, 62.9% F1), which is expected due to natural conver-sational variability, while still demonstrating consistent MCC, Cohen’s κ, and AUC values. On the multilingual MuSaG dataset, ProSarc obtains (61.5% accuracy, 65.6% F1), which demonstrates promising cross-lingual temporal prosodic mod-eling [20]. Table 4: Test performance (%) on MUStARD++.                                 
+
+> Model Accuracy F1 Score Precision Recall Random Baseline 49.17 50.00 48.94 51.11 OpenSMILE +SVM 53.53 52.94 53.39 52.50 Wav2Vec2-Base 55.60 49.77 56.99 44.17 HuBERT-Base 53.53 55.56 53.03 58.33 WavLM-Base 56.85 53.15 57.84 49.17 HuBERT-Large 68.56 71.59 67.06 77.68 WavLM-Large 73.29 75.28 71.62 79.51
+
+Hypothesis testing confirms that enabling incongruity-aware training leads to consistent improvements in sarcasm de-tection. For 10 different runs with different random seeds, the experimental WavLM-Large model performs better than the baseline in all runs, and all differences are positive ( ∆F1 = 0.0311 on average). A Wilcoxon signed-rank test yields 
+
+p = 0 .00195 , and a paired t-test yields p = 0 .0031 , both of which strongly support H1. The result is extremely large, with a Cohen’s d statistic of 1.51. McNemar’s test on paired test-set predictions yields p = 0 .779 , indicating no significant differ-ence in instance-level error patterns despite consistent aggregate gains. In addition, a 95% bootstrap confidence interval for the mean F1 difference is [0 .0180 , 0.0442] , which further supports the importance of temporal prosodic incongruity in improving the detection of sarcasm. As seen in Table 4 from a single evaluation run, larger self-supervised encoders consistently outperform smaller mod-els and traditional baselines on MUStARD++, with WavLM-Large achieving the best overall F1-score and recall. Table 5 illustrates that ProSarc outperforms the previous best audio-only approaches on all scripted, spontaneous, and cross-lingual benchmarks [28]. To ensure a fair comparison, we report audio-only results from prior work: for Bˇ aroiu et al. (2023)[31] and Gao et al. (2025)[32], the reported F1-scores correspond to the audio modality alone (averaging “with context” and “without context” where applicable), whereas for Ray et al. (2022)[4] and Tiwari et al. (2023)[33], we use the best reported audio-only performance. Table 5: Comparison with prior audio-only sarcasm detection work in terms of F1-score (%).               
+
+> Prior Work Dataset Prior Result ProSarc
+> Bˇ aroiu et al. (2023) [31] MUStARD 60.1 77.03
+> Gao et al. (2025) [32] MUStARD 67.9 77.03
+> Ray et al. (2022) [4] MUStARD++ 64.5 75.3
+> Tiwari et al., 2023 [33] MUStARD++ 66.6 75.3
+
+5.2. Exploratory Temporal Onset Analysis 
+
+As an exploratory experiment, we now investigate the distribu-tion of model-predicted sarcasm onsets in utterances. The pre-dicted onsets of sarcastic utterances show a clear late-utterance clustering, with mean relative position 68.2%, median 69.5%, and standard deviation 10.0% of utterance duration (Figure 2). The most frequent onsets lie in the 70-80% position (33.1%). Non-sarcastic utterances, by contrast, tend to appear earlier in the utterance, with mean relative position 46.2%, median 42.2%, and standard deviation 14.1%. Their most frequent on-sets cluster in the 30–40% region (29.1%). Importantly, the on-set distribution for non-sarcastic utterances does not exhibit a comparable late-utterance peak, but instead shows a broader and earlier concentration, suggesting that the 70–80% clustering ob-served for sarcastic utterances is not merely a generic attention bias toward utterance-final positions. Note that this distribu-tion is to be understood as the learned attention pattern of the model, not as a validated temporal perception of sarcasm, and is included to point out possible temporal patterns that could be explored in future annotation studies. 
+
+5.3. Uncertainty Analysis 
+
+Predictive uncertainty is quantified as the mean variance of the model’s output probabilities across the test set, computed by re-taining Monte Carlo (MC) dropout ( p=0 .2) in the classification head during inference and aggregating TMC =10 stochastic for-ward passes per sample (Eq. 11). 0-10%  
+
+> 10-20%
+> 20-30%
+> 30-40%
+> 40-50%
+> 50-60%
+> 60-70%
+> 70-80%
+> 80-90%
+> 90-100%
+> Sentence Progress (Deciles)
+> 0
+> 5
+> 10
+> 15
+> 20
+> 25
+> 30
+> 35
+> 40
+> 45
+> 50
+> Distribution of Onsets (%)
+> Median: 69.5% Median: 42.2%
+> Sarcastic Onset Non-Sarcastic Onset
+
+Figure 2: Decile-wise distribution of sarcasm onset 
+
+Table 6 reports the mean test-set uncertainty for each en-coder configuration. A consistent trend emerges: larger self-supervised encoders yield lower predictive variance. HuBERT-Large achieves the lowest uncertainty ( 3.7×10 −3), followed by WavLM-Large ( 4.4 × 10 −3), while Base-scale encoders exhibit roughly 1.2–1.8× higher variance ( 5.4–6.8 × 10 −3). This pat-tern indicates that higher-capacity encoders produce represen-tations that are more robust to stochastic dropout perturbations, consistent with prior findings that larger pretrained models learn smoother, better-generalising feature spaces [10, 22]. Table 6: Predictive uncertainty (mean MC dropout variance, 
+
+TMC =10 ) across audio encoders on MUStARD++. Lower val-ues indicate greater robustness to dropout perturbation. 
+
+Model Mean Variance ( ↓) F1 (%) 
+
+OpenSMILE + SVM — 52.94 Wav2Vec2-Base 6.8 × 10 −3 49.77 HuBERT-Base 5.5 × 10 −3 55.56 WavLM-Base 5.4 × 10 −3 53.15 HuBERT-Large 3.7 × 10 −3 71.59 WavLM-Large 4.4 × 10 −3 75.28 
+
+Notably, WavLM-Large achieves the highest classification performance (F1 = 75.28, Table 2) yet exhibits slightly higher uncertainty than HuBERT-Large ( 4.4 × 10 −3 vs. 3.7 × 10 −3). This suggests that the two metrics capture complementary prop-erties: F1 reflects aggregate discriminative accuracy, whereas MC dropout variance reflects local sensitivity of the posterior around the decision boundary [23]. A model may produce well-calibrated uncertainty estimates while achieving marginally dif-ferent peak performance, reinforcing the value of reporting un-certainty alongside standard classification metrics, particularly for subjective tasks such as sarcasm detection where ground-truth labels themselves carry annotator disagreement [1]. From a deployment perspective, high MC dropout variance could serve as a natural trigger to route samples to a multimodal pipeline or flag them for human review, as explored in Sec-tion 5.4. The OpenSMILE+SVM baseline produces hard clas-sification boundaries without probabilistic outputs compatible with MC dropout and is therefore excluded. 5.4. Human Evaluation 
+
+Sarcasm perception integrates prosodic, lexical, and visual cues simultaneously [1, 2, 3]. We employ three independent annota-tors under two modality conditions: R1 and R2 label clips from 
+
+audio only , providing modality-matched inter-annotator agree-ment, while R3 receives the full video and supplies temporal onset annotations (Section 3.3). All three were experienced in speech and affective analysis; none received task-specific train-ing. The evaluation targets the 50 samples with highest predic-tive uncertainty (MC dropout variance ≥ 6.77 × 10 −3; confi-dence within 0.07 of the decision boundary). 
+
+Protocol. R1 and R2 independently assigned binary labels (SARC /NO SARC ) from audio alone, with clip order randomised per annotator and no access to video, model predictions, or each other’s labels. R3 viewed the full video and marked the start, peak, and end of the perceived sarcastic segment as percentages of utterance duration, based on visible facial cues, delivery em-phasis, and gestural timing, with free-text cue descriptions. R3 identified at least one sarcastic interval in all 50 clips. 
+
+Audio-only agreement. R1 labelled 33 clips as sarcastic; R2 labelled 27 (Cohen’s κ=0 .34 , Krippendorff’s α=0 .34 , raw agreement 68.0%; Table 7). Three-way α across R1, R2, and the model is 0.33, dropping to 0.16 when R3’s multimodal la-bels are included—confirming that the audio-only raters and model occupy a coherent annotation space distinct from mul-timodal perception. The moderate κ is consistent with known subjectivity of audio-only sarcasm judgement [1] and expected given that these are the model’s most uncertain predictions. Table 7: Human evaluation on the 50 most uncertain predic-tions. R1, R2: audio-only binary. R3: multimodal temporal annotation.                    
+
+> Metric R1 (audio) R2 (audio) R3 (mm)
+> Labels (S / NS) 33 / 17 27 / 23 50 / 0 †
+> Agree w/ model (%) 74.0 70.0 84.0
+> κvs. model 0.34 0.37 —
+> κ(R1 vs R2) 0.34
+> α(R1, R2, model) 0.33
+> α(all four) 0.16
+> †Sarcastic cues identified in all 50 clips under multimodal access.
+
+Model–human agreement. Model–R1 agreement is 74.0% (κ=0 .34 ), model–R2 is 70.0% ( κ=0 .37 ), and model–R3 (mul-timodal) is 84.0%. The progressive increase traces the percep-tual cost of modality restriction . Figure 3a decomposes dis-agreement: all three audio-condition raters converge in 56% of clips (44% sarcastic, 12% non-sarcastic); no clip produced three-way disagreement. Notably, 12 clips (24%) were labelled non-sarcastic by both audio raters yet sarcastic by R3, directly quantifying the perceptual territory recoverable only through vi-sual channels. 
+
+Temporal onset validation. We use R3’s multimodal mark-ings as the reference standard, since temporal sarcasm on-set integrates cues across modalities. The 50 clips are drawn from MUStARD/MUStARD++, consisting of scripted dia-logues from The Big Bang Theory and similar sitcoms; R3’s temporal markings therefore reflect character-specific delivery styles (e.g. Sheldon’s deadpan monotone, Penny’s exaggerated inflection) and visual cues such as facial mugging and gestu-ral timing that jointly shape the perceived onset of sarcastic in-tent. Figure 3b overlays R3-annotated onset (mean = 46.9%), R3-annotated peak (mean = 64.9%), and model-predicted onset (mean = 68.2%). The model’s predicted position aligns more closely with R3’s peak than with R3’s onset, suggesting that the 
+
+argmax t(at · dt) mechanism identifies the moment of maxi-mum prosodic divergence rather than the first perceptible sar-castic cue. The model’s modal decile (70–80%) falls just right-ward of R3’s peak decile (60–70%), and its narrower spread (std = 10.0% vs. 17.6% for R3 peak and 20.1% for R3 onset) indicates that it captures a central tendency of the sarcasm peak while underrepresenting the full range of onset positions. More-over, 64% of model-predicted onsets fall within R3’s annotated window [Start %, End %]—non-trivial given the absence of tem-poral supervision during training—suggesting that the learned attention weights track a prosodic transition that human listen-ers independently perceive as the locus of sarcastic intent. 
+
+Qualitative observations. R3’s free-text descriptions (43/50 clips) identify facial expressions (53%), vocal delivery style (40%), and pointed intent markers (44%) as the dominant cue categories (non-exclusive; individual clips often combine mul-tiple cue types). The 12 clips labelled non-sarcastic by both R1 and R2 were described by R3 with character-grounded notes such as “Sheldon’s pursed-lip matter-of-fact jab” and “Air-line agent’s polite-smile line landing as sarcasm”—cues tied to recognisable character personas and performance styles acces-sible through vision but largely absent from audio. 
+
+Scope. The design provides modality-matched IAA ( κ=0 .34 )and an independent multimodal reference, but rests on three an-notators and 50 uncertain predictions. Replication with larger pools, confident predictions, and standardised temporal guide-lines remains future work. 
+
+5.5. Ablation Study 
+
+The ablation study on MUStARD++ is performed to measure the individual contribution of each major architectural compo-nent. For each ablated variant, the model is trained and tested using the same training setup and a fixed random seed 42 to facilitate a fair comparison. Although the results are reported based on a single deterministic run, this study aims to decouple the effect of individual components rather than measuring the performance variability. Table 8: Ablation study on MUStARD++ showing the impact of each component on F1-score.                
+
+> Model Variant F1 (%) ∆F1 (abs.) ∆F1 (rel.)
+> Full ProSarc 70.79 ——w/o Incongruity Analyzer 67.69 −3.10 −4.4%
+> w/o Temporal Prosody Encoder 69.31 −1.48 −2.1%
+> w/o Global Emotional Encoder 68.40 −2.39 −3.4%
+
+Based on the results presented in Table 8, the removal of the Prosodic Incongruity Analyzer has the most significant impact on the model’s performance, causing a F1-score drop from 70.79 to 67.69 ( ∆F1 = −3.10 , −4.4% relative), which clearly indicates that the modeling of prosodic incongruity is a crucial aspect of the model. The removal of the Temporal Prosody Encoder also has a steady negative impact ( ∆F1 = 
+
+−1.48 , −2.1% ), which indicates that the temporal aggregation of prosodic information is another complementary aspect of the model. Similarly, the removal of the Global Emotional Encoder also has a significant negative impact ( ∆F1 = −2.39 , −3.4% ), which clearly indicates the importance of the emotional context of the utterance. 0 20 40 60 80              
+
+> Proportion of clips (%)
+> All three agree
+> SARCASTIC
+> All three agree
+> NON-SARCASTIC
+> Model + R1 agree,
+> R2 dissents
+> Model + R2 agree,
+> R1 dissents
+> R1 + R2 agree,
+> model dissents
+> Both R1 & R2: NO SARC
+> → R3 (video): SARC
+> 22 (44%)
+> 6(12%)
+> 9(18%)
+> 7(14%)
+> 6(12%)
+> 12 (24%)
+> Modality gap (R3, video)
+> Audio-only IAA: κ=0.34, α=0.34
+> aRater agreement (n = 50)
+> 020 40 60 80 100
+> Relative position in utterance (%)
+> 0.000
+> 0.005
+> 0.010
+> 0.015
+> 0.020
+> 0.025
+> 0.030
+> 0.035
+> 0.040
+> Density
+> 70–80 %
+> bTemporal onset distributions
+> 64 % of model onsets
+> fall within R3 window
+> R3 annotated onset
+> R3 annotated peak
+> Model predicted onset
+
+Figure 3: Human evaluation on the 50 most uncertain predictions. (a) Audio-condition agreement: R1, R2 (audio-only), and model; hatched bar shows the modality gap (both audio raters label non-sarcastic, R3 with video identifies sarcasm). (b) Temporal onset KDEs: R3-annotated onset and peak versus model prediction. Shaded region: modal decile (70–80%). Non-sarcastic Sarcastic    
+
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> Incongruity score ( s)
+> Cohen's d= 3.3
+> p< 10 −50
+> μ = 0.424
+> μ = 0.619
+> Mean
+> Median
+
+Figure 4: Distribution of learned incongruity score s for sarcas-tic vs. non-sarcastic utterances on MUStARD++ (5-fold CV). White diamond: mean; white line: median. 
+
+In summary, the ablation experiments show that all compo-nents make a significant contribution to performance, and the Prosodic Incongruity Analyzer has the greatest impact. This is consistent with the statistical analysis of multiple runs discussed in the previous section, and it again emphasizes the importance of modeling prosodic incongruity in the task of sarcasm detec-tion. Figure 4 confirms that the learned incongruity score cap-tures a meaningful class-level signal. Across 5-fold cross-validation, sarcastic utterances produce systematically higher s
+
+values ( 0.619 ±0.063 ) than non-sarcastic ones ( 0.424 ±0.056 ), with a large effect size (Cohen’s d ≈ 3.3, p < 10 −50 ). 
+
+5.6. Discussion What does the incongruity score capture? The ablation study identifies the Prosodic Incongruity Analyzer as the single most impactful component ( ∆F1 = −3.10 , −4.4% relative), and the 10-run statistical test confirms this with a large effect size (Co-hen’s d=1 .51 ). Because s is learned end-to-end without aux-iliary supervision, its behaviour warrants scrutiny. The fusion mechanism in Eq. 6 uses s to interpolate between local and global representations, while Eq. 7 concatenates the fused out-put with the original z, creating a skip connection that pre-serves both pathways. This design ensures the classifier has ac-cess to complementary information, but also means the model is not forced to route information exclusively through the gat-ing mechanism. Despite this, ablating the incongruity analyzer produces the largest single-component performance drop across all variants, suggesting that the learned s provides a discrimi-native signal beyond what the skip connection alone delivers. The distribution of s values (Figure 4) confirms this: sarcas-tic utterances produce systematically higher incongruity scores (0.619 ± 0.063 vs. 0.424 ± 0.056 ; Cohen’s d ≈ 3.3), validating that s functions as a meaningful incongruity detector rather than collapsing to a fixed gating value. 
+
+Temporal dynamics: model onset as peak detector. Cross-referencing model predictions with R3’s frame-level mul-timodal annotations reveals a consistent temporal relation-ship. The mean human-annotated sarcasm onset (46.9%, std=20.1%) precedes the model’s predicted onset (68.2%, std=10.0%), whereas the human-annotated sarcasm peak (64.9%, std=17.6%) closely matches it. This suggests that the 
+
+argmax t(at · dt) mechanism in Eq. 10 captures something closer to the peak of sarcastic expression rather than the percep-tual onset. This interpretation is consistent with the psycholin-guistic literature: Rockwell [1] and Bryant [3] describe prosodic exaggeration and contrastive stress as key sarcasm markers, which would reach maximum divergence from the emotional baseline at the expressive peak rather than at the initial delivery shift. The model’s narrower standard deviation (10.0% vs. 20.1% for onset and 17.6% for peak) indicates that it captures a central tendency in prosodic timing but underestimates the full range of sarcastic delivery patterns. R3’s annotations span from 8% (early pointed jab) to 92% (late-utterance smirk), reflecting gen-uine diversity in sarcasm realisation that a single-onset predic-tion cannot fully represent. Two clips exhibiting secondary sar-castic beats (1 1560, 1 1973) further suggest that sarcasm can manifest as multiple prosodic events within a single utterance, a phenomenon not captured by the current single-onset architec-ture. 
+
+The modality ceiling for audio-only detection. The 12 clips (24%) labelled non-sarcastic by both audio-only annotators but identified as sarcastic by R3 under multimodal access estab-lish an empirical lower bound on the irreducible error of any audio-only system for this sarcasm subtype. R3’s free-text descriptions for these clips reveal predominantly visual cues: pursed-lip looks, side-glances, and polite-smile deliveries that are character-specific and accessible through vision but largely absent from the audio signal. These clips are also significantly shorter than the remaining samples (mean duration 4.8 s vs. 6.9 s, t=−2.07 , p=0 .043 ), providing less temporal signal for the prosody encoder, and have narrower sarcasm spans (28.5% vs. 33.9%). This modality gap reframes the interpretation of aggregate results. The PodSarc results (F1 = 62.9%) should be interpreted in this light: spontaneous conversational speech likely contains a higher proportion of visually-signalled sarcasm, placing a lower ceiling on audio-only detection than scripted television dialogue. 
+
+Uncertainty aligns with perceptual ambiguity. The 50 clips selected for human evaluation have confidence scores ranging from 0.500 to 0.571 (mean distance from the decision bound-ary: 0.028), confirming that MC dropout uncertainty correctly identifies a zone of genuine perceptual ambiguity where inter-annotator agreement is moderate ( κ=0 .34 ) and 32% of clips produce rater disagreement. Within this narrow band, a monotonic confidence gradi-ent tracks human consensus among the model’s sarcastic pre-dictions: clips where both raters agree SARC have the highest mean confidence (0.533), those with split rater judgement have intermediate confidence (0.529), and clips where both raters disagree with the model have the lowest (0.527). Although the absolute range is narrow, this gradient suggests that the model’s posterior probability encodes meaningful information about perceptual consensus. Notably, in all 16 cases of inter-rater disagreement, the model agrees with at least one human annotator, never producing a prediction that both raters simul-taneously reject. From a deployment perspective, high MC dropout variance could trigger fallback to a multimodal pipeline or flag items for human review [10, 23]. 
+
+Dataset-specific error patterns. Performance degradation across datasets traces to distinct failure modes. On PodSarc, the lower F1 (62.9%) relative to scripted benchmarks reflects acoustic noise, speaker variability, and subtler sarcastic deliv-ery. On MUStARD and MUStARD++, errors concentrate on context-dependent sarcasm where intent relies on dialogue his-tory or situational irony that an utterance-level model cannot access. The six clips where the model predicts SARCASTIC but both audio-only raters disagree have mean confidence (0.527) indistinguishable from the overall sample mean (0.528), indi-cating these are genuinely ambiguous instances rather than con-fident misclassifications. On MuSaG ( N =213 ), the wide confidence intervals (F1: 44.5–86.7%, MCC CI crossing zero) reflect both the small dataset size and the English-centric pretraining of the SSL en-coders. These results should be interpreted as preliminary cross-lingual indications rather than evidence of robustness. Future work should leverage larger multilingual datasets and domain-adaptive pretraining to evaluate cross-lingual general-isation more rigorously. 
+
+5.7. Limitations 
+
+ProSarc depends solely on audio and does not exploit seman-tic cues, which may limit detection when sarcasm is primar-ily conveyed through words, as leveraged by multimodal ap-proaches [17]. Temporal sarcasm onset is estimated via weak supervision and shows distributional alignment with human temporal annotations (Section 5.4), though per-sample valida-tion remains limited to 50 clips and the temporal annotations were produced under multimodal (audio + video) conditions rather than audio-only. Furthermore, the model processes ut-terances in isolation, ignoring conversational context that often influences multi-turn sarcasm. Although ProSarc generates confidence estimates for com-parative and diagnostic purposes, the confidence values reflect relative predictive uncertainty rather than calibrated probabili-ties; they are useful for model analysis and flagging uncertain cases but are not optimized for probabilistic calibration. Addi-tionally, the single-onset prediction ( t∗ in Eq. 10) cannot rep-resent clips containing multiple sarcastic beats, as observed in two of the 50 evaluated clips. More broadly, human evaluation reveals that sarcasm per-ception is modality-dependent: annotators with access to vi-sual cues identify sarcasm in cases that audio-only assessment misses (Krippendorff’s α=0 .16 across all four raters includ-ing the multimodal annotator, compared to α=0 .33 among the three audio-condition raters alone). This gap suggests that audio-only sarcasm detection operates on a subset of percep-tible sarcastic cues, and that modality restriction, not just task subjectivity, places a ceiling on achievable agreement. 
+
+# 6. Conclusion 
+
+We presented ProSarc, an audio-only framework that models sarcasm as temporal prosodic incongruity between local dy-namics and a global emotional baseline. On MUStARD++ (F1 = 75.3), ProSarc outperforms prior audio-only methods, and generalises to spontaneous speech (PodSarc, F1 = 62.9) and cross-lingual data (MuSaG, F1 = 65.6), with statistical confir-mation across ten runs (Wilcoxon p=0 .002 , Cohen’s d=1 .51 ). The learned incongruity score separates sarcastic from non-sarcastic utterances with a large effect size ( d ≈ 3.3), validating that the model captures a meaningful prosodic signal. Human evaluation on the 50 most uncertain predic-tions reveals that model-predicted onsets align with human-annotated sarcasm peaks (64% within annotated windows), and that 24% of clips require visual cues inaccessible to any audio-only system—establishing an empirical modality ceiling. MC dropout uncertainty tracks inter-annotator disagreement, suggesting a natural trigger for multimodal fallback in deploy-ment. Future work should extend temporal modelling to multi-event sarcasm, incorporate visual and contextual signals to ad-dress the modality ceiling, and evaluate on larger cross-lingual corpora with domain-adaptive pretraining. 
+
+# 7. Generative AI Use Disclosure 
+
+The authors used LLM-based tool (ChatGPT) solely for edito-rial assistance: improving clarity, grammar, conciseness, and stylistic consistency of the manuscript text. No generative AI was used to produce the research ideas, experimental design, code, analyses, results, or scientific claims, which are entirely the authors’ own. All AI-assisted edits were reviewed and veri-fied by the authors, who take full responsibility for the content of the paper. 8. References 
+
+[1] P. Rockwell, “Lower, slower, louder: Vocal cues of sarcasm,” 
+
+Journal of Psycholinguistic Research , vol. 29, no. 5, pp. 483–495, 2000. [Online]. Available: https://doi.org/10.1023/A: 1005120109296 [2] H. S. Cheang and M. D. Pell, “Acoustic markers of sarcasm in cantonese and english,” The Journal of the Acoustical Society of America , vol. 126, no. 3, pp. 1394–1405, 09 2009. [Online]. Available: https://doi.org/10.1121/1.3177275 [3] G. A. Bryant, “Prosodic contrasts in ironic speech,” Discourse Processes , vol. 47, no. 7, pp. 545–566, 2010. [Online]. Available: https://doi.org/10.1080/01638530903531972 [4] A. Ray, S. Mishra, A. Nunna, and P. Bhattacharyya, “A multimodal corpus for emotion recognition in sarcasm,” in Pro-ceedings of the Thirteenth Language Resources and Evaluation Conference . Marseille, France: European Language Resources Association, Jun. 2022, pp. 6992–7003. [Online]. Available: https://aclanthology.org/2022.lrec-1.756/ [5] S. Castro, D. Hazarika, V. P´ erez-Rosas, R. Zimmermann, R. Mihalcea, and S. Poria, “Towards multimodal sarcasm detection (an Obviously perfect paper),” in Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics , A. Korhonen, D. Traum, and L. M` arquez, Eds. Florence, Italy: Association for Computational Linguistics, Jul. 2019, pp. 4619–4629. [Online]. Available: https://aclanthology. org/P19-1455/ [6] S. Poria, D. Hazarika, N. Majumder, G. Naik, E. Cambria, and R. Mihalcea, “MELD: A multimodal multi-party dataset for emotion recognition in conversations,” in Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics ,A. Korhonen, D. Traum, and L. M` arquez, Eds. Florence, Italy: Association for Computational Linguistics, Jul. 2019, pp. 527–536. [Online]. Available: https://aclanthology.org/P19-1050/ [7] B. W. Schuller, “Speech emotion recognition: two decades in a nutshell, benchmarks, and ongoing trends,” Commun. ACM ,vol. 61, no. 5, p. 90–99, Apr. 2018. [Online]. Available: https://doi.org/10.1145/3129340 [8] X. Gao, S. Nayak, and M. Coler, “Deep cnn-based inductive trans-fer learning for sarcasm detection in speech,” in Proc. Interspeech 2022 , 09 2022, pp. 2323–2327. [9] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, L. u. Kaiser, and I. Polosukhin, “Atten-tion is all you need,” in Advances in Neural Information Processing Systems , I. Guyon, U. V. Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, and R. Garnett, Eds., vol. 30. Curran Associates, Inc., 2017. [Online]. Avail-able: https://proceedings.neurips.cc/paper files/paper/2017/file/ 3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf [10] Y. Gal and Z. Ghahramani, “Dropout as a bayesian approxima-tion: Representing model uncertainty in deep learning,” Proceed-ings of The 33rd International Conference on Machine Learning ,06 2015. [11] S. F¨ unfgeld, A. Braun, and K. Zahner-Ritter, “Are You Being Sar-castic? Prosodic Cues to Irony Perception in German,” in Inter-speech 2025 , 2025, pp. 5373–5377. [12] Z. Li, X. Gao, Y. Zhang, S. Nayak, and M. Coler, “A functional trade-off between prosodic and semantic cues in conveying sar-casm,” in Proc. Interspeech 2024 , 2024, pp. 1070–1074. [13] A. Joshi, P. Bhattacharyya, and M. J. Carman, “Automatic sarcasm detection: A survey,” ACM Comput. Surv. , vol. 50, no. 5, Sep. 2017. [Online]. Available: https://doi.org/10.1145/3124420 [14] A. Ghosh and T. Veale, “Fracking sarcasm using neural network,” in Proceedings of the 7th Workshop on Computational Approaches to Subjectivity, Sentiment and Social Media Analysis ,A. Balahur, E. van der Goot, P. Vossen, and A. Montoyo, Eds. San Diego, California: Association for Computational Linguistics, Jun. 2016, pp. 161–169. [Online]. Available: https://aclanthology.org/W16-0425/ [15] M. Khodak, N. Saunshi, and K. Vodrahalli, “A large self-annotated corpus for sarcasm,” in Proceedings of the Eleventh International Conference on Language Resources and Evaluation (LREC 2018) , N. Calzolari, K. Choukri, C. Cieri, T. Declerck, S. Goggi, K. Hasida, H. Isahara, B. Maegaard, J. Mariani, H. Mazo, A. Moreno, J. Odijk, S. Piperidis, and T. Tokunaga, Eds. Miyazaki, Japan: European Language Resources Association (ELRA), May 2018. [Online]. Available: https://aclanthology. org/L18-1102/ [16] Y. H. Tsai, S. Bai, P. P. Liang, J. Z. Kolter, L. Morency, and R. Salakhutdinov, “Multimodal transformer for unaligned multimodal language sequences,” in Proceedings of the 57th Conference of the Association for Computational Linguistics, ACL 2019, Florence, Italy, July 28- August 2, 2019, Volume 1: Long Papers , A. Korhonen, D. R. Traum, and L. M` arquez, Eds. Association for Computational Linguistics, 2019, pp. 6558–6569. [Online]. Available: https://doi.org/10.18653/v1/p19-1656 [17] X. Gao, S. Nayak, and M. Coler, “Spoken in jest, detected in earnest: A systematic review of sar-casm recognition—multimodal fusion, challenges, and fu-ture prospects,” IEEE Transactions on Affective Comput-ing , vol. 16, pp. 2526–2544, 2025. [Online]. Available: https://api.semanticscholar.org/CorpusID:281194741 [18] D. Raghuvanshi, X. Gao, Z. Li, S. Bansal, M. Coler, N. Kumar, and S. Nayak, “Intra-modal relation and emotional incongruity learning using graph attention networks for multimodal sarcasm detection,” ICASSP 2025 - 2025 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pp. 1–5, 2025. [Online]. Available: https://api.semanticscholar.org/ CorpusID:276977265 [19] Z. Li, Y. Zhang, X. Gao, S. Nayak, and M. Coler, “Leveraging Large Language Models for Sarcastic Speech Annotation in Sar-casm Detection,” in Interspeech 2025 , 2025, pp. 3973–3977. [20] A. Scott, M. Z¨ ufle, and J. Niehues, “Musag: A multimodal german sarcasm dataset with full-modal annotations,” ArXiv ,vol. abs/2510.24178, 2025. [Online]. Available: https://api. semanticscholar.org/CorpusID:282400655 [21] G. Trigeorgis, F. Ringeval, R. Brueckner, E. Marchi, M. A. Nico-laou, B. Schuller, and S. Zafeiriou, “Adieu features? end-to-end speech emotion recognition using a deep convolutional recurrent network,” in 2016 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , 2016, pp. 5200–5204. [22] B. Lakshminarayanan, A. Pritzel, and C. Blundell, “Simple and scalable predictive uncertainty estimation using deep ensembles,” in Proceedings of the 31st International Conference on Neural Information Processing Systems , ser. NIPS’17. Red Hook, NY, USA: Curran Associates Inc., 2017, p. 6405–6416. [23] A. Kendall and Y. Gal, “What uncertainties do we need in bayesian deep learning for computer vision?” in Advances in Neural Information Processing Systems , I. Guyon, U. V. Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, and R. Garnett, Eds., vol. 30. Curran Associates, Inc., 2017. [Online]. Available: https://proceedings.neurips.cc/paper files/paper/2017/ file/2650d6089a6d640c5e85b2b88265dc2b-Paper.pdf [24] A. Baevski, Y. Zhou, A. Mohamed, and M. Auli, “wav2vec 2.0: A framework for self-supervised learning of speech representa-tions,” in Advances in Neural Information Processing Systems ,H. Larochelle, M. Ranzato, R. Hadsell, M. Balcan, and H. Lin, Eds., vol. 33. Curran Associates, Inc., 2020, pp. 12 449–12 460. [Online]. Available: https://proceedings.neurips.cc/paper files/ paper/2020/file/92d1e1eb1cd6f9fba3227870bb6d7f07-Paper.pdf [25] W. Hsu, B. Bolte, Y. H. Tsai, K. Lakhotia, R. Salakhutdinov, and A. Mohamed, “Hubert: Self-supervised speech representation learning by masked prediction of hidden units,” IEEE ACM Trans. Audio Speech Lang. Process. , vol. 29, pp. 3451–3460, 2021. [Online]. Available: https://doi.org/10.1109/TASLP.2021. 3122291 [26] S. Chen, C. Wang, Z. Chen, Y. Wu, S. Liu, Z. Chen, J. Li, N. Kanda, T. Yoshioka, X. Xiao, J. Wu, L. Zhou, S. Ren, Y. Qian, Y. Qian, J. Wu, M. Zeng, X. Yu, and F. Wei, “Wavlm: Large-scale self-supervised pre-training for full stack speech processing,” 
+
+IEEE Journal of Selected Topics in Signal Processing , vol. 16, no. 6, pp. 1505–1518, 2022. [27] X. Dai, C. Gong, L. Wang, and K. Zhang, “Information sieve: Content leakage reduction in end-to-end prosody transfer for ex-pressive speech synthesis,” in Interspeech 2021 , 2021, pp. 131– 135. [28] S. Khan, I. Qasim, W. Khan, A. Khan, J. Khan, A. Qahmash, and Y. Ghadi, “An automated approach to identify sarcasm in low-resource language,” PLOS ONE , vol. 19, 12 2024. [29] F. Eyben, K. R. Scherer, B. W. Schuller, J. Sundberg, E. Andr´ e, C. Busso, L. Y. Devillers, J. Epps, P. Laukka, S. S. Narayanan, and K. P. Truong, “The geneva minimalistic acoustic parameter set (gemaps) for voice research and affective computing,” IEEE Transactions on Affective Computing , vol. 7, no. 2, pp. 190–202, 2016. [30] L. Pepino, P. Riera, and L. Ferrer, “Emotion Recognition from Speech Using wav2vec 2.0 Embeddings,” in Interspeech 2021 ,2021, pp. 3400–3404. [31] A.-C. B˘ aroiu and S¸ . Tr˘ aus ¸an-Matu, “Comparison of deep learning models for automatic detection of sarcasm context on the MUStARD dataset,” Electronics , vol. 12, no. 3, 2023. [Online]. Available: https://www.mdpi.com/2079-9292/12/3/666 [32] X. Gao, S. Bansal, K. Gowda, Z. Li, S. Nayak, N. Kumar, and M. Coler, “Amused: An attentive deep neural network for multimodal sarcasm detection incorporating bi-modal data augmentation,” CoRR , vol. abs/2412.10103, 2024. [Online]. Available: https://doi.org/10.48550/arXiv.2412.10103 [33] S. Bhosale, A. Chaudhuri, A. L. R. Williams, D. Tiwari, A. Dutta, X. Zhu, P. Bhattacharyya, and D. Kanojia, “Sarcasm in Sight and Sound: Benchmarking and Expansion to Improve Multimodal Sarcasm Detection,” arXiv e-prints , p. arXiv:2310.01430, Sep. 2023.

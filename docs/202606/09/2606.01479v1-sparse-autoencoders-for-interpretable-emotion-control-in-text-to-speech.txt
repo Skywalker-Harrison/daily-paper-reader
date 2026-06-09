@@ -1,0 +1,532 @@
+Title: Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech
+
+URL Source: https://arxiv.org/pdf/2606.01479v1
+
+Published Time: Tue, 02 Jun 2026 02:19:19 GMT
+
+Number of Pages: 21
+
+Markdown Content:
+# Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech 
+
+Hongfei Du 1 Jiacheng Shi 1 Sidi Lu 1 Gang Zhou 1 Ye Gao 1
+
+# Abstract 
+
+Integrating large language models (LLMs) into text-to-speech (TTS) systems has improved speech expressiveness, yet interpretable emo-tional control remains challenging. Existing ap-proaches primarily rely on external conditioning or global activation steering, offering limited in-sight into the internal representations underly-ing emotional control. In this work, we analyze emotion-related variation in the semantic hidden states of LLM-based TTS models using sparse autoencoders (SAEs) to identify sparse latent fea-tures. Our analysis shows that emotional variation is distributed across multiple sparse latent fea-tures, while intervening on a small subset enables interpretable emotion control. Building on this observation, we introduce a feature-level interven-tion framework for bidirectional emotion induc-tion and suppression without modifying backbone parameters. We further show that distinct latent features are associated with specific acoustic at-tributes (e.g., pitch), suggesting that emotional expression arises from coordinated latent contribu-tions rather than a single global shift. Empirically, steering these sparse latent features achieves com-parable or superior emotion induction and sup-pression performance relative to global steering and existing TTS baselines. § GitHub-Demo 
+
+# 1. Introduction 
+
+LLM-based text-to-speech (TTS) models, which integrate large language models into the speech generation pipeline, have recently demonstrated strong capability in producing natural and expressive speech (Du et al., 2025; Zhou et al., 2025; Wang et al., 2025b; Zhang et al., 2023). Such ex-pressiveness is critical for real-world applications, includ-
+
+> 1
+
+Department of Computer Science, William & Mary, USA. Correspondence to: Ye Gao <ygao18@wm.edu >, Hongfei Du 
+
+<hdu02@wm.edu >.
+
+Proceedings of the 43 rd International Conference on Machine Learning , Seoul, South Korea. PMLR 306, 2026. Copyright 2026 by the author(s). Same text content and speaker identity held fixed    
+
+> Input speech
+> Induction Suppression
+> Neutral Target emotion
+> SAE latent intervention
+> selected sparse latents
+> Output speech
+> Target emotion Neutral
+> - selected latents + selected latents
+
+Figure 1. Conceptual overview of SAE-based bidirectional emo-tion control in the semantic backbone. Holding text content and speaker identity fixed, we intervene on selected SAE latent features. Increasing these features induces a target emotion from neutral speech, whereas decreasing them suppresses the target emotion toward neutral speech. 
+
+ing audiobooks (Guo et al., 2024) and human-computer interaction (Wadley et al., 2022). As a result, controllable emotional expression has become increasingly important in modern TTS systems. Existing emotion-controllable TTS methods typically rely on either label-based or reference-based conditioning. Label-based approaches use discrete emotion categories or textual prompts (Kim et al., 2021; Yang et al., 2025; Ji et al., 2024; Liu et al., 2025). In these methods, emotions are modeled as predefined classes that tend to average out nuanced variations and limit expressive diversity. Reference-based methods transfer style from reference audio (Wang et al., 2025b; Ji et al., 2025), enabling natural prosody trans-fer while requiring suitable reference samples and provid-ing only instance-level, non-adjustable control. Neither paradigm is inherently interpretable, and both offer limited flexibility once the input conditions are fixed. Recent work explores activation steering for training-free emotion con-trol in TTS (Xie et al., 2025), directly modifying hidden states during inference within a diffusion transformer. How-ever, since emotional expression in speech emerges from multiple acoustic factors (e.g., pitch, energy, and prosody), 1
+
+> arXiv:2606.01479v1 [cs.CL] 31 May 2026 Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech
+
+steering with a single dense mean-difference direction cap-tures only a global representation shift rather than separable feature-level variation, thereby limiting interpretability and modular control. This motivates us to investigate whether emotion-related variation can be decomposed into sparse latent features within the semantic backbone. In this work, we analyze emotional variation in the semantic hidden representations of LLM-based TTS models, focus-ing on how emotion-related signals are organized across internal activations rather than as global hidden-state shifts. To analyze this internal representation space, we train a sparse autoencoder (SAE) (Olshausen & Field, 1997) on hidden activations collected during speech semantic-token generation in an unsupervised manner to learn sparse latent features prior to acoustic synthesis. Our analysis in Section 4.2 identifies emotion-related latent features within the semantic backbone. We further show that individual latent features are associated with distinct acoustic variations, such as changes in pitch and spectral brightness. As illustrated in Figure 1, intervening on these latent features enables both emotion induction and suppres-sion without modifying backbone parameters. In summary, our main contributions are as follows: • We demonstrate that sparse autoencoders (SAEs) ex-tract interpretable emotion-related features from the semantic backbone of LLM-based TTS models during semantic-token generation. • We show that emotional expression in TTS is encoded across multiple sparse latent features rather than along a single global direction, offering a representation-level perspective on emotion modeling in speech synthesis. • Building on these findings, we propose a feature-level emotion control framework for LLM-based TTS that enables bidirectional emotion induction and suppres-sion without modifying backbone parameters. 
+
+# 2. Related Work 
+
+Sparse Autoencoders (SAEs) Sparse Autoencoders (SAEs) decompose polysemantic neural representations into sparse, interpretable features (Bricken et al., 2023; Yun et al., 2021; Elhage et al., 2022). They have been increasingly ap-plied in large language models (LLMs) (Cunningham et al., 2023; Ferrando et al., 2024) and vision–language models (VLMs) (Lou et al., 2025) for representation steering (Tem-pleton et al., 2024; Durmus et al., 2024; Joseph et al., 2025) and concept unlearning (Cywi ´nski & Deja, 2025). Prior work has applied SAEs to audio generative models, pri-marily analyzing latent features of acoustic autoencoders and mapping them to acoustic properties such as pitch, am-plitude, and timbre (Paek et al., 2025). This approach fo-cuses on interpreting acoustic latent spaces, whereas we apply SAEs to the semantic backbone of autoregressive LLM-based TTS models to investigate emotion-related la-tent features during speech semantic-token generation. In doing so, we shift interpretability from acoustic realization to high-level emotional structure before acoustic synthesis. 
+
+Emotion-Controllable Text-to-Speech Controllable emotional TTS aims to generate speech with specified affective characteristics (Kim et al., 2021). Existing approaches are commonly divided into label-based and reference-based methods. Label-based methods regulate emotion through predefined discrete categories or textual descriptions. Early work conditions Tacotron-based models on discrete emotion labels (Lee et al., 2017), while more recent LLM-based systems such as EmoVoice (Yang et al., 2025) support flexible control via natural language prompts. Dimensional extensions further introduce continuous affective coordinates (e.g., ADV space) to enhance controllability (Liu et al., 2025). These approaches primarily operate through external conditioning signals defined in advance. Reference-based methods instead transfer speaking style from reference audio (Wang et al., 2018; Skerry-Ryan et al., 2018; Jia et al., 2018), enabling flexible expression without explicit labels. However, the learned style representations are typically opaque and require selecting suitable reference speech at inference time. More recently, activation steering has been explored to enable emotion control by directly modifying hidden states during inference (Xie et al., 2025). This approach performs steering in the original hidden space and typically uses a dense mean-difference direction to induce global representation shifts. In contrast, we investigate whether emotion-related variation can be identified and modulated via sparse latent features within the semantic backbone. 
+
+Activation Steering and Linear Representations Acti-vation steering modulates internal representations during inference to control model behavior without additional train-ing. It has been applied to influence behaviors such as truthfulness (Li et al., 2023; Wang et al., 2025a), safety (Liu et al., 2023), and stylistic attributes (Subramani et al., 2022) in large language models, and has been extended to vision–language models (Gavrikov et al., 2024; Joseph et al., 2025) and text-to-image generative models (Kim & Ghadiyaram, 2025; Li et al., 2024). Recent hybrid TTS architectures integrate autoregressive semantic modeling with flow-based/diffusion-based acoustic generators (Zhou et al., 2025; Deng et al., 2025; Du et al., 2024a;b), enabling instruction-level control via natural language prompts. In TTS, prior steering work has explored interventions in the diffusion-transformer acoustic generation stage (Xie et al., 2025). However, emotional variation may originate up-stream in the autoregressive semantic backbone. If emotion 2Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech Text:  The meeting will last 2 hours.   
+
+> Audio reference :
+> ①Style: neutral / target emotion
+> ②Speaker prompt
+> Conditional flow matching (CFM)
+> Vocoder Encoder
+> Decoder
+> Autoregressive Transformer
+> SAE
+> Audio : Frozen backbone : Speech semantic token : SAE decoder directions
+> : Emotion-related SAE latent activations
+> ❄
+> : Intervention path
+> ❄
+
+Figure 2. Overview of SAE-based emotion modulation in an LLM-based TTS model. The semantic backbone generates token-level hidden representations conditioned on text and optional audio references. A sparse autoencoder (SAE) maps residual-stream activations to sparse latent activations. Selected emotion-related latent features are modulated through the intervention path and decoded back into the residual stream. The resulting representations are passed to the CFM module and vocoder for acoustic synthesis. 
+
+is encoded in these semantic representations, intervening at this stage provides a complementary approach to emotion control. We therefore use sparse autoencoders to identify and modulate interpretable emotion-related latent features within the autoregressive semantic backbone. 
+
+# 3. Methodology 
+
+3.1. Sparse Autoencoders for LLM-based TTS Models 
+
+Rather than modifying downstream acoustic modules (e.g., diffusion- or flow-based synthesis), we integrate a sparse autoencoder (SAE) into the semantic backbone of the autore-gressive LLM-based TTS model, as illustrated in Figure 2. By intervening prior to acoustic synthesis, our approach directly modulates SAE latent features derived from the semantic representations passed to the acoustic generator. During semantic-token generation, the autoregressive trans-former produces hidden representations conditioned on text and optional reference inputs. We intercept the layer-l resid-ual stream and extract activations x ∈ Rd at each gener-ated semantic-token position, where d denotes the hidden dimensionality of the semantic backbone. These residual activations are typically dense and entangled, making direct manipulation less suitable for feature-level emotion control. The SAE represents each dense residual activation x us-ing an overcomplete set of learned latent features. At each token position, the encoder produces a sparse latent acti-vation vector z with only a small number of active latent features. This sparse feature representation provides an interface for identifying interpretable emotion-related and prosodic patterns and intervening on the corresponding la-tent features. During inference, we modulate selected latent features, decode the modified activations back into residual representations, and pass the resulting representations to the acoustic generator for speech synthesis. To learn sparse latent features, we employ a k-sparse autoen-coder (Makhzani & Frey, 2013) that maps the input x into an overcomplete latent space of dimension n (n > d ). This mapping transforms residual stream activations into sparse latent activations under a different basis. The encoder first centers the input using a learnable bias bpre ∈ Rd, and then applies a linear projection Wenc ∈ Rn×d.To obtain sparse and more interpretable representations, we constrain each input to activate only a small number of latent features. Concretely, we apply a Top-k operator (Gao et al., 2024) that retains only the k largest activations while suppressing the rest, introducing a competitive bottleneck among latent features: 
+
+z = Top k
+
+  ReLU( Wenc (x − bpre ) + benc ), (1) where benc ∈ Rn is the encoder bias. This operation en-courages latent features to compete in explaining the input, promoting active latent features that capture more localized semantic factors. The decoder maps each latent feature back to a direction in the residual stream. The input is subsequently reconstructed through a linear decoder: 
+
+ˆx = Wdec z + bpre , (2) 3Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech 
+
+where the columns of Wdec ∈ Rd×n can be interpreted as directions in the residual space, each associated with a specific latent feature. The primary training objective is to minimize the reconstruction error Lrec = ∥x − ˆx∥22, so that the latent activation vector z preserves the semantic information required for downstream TTS tasks. A critical challenge in training overcomplete SAEs is the 
+
+dead latent problem, where a subset of latent features re-mains inactive across the data distribution, leading to under-utilized capacity. To promote better feature utilization, we use selected inactive features to model the residual recon-struction error (x − ˆx), allowing them to capture comple-mentary information not represented by the Top-k active features. Let ˜z denote the activations of selected inactive latent features and ˜x = Wdec ˜z denote their corresponding reconstruction. The auxiliary loss is defined as: 
+
+Laux = ∥(x − ˆx) − ˜x∥22. (3) We train the SAE with a reconstruction objective augmented by an auxiliary loss, L = Lrec + λaux Laux , which improves latent utilization and reduces dead latents. 
+
+3.2. Sparse Latent Feature Identification and Intervention for Emotion Control 
+
+After training the SAE on hidden representations from the LLM-based TTS semantic backbone, emotion steering pro-ceeds in two stages. First, we identify emotion-related la-tent features through controlled activation analysis. Second, during inference, we intercept the layer-l residual stream, encode it into sparse latent activations, modify the activa-tions of the selected latent features, and decode the result back into the residual space. The modified representations are then passed to the CFM module and vocoder. 3.2.1. I DENTIFYING EMOTION -R ELATED LATENT 
+
+FEATURES 
+
+To identify emotion-related SAE latent features, we analyze activation patterns under strictly controlled emotional con-ditions. We fix the input text (see Appendix A) and speaker identity, varying only the emotional reference signal. In particular, neutral speech is treated as the baseline condition, and each target emotion (e.g., happiness, sadness, anger) is contrasted against the corresponding neutral condition. This controlled design reduces confounding effects from lexical content and speaker-dependent variation, making differences in latent activations attributable to emotion. For each input sample u under emotion condition e, the autoregressive backbone produces a sequence of residual stream activations at layer l, denoted as X(e) 
+
+> l
+
+(u) ∈ RTu×d,where Tu is the number of generated semantic tokens for sample u. These activations are encoded by the trained SAE to obtain sparse latent activations A(e)(u) ∈ RTu×n, and we denote the activation of latent feature i at token position 
+
+t by a(e) 
+
+> i,t
+
+(u).A key challenge is to identify latent features that are con-sistently associated with a given emotion, rather than those that exhibit occasional spikes. Peak activations can be dom-inated by isolated token-level effects and may not reflect stable emotional patterns. In contrast, activation frequency reflects how reliably a latent feature participates across dif-ferent contexts, making it a more stable indicator of whether a latent feature is involved in expressing a given emotion. To aggregate activations across samples, we convert token-level activations into a sentence-level occurrence indicator: latent feature i is counted as active for sample u if it fires at any generated token position. 
+
+1(e) 
+
+> i
+
+(u) = ⊮
+
+h
+
+∃ t ∈ { 1, . . . , T u} s.t. a(e) 
+
+> i,t
+
+(u) > 0
+
+i
+
+. (4) This definition operates at the sentence level and does not differentiate between isolated and sustained token-level acti-vations. We adopt a sentence-level metric because emotional expression is typically sustained across an utterance rather than localized to individual tokens. Moreover, each seman-tic token corresponds to a local generation step and only a short portion of the resulting speech, making token-level variations more susceptible to transient noise than stable emotional cues. Since emotion and neutral conditions are evaluated under identical sparsity constraints, occasional token-level spikes are less likely to bias the comparison. We then compute the sentence-level activation rate: 
+
+r(e) 
+
+> i
+
+= 1
+
+|D| 
+
+X
+
+> u∈D
+
+1(e) 
+
+> i
+
+(u). (5) Finally, to isolate emotion-specific modulation, we compare each emotion e with the neutral condition under matched text and speaker conditions. Since each target-emotion sam-ple is paired with a corresponding neutral sample, we define the emotion selectivity score as: 
+
+∆(e) 
+
+> i
+
+= 1
+
+|D| 
+
+X
+
+> u∈D
+
+
+
+1(e) 
+
+> i
+
+(u) − 1(neutral)  
+
+> i
+
+(u)
+
+
+
+. (6) Latent features with the largest positive ∆(e) 
+
+> i
+
+are selected as emotion-related features, as they are more frequently recruited under the target emotional condition than under the matched neutral condition. Because this score is com-puted as a paired emotion–neutral difference under matched text and speaker conditions, it filters out globally frequent but condition-insensitive latent features. We further com-pare this sentence-level selectivity criterion with magnitude-based and token-level alternatives in Appendix D.4, where it improves emotion alignment for all three target emotions. 4Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech 
+
+3.2.2. S PARSE LATENT -F EATURE STEERING 
+
+Given the trained SAE, our key insight is that emotion con-trol can be interpreted as steering the residual representation along a sparse set of learned directions. Specifically, the residual representation can be approximated by the SAE decoder as: 
+
+x ≈ bpre +
+
+> n
+
+X
+
+> j=1
+
+aj (x) dj , (7) where aj (x) denotes the activation of latent feature j and dj
+
+is the corresponding decoder direction in the residual space. Modifying aj (x) therefore steers the residual representation along dj (Ferrando et al., 2024). Let Fe denote the set of emotion-related latent features identified for emotion e. For a residual representation xl,t 
+
+at layer l and token position t, the SAE encoder produces sparse latent activations, and we denote the activation of feature j by aj (xl,t ).Emotion control is implemented by selectively modulat-ing the activation of emotion-related latent features, while leaving all other features unchanged: 
+
+anew  
+
+> j
+
+(xl,t ) = 
+
+(
+
+aj (xl,t ) + αe, if j ∈ F e,aj (xl,t ), otherwise , (8) where αe ∈ R controls both the steering strength and direc-tion. Positive values of αe increase the activations of the selected emotion-related latent features to induce emotion e,whereas negative values suppress their activations to reduce the corresponding emotional expression. In our experiments, varying αe provides a continuous control knob for emotion strength while keeping the selected latent-feature set fixed. The decoder reconstructs the modified residual state: 
+
+xnew  
+
+> l,t
+
+= bpre +
+
+> n
+
+X
+
+> j=1
+
+anew  
+
+> j
+
+(xl,t ) dj . (9) Under the linear reconstruction approximation, this corre-sponds to a direct residual stream intervention: 
+
+xnew  
+
+> l,t
+
+≈ xl,t + αe
+
+X
+
+> j∈F e
+
+dj . (10) This formulation makes explicit that emotion modulation operates as steering along a sparse combination of inter-pretable directions, rather than steering along a single dense global direction. Because the same set of emotion-related latent features and a fixed scaling factor αe are applied across all token positions, the control signal is time-invariant at the semantic-token level and does not introduce position-specific variation in the steering direction. The same formulation naturally al-lows time-varying variants in which αe depends on token position. 
+
+# 4. Experiments 
+
+4.1. Experimental Setup Location In LLM-based TTS architectures, SAE training can in principle be applied to different stages of the gener-ation pipeline, including the autoregressive semantic back-bone and downstream acoustic modules such as flow match-ing. In this work, we train SAEs on residual stream activa-tions from the semantic backbone during speech semantic-token generation. This upstream location captures represen-tations before acoustic synthesis, where linguistic content and high-level expressive variation are jointly organized. It therefore allows us to analyze and modulate emotion-related factors before they are realized by the acoustic mod-ule, rather than directly modifying downstream acoustic dynamics. To our knowledge, prior work has not explored SAE-based analysis of autoregressive semantic backbones in LLM-based TTS systems. Following prior work applying SAEs to LLM residual streams (Lieberum et al., 2024), we adapt this residual-stream analysis to LLM-based TTS by training the SAE on residual stream activations from the IndexTTS2 semantic backbone (Zhou et al., 2025). 
+
+SAE Training Dataset The SAE is trained on hidden representations extracted from 56,000 emotion-controlled TTS generations, evenly distributed across seven emotions (anger, disgust, fear, happiness, neutral, sadness, and sur-prise). The dataset consists of 400 distinct English texts, each synthesized under all combinations of seven emotions and 20 speaker-timbre references, yielding 2,800 utterances per timbre reference and 140 utterances per text. Each gen-eration specifies a target emotion, text content, an emotion-specific style reference, and a neutral reference utterance from IEMOCAP (Busso et al., 2008) used to fix speaker timbre. The style reference provides emotional prosody, while the neutral reference fixes speaker identity. This fully crossed design provides systematic coverage across emo-tions, texts, and speaker timbres, enabling emotion-related latent representations to be analyzed under matched text and speaker conditions. 
+
+SAE Training Details The SAE is trained on token-level representations extracted from the layer-16 pre-LayerNorm residual stream of the autoregressive semantic backbone. To align SAE training with inference-time generation, we use only decode-phase hidden states, excluding conditioning and prefill activations that are not directly modified during steering. These decode-phase representations constitute the SAE training data. We employ a Top-k sparse autoencoder with 4,096 latent features and k = 32 active features per token. The model is optimized using the reconstruction and auxiliary objectives described in Section 3.1, with decoder columns constrained to unit norm. Full implementation and training details are provided in Appendix B. 5Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech 
+
+Practicality and Computational Cost SAE training is a one-time offline step on frozen backbone activations. In our setup, the SAE has 4,096 latent features and a 1280 →4096 →1280 architecture ( ≈10.5M parameters), and is trained for 30,000 optimization steps on a single NVIDIA H100 GPU. Most of the cost comes from extract-ing backbone activations, while SAE optimization itself is lightweight. The trained SAE is small ( ≈40MB in fp32), requires no updates to the TTS backbone, and supports inference-time feature interventions for both emotion induc-tion and suppression. 
+
+Emotion Selectivity Analysis Dataset To compute emo-tion selectivity scores, we construct a separate analysis set of 43,408 emotion-controlled TTS generations, evenly dis-tributed across four conditions: happiness, anger, sadness, and neutral. Samples are generated with matched text and speaker-timbre references across emotion conditions, allow-ing latent activation statistics to be estimated under con-trolled text and speaker conditions. 
+
+Controlled Steering Evaluation Dataset For controlled steering experiments, we construct a paired evaluation set for each target emotion, consisting of 100 matched text-speaker cases with one neutral sample and one target-emotion sample per case. Each case is synthesized twice with the same text and speaker timbre: once using a neu-tral style reference and once using the target-emotion style reference. This paired design enables direct measurement of emotion-induced latent modulation while controlling for text and speaker-dependent factors. 
+
+Evaluation Metrics Our evaluation covers three comple-mentary levels. First, we assess SAE quality using recon-struction error and feature density analysis (Appendix C). Second, we test whether selected latent features have in-terpretable acoustic effects by measuring changes in mel-spectrogram structure, spectral centroid, and energy con-tours under controlled steering. Third, we evaluate down-stream steering quality using three metrics: emotion sim-ilarity (Emo-SIM), Word Error Rate (WER), and speaker similarity (Spk-SIM). Emo-SIM measures emotional consistency from emo-tion2vec embeddings (Ma et al., 2024), with emotion pro-totypes obtained by averaging reference utterances from IEMOCAP. WER measures content preservation and is computed with Whisper-Large V3 (Radford et al., 2023). Spk-SIM measures speaker identity preservation using ERes2Net (Chen et al., 2023). Because speaker embeddings can also be affected by prosodic changes such as pitch, en-ergy, and speaking rate, Spk-SIM should be interpreted as a conservative proxy for identity preservation under emotion conversion rather than a purely identity-only measure.    
+
+> Figure 3. Distribution of activation-frequency differences between anger and neutral conditions across all SAE latent features. Each bar counts the number of latent features within a bin of the selec-tivity score ∆(e)
+> i. The dashed vertical line marks zero difference; positive values indicate more frequent activation under anger than under the matched neutral condition.
+
+We further complement these metrics with human listening results using emotion and naturalness mean opinion scores (EMOS and NMOS) to assess perceived emotion accuracy and speech naturalness. 
+
+4.2. Interpreting SAE Features 
+
+We next investigate how emotion-related features are orga-nized within the SAE latent space. Rather than asking only whether emotion information is present in the backbone, we examine whether emotion-related modulation is broadly distributed across many latent features or concentrated in a small subset of sparse latent features. 4.2.1. S PARSE ORGANIZATION OF EMOTION SIGNALS 
+
+To quantify how emotional modulation manifests in the la-tent space, we compare each target emotion with its neutral counterpart under matched text and speaker conditions us-ing the selectivity score defined in Equation 6. Figure 3 shows the distribution for anger versus neutral. The dis-tribution is centered near zero, indicating that most latent features exhibit comparable activation frequencies across conditions. Only a small subset displays substantial positive shifts, forming a sparse tail of emotion-related features. For each target emotion, we rank latent features by their selectivity scores and use the top-m features as candidates for emotion steering, with m = 6 in our experiments. For anger, each of the selected top-6 features achieves a selec-tivity score of 1 against neutral, indicating that they are activated under the target-emotion condition while remain-ing inactive under the matched neutral condition. Although the SAE enforces token-level sparsity by construction, emo-tion selectivity is also concentrated at the dictionary level: the top-ranked features account for the strongest emotion-6Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech 0    
+
+> 5000
+> 10000
+> Frequency (Hz)
+> Baseline (Neutral) Mel Spectrogram
+> 0
+> 5000
+> 10000
+> Frequency (Hz)
+> Steered Mel Spectrogram
+> 0.0 0.2 0.4 0.6 0.8
+> Time (s)
+> 0.000
+> 0.025
+> 0.050
+> Energy
+> Energy Contour
+> Baseline
+> Steer
+> 10
+> 8
+> 6
+> 4
+> 2
+> 0
+> Mel (dB)
+
+Figure 4. Acoustic effects of steering one emotion-related latent feature (Latent Feature #24). Steering produces localized mid- to high-frequency amplification and local increases in short-time en-ergy while largely preserving the overall time-frequency structure. 
+
+dependent activation differences. Similar heavy-tailed pat-terns are observed for happiness and sadness (Appendix D), suggesting that this sparse organization is consistent across emotions. 4.2.2. A COUSTIC VALIDATION OF SELECTED LATENT 
+
+FEATURES 
+
+To assess whether selectivity-ranked latent features have interpretable acoustic effects, we intervene on individual latent features under matched text and speaker conditions, using neutral generation as the baseline. 
+
+Prosodic and Spectral Effects We examine mel-spectrogram representations and extract short-time energy (RMS) from the generated waveforms, discarding the first 5% of frames to reduce onset artifacts. Across evaluated utterances, positive steering consistently produces local-ized spectral amplification relative to the neutral baseline, most prominently in mid- to high-frequency regions. As shown in Figure 4, these spectral changes coincide with local increases in short-time energy, while the overall time-frequency structure remains largely preserved. 
+
+Quantitative Prosodic Analysis We further quantify the prosodic effects of the selected latent feature with a paired acoustic analysis under matched text and speaker conditions. The intervention significantly increases mean F0 over voiced frames by +23 .11 Hz ( p = 1 .07 × 10 −4) and RMS energy by ∆ = +0 .00435 (p = 0 .00769 ), while effective duration shows no statistically significant change ( p = 0 .687 ). These results indicate that the selected latent feature modulates pitch and intensity without introducing a broad temporal 
+
+Figure 5. Mean spectral-centroid deviation relative to the zero-scale baseline under steering scales from −60 to +60 across 20 neutral utterances. Shaded regions denote 95% confidence inter-vals. Negative scales generally lower spectral centroid, whereas positive scales increase it, consistent with modulation of spectral brightness. 
+
+change. Full statistics and a paired F0 visualization are provided in Appendix E. 
+
+Spectral Structure (Brightness) We quantify spectral modulation induced by the selected latent feature by mea-suring changes in spectral centroid under controlled steer-ing strengths. Twenty neutral utterances are steered with symmetric scales from −60 to +60 . Spectral centroids are computed from magnitude STFT representations (16 kHz sampling rate, 2048-point FFT, hop length 512), and frame-level values are averaged to obtain utterance-level centroids. For each scale, centroid deviations are computed relative to the zero-scale condition and aggregated across utterances. Figure 5 reports mean centroid deviations with 95% con-fidence intervals. Centroid shifts vary systematically with steering strength: negative scales lower spectral centroid, whereas positive scales increase it. This scale-dependent pattern indicates that the selected latent feature modulates spectral brightness. 
+
+Calibrated Emotion-Level Alignment We further test whether steering a selected happiness-related latent feature moves generated speech toward a real happiness reference in emotion-embedding space. The latent feature is chosen as the rank-1 happiness feature under the sentence-level selec-tivity criterion, computed from paired happiness and neutral samples with matched text and speaker conditions. Using an IEMOCAP-based happiness prototype and real neutral and happiness reference levels, we apply scales {− 60 , 0, +60 }
+
+to matched neutral text-speaker conditions. As shown in Fig-ure 6, increasing the steering scale moves generated samples toward the real happiness reference level, suggesting that the selected latent feature induces emotion-aligned variation rather than merely an uncalibrated acoustic shift. Additional 7Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech 
+
+Table 1. Bidirectional emotion steering performance across three target emotions. Part I evaluates emotion induction (Neutral → Target), and Part II evaluates emotion suppression (Target → Neutral). Emo-SIM measures emotion similarity, WER measures content preservation, and Spk-SIM measures speaker similarity. Higher Emo-SIM and Spk-SIM are better; lower WER is better. Best results are bolded, and second-best results are underlined.                                                                                                            
+
+> Anger Happiness Sadness
+> Method Emo-SIM ↑WER ↓Spk-SIM ↑Emo-SIM ↑WER ↓Spk-SIM ↑Emo-SIM ↑WER ↓Spk-SIM ↑
+> Part I: Emotion Induction (Neutral →Target)
+> VALL-E-X (Zhang et al., 2023) 0.831 3.1 0.302 0.697 5.3 0.320 0.869 7.8 0.352 Spark-TTS (Wang et al., 2025b) 0.857 2.7 0.488 0.770 8.6 0.463 0.907 2.3 0.523 EmoVoice (Yang et al., 2025) 0.806 4.1 0.358 0.728 3.4 0.342 0.850 4.0 0.386 CosyVoice (Du et al., 2024a) 0.813 3.9 0.569 0.712 2.9 0.597 0.799 2.4 0.605 Random SAE ( m= 6 )0.892 1.4 0.628 0.813 6.0 0.461 0.858 1.7 0.637
+> Global Steering 0.910 0.1 0.552 0.879 4.0 0.495 0.876 1.9 0.516 SAE-Emotion (Ours) 0.912 0.3 0.569 0.885 2.2 0.515 0.880 1.5 0.481
+> Part II: Emotion Suppression (Target →Neutral)
+> Random SAE ( m= 6 )0.841 0.8 0.342 0.886 2.14 0.343 0.939 0.77 0.427 Global Steering 0.915 2.6 0.392 0.920 1.48 0.379 0.933 1.63 0.436 SAE-Emotion (Ours) 0.939 2.8 0.374 0.924 2.31 0.301 0.941 0.80 0.441
+
+Figure 6. Prototype-calibrated emotion-level alignment for the rank-1 happiness latent feature. Cosine similarity is measured against an IEMOCAP-based happiness prototype; dashed lines mark real neutral and happy reference levels. Error bars denote 95% confidence intervals. 
+
+dense scale sweeps and calibrated latent-feature budget anal-yses across emotions are provided in Appendix D. 
+
+4.3. Emotion Steering in TTS Steering Vector Construction from SAE Latent Features 
+
+Individual latent features exhibit distinct acoustic charac-teristics, as shown in the preceding analysis. However, emotional expression in speech is multifactorial, involving coordinated variation across multiple acoustic dimensions. Steering along a single latent feature therefore captures only one aspect of emotion realization and may provide limited expressive flexibility as a generation control signal. To reflect this multidimensional structure, we construct a composite steering direction by combining the top-6 emotion-related latent features ranked by their sentence-level selectivity scores. We assign equal weights to these latent features and map the resulting combination back to the residual space using the corresponding SAE decoder directions, without including the decoder bias. For comparison, we include two steering baselines. Global steering constructs a direction directly in the residual space using the mean-difference vector between target-emotion and neutral representations. Random SAE steering selects six latent features uniformly at random from the SAE latent space, combines them with equal weights, and maps the resulting combination to the residual space using the corre-sponding SAE decoder directions. All steering vectors are applied using the formulation described in Section 3.2.2. 
+
+Steering Datasets and Compared Baselines We conduct emotion steering experiments on the datasets described in Section 4.1. We compare SAE-Emotion with the steering baselines above and with existing TTS systems, including VALL-E-X, Spark-TTS, EmoVoice, and CosyVoice. De-tailed model descriptions, including the IndexTTS2 back-bone used by our method, are provided in Appendix G, and evaluation protocols are provided in Appendix H. 
+
+Bidirectional Steering Results Table 1 reports bidirec-tional emotion steering results for anger, happiness, and sadness. We compare SAE-Emotion with existing TTS base-lines and alternative steering methods under both induction and suppression settings. In the induction setting, SAE-Emotion achieves the high-est or second-highest Emo-SIM across all evaluated emo-tions while maintaining competitive WER. Compared with 8Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech            
+
+> Table 2. Human evaluation of SAE-Emotion, Global Steering, and Random SAE with 20 raters on a 0–5 scale. EMOS measures perceived emotion accuracy, and NMOS measures naturalness; higher is better. Method EMOS ↑NMOS ↑
+> SAE-Emotion 3.22 3.49 Global Steering 3.10 3.38 Random SAE 1.82 3.22
+
+Global Steering, SAE-Emotion uses a small set of emotion-related sparse latent features rather than a single dense mean-difference direction. Compared with Random SAE, SAE-Emotion yields more consistent emotion alignment, suggesting that selectivity-based latent-feature selection is more reliable than arbitrary sparse perturbations. In the suppression setting, SAE-Emotion achieves the high-est or comparable Emo-SIM relative to the neutral reference across all three emotions, with WER and speaker similar-ity generally comparable to alternative steering methods. These results indicate that SAE-Emotion supports both emo-tion induction and suppression without modifying the TTS backbone. Additional analyses of cross-emotion behavior, latent-feature budget, and strong-steering robustness are provided in Appendices D.2 and F. 
+
+Human Evaluation We further assess perceptual quality through a randomized blind listening study with 20 raters. As shown in Table 2, SAE-Emotion obtains the highest EMOS and NMOS among the compared steering methods. The EMOS improvement indicates more accurate perceived expression of the target emotions, while the NMOS result suggests that the generated speech remains natural to listen-ers. Together, these results support the perceptual quality of the induced emotional variations. 
+
+# 5. Conclusion 
+
+We investigated how emotion is internally represented in the semantic backbone of LLM-based TTS systems, show-ing that emotional variation is distributed across multiple sparse latent features. Using sparse autoencoders to ana-lyze semantic hidden states, we identified a small subset of emotion-related latent features with distinct activation and acoustic patterns under controlled conditions. Build-ing on these observations, we introduced a latent-feature intervention framework for bidirectional emotion control, enabling both emotion induction and suppression without modifying backbone parameters. Our experiments show that manipulating selectivity-ranked sparse latent features can steer emotional expression while largely preserving lin-guistic content, naturalness, and speaker identity, providing an interpretable feature-level alternative to dense global steering. 
+
+# Limitations 
+
+Training sparse autoencoders on large-scale activation data introduces non-trivial computational and storage require-ments. Consequently, our full analysis is conducted on a single backbone configuration, with an additional cross-backbone analysis provided in the appendix. Extending the framework to additional architectures with the same level of controlled evaluation would provide a more comprehen-sive assessment of generality. In addition, emotional latent features in audio models are inherently difficult to quantify because speech expression is multidimensional and percep-tual. In this work, we focus on representative and clearly observable latent features for controlled analysis. A more systematic characterization of the full latent space remains an open direction for future research. 
+
+# Impact Statement 
+
+This work proposes an interpretable framework for emo-tional steering in text-to-speech systems, which may benefit applications in accessibility, affective computing, and per-sonalized speech synthesis. At the same time, controllable emotional generation may be misused to produce emotion-ally manipulative or misleading speech, including imper-sonation or deceptive synthetic content. Interpretability methods that reveal controllable internal factors may also be repurposed beyond the intended analysis setting. We therefore encourage responsible deployment and continued research on safeguards for consent, misuse prevention, and detection of emotionally expressive synthetic speech. 
+
+# References 
+
+Bricken, T., Templeton, A., Batson, J., Chen, B., Jermyn, A., Conerly, T., Turner, N., Anil, C., Denison, C., Askell, A., Lasenby, R., Wu, Y., Kravec, S., Schiefer, N., Maxwell, T., Joseph, N., Hatfield-Dodds, Z., Tamkin, A., Nguyen, K., McLean, B., Burke, J. E., Hume, T., Carter, S., Henighan, T., and Olah, C. Towards monosemanticity: Decomposing language models with dictionary learning. 
+
+Transformer Circuits Thread , 2023. https://transformer-circuits.pub/2023/monosemantic-features/index.html. Busso, C., Bulut, M., Lee, C.-C., Kazemzadeh, A., Mower, E., Kim, S., Chang, J. N., Lee, S., and Narayanan, S. S. IEMOCAP: Interactive emotional dyadic motion capture database. Language resources and evaluation , 42(4): 335–359, 2008. Chen, Y., Zheng, S., Wang, H., Cheng, L., Chen, Q., and Qi, J. An enhanced Res2Net with local and global feature fusion for speaker verification. arXiv preprint arXiv:2305.12838 , 2023. Cunningham, H., Ewart, A., Riggs, L., Huben, R., and 9Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech 
+
+Sharkey, L. Sparse autoencoders find highly inter-pretable features in language models. arXiv preprint arXiv:2309.08600 , 2023. Cywi ´nski, B. and Deja, K. SAeUron: Interpretable concept unlearning in diffusion models with sparse autoencoders. 
+
+arXiv preprint arXiv:2501.18052 , 2025. Deng, W., Zhou, S., Shu, J., Wang, J., and Wang, L. IndexTTS: An industrial-level controllable and effi-cient zero-shot text-to-speech system. arXiv preprint arXiv:2502.05512 , 2025. Du, Z., Chen, Q., Zhang, S., Hu, K., Lu, H., Yang, Y., Hu, H., Zheng, S., Gu, Y., Ma, Z., et al. CosyVoice: A scalable multilingual zero-shot text-to-speech synthesizer based on supervised semantic tokens. arXiv preprint arXiv:2407.05407 , 2024a. Du, Z., Wang, Y., Chen, Q., Shi, X., Lv, X., Zhao, T., Gao, Z., Yang, Y., Gao, C., Wang, H., et al. CosyVoice 2: Scalable streaming speech synthesis with large language models. arXiv preprint arXiv:2412.10117 , 2024b. Du, Z., Gao, C., Wang, Y., Yu, F., Zhao, T., Wang, H., Lv, X., Wang, H., Ni, C., Shi, X., et al. CosyVoice 3: Towards in-the-wild speech generation via scaling-up and post-training. arXiv preprint arXiv:2505.17589 , 2025. Durmus, E., Tamkin, A., Clark, J., Wei, J., Marcus, J., Batson, J., Handa, K., Lovitt, L., Tong, M., McCain, M., Rausch, O., Huang, S., Bowman, S., Ritchie, S., Henighan, T., and Ganguli, D. Evaluat-ing feature steering: A case study in mitigating so-cial biases, 2024. URL https://anthropic.com/ research/evaluating-feature-steering .Elhage, N., Hume, T., Olsson, C., Schiefer, N., Henighan, T., Kravec, S., Hatfield-Dodds, Z., Lasenby, R., Drain, D., Chen, C., et al. Toy models of superposition. arXiv preprint arXiv:2209.10652 , 2022. Ferrando, J., Obeso, O., Rajamanoharan, S., and Nanda, N. Do I know this entity? knowledge awareness and hallucinations in language models. arXiv preprint arXiv:2411.14257 , 2024. Gao, L., la Tour, T. D., Tillman, H., Goh, G., Troll, R., Radford, A., Sutskever, I., Leike, J., and Wu, J. Scal-ing and evaluating sparse autoencoders. arXiv preprint arXiv:2406.04093 , 2024. Gavrikov, P., Lukasik, J., Jung, S., Geirhos, R., Mirza, M. J., Keuper, M., and Keuper, J. Can we talk mod-els into seeing the world differently? arXiv preprint arXiv:2403.09193 , 2024. Guo, D., Zhu, X., Xue, L., Zhang, Y., Tian, W., and Xie, L. Text-aware and context-aware expressive audiobook speech synthesis. arXiv preprint arXiv:2406.05672 , 2024. Ji, S., Zuo, J., Fang, M., Jiang, Z., Chen, F., Duan, X., Huai, B., and Zhao, Z. TextrolSpeech: A text style control speech corpus with codec language text-to-speech models. In ICASSP 2024-2024 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pp. 10301–10305. IEEE, 2024. Ji, S., Chen, Q., Wang, W., Zuo, J., Fang, M., Jiang, Z., Huang, H., Wang, Z., Cheng, X., Zheng, S., and Zhao, Z. ControlSpeech: Towards simultaneous and indepen-dent zero-shot speaker cloning and zero-shot language style control. In Che, W., Nabende, J., Shutova, E., and Pilehvar, M. T. (eds.), Proceedings of the 63rd Annual Meeting of the Association for Computational Linguis-tics (Volume 1: Long Papers) , pp. 6966–6981, Vienna, Austria, July 2025. Association for Computational Lin-guistics. ISBN 979-8-89176-251-0. doi: 10.18653/v1/ 2025.acl-long.346. URL https://aclanthology. org/2025.acl-long.346/ .Jia, Y., Zhang, Y., Weiss, R., Wang, Q., Shen, J., Ren, F., Nguyen, P., Pang, R., Lopez Moreno, I., Wu, Y., et al. Transfer learning from speaker verification to mul-tispeaker text-to-speech synthesis. Advances in neural information processing systems , 31, 2018. Joseph, S., Suresh, P., Goldfarb, E., Hufe, L., Gandelsman, Y., Graham, R., Bzdok, D., Samek, W., and Richards, B. A. Steering CLIP’s vision transformer with sparse autoencoders. arXiv preprint arXiv:2504.08729 , 2025. Kim, D. and Ghadiyaram, D. Concept steerers: Leveraging k-sparse autoencoders for controllable generations. arXiv preprint arXiv:2501.19066 , 2025. Kim, M., Cheon, S. J., Choi, B. J., Kim, J. J., and Kim, N. S. Expressive text-to-speech using style tag. arXiv preprint arXiv:2104.00436 , 2021. Kingma, D. P. and Ba, J. Adam: A method for stochastic optimization. arXiv preprint arXiv:1412.6980 , 2014. Lee, Y., Rabiee, A., and Lee, S.-Y. Emotional end-to-end neural speech synthesizer. arXiv preprint arXiv:1711.05447 , 2017. Li, K., Patel, O., Vi ´egas, F., Pfister, H., and Wattenberg, M. Inference-time intervention: Eliciting truthful answers from a language model. Advances in Neural Information Processing Systems , 36:41451–41530, 2023. Li, S., van de Weijer, J., Hu, T., Khan, F. S., Hou, Q., Wang, Y., and Yang, J. Get what you want, not what you don’t: Image content suppression for text-to-image diffusion models. arXiv preprint arXiv:2402.05375 , 2024. 10 Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech 
+
+Lieberum, T., Rajamanoharan, S., Conmy, A., Smith, L., Sonnerat, N., Varma, V., Kram ´ar, J., Dragan, A., Shah, R., and Nanda, N. Gemma scope: Open sparse autoen-coders everywhere all at once on gemma 2. arXiv preprint arXiv:2408.05147 , 2024. Liu, J., Xiang, Y., Zhao, H., Li, X., Gao, Y., Zhang, S., and Ling, Z. UDDETTS: Unifying discrete and dimensional emotions for controllable emotional text-to-speech. arXiv preprint arXiv:2505.10599 , 2025. Liu, S., Ye, H., Xing, L., and Zou, J. In-context vec-tors: Making in context learning more effective and con-trollable through latent space steering. arXiv preprint arXiv:2311.06668 , 2023. Lou, H., Li, C., Ji, J., and Yang, Y. Sae-v: Interpreting mul-timodal models for enhanced alignment. arXiv preprint arXiv:2502.17514 , 2025. Ma, Z., Zheng, Z., Ye, J., Li, J., Gao, Z., Zhang, S., and Chen, X. emotion2vec: Self-supervised pre-training for speech emotion representation. In Findings of the As-sociation for Computational Linguistics: ACL 2024 , pp. 15747–15760, 2024. Makhzani, A. and Frey, B. K-sparse autoencoders. arXiv preprint arXiv:1312.5663 , 2013. Olshausen, B. A. and Field, D. J. Sparse coding with an overcomplete basis set: A strategy employed by v1? Vi-sion research , 37(23):3311–3325, 1997. Paek, N., Zang, Y., Yang, Q., and Leistikow, R. Learning interpretable features in audio latent spaces via sparse autoencoders. arXiv preprint arXiv:2510.23802 , 2025. Radford, A., Kim, J. W., Xu, T., Brockman, G., McLeavey, C., and Sutskever, I. Robust speech recognition via large-scale weak supervision. In International conference on machine learning , pp. 28492–28518. PMLR, 2023. Skerry-Ryan, R., Battenberg, E., Xiao, Y., Wang, Y., Stan-ton, D., Shor, J., Weiss, R., Clark, R., and Saurous, R. A. Towards end-to-end prosody transfer for expressive speech synthesis with tacotron. In international confer-ence on machine learning , pp. 4693–4702. PMLR, 2018. Subramani, N., Suresh, N., and Peters, M. E. Extracting latent steering vectors from pretrained language models. 
+
+arXiv preprint arXiv:2205.05124 , 2022. Templeton, A., Conerly, T., Marcus, J., Lindsey, J., Bricken, T., Chen, B., Pearce, A., Citro, C., Ameisen, E., Jones, A., Cunningham, H., Turner, N. L., McDougall, C., MacDiarmid, M., Freeman, C. D., Sumers, T. R., Rees, E., Batson, J., Jermyn, A., Carter, S., Olah, C., and Henighan, T. Scaling monosemanticity: Ex-tracting interpretable features from claude 3 sonnet. 
+
+Transformer Circuits Thread , 2024. URL https: //transformer-circuits.pub/2024/ scaling-monosemanticity/index.html .Wadley, G., Kostakos, V., Koval, P., Smith, W., Webber, S., Cox, A., Gross, J. J., H ¨o ¨ok, K., Mandryk, R., and Slov ´ak, P. The future of emotion in human-computer interaction. In CHI Conference on human factors in computing systems extended abstracts , pp. 1–6, 2022. Wang, C., Chen, S., Wu, Y., Zhang, Z., Zhou, L., Liu, S., Chen, Z., Liu, Y., Wang, H., Li, J., et al. Neural codec language models are zero-shot text to speech synthesizers. 
+
+arXiv preprint arXiv:2301.02111 , 2023. Wang, T., Jiao, X., Zhu, Y., Chen, Z., He, Y., Chu, X., Gao, J., Wang, Y., and Ma, L. Adaptive activation steering: A tuning-free llm truthfulness improvement method for diverse hallucinations categories. In Proceedings of the ACM on Web Conference 2025 , pp. 2562–2578, 2025a. Wang, X., Jiang, M., Ma, Z., Zhang, Z., Liu, S., Li, L., Liang, Z., Zheng, Q., Wang, R., Feng, X., et al. Spark-TTS: An efficient LLM-based text-to-speech model with single-stream decoupled speech tokens. arXiv preprint arXiv:2503.01710 , 2025b. Wang, Y., Stanton, D., Zhang, Y., Ryan, R.-S., Battenberg, E., Shor, J., Xiao, Y., Jia, Y., Ren, F., and Saurous, R. A. Style tokens: Unsupervised style modeling, control and transfer in end-to-end speech synthesis. In International conference on machine learning , pp. 5180–5189. PMLR, 2018. Xie, T., Yang, S., Li, C., Yu, D., and Liu, L. EmoSteer-TTS: Fine-grained and training-free emotion-controllable text-to-speech via activation steering. arXiv preprint arXiv:2508.03543 , 2025. Yang, G., Yang, C., Chen, Q., Ma, Z., Chen, W., Wang, W., Wang, T., Yang, Y., Niu, Z., Liu, W., et al. EmoVoice: LLM-based emotional text-to-speech model with freestyle text prompting. In Proceedings of the 33rd ACM International Conference on Multimedia , pp. 10748– 10757, 2025. Ye, Z., Zhu, X., Chan, C.-M., Wang, X., Tan, X., Lei, J., Peng, Y., Liu, H., Jin, Y., Dai, Z., et al. LLaSA: Scaling train-time and inference-time compute for LLaMA-based speech synthesis. arXiv preprint arXiv:2502.04128 , 2025. Yun, Z., Chen, Y., Olshausen, B., and LeCun, Y. Trans-former visualization via dictionary learning: contextual-ized embedding as a linear superposition of transformer factors. In Proceedings of Deep Learning Inside Out 
+
+11 Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech 
+
+(DeeLIO): The 2nd Workshop on Knowledge Extraction and Integration for Deep Learning Architectures , pp. 1– 10, 2021. Zhang, Z., Zhou, L., Wang, C., Chen, S., Wu, Y., Liu, S., Chen, Z., Liu, Y., Wang, H., Li, J., et al. Speak foreign lan-guages with your own voice: Cross-lingual neural codec language modeling. arXiv preprint arXiv:2303.03926 ,2023. Zhou, S., Zhou, Y., He, Y., Zhou, X., Wang, J., Deng, W., and Shu, J. IndexTTS2: A breakthrough in emotionally expressive and duration-controlled auto-regressive zero-shot text-to-speech. arXiv preprint arXiv:2506.21619 ,2025. 12 Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech 
+
+# Appendix Organization 
+
+The appendix follows the order of the main paper narrative. Appendix A describes the controlled prompts and metadata format. Appendices B–C report SAE training and intrinsic evaluation details. Appendices D–F provide additional analyses of emotion selectivity, latent-feature control, acoustic effects, and strong steering. Appendices G–H describe baselines and evaluation protocols. Appendix I provides an additional cross-backbone analysis. 
+
+# A. Text Prompts Used for Controlled Emotion Analysis 
+
+Prompt Design To isolate emotion-specific modulation from lexical content, we construct a set of 100 semantically neutral English sentences. The prompts describe everyday events, procedural actions, or observational statements without explicit affective language. This design minimizes intrinsic emotional bias in the text and ensures that differences in generated speech arise primarily from emotional style conditioning. 
+
+Controlled Generation Protocol For each text prompt, we generate speech under multiple emotional reference conditions (e.g., neutral, happiness, sadness, anger). We fix the speaker identity and timbre reference across emotion conditions, and vary only the emotional style reference. This controlled setup ensures that any differences in hidden activations can be attributed to emotional style rather than lexical content or speaker-dependent variation. 
+
+Metadata Format Each sample is stored as a structured JSON record containing the emotion label, text prompt, style reference, timbre reference, and speaker identifier. An example entry is shown below: 
+
+{"emotion": "Anger", "text": "I arrived at the location earlier than expected.", "style_ref": "Anger_Ses03M_impro01_F025.wav", "timbre_ref": "Ses01F_impro04_M016.wav", "speaker_id": "0001", "text_id": 0, "utterance_id": 0}
+
+Full Prompt List The complete set of 100 neutral prompts used in controlled emotion analysis is listed below. 
+
+1. I arrived at the location earlier than expected. 2. The meeting started a few minutes late. 3. I noticed a change in the schedule today. 4. The room was quieter than usual. 5. I reviewed the document before sending it. 6. The package was delivered this morning. 7. I checked the results after the test finished. 8. The system updated overnight. 9. I received the message earlier today. 10. The lights were turned off automatically. 11. I waited for the response before continuing. 12. The train stopped at the next station. 13. I followed the instructions as written. 14. The report includes several data points. 15. I observed a difference in the output. 16. The process completed without interruption. 17. I took notes during the discussion. 18. The file was saved in the correct folder. 19. I compared the two versions carefully. 20. The door remained open for a while. 21. I checked the time before leaving. 22. The equipment was moved to another room. 23. I reviewed the details again later. 24. The announcement was made earlier today. 25. I noticed the change after returning. 26. The temperature stayed the same throughout the day. 27. I updated the record after verification. 28. The call ended shortly after noon. 29. I followed up on the request yesterday. 30. The task required several steps to complete. 31. I looked over the information provided. 32. The session lasted longer than planned. 33. I adjusted the settings accordingly. 34. The message appeared on the screen. 35. I observed the process from start to finish. 36. The document was shared with the team. 37. I recorded the results for later use. 38. The system responded as expected. 39. I confirmed the details this afternoon. 40. The data was collected over several days. 41. I noticed the update after restarting the system. 42. The device remained connected throughout the test. 43. I reviewed the notes before the meeting. 44. The instructions were displayed clearly. 45. I checked the list once more. 46. The session resumed after a short break. 47. I observed a pattern in the results. 48. The file was uploaded successfully. 
+
+13 Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech 
+
+49. I followed the procedure step by step. 50. The results were stored securely. 51. I verified the information before proceeding. 52. The response arrived later in the day. 53. I adjusted the timeline slightly. 54. The screen displayed the final output. 55. I reviewed the changes carefully. 56. The update affected several components. 57. I noted the difference during testing. 58. The system remained stable throughout. 59. I checked the configuration settings. 60. The process required additional input. 61. I observed the behavior under different conditions. 62. The report was completed on time. 63. I reviewed the summary afterward. 64. The message was forwarded to the team. 65. I confirmed the location before arriving. 66. The system logged the activity automatically. 67. I checked the connection status. 68. The results matched the initial expectations. 69. I reviewed the timeline again. 70. The device responded to the input. 71. I noted the changes in the display. 72. The update was applied successfully. 73. I checked the documentation for details. 74. The system processed the request. 75. I observed the output during the test. 76. The file was accessed earlier. 77. I reviewed the configuration afterward. 78. The process continued without delay. 79. I checked the status before leaving. 80. The message was received as scheduled. 81. I observed the system behavior overnight. 82. The document was revised slightly. 83. I reviewed the output once more. 84. The update was completed earlier. 85. I checked the log for details. 86. The process required confirmation. 87. I noted the response time. 88. The system remained active. 89. I reviewed the settings again. 90. The task was completed as planned. 91. I observed the results after processing. 92. The data was organized by category. 93. I checked the sequence of events. 94. The update included minor changes. 95. I reviewed the procedure carefully. 96. The system recorded the input. 97. I noted the final output. 98. The file was closed properly. 99. I checked the summary afterward. 100. The process concluded successfully. 
+
+# B. SAE Training Details 
+
+Optimization Setup. We train the SAE for 30,000 optimization steps using Adam (Kingma & Ba, 2014) ( lr = 10 −4,
+
+ϵ = 6 .25 × 10 −16 ), processing a target of 16,384 tokens per update. The latent dimensionality is fixed to 4096, with K = 32 
+
+active features enforced per token throughout training. 
+
+Loss and Regularization. Training minimizes a normalized reconstruction objective. To reduce feature collapse and mitigate dead latent features, we incorporate a usage-based sparsity regularizer (weight 0.01) together with an auxiliary residual projection loss ( λaux = 0 .1). A latent feature is considered dead if it has not been activated within the last 10 6
+
+tokens. 
+
+Stability Mechanisms. Decoder columns are renormalized to unit norm after each update to maintain consistent interven-tion scales. Decoder gradients are additionally projected onto the orthogonal subspace of the weight vectors to preserve the norm constraint. We further apply exponential moving average (EMA, decay 0.99) to stabilize optimization. 
+
+Latent Dimension Sensitivity. We also trained a 10,240-dimensional SAE. Although reconstruction error further de-creased, emotion-related features became more fragmented and distributed across a larger number of sparse directions, reducing emotional interpretability in the TTS residual space. For clarity and controlled analysis of emotion steering, we therefore focus on the 4096-dimensional model. 
+
+Training Infrastructure. All experiments are conducted on a single NVIDIA H100 GPU. 
+
+# C. SAE Evaluation 
+
+We evaluate the sparsity and reconstruction behavior of the trained SAE through feature density and reconstruction error analysis. The trained SAE achieves a normalized mean squared reconstruction error (MSE) of 0.129 on centered and unit-normalized residual representations, indicating that the sparse latent activations preserve most of the semantic variance despite the strict Top-k constraint. Figure 7 shows the distribution of feature activation densities on a logarithmic scale. The average activation fraction per token matches the theoretical Top-k sparsity level (32 /4096 ≈ 0.0078) , confirming proper sparsity enforcement. The density 14 Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech 
+
+distribution exhibits a smooth long-tailed pattern without a large mass near zero, and no dead latent features are observed under the 10 6-token inactivity criterion. These results indicate stable and well-utilized sparse feature representations. 
+
+Figure 7. Feature activation density distribution on a logarithmic scale. The distribution is long-tailed but does not contain a large mass of inactive latent features, indicating stable Top-k sparse activations. 
+
+# D. Additional Emotion Selectivity and Control Analyses 
+
+This section provides supplementary analyses of emotion selectivity, intensity control, cross-emotion behavior, latent-feature overlap, and latent-feature selection criteria. We first examine the distribution of selectivity scores for happiness and sadness, shown in Figure 8. Consistent with the anger case, both distributions are sharply centered around zero, indicating that most latent features exhibit comparable activation frequencies under emotion and neutral conditions. Only a small subset of latent features shows substantial positive deviations, suggesting that emotion selectivity is consistently concentrated in a limited number of sparse components across different emotions. 
+
+(a) Happiness vs Neutral (b) Sadness vs Neutral 
+
+Figure 8. Distribution of selectivity score ( ∆(e) 
+
+> i
+
+) between each target emotion and Neutral. Each latent feature is assigned a value reflecting how frequently it is activated under emotion e relative to Neutral on matched texts. The distributions are sharply centered around zero, while only a small subset of latent features exhibits large positive deviations, demonstrating that emotion selectivity is concentrated in a sparse set of interpretable features. 
+
+15 Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech 
+
+D.1. Single-Scalar Intensity Control 
+
+To examine whether target-emotion intensity can be adjusted with a single steering coefficient, we vary the steering scale αe
+
+from −60 to +60 while keeping the selected emotion-related latent feature fixed. For each scale, we generate speech under matched text and speaker conditions and compute cosine similarity to the target emotion prototype in emotion2vec space. As shown in Figure 9, similarity to the target emotion prototype increases smoothly with αe, from approximately 0.77 at 
+
+αe = −60 to 0.86 at αe = +60 . This trend indicates that the steering scale provides an intuitive control knob for adjusting target-emotion intensity.     
+
+> Figure 9. Single-scalar control of target-emotion intensity. Mean cosine similarity to the target emotion prototype is plotted as a function of steering scale αe. The zero-scale condition corresponds to the neutral baseline. Similarity increases smoothly as αeincreases, indicating that target-emotion strength can be adjusted through a single continuous steering coefficient. Shaded regions denote 95% confidence intervals.
+
+D.2. Cross-Emotion Behavior and Latent-Feature Budget 
+
+We further analyze how controllability varies across both emotion categories and latent-feature budgets. Figure 10 shows scale-dependent alignment to emotion prototypes for happiness, anger, and sadness under top-1, top-3, and top-6 latent-feature settings. Happiness shows a consistent monotonic trend even with a single latent feature, suggesting a relatively concentrated control direction. In contrast, anger and sadness benefit more from increasing the latent-feature budget, indicating that their control signals are more distributed across multiple sparse features. These results suggest that emotion-related control is sparse but not uniformly single-feature: some emotions can be steered by a small dominant latent feature, whereas others require a structured combination of multiple latent features. 
+
+D.3. Latent Feature Overlap Across Emotions 
+
+We examine whether the selected emotion-related latent features overlap across different emotions. Under our selection criterion (top-m latent features based on the sentence-level selectivity score), we observe no overlap among the top-6 latent features across emotions in our setting. This indicates that, at high activation levels, different emotions are largely captured by distinct sparse directions, rather than relying on a single shared latent feature. This separation supports our interpretation that emotion control is associated with emotion-specific sparse activations. We note that partial overlap may emerge under different sparsity thresholds or selection strategies, which we leave for future work. 
+
+D.4. Comparison with Alternative Selection Criteria 
+
+To examine whether the proposed sentence-level selectivity score identifies emotion-specific latent features rather than merely frequently activated ones, we compare it with two alternative criteria: magnitude-based selection and token-level selection. All criteria are computed under the same paired emotion-versus-neutral setting with matched text and speaker conditions. 16 Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech 
+
+Figure 10. Scale-dependent alignment to emotion prototypes across emotion categories and latent-feature budgets. Columns correspond to target emotions, and rows correspond to top-1, top-3, and top-6 selected latent-feature settings. Similarity is calibrated using neutral and real-emotion reference groups. 
+
+17 Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech 
+
+As shown in Table 3, sentence-level selectivity yields stronger emotion alignment across all three target emotions. This suggests that the selected latent features are not only active, but are more reliably associated with emotion-specific modulation under controlled conditions.  
+
+> Table 3. Comparison of latent-feature selection criteria for emotion induction. Sentence-level selectivity achieves stronger emotion alignment than magnitude-based and token-level alternatives across all three target emotions.
+
+Method Anger ↑ Happiness ↑ Sadness ↑
+
+Sentence-level selectivity 0.912 0.885 0.880 Magnitude-based selection 0.822 0.820 0.866 Token-level selection 0.825 0.811 0.864 
+
+# E. Quantitative Acoustic Analysis 
+
+To further examine whether the selected SAE latent feature corresponds to interpretable acoustic changes, we measure three utterance-level acoustic features under matched text and speaker conditions: mean F0, effective duration, and RMS energy. For each utterance, we compare the neutral baseline with the steered generation using paired statistics. As shown in Table 4, steering significantly increases mean F0 and RMS energy, while duration does not show a statistically significant change. This suggests that the selected latent feature primarily modulates pitch and vocal intensity rather than simply changing speaking duration.  
+
+> Table 4. Quantitative analysis of acoustic features under controlled steering with matched text and speaker identity. Steering significantly increases pitch (F0) and RMS energy, while duration shows no statistically significant change.
+
+Feature Baseline Mean Baseline Std Steered Mean Steered Std ∆ p-value F0 (Hz) 167.99 11.20 191.10 14.06 +23.11 1.07 ×10 −4
+
+Duration (s) 1.685 0.234 1.662 0.259 -0.023 0.687 RMS Energy 0.02712 0.00354 0.03146 0.00479 +0.00435 0.00769 
+
+# F. Robustness under Strong Steering 
+
+To evaluate whether sparse steering preserves linguistic integrity under stronger interventions, we compare SAE steering with dense global steering at a high steering scale. As shown in Table 5, SAE steering substantially reduces WER and deletion errors compared with global steering, suggesting that sparse feature-level interventions introduce less decoding interference.  
+
+> Table 5. Robustness under strong steering. SAE steering preserves linguistic fidelity better than dense global steering under high steering strength.
+
+Method Mean WER ↓ Mean Deletion ↓ Max Deletion ↓
+
+Global Steering 2.86% 2.05% 14.89% SAE Steering 0.57% 0.00% 0.00% 
+
+F.1. Bidirectional Latent-Feature Intervention 
+
+We additionally compare positive-only steering with a bidirectional latent-feature intervention that simultaneously increases target-emotion latent features and decreases opposing or neutral-associated latent features. This analysis is intended to test whether sparse latent-feature interventions support more structured control than uniform positive scaling alone. As shown in Figure 12, bidirectional intervention produces a larger increase in mean F0 than positive-only steering under paired utterances. This suggests that sparse latent-feature control can support both reinforcement and suppression of selected components. We treat this as a supplementary analysis rather than the primary steering protocol used in the main experiments. 18 Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech 
+
+Figure 11. Paired comparison of mean fundamental frequency (F0) between neutral and steered generations under matched text and speaker identity. Each gray line represents one matched utterance pair, and black markers indicate condition means. Steering increases mean F0 by +23 .11 Hz on average ( p = 1 .07 × 10 −4). 
+
+Figure 12. Distribution of mean fundamental frequency (F0) comparing positive-only steering and bidirectional latent-feature intervention under paired utterances. Higher values indicate elevated pitch relative to the comparison condition. 
+
+19 Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech 
+
+# G. Baselines and Backbone 
+
+In this section, we present four baseline methods for comparison, as well as our backbone model, IndexTTS2, on which the SAE is trained for latent analysis and steering. • VALL-E-X (Zhang et al., 2023) 1 extends the VALL-E (Wang et al., 2023) framework to cross-lingual speech synthesis by modeling speech as a sequence of discrete neural codec tokens. Instead of directly generating waveforms, the model first encodes speech into quantized acoustic tokens using a neural audio codec. These tokens are then treated as a language sequence and modeled autoregressively with a Transformer-based language model. • Spark-TTS (Wang et al., 2025b) 2 proposes a single-stream decoupled speech token representation powered by BiCodec, enabling efficient LLM-based zero-shot TTS with fine-grained attribute control. Unlike multi-codebook architectures such as VALL-E-X, Spark-TTS models speech generation within a unified token sequence, improving efficiency and controllability. • EmoVoice (Yang et al., 2025) 3 enables freestyle emotional prompting through natural language instructions, but emotional control remains implicit and entangled within the language model representations. In contrast, our method introduces sparse latent-feature interventions that provide interpretable and fine-grained emotional modulation at the representation level. • CosyVoice (Du et al., 2024a) 4 introduces supervised semantic tokens to enhance linguistic alignment in LLM-based TTS. While this improves content consistency, emotional representations remain implicitly entangled within the token embeddings. Our work further investigates fine-grained emotional disentanglement within such semantic backbones. We adopt IndexTTS2 (Zhou et al., 2025) as the backbone model for our analysis due to its strong zero-shot emotional expressiveness and autoregressive semantic-token architecture. IndexTTS2 is a GPT-based text-to-semantic model that generates discrete semantic tokens in an autoregressive manner, supporting both duration-controlled and natural generation modes. It explicitly introduces emotion–speaker disentanglement, enabling independent control over timbre and emotional style via separate prompts. In addition, its soft instruction mechanism allows natural-language-based emotional guidance, making it a strong autoregressive emotional TTS system. Emotional representations in IndexTTS2 remain implicitly encoded within the semantic latent space, without explicit structural interpretation or fine-grained modulation. This makes it particularly suitable for representation-level analysis and intervention. By building upon a well-validated emotional TTS backbone, we ensure that any observed improvements stem from our proposed sparse latent-feature steering method rather than architectural modifications, allowing us to focus on mechanistic understanding and interpretable emotional control within the semantic backbone. 
+
+# H. Baseline Evaluation Details 
+
+For baseline models that require natural-language instructions as emotional control signals, we provide explicit emotion descriptions following the model-specific prompting format. Each instruction ends with the special token 
+
+<|endofprompt| >, which marks the termination of the control prompt in the backbone model. The instructions used in our experiments are listed below: 
+
+Anger A person speaking in a clearly angry tone, with strong emotion and intensity in their voice, expressing anger and irritation. <|endofprompt| >
+
+Happiness A person speaking in a clearly happy tone, with strong positive emotion and enthusiasm in their voice, expressing happiness and joy. <|endofprompt| >
+
+Sadness A person speaking in a clearly sad and melancholic tone, with deep emotion and sorrow in their voice, expressing sadness and grief. <|endofprompt| >
+
+> 1https://github.com/Plachtaa/VALL-E-X
+> 2https://github.com/SparkAudio/Spark-TTS
+> 3https://github.com/yanghaha0908/EmoVoice
+> 4https://github.com/FunAudioLLM/CosyVoice
+
+20 Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech 
+
+Neutral A person speaking in a neutral and calm tone, with a balanced and natural voice, expressing no particular emotion, speaking in a clear and professional manner. <|endofprompt| >
+
+In our evaluation, we directly run the publicly released open-source implementations of VALL-E-X, Spark-TTS, EmoVoice, and CosyVoice using their available checkpoints and default inference settings. Since these baseline models do not provide explicit representation-level steering mechanisms, we follow their standard control interfaces for emotional generation. These baseline systems are primarily designed for emotional expression rather than explicit emotion suppression. As a result, they do not provide a dedicated mechanism for reducing or removing emotional attributes once introduced. Therefore, for fair comparison, we adopt a neutral-to-target emotion protocol. Specifically, for each input text and speaker reference, we first generate a neutral utterance using the neutral instruction. We then generate a corresponding utterance conditioned on the target emotion instruction (e.g., anger, happiness, sadness). Emotional consistency is evaluated by comparing the target-emotion generation against the neutral baseline, ensuring that the observed emotional shift arises from the control signal rather than speaker variation. For speaker similarity evaluation, we compare the speaker embedding of the neutral generation with that of the emotion-controlled generation under the same speaker prompt. This protocol isolates the effect of emotional modulation while measuring whether speaker identity is preserved after emotion control. All models are evaluated using identical text inputs, speaker prompts, and evaluation metrics to ensure a fair and controlled comparison. 
+
+# I. Additional Cross-Backbone Analysis 
+
+To examine whether the observed emotion-alignment behavior is specific to a single speech-generation backbone, we further evaluate LLaSA (Ye et al., 2025) as an additional backbone. LLaSA is a LLaMA-based speech-synthesis framework that adopts a single-layer vector-quantized codec and a single Transformer architecture, making it closely aligned with standard LLM-style autoregressive generation. This architecture provides a useful complementary setting for testing whether scale-dependent emotional alignment also appears beyond our main model.  
+
+> Figure 13. Emotion-prototype alignment under top-6 latent-feature steering in LLaSA. Cosine similarity is measured against the anger prototype; dashed lines denote neutral and real anger reference levels.
+
+As shown in Figure 13, increasing the steering scale consistently shifts LLaSA generations from the neutral region toward the anger prototype. At low scale values, the generated samples remain close to or slightly below the neutral reference. As the scale increases, the cosine similarity steadily rises, surpassing the neutral reference around scale 2 and continuing to approach the real anger reference at larger scales. This scale-dependent and monotonic behavior provides direct evidence that the intervention controls the target-emotion strength in LLaSA generations. 21
