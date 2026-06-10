@@ -6,101 +6,98 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-09
-- 运行时间：2026-06-09 20:44:34 UTC
+- 最新运行日期：2026-06-10
+- 运行时间：2026-06-10 20:22:31 UTC
 - 运行状态：成功
-- 本次总论文数：27
-- 精读区：11
+- 本次总论文数：26
+- 精读区：10
 - 速读区：16
 
 ### 今日简报（AI）
-今日处理27篇推荐，精读11篇、速读16篇，重点覆盖低资源语言TTS和语音翻译。最值得关注的是OpenBibleTTS为低资源语言构建大规模语音资源与模型，以及Benchmarking Speech-to-Speech Translation对语音翻译模型的系统评估。建议普通读者优先阅读高分的TTS与ASR持续学习方法，并留意区域数据对印地语ASR性能的影响。
-- 详情：[/202606/09/README](/202606/09/README)
+今日共处理26篇论文，精读10篇、速读16篇，涵盖语音合成、翻译与配音等领域。最值得关注的是满分10分的《VoxCPM2 Technical Report》与9分《NüshuVoice: 音高感知的濒危女书语音合成》。建议优先阅读这两篇论文，了解前沿语音处理技术与濒危语言保护创新。
+- 详情：[/202606/10/README](/202606/10/README)
 
 ### 精读区论文标签
-1. [OpenBibleTTS: Large-Scale Speech Resources and TTS Models for Low-Resource Languages](/202606/09/2606.09553v1-openbibletts-large-scale-speech-resources-and-tts-models-for-low-resource-languages)  
-   标签：评分：10.0/10、query:low-res-tts
-   evidence：低资源语言的大规模语音资源与TTS模型基准
-2. [Benchmarking Speech-to-Speech Translation Models](/202606/09/2606.03241v1-benchmarking-speech-to-speech-translation-models)  
-   标签：评分：9.0/10、query:speech-tech
-   evidence：语音到语音翻译的统一基准框架
-3. [VoxCPM2 Technical Report](/202606/09/2606.06928v1-voxcpm2-technical-report)  
-   标签：评分：9.0/10、query:speech-tech
-   evidence：多语言可控语音生成模型，覆盖30种语言和方言
-4. [dots.tts Technical Report](/202606/09/2606.07080v1-dotstts-technical-report)  
-   标签：评分：9.0/10、query:speech-tech
-   evidence：在多语言语料上训练的连续自回归TTS基础模型
-5. [MeanVC 2: Robust Low-Latency Streaming Zero-Shot Voice Conversion](/202606/09/2606.09050v1-meanvc-2-robust-low-latency-streaming-zero-shot-voice-conversion)  
-   标签：评分：9.0/10、query:speech-tech
-   evidence：流式零样本语音转换方法
-6. [NüshuVoice: Reviving the Voice of Endangered Nüshu with Pitch-Aware Text-to-Speech](/202606/09/2606.09295v1-nshuvoice-reviving-the-voice-of-endangered-nshu-with-pitch-aware-text-to-speech)  
+1. [VoxCPM2 Technical Report](/202606/10/2606.06928v1-voxcpm2-technical-report)  
+   标签：评分：10.0/10、query:speech-tech
+   evidence：统一30种语言的多语言可控语音生成模型
+2. [NüshuVoice: Reviving the Voice of Endangered Nüshu with Pitch-Aware Text-to-Speech](/202606/10/2606.09295v1-nshuvoice-reviving-the-voice-of-endangered-nshu-with-pitch-aware-text-to-speech)  
    标签：评分：9.0/10、query:low-res-tts
-   evidence：针对濒危文字女书的低资源TTS基准
-7. [Factors affecting ASR performance: A study using state of the art ASR models in Indic Languages](/202606/09/2606.09335v1-factors-affecting-asr-performance-a-study-using-state-of-the-art-asr-models-in-indic-languages)  
+   evidence：首个濒危女书文字的TTS基准，属于低资源语言
+3. [Overcoming Decoder Inconsistencies in Whisper for Dravidian and Low-Resource Languages](/202606/10/2606.09535v1-overcoming-decoder-inconsistencies-in-whisper-for-dravidian-and-low-resource-languages)  
    标签：评分：9.0/10、query:speech-tech
-   evidence：针对多种印度语言的ASR性能因素研究
-8. [A Komi-Yazva--Russian Parallel Corpus and Evaluation Protocol for Zero- and Few-Shot LLM Translation](/202606/09/2606.06420v1-a-komi-yazva--russian-parallel-corpus-and-evaluation-protocol-for-zero--and-few-shot-llm-translation)  
-   标签：评分：8.0/10、query:cross-lang
-   evidence：用于零样本和少样本LLM翻译的科米-亚兹瓦语-俄语平行语料库
-9. [From A to B to A: Palindromic Zero-Shot Voice Conversion with Non-Parallel Data](/202606/09/2606.08843v1-from-a-to-b-to-a-palindromic-zero-shot-voice-conversion-with-non-parallel-data)  
+   evidence：针对低资源德拉维达语言的多语言语音识别
+4. [Enhancing Multilingual LLM-based ASR with Mixture of Experts and Dynamic Downsampling](/202606/10/2606.10439v1-enhancing-multilingual-llm-based-asr-with-mixture-of-experts-and-dynamic-downsampling)  
+   标签：评分：9.0/10、query:speech-tech
+   evidence：多语言自动语音识别，使用混合专家和动态下采样
+5. [Speech Encoder Fusion for LLM-based Automatic Speech Recognition](/202606/10/2606.10853v1-speech-encoder-fusion-for-llm-based-automatic-speech-recognition)  
+   标签：评分：9.0/10、query:speech-tech
+   evidence：针对多语言语音识别的语音编码器融合方法
+6. [Multilingual Long-Form Speech Instruction Following: KIT's Submission to IWSLT 2026](/202606/10/2606.04730v1-multilingual-long-form-speech-instruction-following-kits-submission-to-iwslt-2026)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：支持多语言非平行数据的零样本语音转换框架
-10. [A Comparative Study of Pre-trained Speech Encoders and Training Objectives for Large-Scale Indic Spoken Language Identification](/202606/09/2606.09317v1-a-comparative-study-of-pre-trained-speech-encoders-and-training-objectives-for-large-scale-indic-spoken-language-identification)  
+   evidence：多语言长语音指令跟随，结合ASR和TTS方面
+7. [M2S-AVSR: Modality-aware Multi-view Self-supervised Representation for Robust Audio-Visual Speech Recognition](/202606/10/2606.05763v2-m2s-avsr-modality-aware-multi-view-self-supervised-representation-for-robust-audio-visual-speech-recognition)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：42种印度语言口语识别中语音编码器的比较研究
-11. [What Makes Synthetic Speech Sound Sarcastic? A Prosody-Controlled Perception Study](/202606/09/2606.09717v1-what-makes-synthetic-speech-sound-sarcastic-a-prosody-controlled-perception-study)  
-   标签：评分：8.0/10、query:qwen-tts
-   evidence：可控语速的合成语音用于韵律控制研究
+   evidence：结合模态感知和多视角自监督表示的鲁棒音视频语音识别
+8. [LLM can Read Spectrogram: Encoder-free Speech-Language Modeling](/202606/10/2606.10231v1-llm-can-read-spectrogram-encoder-free-speech-language-modeling)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：无编码器语音语言模型用于语音识别和合成
+9. [SSL-GMMVC: Interpretable Voice Conversion via Locally Linear GMM Transforms in Self-Supervised Representation Space](/202606/10/2606.10317v1-ssl-gmmvc-interpretable-voice-conversion-via-locally-linear-gmm-transforms-in-self-supervised-representation-space)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：在自监督表示空间中使用GMM的可解释语音转换
+10. [Speech Meets ELF: Audio Conditional Continuous-Target Diffusion for Speech Recognition and Translation](/202606/10/2606.10368v1-speech-meets-elf-audio-conditional-continuous-target-diffusion-for-speech-recognition-and-translation)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：语音识别与翻译的连续目标扩散新方法
 
 ### 速读区论文标签
-1. [TLDR: Compressing Audio Tokens for Efficient Autoregressive Text-to-Speech](/202606/09/2606.09019v1-tldr-compressing-audio-tokens-for-efficient-autoregressive-text-to-speech)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：通过音频令牌压缩的高效自回归文本到语音
-2. [Parameter-Efficient Continual Learning for Automatic Speech Recognition](/202606/09/2606.09342v1-parameter-efficient-continual-learning-for-automatic-speech-recognition)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：面向自动语音识别的参数高效持续学习，可应用于多语言ASR适配
-3. [A study on the impact of region specific data on the performance of Indic ASR](/202606/09/2606.09345v1-a-study-on-the-impact-of-region-specific-data-on-the-performance-of-indic-asr)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：印度语言方言语音识别
-4. [Overcoming Decoder Inconsistencies in Whisper for Dravidian and Low-Resource Languages](/202606/09/2606.09535v1-overcoming-decoder-inconsistencies-in-whisper-for-dravidian-and-low-resource-languages)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：针对达罗毗荼低资源语言的Whisper解码器改进，关注低资源语言ASR
-5. [Reasoning over Grammar: Can Synthetic Linguistic Reasoning Traces Enhance Low-Resource Machine Translation?](/202606/09/2606.03782v1-reasoning-over-grammar-can-synthetic-linguistic-reasoning-traces-enhance-low-resource-machine-translation)  
-   标签：评分：7.0/10、query:cross-lang
-   evidence：面向低资源机器翻译的合成语言推理轨迹
-6. [AlignAtt4LLM: Fast AlignAtt for Decoder-Only LLMs at IWSLT 2026 Simultaneous Speech Translation Task](/202606/09/2606.03967v1-alignatt4llm-fast-alignatt-for-decoder-only-llms-at-iwslt-2026-simultaneous-speech-translation-task)  
+1. [Benchmarking Speech-to-Speech Translation Models](/202606/10/2606.03241v1-benchmarking-speech-to-speech-translation-models)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：使用Qwen3-ASR的同步语音翻译
-7. [LazyAttention: Efficient Retrieval-Augmented Generation with Deferred Positional Encoding](/202606/09/2606.04302v1-lazyattention-efficient-retrieval-augmented-generation-with-deferred-positional-encoding)  
-   标签：评分：7.0/10、query:fie-rag
-   evidence：通过延迟位置编码实现高效RAG，可应用于少样本事实性推断
-8. [M2S-AVSR: Modality-aware Multi-view Self-supervised Representation for Robust Audio-Visual Speech Recognition](/202606/09/2606.05763v2-m2s-avsr-modality-aware-multi-view-self-supervised-representation-for-robust-audio-visual-speech-recognition)  
+   evidence：多语言语音翻译基准测试框架
+2. [HoliDubber: Holistic Video Dubbing for Complex Acoustic Scenes via Text-Guided Audio Synthesis](/202606/10/2606.09098v1-holidubber-holistic-video-dubbing-for-complex-acoustic-scenes-via-text-guided-audio-synthesis)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：基于多视角自监督学习的鲁棒音视频语音识别
-9. [ProSarc: Prosody-Aware Sarcasm Recognition Framework via Temporal Prosodic Incongruity](/202606/09/2606.06168v1-prosarc-prosody-aware-sarcasm-recognition-framework-via-temporal-prosodic-incongruity)  
+   evidence：文本引导的语音和音效联合合成用于配音
+3. [FlashTTS: Fast Streaming TTS with MTP Acceleration and X-pred Mean Flow Distillation](/202606/10/2606.09141v1-flashtts-fast-streaming-tts-with-mtp-acceleration-and-x-pred-mean-flow-distillation)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：跨语言语音讽刺检测，与语音处理相关
-10. [Breaking the Lock-in: Diversifying Text-to-Image Generation via Representation Modulation](/202606/09/2606.06813v1-breaking-the-lock-in-diversifying-text-to-image-generation-via-representation-modulation)  
-   标签：评分：7.0/10、query:mtg-bench
-   evidence：改进文本到图像生成的多样性，与多语言生成基准相关
-11. [MLingualFC: Evaluating Jailbreak Vulnerabilities in Multilingual Vision-Language Models](/202606/09/2606.07706v1-mlingualfc-evaluating-jailbreak-vulnerabilities-in-multilingual-vision-language-models)  
-   标签：评分：7.0/10、query:mtg-bench
-   evidence：多语言非拉丁文字图像生成基准
-12. [TrustMargin: Training-Free Arbitration between Parametric Memory and Retrieved Evidence in Large Language Models](/202606/09/2606.08397v1-trustmargin-training-free-arbitration-between-parametric-memory-and-retrieved-evidence-in-large-language-models)  
-   标签：评分：7.0/10、query:fie-rag
-   evidence：参数记忆与检索证据之间的RAG答案仲裁
-13. [HydraQE: OSU's Submission for the IWSLT 2026 Speech Translation Metrics Shared Task](/202606/09/2606.08748v1-hydraqe-osus-submission-for-the-iwslt-2026-speech-translation-metrics-shared-task)  
+   evidence：低延迟快速流式TTS框架
+4. [FlashTTS: Fast Streaming TTS with MTP Acceleration and X-pred Mean Flow Distillation](/202606/10/2606.09141v2-flashtts-fast-streaming-tts-with-mtp-acceleration-and-x-pred-mean-flow-distillation)  
+   标签：评分：7.0/10、query:qwen-tts
+   evidence：快速流式TTS，与可控TTS相关
+5. [A Comparative Study of Pre-trained Speech Encoders and Training Objectives for Large-Scale Indic Spoken Language Identification](/202606/10/2606.09317v1-a-comparative-study-of-pre-trained-speech-encoders-and-training-objectives-for-large-scale-indic-spoken-language-identification)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：使用Qwen3-ASR的无参考语音翻译质量估计
-14. [Sparse Autoencoders for Interpretable Emotion Control in Text-to-Speech](/202606/09/2606.01479v1-sparse-autoencoders-for-interpretable-emotion-control-in-text-to-speech)  
-   标签：评分：6.0/10、query:qwen-tts
-   evidence：使用稀疏自编码器实现TTS中可解释的情感控制
-15. [Leveraging Soft Distributions of SSL-Derived Discrete Speech Tokens for Downstream Inference](/202606/09/2606.06806v1-leveraging-soft-distributions-of-ssl-derived-discrete-speech-tokens-for-downstream-inference)  
+   evidence：对印度语言语音编码器的系统比较，面向低资源方言语音识别
+6. [Is Text All You Need? Text as a Universal Information Bottleneck for Speech LLMs](/202606/10/2606.09366v1-is-text-all-you-need-text-as-a-universal-information-bottleneck-for-speech-llms)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：语音LLM桥接促进多语言合成
+7. [ViP-VL: Vietnamese Self-supervised Speech Pretraining Model with Vector-Quantization Learning](/202606/10/2606.10360v1-vip-vl-vietnamese-self-supervised-speech-pretraining-model-with-vector-quantization-learning)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：越南语自监督语音预训练用于语音识别、方言分类和说话人验证
+8. [KFC-KWS: Keyframe Fusion with CTC for User-Defined Keyword Spotting](/202606/10/2606.10365v1-kfc-kws-keyframe-fusion-with-ctc-for-user-defined-keyword-spotting)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：用户定义的多语言关键词识别
+9. [Entropy-Aware Domain-Routed Mixture-of-Experts Speech-LLM Framework: A Case Study of Multi-Domain Child-Adult ASR](/202606/10/2606.10454v1-entropy-aware-domain-routed-mixture-of-experts-speech-llm-framework-a-case-study-of-multi-domain-child-adult-asr)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：基于MoE语音大模型的儿童成人多领域语音识别
+10. [Domain-Aware Mispronunciation Detection and Diagnosis Using Language-Specific Statistical Graphs](/202606/10/2606.05569v1-domain-aware-mispronunciation-detection-and-diagnosis-using-language-specific-statistical-graphs)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：使用软令牌分配的语音合成任务
-16. [BareWave: Waveform-Native Flow-Matching Text-to-Speech](/202606/09/2606.09048v1-barewave-waveform-native-flow-matching-text-to-speech)  
+   evidence：使用语言特定统计图的发音错误检测
+11. [Modular Monolingual Adaptation using Pretrained Language Models](/202606/10/2606.06738v1-modular-monolingual-adaptation-using-pretrained-language-models)  
+   标签：评分：6.0/10、query:low-res-tts
+   evidence：低资源语言的模块化适配方法
+12. [TRADE: Transducer-Augmented Decoder for Speech LLM](/202606/10/2606.08486v1-trade-transducer-augmented-decoder-for-speech-llm)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：基于流匹配的直接波形TTS方法
+   evidence：语音大模型的流式识别增强
+13. [Titans-as-a-Layer: Test-Time Memory for Conversational Speech Emotion Recognition](/202606/10/2606.08573v1-titans-as-a-layer-test-time-memory-for-conversational-speech-emotion-recognition)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：对话语音情感识别的测试时记忆，与语音技术相关
+14. [Language-Aware Token Boosting: LLM Language Confusion Reduction Without Tuning](/202606/10/2606.08994v1-language-aware-token-boosting-llm-language-confusion-reduction-without-tuning)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：减少多语言生成中的语言混淆
+15. [End-to-End Training for Discrete Token LLM based TTS System](/202606/10/2606.09234v1-end-to-end-training-for-discrete-token-llm-based-tts-system)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：TTS端到端训练方法
+16. [Multilingual Word-Level Forced Alignment with Self-Supervised Representations and Learned Dynamic Programming](/202606/10/2606.10675v1-multilingual-word-level-forced-alignment-with-self-supervised-representations-and-learned-dynamic-programming)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：多语言语音强制对齐技术
 
 
 <div class="dpr-home-promo-card">
