@@ -6,98 +6,96 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-10
-- 运行时间：2026-06-10 20:22:31 UTC
+- 最新运行日期：2026-06-11
+- 运行时间：2026-06-11 20:04:27 UTC
 - 运行状态：成功
-- 本次总论文数：26
-- 精读区：10
+- 本次总论文数：24
+- 精读区：8
 - 速读区：16
 
 ### 今日简报（AI）
-今日共处理26篇论文，精读10篇、速读16篇，涵盖语音合成、翻译与配音等领域。最值得关注的是满分10分的《VoxCPM2 Technical Report》与9分《NüshuVoice: 音高感知的濒危女书语音合成》。建议优先阅读这两篇论文，了解前沿语音处理技术与濒危语言保护创新。
-- 详情：[/202606/10/README](/202606/10/README)
+今日聚焦24篇论文，覆盖RAG可靠性评估与越南语音预训练两大高分方向，以及多语言语音、发音检测、低资源机器翻译等速读热点。
+
+精读推荐《Evaluating RAG Reliability under Clean, Misleading, and Mixed Retrieval》（9.0）和《ViP-VL: Vietnamese Self-supervised Speech Pretraining Model》（9.0），前者评估检索增强生成在混合信息下的鲁棒性，后者提出越南语自监督语音预训练新方法。
+
+普通读者可优先关注多语言长语音指令跟随（IWSLT 2026）与领域感知发音错误检测，这两项技术贴近实际应用场景。
+- 详情：[/202606/11/README](/202606/11/README)
 
 ### 精读区论文标签
-1. [VoxCPM2 Technical Report](/202606/10/2606.06928v1-voxcpm2-technical-report)  
-   标签：评分：10.0/10、query:speech-tech
-   evidence：统一30种语言的多语言可控语音生成模型
-2. [NüshuVoice: Reviving the Voice of Endangered Nüshu with Pitch-Aware Text-to-Speech](/202606/10/2606.09295v1-nshuvoice-reviving-the-voice-of-endangered-nshu-with-pitch-aware-text-to-speech)  
-   标签：评分：9.0/10、query:low-res-tts
-   evidence：首个濒危女书文字的TTS基准，属于低资源语言
-3. [Overcoming Decoder Inconsistencies in Whisper for Dravidian and Low-Resource Languages](/202606/10/2606.09535v1-overcoming-decoder-inconsistencies-in-whisper-for-dravidian-and-low-resource-languages)  
+1. [Evaluating RAG Reliability under Clean, Misleading, and Mixed Retrieval](/202606/11/2606.07783v1-evaluating-rag-reliability-under-clean-misleading-and-mixed-retrieval)  
+   标签：评分：9.0/10、query:fie-rag
+   evidence：误导检索下RAG系统可靠性评估
+2. [ViP-VL: Vietnamese Self-supervised Speech Pretraining Model with Vector-Quantization Learning](/202606/11/2606.10360v2-vip-vl-vietnamese-self-supervised-speech-pretraining-model-with-vector-quantization-learning)  
    标签：评分：9.0/10、query:speech-tech
-   evidence：针对低资源德拉维达语言的多语言语音识别
-4. [Enhancing Multilingual LLM-based ASR with Mixture of Experts and Dynamic Downsampling](/202606/10/2606.10439v1-enhancing-multilingual-llm-based-asr-with-mixture-of-experts-and-dynamic-downsampling)  
+   evidence：越南语语音预训练模型，包含语音识别和方言分类
+3. [CS-YODAS: A Mined Dataset of In-the-Wild Code-Switched Speech](/202606/11/2606.11514v1-cs-yodas-a-mined-dataset-of-in-the-wild-code-switched-speech)  
    标签：评分：9.0/10、query:speech-tech
-   evidence：多语言自动语音识别，使用混合专家和动态下采样
-5. [Speech Encoder Fusion for LLM-based Automatic Speech Recognition](/202606/10/2606.10853v1-speech-encoder-fusion-for-llm-based-automatic-speech-recognition)  
+   evidence：来自多语言YouTube的语码转换语音数据集，直接支持方言和多语言语音处理
+4. [UR-BERT: Scaling Text Encoders for Massively Multilingual TTS Through Universal Romanization and Speech Token Prediction](/202606/11/2606.11681v1-ur-bert-scaling-text-encoders-for-massively-multilingual-tts-through-universal-romanization-and-speech-token-prediction)  
    标签：评分：9.0/10、query:speech-tech
-   evidence：针对多语言语音识别的语音编码器融合方法
-6. [Multilingual Long-Form Speech Instruction Following: KIT's Submission to IWSLT 2026](/202606/10/2606.04730v1-multilingual-long-form-speech-instruction-following-kits-submission-to-iwslt-2026)  
+   evidence：支持495种语言的多语言TTS编码器
+5. [TRADE: Transducer-Augmented Decoder for Speech LLM](/202606/11/2606.08486v1-trade-transducer-augmented-decoder-for-speech-llm)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：多语言长语音指令跟随，结合ASR和TTS方面
-7. [M2S-AVSR: Modality-aware Multi-view Self-supervised Representation for Robust Audio-Visual Speech Recognition](/202606/10/2606.05763v2-m2s-avsr-modality-aware-multi-view-self-supervised-representation-for-robust-audio-visual-speech-recognition)  
+   evidence：语音大模型流式识别
+6. [Multilingual Word-Level Forced Alignment with Self-Supervised Representations and Learned Dynamic Programming](/202606/11/2606.10675v1-multilingual-word-level-forced-alignment-with-self-supervised-representations-and-learned-dynamic-programming)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：结合模态感知和多视角自监督表示的鲁棒音视频语音识别
-8. [LLM can Read Spectrogram: Encoder-free Speech-Language Modeling](/202606/10/2606.10231v1-llm-can-read-spectrogram-encoder-free-speech-language-modeling)  
+   evidence：多语言词级强制对齐方法，直接适用于多语言语音识别
+7. [Evaluating Bias in Phoneme-Based Automatic Speech Recognition Systems: An Analysis of IPA Transcription Models](/202606/11/2606.11639v1-evaluating-bias-in-phoneme-based-automatic-speech-recognition-systems-an-analysis-of-ipa-transcription-models)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：无编码器语音语言模型用于语音识别和合成
-9. [SSL-GMMVC: Interpretable Voice Conversion via Locally Linear GMM Transforms in Self-Supervised Representation Space](/202606/10/2606.10317v1-ssl-gmmvc-interpretable-voice-conversion-via-locally-linear-gmm-transforms-in-self-supervised-representation-space)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：在自监督表示空间中使用GMM的可解释语音转换
-10. [Speech Meets ELF: Audio Conditional Continuous-Target Diffusion for Speech Recognition and Translation](/202606/10/2606.10368v1-speech-meets-elf-audio-conditional-continuous-target-diffusion-for-speech-recognition-and-translation)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：语音识别与翻译的连续目标扩散新方法
+   evidence：面向多语言和低资源的音素级ASR偏差评估
+8. [Lius: Translation Model Based Instructional Lingustic Using Continual Instruction Tuning In Kupang Malay](/202606/11/2606.11786v1-lius-translation-model-based-instructional-lingustic-using-continual-instruction-tuning-in-kupang-malay)  
+   标签：评分：8.0/10、query:cross-lang
+   evidence：基于持续指令微调的低资源语言Kupang Malay翻译
 
 ### 速读区论文标签
-1. [Benchmarking Speech-to-Speech Translation Models](/202606/10/2606.03241v1-benchmarking-speech-to-speech-translation-models)  
+1. [Multilingual Long-Form Speech Instruction Following: KIT's Submission to IWSLT 2026](/202606/11/2606.04730v1-multilingual-long-form-speech-instruction-following-kits-submission-to-iwslt-2026)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：多语言语音翻译基准测试框架
-2. [HoliDubber: Holistic Video Dubbing for Complex Acoustic Scenes via Text-Guided Audio Synthesis](/202606/10/2606.09098v1-holidubber-holistic-video-dubbing-for-complex-acoustic-scenes-via-text-guided-audio-synthesis)  
+   evidence：多语言语音指令跟随系统，使用数据增强和跨语言翻译，与多语言语音合成相关
+2. [Domain-Aware Mispronunciation Detection and Diagnosis Using Language-Specific Statistical Graphs](/202606/11/2606.05569v1-domain-aware-mispronunciation-detection-and-diagnosis-using-language-specific-statistical-graphs)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：文本引导的语音和音效联合合成用于配音
-3. [FlashTTS: Fast Streaming TTS with MTP Acceleration and X-pred Mean Flow Distillation](/202606/10/2606.09141v1-flashtts-fast-streaming-tts-with-mtp-acceleration-and-x-pred-mean-flow-distillation)  
+   evidence：使用语言特定统计图的方言语音识别
+3. [English-to-Prakrit Machine Translation via Multilingual Transfer Learning](/202606/11/2606.06038v1-english-to-prakrit-machine-translation-via-multilingual-transfer-learning)  
+   标签：评分：7.0/10、query:cross-lang
+   evidence：面向低资源语言Prakrit的跨语言迁移机器翻译
+4. [A Komi-Yazva--Russian Parallel Corpus and Evaluation Protocol for Zero- and Few-Shot LLM Translation](/202606/11/2606.06420v1-a-komi-yazva--russian-parallel-corpus-and-evaluation-protocol-for-zero--and-few-shot-llm-translation)  
+   标签：评分：7.0/10、query:cross-lang
+   evidence：低资源语言跨语言翻译及评估协议
+5. [Rewrite to Translate, Translate to Reward: Reinforcement Learning for Source Rewriting in Machine Translation](/202606/11/2606.08011v1-rewrite-to-translate-translate-to-reward-reinforcement-learning-for-source-rewriting-in-machine-translation)  
+   标签：评分：7.0/10、query:cross-lang
+   evidence：通过强化学习优化源码重写以提升翻译质量，涉及跨语言语义迁移
+6. [Parameter-Efficient Continual Learning for Automatic Speech Recognition](/202606/11/2606.09342v1-parameter-efficient-continual-learning-for-automatic-speech-recognition)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：低延迟快速流式TTS框架
-4. [FlashTTS: Fast Streaming TTS with MTP Acceleration and X-pred Mean Flow Distillation](/202606/10/2606.09141v2-flashtts-fast-streaming-tts-with-mtp-acceleration-and-x-pred-mean-flow-distillation)  
+   evidence：为ASR设计的参数高效持续学习方法，解决灾难性遗忘
+7. [Interpreting and Steering a Text-to-Speech Language Model with Sparse Autoencoders](/202606/11/2606.10029v1-interpreting-and-steering-a-text-to-speech-language-model-with-sparse-autoencoders)  
    标签：评分：7.0/10、query:qwen-tts
-   evidence：快速流式TTS，与可控TTS相关
-5. [A Comparative Study of Pre-trained Speech Encoders and Training Objectives for Large-Scale Indic Spoken Language Identification](/202606/10/2606.09317v1-a-comparative-study-of-pre-trained-speech-encoders-and-training-objectives-for-large-scale-indic-spoken-language-identification)  
+   evidence：TTS模型可解释性与引导，与可控语音合成相关
+8. [LLM can Read Spectrogram: Encoder-free Speech-Language Modeling](/202606/11/2606.10231v1-llm-can-read-spectrogram-encoder-free-speech-language-modeling)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：对印度语言语音编码器的系统比较，面向低资源方言语音识别
-6. [Is Text All You Need? Text as a Universal Information Bottleneck for Speech LLMs](/202606/10/2606.09366v1-is-text-all-you-need-text-as-a-universal-information-bottleneck-for-speech-llms)  
+   evidence：无编码器语音语言模型用于ASR和TTS，直接关联语音技术
+9. [ViP-VL: Vietnamese Self-supervised Speech Pretraining Model with Vector-Quantization Learning](/202606/11/2606.10360v1-vip-vl-vietnamese-self-supervised-speech-pretraining-model-with-vector-quantization-learning)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：语音LLM桥接促进多语言合成
-7. [ViP-VL: Vietnamese Self-supervised Speech Pretraining Model with Vector-Quantization Learning](/202606/10/2606.10360v1-vip-vl-vietnamese-self-supervised-speech-pretraining-model-with-vector-quantization-learning)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：越南语自监督语音预训练用于语音识别、方言分类和说话人验证
-8. [KFC-KWS: Keyframe Fusion with CTC for User-Defined Keyword Spotting](/202606/10/2606.10365v1-kfc-kws-keyframe-fusion-with-ctc-for-user-defined-keyword-spotting)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：用户定义的多语言关键词识别
-9. [Entropy-Aware Domain-Routed Mixture-of-Experts Speech-LLM Framework: A Case Study of Multi-Domain Child-Adult ASR](/202606/10/2606.10454v1-entropy-aware-domain-routed-mixture-of-experts-speech-llm-framework-a-case-study-of-multi-domain-child-adult-asr)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：基于MoE语音大模型的儿童成人多领域语音识别
-10. [Domain-Aware Mispronunciation Detection and Diagnosis Using Language-Specific Statistical Graphs](/202606/10/2606.05569v1-domain-aware-mispronunciation-detection-and-diagnosis-using-language-specific-statistical-graphs)  
+   evidence：越南语语音识别和方言分类
+10. [DuDi: Dual-Signal Distillation with Cross-Lingual Verbalizer](/202606/11/2606.04694v1-dudi-dual-signal-distillation-with-cross-lingual-verbalizer)  
+   标签：评分：6.0/10、query:cross-lang
+   evidence：跨语言语词化器用于多语言模型蒸馏
+11. [Decoupling Semantics and Logic: A Training-Free Coarse-to-Fine Pipeline for Video Retrieval-Augmented Generation](/202606/11/2606.07924v1-decoupling-semantics-and-logic-a-training-free-coarse-to-fine-pipeline-for-video-retrieval-augmented-generation)  
+   标签：评分：6.0/10、query:cross-lang
+   evidence：结合RAG管道实现跨语言视频理解
+12. [FlashTTS: Fast Streaming TTS with MTP Acceleration and X-pred Mean Flow Distillation](/202606/11/2606.09141v1-flashtts-fast-streaming-tts-with-mtp-acceleration-and-x-pred-mean-flow-distillation)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：使用语言特定统计图的发音错误检测
-11. [Modular Monolingual Adaptation using Pretrained Language Models](/202606/10/2606.06738v1-modular-monolingual-adaptation-using-pretrained-language-models)  
-   标签：评分：6.0/10、query:low-res-tts
-   evidence：低资源语言的模块化适配方法
-12. [TRADE: Transducer-Augmented Decoder for Speech LLM](/202606/10/2606.08486v1-trade-transducer-augmented-decoder-for-speech-llm)  
+   evidence：流式文本转语音框架
+13. [FlashTTS: Fast Streaming TTS with MTP Acceleration and X-pred Mean Flow Distillation](/202606/11/2606.09141v2-flashtts-fast-streaming-tts-with-mtp-acceleration-and-x-pred-mean-flow-distillation)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：语音大模型的流式识别增强
-13. [Titans-as-a-Layer: Test-Time Memory for Conversational Speech Emotion Recognition](/202606/10/2606.08573v1-titans-as-a-layer-test-time-memory-for-conversational-speech-emotion-recognition)  
+   evidence：流式TTS框架，与语音合成相关
+14. [Data Synthesis and Parameter-Efficient Fine-Tuning for Low-Resource NMT: A Case Study on Q'eqchi' Mayan](/202606/11/2606.09767v1-data-synthesis-and-parameter-efficient-fine-tuning-for-low-resource-nmt-a-case-study-on-qeqchi-mayan)  
+   标签：评分：6.0/10、query:cross-lang
+   evidence：通过词典引导的数据合成实现低资源神经机器翻译
+15. [Towards Deep Contextual Reasoning from Broad Descriptions for ASR with Speech-LLM via Metadata-Driven Reasoning Chains](/202606/11/2606.10838v1-towards-deep-contextual-reasoning-from-broad-descriptions-for-asr-with-speech-llm-via-metadata-driven-reasoning-chains)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：对话语音情感识别的测试时记忆，与语音技术相关
-14. [Language-Aware Token Boosting: LLM Language Confusion Reduction Without Tuning](/202606/10/2606.08994v1-language-aware-token-boosting-llm-language-confusion-reduction-without-tuning)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：减少多语言生成中的语言混淆
-15. [End-to-End Training for Discrete Token LLM based TTS System](/202606/10/2606.09234v1-end-to-end-training-for-discrete-token-llm-based-tts-system)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：TTS端到端训练方法
-16. [Multilingual Word-Level Forced Alignment with Self-Supervised Representations and Learned Dynamic Programming](/202606/10/2606.10675v1-multilingual-word-level-forced-alignment-with-self-supervised-representations-and-learned-dynamic-programming)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：多语言语音强制对齐技术
+   evidence：利用元数据驱动的推理链增强语音识别上下文推理
+16. [Tail-Aware Adaptive-k: Query-Adaptive Context Selection for Retrieval-Augmented Generation](/202606/11/2606.11907v1-tail-aware-adaptive-k-query-adaptive-context-selection-for-retrieval-augmented-generation)  
+   标签：评分：6.0/10、query:fie-rag
+   evidence：面向RAG的自适应上下文选择
 
 
 <div class="dpr-home-promo-card">
