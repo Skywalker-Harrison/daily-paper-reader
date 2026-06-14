@@ -1,0 +1,932 @@
+Title: When Similar Means Different: Evaluating LLMs on Arabic–Hebrew Cognates
+
+URL Source: https://arxiv.org/pdf/2606.13218v1
+
+Published Time: Fri, 12 Jun 2026 00:58:22 GMT
+
+Number of Pages: 23
+
+Markdown Content:
+When Similar Means Different: Evaluating LLMs on Arabic–Hebrew Cognates 
+
+Junhong Liang Noor Abo Mokh Bashar Alhafni 
+
+Mohamed bin Zayed University of Artificial Intelligence 
+
+{junhong.liang,noor.abomokh,bashar.alhafni}@mbzuai.ac.ae 
+
+Abstract 
+
+Arabic and Hebrew, as closely related Semitic languages, share a substantial lexicon of true cognates, misleading false friends, and mod-ern loanwords. This overlap poses a chal-lenge for cross-lingual semantic understand-ing in large language models (LLMs). To evaluate this capability, we introduce SemCog Bench, a curated benchmark of 1,858 Arabic– Hebrew word pairs with sentence-level anno-tations for cognate identification and seman-tic disambiguation. We evaluate open-source and commercial LLMs across multiple input representations (raw, diacritized, Romanized, and phonetic) and reveal a critical gap in cross-lingual reasoning. While models achieve high accuracy on true cognates, performance drops sharply on false friends and loanwords, reflect-ing a strong reliance on surface-form similarity. Furthermore, sentence-level context yields only modest improvements, suggesting that contex-tual cues alone are insufficient to overcome mis-leading form-based signals. These findings re-veal a fundamental limitation of current LLMs in resolving cross-lingual form–meaning con-flicts and establish SemCog Bench as a rigorous benchmark for multilingual semantic reasoning. Our code and data are publicly available. 1
+
+1 Introduction 
+
+Semitic languages, such as Arabic and Hebrew, share common morphological roots and exhibit substantial lexical overlap. This overlap includes a large number of cognates with similar orthographic and phonological forms. While many of these cog-nates preserve the same meaning across languages, others have undergone semantic divergence, result-ing in false friends —words that appear orthographi-cally and phonologically similar but differ in mean-ing (Cahyawijaya et al., 2025). Furthermore, mod-ern cross-cultural exchange has introduced a third category: loanwords , borrowed from non-Semitic 
+
+1https://github.com/mbzuai-nlp/SemCog ﺣﻤﺮاء ﻷﻣﻲ وردة اﺷﺘﺮﯾﺖ 
+
+ﺑﺎرد وﻣﻤﻄﺮ، ﺧﺮج اﻷطﻔﺎل ﻟﻠﻌﺐ ﻓﻲ اﻟﺜﻠﺞ ﺧﺮﯾﻒ ﻋﻠﻰ اﻟﺮﻏﻢ ﻣﻦ 
+
+ﻓﻲ اﻟﻔﻨﺎء 
+
+ﺗﺠﺎه ﺻﺪق ﻛﻼﻣﮫ رﻏﻢ ﻛﻞ اﻷدﻟﺔ رﯾﺐ ﻻزال ﻓﻲ ﻗﻠﺒﮫ 
+
+ﻟﺬﯾﺬ ﺳﻮﺷﻲ ذھﺒﻨﺎ إﻟﻰ وﺳﻂ اﻟﻤﺪﯾﻨﺔ ﻟﺘﻨﺎول 
+
+I bought a red rose for my mother 
+
+Despite the cold and rainy autumn (Ar) / winter (He) ,
+
+the childern went out to play in the snow in the yard 
+
+Despite all the evidence, he still harbors doubts (Ar) /
+
+quarrel (He) in his heart about the truth of his words 
+
+Ar : We went downtown to eat delicious sushi 
+
+He : we ordered sushi Friday night to celebrate a birthday 
+
+אדום לאמי ורד אני קניתי 
+
+הקר והגשום ,הילדים יצאו לשחק בשלג בחצר החורף למרות 
+
+לגבי אמיתות דבריו למרות כל הראיות ריב עדיין יש בלבו 
+
+כדי לחגוג יום הולדת סושי בשישי בערב הזמנו 
+
+(a) 
+
+(b) 
+
+(c) 
+
+(d) 
+
+✔
+
+✔
+
+✔
+
+X
+
+X
+
+✔
+
+✔
+
+✔
+
+Figure 1: Examples of Arabic and Hebrew true cognates (a), false friends (b, c) and loanwords (d). Correct us-ages are marked in green, and incorrect usages in red. 
+
+sources. This trifecta of true cognates, false friends, and loanwords poses a unique challenge for cross-lingual semantic understanding, as surface-form similarity can be highly misleading without deeper semantic reasoning. Figure 1 illustrates representative cases of these lexical relationships in our dataset. True cognates, such as the Arabic word ËXP (wrd ℏ2, ‘rose’) and the Hebrew word ČŸĚ (wrd 3, ‘rose’), share ortho-graphic and phonological similarity as well as se-mantic equivalence, yielding correct interpretations in both languages (Figure 1(a)). In contrast, false friends exhibit strong surface-form similarity while carrying divergent meanings. For example, the Ara-bic word ≠K Qk (xryf , ‘autumn’) closely resembles the Hebrew word ŞŸĚĞ (xwrp , ‘winter’), leading 
+
+2Arabic HSB transliteration (Habash et al., 2007). 
+
+3Hebrew transliteration following (Shilon et al., 2010). 
+
+> arXiv:2606.13218v1 [cs.CL] 11 Jun 2026
+
+to a semantic mismatch when used in contexts in-volving snow (Figure 1(b)). Similarly, I. K P (ryb ,‘doubt’) and ĄĽŸ (rib , ‘quarrel’) are phonologically and orthographically similar yet encode entirely distinct meanings (Figure 1(c)). Finally, loanwords present surface similarity driven by external bor-rowing rather than shared ancestry; for instance, the Japanese culinary term for ‘sushi’ appears al-most identically in both Arabic ( ˙ÊÖÒÉ , swšy ) and Hebrew ( ĽŹĚŚ , swšy ) (Figure 1(d)). These cases highlight that surface similarity alone is insuffi-cient for correct interpretation; models must rely on deeper semantic understanding and etymolog-ical context to accurately disambiguate true cog-nates, false friends, and loanwords. In our work, we investigate whether LLMs can distinguish be-tween true cognates, false friends, and loanwords in Arabic–Hebrew settings. We evaluate a diverse set of models, including multilingual LLMs as well as Arabic- and Hebrew-centric models, to assess their ability to perform fine-grained semantic dis-ambiguation across closely related languages. Our research questions include RQ1 : How ac-curately can LLMs classify Arabic-Hebrew word pairs (cognates, false friends, loanwords) across varying task granularities? RQ2 : Which input representations (raw, diacritized, Romanized, or phonetic) best enhance this lexical disambiguation? RQ3 : Can LLMs effectively use sentence-level context to overcome misleading cross-lingual sur-face similarities? RQ4: How does model scale affect cross-lingual semantic reasoning and robust-ness to surface-form interference? The main con-tributions of this work are as follows: 1. We introduce SemCog Bench, a curated benchmark disambiguating Arabic–Hebrew cognate pairs, comprising true cognates, false friends, and loanwords used for cognate iden-tification and semantic disambiguation. 2. We systematically evaluate the performance of a broad range of LLMs on cognate identifi-cation and semantic disambiguation, revealing consistent performance gaps between multi-lingual and language-specific models. 3. Through controlled perturbation experiments, we demonstrate that model errors on false friend pairs are driven primarily by cross-lingual surface similarity rather than by or-thographic complexity or morphological am-biguity. 
+
+2 Background and Related Work 
+
+Arabic–Hebrew Linguistic Background Ara-bic and Hebrew are closely related Semitic lan-guages characterized by rich morphology and or-thographic ambiguity. Both employ root-and-pattern word formation, where words are de-rived by combining a consonantal root, often tri-consonantal, with vocalic patterns, resulting in large and sparse vocabularies. In addition, both languages use optional diacritics to represent short vowels– tashkil in Arabic and nikkud in Hebrew– that are typically omitted in modern text (Habash, 2010; Seddah et al., 2013). As a result, many sur-face forms are ambiguous, posing challenges for computational modeling (Tsarfaty et al., 2020). At the same time, the shared Semitic ances-try of Arabic and Hebrew gives rise to numerous lexical parallels, including words with similar or-thographic or phonological forms. These include true cognates, false friends, and loanwords. Cog-nates are words in different languages that share a common historical origin (Lijewska, 2020; Abu-Rabiah, 2025). Some preserve both surface form and meaning across languages, such as Hebrew 
+
+# ČŇĽ (ild , ‘child’) and Arabic YÀ (wld , ‘boy/child’), and are treated as True Cognates. Others retain or-thographic or phonological similarity while under-going semantic divergence, yielding False Friends (i.e., False Cognates). For example, Hebrew ŊĞŇ (lxm , ‘bread’) and Arabic —mÃ (lHm , ‘meat’) share the Semitic root l-H-m but differ in meaning. We further distinguish these categories from loawords. Although loanwords are generally defined as words borrowed from one language into another (Maha-jna, 2019), we use the term to refer to forms bor-rowed from languages that do not share the relevant inherited Semitic root. For instance, Arabic ˙ÊÖÒÉ 
+
+(swšy , ‘sushi’) and Hebrew ĽŹĚŚ (swšy , ‘sushi’) are orthographically and phonologically similar be-cause both are modern borrowings rather than in-herited Semitic cognates. The close relationship between Arabic and Hebrew therefore creates a challenging setting for lexical reasoning, where highly similar forms may reflect shared inheritance, semantic divergence, or independent borrowing. Distinguishing among these cases requires inte-grating orthographic, phonological, and semantic evidence rather than relying on surface similarity alone. Automatic Cognate Detection Automatic cog-nate detection aims to identify historically related words across languages. Early approaches re-lied primarily on orthographic and phonological similarity, using lexical distance measures and subsequence-based methods (List, 2012; Hauer and Kondrak, 2015). More recent work has incorpo-rated neural architectures and cross-lingual repre-sentations, including Siamese networks and feature-rich models for low-resource language pairs (Kano-jia et al., 2020a,b; Akavarapu et al., 2024). While these methods are effective for identifying histor-ically related forms, cognate detection is funda-mentally different from semantic disambiguation. Determining whether similar-looking words pre-serve the same meaning requires distinguishing true cognates from semantically divergent forms and borrowings, a challenge that cannot be solved through form similarity alone. Recent studies have begun examining this challenge in multilingual LLMs, showing that models often rely heavily on orthographic overlap and struggle to disentangle form from meaning when processing false friends and interlingual homographs (Tanwar et al., 2025; Cahyawijaya et al., 2025). Our work extends this line of research by moving beyond binary cog-nate detection to distinguish between true cognates, false friends, and loanwords, while also evaluating semantic disambiguation in context. 
+
+Arabic–Hebrew Bilingual Modeling Prior work has developed resources and models for Arabic– Hebrew processing, including machine transla-tion datasets, multilingual benchmarks, translitera-tion methods, and cross-script representations (Be-linkov and Glass, 2016; Cettolo, 2016; Zaghouani et al., 2024; Gonzalez et al., 2026; Gadd, 2026). Other studies have explored morphology-aware modeling and probing frameworks for Semitic lan-guages (Gazit et al., 2025; Saeed et al., 2025). De-spite these advances, little is known about how mul-tilingual LLMs reason about lexical relationships across closely related languages. In particular, it remains unclear whether models rely on semantic understanding or on superficial form-based cues when encountering words that are orthographically or phonologically similar. Existing benchmarks do not isolate the effects of shared inheritance, seman-tic divergence, and borrowing on cross-lingual rea-soning. SemCog Bench addresses this gap through controlled evaluation of cognate identification and semantic disambiguation in Arabic and Hebrew. 
+
+3 SemCog Bench 
+
+In this section, we describe the construction of Sem-Cog Bench, a benchmark of Arabic–Hebrew true cognates, false friends, and loanwords. Figure 2 illustrates the three-stage benchmark constrcution pipeline: (1) cognate collection, where candidate word pairs are gathered from linguistic resources; (2) word- and sentence-level annotation, where an-notators verify lexical relations and validate con-textual sentences; and (3) Tasks creation, where validated examples are converted into benchmark instances. 
+
+3.1 Categories of Word Pairs 
+
+Following the linguistic distinctions introduced in §2, we organize word pairs into three cate-gories: true cognates, false friends, and loanwords. True cognates are pairs that exhibit both form and meaning similarity across Arabic and Hebrew. False friends are pairs with similar orthographic or phonological forms but different meanings. Loan-words are similar forms that arise through borrow-ing rather than inheritance from a shared Semitic root. These categories form the basis of our bench-mark and allow us to evaluate whether models can distinguish semantic equivalence from semantic di-vergence and borrowing despite surface-form simi-larity. We collect candidate Arabic–Hebrew word pairs from multiple linguistic resources. For true cog-nates and false friends, we primarily rely on a com-parative Arabic–Hebrew lexicon 4 and the bilingual dictionary of the Palisra project (Habash, 2002, 2023), which contains aligned Arabic and Hebrew vocabulary. 5 For loanwords, we aggregate lexi-cal items from Wiktionary, educational resources, linguistic databases, and prior studies on lexical borrowing in Arabic and Hebrew. Appendix A provides additional details about these resources. Following the initial aggregation, we apply part-of-speech (POS) filtering and deduplication, retain-ing only nouns, verbs, adjectives, and adverbs, as these content words carry the semantic informa-tion required for sentence-level interpretation. The resulting candidate lists are then reviewed by hu-man annotators for validation. This process yields 1,027 true cognates, 474 false friends, and 910 loan-words. 
+
+> 4https://seveleu.com/pages/ semitic-syntax-morpho/comparative-sem
+> 5https://www.palisra.com/
+
+وردة 
+
+> Cognate Identification
+> Classify input word pairs into lexical categories
+
+3. Evatuation Sub-tasks 1. Lexical Categories 2. Data Collection Pipeline 
+
+أﺳﺑوع   
+
+> Arabic Hebrew
+> False Friends
+> Week
+> Rose
+
+LLMs              
+
+> Input: Arabic-Hebrew word pairs (unordered)
+> وردة
+> ורד
+> ﻣﺗن
+> מתן ﺑﻧك
+> בנק …
+> True Cognate
+> Arabic ✔
+> No archaic words
+> MSA and modern Hebrew
+> Accept/Reject word pairs
+> Check naturalness and
+> contextual appropriatness
+> Expert annotators verification
+> Word-level
+> Annotation
+> False Friend Loanword
+> Semantic Disambiguation (MCQ)
+> Classify input word pairs into lexical categories
+> Hebrew ✔
+> Arabic ✔
+> Hebrew X
+> Sentence-level
+> Annotation
+> Cognate
+> Collection
+> Extract candidate pairs
+> from comparative
+> dictionaries and websites
+> MCQ
+> Formulation
+> Construct multiple-choice
+> questions for evaluation
+> True
+> Cognates
+> Legend: Loanword Data
+> source Lexicon Human
+> Annotator Text MCQ
+
+True Cognates 
+
+False Friends 
+
+Loanwords 
+
+ﻣﺗن 
+
+> back
+
+ﺧرﯾف 
+
+> autumn
+
+ﺑﻧك 
+
+ﺗﻠﻔزﯾون 
+
+> Television
+
+בנק 
+
+טליוויזיה 
+
+חורף 
+
+> winter
+
+מתן 
+
+> gift
+
+שבוע 
+
+ורד     
+
+> One correct answer +
+> distractors
+> החייל סחב את התיק הכבד
+> כל היום מתנו שלו על
+> (The soldier was carrying his
+> heavy bag on his gift all day)
+
+4 3
+
+1 2
+
+C
+
+B
+
+A A
+
+B           
+
+> Bank
+> ﺟﻣﯾﻠﺔ ﻓﻲ ﻋﯾد وردة أﻋطﯾﺗﮭﺎ
+> ﻣﯾﻼدھﺎ
+> (I gave her a beautiful rose
+> on her birthday)
+> לאמו ורד הוא קנה
+> (He bought a rose for his
+> mother)
+> ﻛﺎن اﻟﺟﻧدي ﯾﺣﻣل ﺣﻘﯾﺑﺗﮫ اﻟﺛﻘﯾﻠﺔ
+> ظﮭره طوال اﻟﯾوم ﻣﺗن ﻋﻠﻰ
+> (The soldier was carrying his
+> heavy bag on his back all day)
+
+Figure 2: Overview of the data construction pipeline and evaluation framework for SemCog Bench. (Left) Representative examples of Arabic–Hebrew true cognates, false friends, and loanwords. (Middle) The data collection process, which aggregates candidate pairs from multiple resources followed by human verification and sentence-level annotation. (Right) The downstream evaluation tasks: cognate identification and semantic disambiguation. 
+
+3.2 Word- and Sentence-Level Annotation Word-Level Annotation To ensure dataset qual-ity, we employ two fairly compensated annota-tors with native proficiency in Arabic and Hebrew. One annotator holds an MA in Semitic languages, while the other holds a PhD in linguistics. A pri-mary annotator reviews all candidate word pairs, and a second annotator independently reviews a randomly selected 10% subset to measure inter-annotator agreement (IAA). For true cognates and false friends, they assess the presence of seman-tic overlap between the Arabic and Hebrew words. Pairs with at least one shared core meaning are accepted as true cognates, whereas pairs with com-pletely divergent meanings are classified as false friends. For loanwords, annotators verify that both words originate from the same non-Semitic source language and preserve the same meaning. Annota-tors were also instructed to reject archaic terms and named entities (e.g., person and location names). We retain only lexical items that are commonly used in both Modern Standard Arabic (MSA) and Modern Hebrew. Disagreements between the anno-tators are resolved through discussion until consen-sus is reached. The validated word pairs form the basis of the cognate identification task. 
+
+Sentence-Level Annotation Following word-level validation, we use Gemini-3.1-pro-preview to generate contextual sentences for each validated Arabic–Hebrew word pair. Specifically, the model generates an Arabic sentence containing the Arabic word and a Hebrew sentence containing the cor-responding Hebrew word (the generation prompt is provided in Appendix E). Following word-level validation, the annotators review all generated sen-tences for naturalness. A sentence is considered natural if it is grammatically correct and representa-tive of native-speaker usage. For sentences deemed unnatural due to grammatical errors or implausi-ble contexts, annotators provide revised sentences that preserve the intended meaning and target word without modifying its morphological form. De-tailed annotation guidelines for both the word- and sentence-level annotation tasks are provided in Ap-pendix F. 
+
+Inter-Annotator Agreement Following word-and sentence-level annotation, the final dataset con-tains 858 true cognates, 364 false friends, and 636 loanwords, each paired with validated contex-tual sentences (Table 2). We measure word-level IAA using Gwet’s AC1, which is robust to class imbalance (Wongpakaran et al., 2013; Ohyama, 2021). Gwet’s AC1 was 0.87 for true cognates/-false friends and 0.81 for loanwords, indicating sub-stantial agreement. Most disagreements involved borderline cases between potential loanwords and true cognates, motivating an additional verification round before finalizing the annotations. For com-pleteness, we also report Krippendorff’s α scores of 0.38 and 0.45 for true cognates/false friends and loanwords, respectively. We interpret these val-ues cautiously, as Krippendorff’s α is known to underestimate agreement under highly imbalanced label distributions (Vach and Gerke, 2023), which is relevant in our setting where accept decisions are substantially more frequent than reject decisions. 
+
+3.3 Benchmark Tasks 
+
+SemCog Bench comprises two benchmark tasks: Cognate Identification (CI) and Semantic Dis-ambiguation (SD). Both tasks are formulated as multiple-choice questions (MCQs) designed to evaluate whether models can distinguish surface-form similarity from semantic equivalence. 
+
+Cognate Identification (CI) Given an Arabic– Hebrew word pair (WAr , W He ), the model must determine whether the pair represents a true cog-nate, false friend, or loanword. This task evaluates whether models can distinguish lexical similarity arising from shared meaning, semantic divergence, or borrowing, rather than relying solely on surface-form resemblance. We consider two input settings. In the Word-Only setting, the model receives only the target word pair. In the Contextual setting, the model additionally receives contextual sentences in Arabic and Hebrew, (SAr , S He ), providing con-textual evidence about the meaning of each word. We evaluate both a ternary formulation involving all three categories and a binary formulation re-stricted to true cognates and false friends. The latter removes the confounding effect of loanwords and provides a more direct measure of the model’s ability to resolve form–meaning conflicts. 
+
+Semantic Disambiguation (SD) Given a word pair (WAr , W He ) and their corresponding contex-tual sentences (SAr , S He ), the model must deter-mine which sentence or sentences are semantically correct. Each instance is formulated as a three-way MCQ with the following choices: (A) only SAr is semantically correct; (B) only SHe is semantically correct; and (C) both sentences are correct. For true cognate and loanword pairs, we use the validated sentences collected during sentence-level annotation. Since both sentences employ words with the same meaning, they are semantically valid and the correct answer is therefore (C). For exam-ple, Arabic ËXP (wrd ℏ, ‘rose’) and Hebrew ČŸĚ (wrd , ‘rose’) form a true cognate pair; consequently, both of the following sentences are semantically valid: 
+
+AÎXCJ” YJ´ ˙Ø È J‘g . ËXP AÓ DJ¢´ @
+
+(I gave her a beautiful rose on her birthday) 
+
+# ĚŐĂŇŊĚČĂČŸĚĎŘŮĂĚĎ (He bought a red rose for his mother) 
+
+False friend pairs require a different construc-tion. To evaluate whether models rely on mean-ing rather than surface-form similarity, we create minimally different sentence pairs in which one sentence is semantically correct and the other is semantically incorrect. Starting from a manually validated sentence, an annotator produces a transla-tion in the other language and replaces the correct translation of the target word with its false friend counterpart while preserving agreement and inflec-tion. As a result, the corrupted sentence remains grammatically well-formed but becomes semanti-cally implausible. We apply this procedure in both directions (Arabic ↔Hebrew), yielding two SD in-stances for each false-friend pair. For example, 
+
+· ” (mtn , ‘back’) translates to Hebrew as ĄĆ (gb ,‘back’), whereas the Hebrew word ĚŘŽŐ (mtnw ,‘his gift’) serves as a false friend. We therefore replace the correct Hebrew form ĚĄĆ (gbw , ‘his back’) with the false friend ĚŘŽŐ (mtnw , ‘his gift’), yielding a Hebrew sentence that is grammatically well-formed but semantically incorrect. 
+
+ËQÍ£ · ” ˙Œ´ È J ÆJÀ@ È J.J Æk …“m' ¯ YJm. Ã'@ ‡Aø –ÒJÀ@ »@Ò£ 
+
+(The soldier carried his heavy bag on his back all day) 
+
+# Ň{ĚŇŹČĄŃĎŮĽŽĎŽĂĄĞŚŇĽĽĞĎ *
+
+# ŊĚĽĎŇŃĚŘŽŐČŰ (The soldier carried his heavy bag on his gift all day) 
+
+In total, the SD task contains 2,222 MCQ instances: 858 true cognates, 728 false friends, and 636 loan-words (Table 2). The false-friend count is doubled because the bidirectional corruption procedure gen-erates two MCQs per pair. 
+
+4 Experimental Setup 
+
+We evaluate LLMs under multiple input represen-tations. Specifically, we compare original undia-Cognate Identification (CI) Semantic Disambiguation (SD)                                                                                                                                                                                                     
+
+> Model Acc TC Acc FF Acc LW Acc All PRF1Acc TC Acc FF Acc LW Acc All PRF1
+> Proprietary Models
+> GPT-4o 62.5 71.4 90.7 73.9 73.5 74.9 74.2 94.6 35.6 93.1 74.8 75.2 74.2 73.7 GPT-5.4 85.9 47.0 96.4 81.9 78.3 76.4 77.3 88.7 57.7 90.2 79.0 79.0 79.1 78.9 DeepSeek-v4 91.6 1.1 83.5 71.1 65.6 58.7 62.0 17.0 50.1 19.3 28.5 25.3 28.3 24.0 Qwen3.6-Plus 92.2 29.7 93.4 80.4 76.9 71.8 74.3 89.9 57.2 88.8 78.8 77.3 78.4 77.8
+> Open-source LLMs
+> Qwen2.5-7B-Instruct 64.9 64.6 25.0 51.2 63.2 51.5 56.7 43.1 40.7 40.1 41.4 37.1 41.1 36.6 Qwen3-8B 75.2 52.7 18.6 51.4 63.0 48.8 55.0 87.8 6.3 84.1 60.0 61.7 59.5 58.6 Llama-3.1-8B-Instruct 91.7 12.1 0.0 44.7 22.3 34.6 27.1 31.9 30.2 41.3 34.1 39.8 35.1 29.8 GLM-4-9B-Chat 88.0 24.7 29.2 55.5 60.4 47.3 53.1 26.7 52.9 30.3 36.3 23.2 36.1 26.2 Gemma-2-9B-IT 80.7 23.9 66.2 64.6 60.9 56.9 58.9 38.1 13.9 41.2 31.0 42.3 30.9 22.5 Jais-2-8B-Chat 96.2 8.0 0.0 46.0 26.0 34.7 29.7 33.8 29.7 33.3 32.3 13.3 32.9 16.4 Jais-Adapted-7B-Chat 62.4 2.2 36.9 41.9 41.7 33.8 37.3 33.7 30.6 34.6 32.9 33.8 33.5 18.9 DictaLM-2.0-Instruct 33.3 82.4 0.2 31.6 48.3 38.6 42.9 34.2 29.5 34.4 32.7 10.9 33.3 16.4 Aya-23-8B 6.3 39.0 90.3 41.4 47.8 45.2 46.4 38.0 26.7 44.6 36.2 55.1 37.0 25.2
+
+Table 1: Results on 3-class cognate identification (CI) and semantic disambiguation (SD) over undiacritized input, reported in terms of overall and class-specific accuracy (Acc), and macro-averaged precision (P), recall (R), and F 1.TC, FF, and LW denote true cognates, false friends, and loanwords, respectively. 
+
+Type #Pairs Ar Len. He Len. #MCQs 
+
+TC 858 13.0 12.8 858 FF 364 13.1 12.8 728 LW 636 14.9 14.4 636 Total 1,858 13.7 13.4 2,222 
+
+Table 2: Statistics of SemCog Bench. TC, FF, and LW denote true cognates, false friends, and loanwords, respectively. Ar Len. and He Len. are the average lengths (in words) of the Arabic and Hebrew sentences. 
+
+critized Arabic and Hebrew scripts with diacritized, phonetic (IPA), and Romanized variants. 
+
+LLMs We evaluate a diverse range of LLMs cate-gorized into four distinct groups: (1) Multilingual Models , including Qwen2.5-7B-InstructZ (Qwen et al., 2025), Qwen3-8B (Yang et al., 2025), GLM-4-9B-Chat (GLM et al., 2024), Llama-3.1-8B-Instruct (Grattafiori et al., 2024), Gemma-2-9B-IT (Team et al., 2024), and Aya-23-8B (Aryabumi et al., 2024); (2) Arabic-centric Models , com-prising Jais-2-8B-Chat (Anwar et al., 2025) and Jais-Adapted-7B-Chat (Sengupta et al., 2023); (3) Hebrew-capable Models , represented by DictaLM-2.0-Instruct (Shmidman et al., 2024); and (4) Commercial Models , which include GPT-5.4 (Singh et al., 2026), GPT-4o (OpenAI et al., 2024), DeepSeek-v4-pro (DeepSeek-AI et al., 2025), and Qwen3.6-Plus (Yang et al., 2025). Exact snapshots of proprietary models are available in Appendix B, hyperparameter details in Appendix C, and prompts in Appendix D. 
+
+Input Representations To assess whether mod-els rely on script-specific orthographic cues, we evaluate four input representations: the original undiacritized text, diacritized text, phonetic tran-scriptions (IPA), and Romanized text. For Arabic, diacritics are obtained using CAMeL Tools (Obeid et al., 2020) and IPA transcriptions are derived from the diacritized forms following the approach of Khalifa et al. (2025) with additional linguistic mapping rules. For Hebrew, nikkud and IPA tran-scriptions are generated using Phonikud (Kolani et al., 2025). Romanized forms for both lan-guages are obtained using Uroman (Hermjakob et al., 2018). These representations help disentan-gle the effects of orthographic, phonological, and semantic information on cross-lingual reasoning. 
+
+Evaluation Metrics For both Cognate Identifi-cation and Semantic Disambiguation, we report accuracy as the primary evaluation metric. We additionally report macro F 1 to account for class imbalance. To better understand model behavior, we further analyze category-specific error rates and directional confusion patterns between true cog-nates, false friends, and loanwords. Acc F1 Acc F1 Acc F1 Acc F1 Acc F1 Acc F1                                                                                                                                                      
+
+> GPT-4o
+> GPT-5.4
+> DeepSeek-V4
+> Qwen3.6-Plus
+> Qwen3-8B
+> Qwen2.5-7B
+> Llama-3.1-8B
+> GLM-4-9B
+> Gemma-2-9B
+> Jais-2-8B
+> Jais-Adapted-7B
+> DictaLM-2.0
+> Aya-23-8B
+> Diacritized IPA Romanized Diacritized IPA Romanized
+> Cognate Identification (CI) Semantic Disambiguation (SD)
+> +1.7 +0.6 -15.1 -13.0 -28.3 -27.1 -29.9 -29.4 -45.7 -46.2 -40.7 -42.4
+> -1.8 -2.7 -11.3 -9.5 -17.5 -16.6 -45.9 -46.0 -43.8 -46.1 -47.7 -48.4
+> -3.0 -3.9 -10.8 -11.9 -17.0 -18.1 -9.4 -7.5 -10.5 -6.8 -10.2 -6.8
+> -2.7 -3.3 -16.0 -15.3 -10.3 -8.8 -44.1 -45.0 -42.7 -45.6 -46.1 -45.8
+> -3.0 -7.0 -22.1 -20.4 -20.9 -19.5 -8.4 -12.9 +3.2 +3.6 -9.9 -17.0
+> -2.6 -5.6 -25.8 -25.2 -26.1 -26.2 -8.5 -4.5 -12.6 -5.5 -9.9 -3.3
+> +0.9 -1.5 -0.6 -1.0 -20.4 -7.2 -3.0 -3.8 +1.9 -5.3 -1.3 -12.7
+> -2.9 -5.4 -29.1 -22.6 -24.3 -16.5 -1.5 -6.0 -3.0 -9.6 -2.0 -7.0
+> -1.1 -5.2 -24.2 -26.2 -19.1 -18.7 -1.9 -5.5 +1.6 -6.1 +2.9 -3.4
+> -0.4 -2.2 -5.4 +1.2 -4.8 -0.3 -0.8 +0.3 -0.5 +1.0 +0.8 +1.1
+> +3.8 -3.7 -4.1 -3.3 -4.1 -7.8 -0.2 -2.5 -0.2 -2.5 -0.2 -2.5
+> +1.2 +5.5 -31.3 -24.6 -11.9 -14.8 +0.0 +0.0 +0.0 +0.0 +0.0 +0.0
+> +0.2 -0.3 -7.8 -4.0 -6.1 -7.1 +3.5 +7.3 -3.5 -8.8 +5.6 +8.0
+> Proprietary Open-source
+> 40
+> 20
+> 0
+> 20
+> 40
+> (%)
+
+Figure 3: Relative change ( ∆) in accuracy (Acc) and average F 1 compared to the undiacritized baseline across input representations. Values are reported in percentage points. 
+
+5 Result & Analysis 
+
+RQ1 : Classification and Disambiguation Ta-ble 1 presents the results for 3-class cognate iden-tification and semantic disambiguation using the undiacritized input representation. Although pro-prietary models generally outperform open-source models, all systems exhibit substantial category-level performance disparities. In CI, many mod-els rely heavily on surface-form similarity, achiev-ing high accuracy on true cognates while strug-gling with loanwords. For example, Llama-3.1-8B-Instruct achieves 0.0 accuracy on loanwords despite performing substantially better on true cog-nates. SD further exposes this limitation: sentence context alone is often insufficient to resolve form– meaning conflicts. GPT-4o and Qwen3-8B, for instance, achieve only 35.6% and 6.3% accuracy on false friends, respectively. Overall, these results suggest that lexical relation classification and con-textual semantic reasoning are distinct abilities, and that Arabic–Hebrew false friends remain a major challenge for current LLMs. 
+
+RQ2 : Input Representations Figure 3 shows that the original undiacritized text is generally the most effective input representation. In CI, diacriti-zation has only a modest impact, yielding small gains for some models and slight degradations for others. In contrast, IPA and Romanized representa-tions consistently reduce performance, particularly for open-source models. For example, Qwen2.5-7B loses more than 25% in both accuracy and F 1
+
+under these representations. These results suggest that models rely heavily on script-specific ortho-graphic patterns acquired during pretraining. The same trend is even more pronounced in SD. Alternative representations substantially degrade performance, with GPT-5.4 losing more than 45% in most settings. GPT-4o and Qwen3.6-Plus ex-hibit similar declines, particularly under IPA and Romanized inputs. Although a few models show isolated improvements, these gains are neither large nor consistent. Overall, phonetic and Romanized representations do not improve Arabic–Hebrew lex-ical reasoning. Instead, the results suggest that cur-rent LLMs depend heavily on familiar orthographic forms, with performance deteriorating when these cues are removed. 
+
+RQ3 : Cognate Identification with Sentences 
+
+Figure 4 shows that sentence context is beneficial for some models, but its effect is far from uniform. Commercial models consistently benefit from con-textual information, with GPT-5.4 and GPT-4o im-proving across all input representations, suggest-ing that they can leverage semantic cues beyond surface-form similarity. Qwen2.5-7B exhibits even larger gains in both accuracy and F 1, indicating that context can help distinguish true cognates, false friends, and loanwords. However, context is not universally helpful. Aya-23-8B degrades across all settings, while Llama-Acc F1 Acc F1 Acc F1 Acc F1                                                                                         
+
+> GPT-5.4
+> GPT-4o
+> DeepSeek
+> Qwen2.5-7B
+> Qwen3-8B
+> Llama3.1-8B
+> GLM-4-9B
+> Gemma-2-9B
+> DictaLM-2.0
+> Jais-2-8B
+> Jais-Adp-7B
+> Aya-23-8B
+> Undiac Diac Roman IPA
+> +10.1 +13.5 +9.9 +13.8 +18.4 +20.5 +16.1 +17.1
+> +15.1 +15.6 +14.2 +15.5 +17.9 +17.9 +18.2 +16.5
+> +2.1 +2.2 -9.3 -2.7 -1.6 +4.5 -10.2 -4.3
+> +13.0 +14.2 +17.4 +22.0 +18.4 +21.3 +21.3 +24.6
+> +0.6 -3.4 +1.1 -2.3 +11.4 +5.2 +7.2 +5.5
+> +2.0 -4.7 -1.1 -4.2 -3.7 -5.0 -34.0 -16.3
+> -2.4 -0.3 -2.6 +5.5 -3.4 -4.0 +3.7 +5.8
+> -7.1 -10.4 -3.2 -5.2 +3.9 +1.5 +4.4 +4.3
+> +11.1 +3.4 +12.8 -7.7 +6.4 +9.5 +39.2 +24.2
+> -5.5 +5.8 -5.0 +9.0 -6.3 -5.3 -5.0 -0.8
+> +5.1 -1.9 -1.1 -4.8 +7.5 +9.7 -3.7 -10.6
+> -13.1 -11.6 -6.8 -2.4 -6.1 -0.2 -12.9 -16.8 40
+> 30
+> 20
+> 10
+> 0
+> 10
+> 20
+> 30
+> 40
+> (%)
+
+Figure 4: Performance difference ( ∆) in accuracy (Acc) and average F 1 between sentence-level and word-level cognate identification in the 3-class setting. 
+
+3.1-8B experiences substantial drops under IPA, suggesting that additional sentence-level informa-tion can introduce noise when models struggle to align lexical form with meaning. Language-specific models show mixed behavior: DictaLM-2.0 generally improves in accuracy, whereas the Jais models often improve in F 1 despite lower accuracy. Overall, sentence context is helpful only when models can ground form-similar word pairs in semantic usage; otherwise, it may amplify representation-specific weaknesses. 
+
+RQ4 : Impact of Model Size Figure 5 shows that larger models generally perform better on CI, but the gains are neither monotonic nor consistent across input representations. For both Qwen2.5 and Qwen3, performance improves substantially up to 14B parameters, where the best or near-best results are achieved under the undiacritized and dia-critized settings. Scaling further to 32B yields only marginal gains and, in some cases, slight degrada-tion. These results suggest that additional capacity helps models exploit Arabic–Hebrew lexical cues, but scaling alone does not guarantee continued im-provement. The benefits of scaling are considerably smaller under IPA and Romanized representations, where performance remains substantially lower across model sizes. This suggests that representation mis-0.5 1.5 3 7 14 32                  
+
+> 20
+> 40
+> 60
+> 80
+> Accuracy
+> Undiacritized
+> 0.5 1.5 3714 32
+> 20
+> 40
+> 60
+> 80
+> Diacritized
+> 0.5 1.5 3714 32
+> Model Size (Billions of Params.)
+> 20
+> 40
+> 60
+> 80
+> Accuracy
+> IPA
+> 0.5 1.5 3714 32
+> Model Size (Billions of Params.)
+> 20
+> 40
+> 60
+> 80
+> Romanized
+> Qwen2.5 Qwen3 Aya
+
+Figure 5: Overall accuracy under different input repre-sentations for the Qwen2.5 , Qwen3 , and Aya models. 
+
+match disrupts script-based patterns learned dur-ing pretraining, limiting the gains obtainable from larger models. Aya exhibits only modest improve-ment from 8B to 35B under the original script and generally degrades under alternative representa-tions, indicating that broader multilingual coverage alone is insufficient for robust cognate reasoning. Overall, model scale improves performance primar-ily when the input format aligns with the model’s pretraining distribution; representation mismatch can substantially diminish or even offset the bene-fits of larger capacity. 
+
+6 Conclusion and Future Work 
+
+We introduced SemCog Bench, a benchmark for evaluating cross-lingual semantic reasoning in LLMs through Arabic–Hebrew true cognates, false friends, and loanwords. Across a diverse set of LLMs, we find that models rely heavily on surface-form similarity when reasoning about lexical rela-tionships across languages. Although performance is generally strong on true cognates, models strug-gle to distinguish false friends and frequently over-generalize cognate relationships to modern loan-words. We also showed that neither sentence-level context nor increased model scale fully resolves these errors, and phonetic or Romanized represen-tations further degrade performance. Future work includes extending the benchmark to additional language pairs and developing meth-ods that better integrate orthographic, phonological, and contextual signals for cross-lingual semantic reasoning. Limitations 
+
+This work has several limitations. First, SemCog Bench focuses on Arabic and Hebrew, and its find-ings may not directly generalize to language pairs with different typological, script, or contact pat-terns. Second, although the dataset covers true cog-nates, false friends, and loanwords, some border-line cases between inherited cognates and deeply integrated borrowings may still involve linguistic judgment. We reduce this ambiguity through expert annotation and additional verification. Third, our evaluation uses controlled MCQ formats, which support systematic comparison but may not fully reflect open-ended generation, translation, or dia-logue settings. Finally, some input representations rely on automatic diacritization, Romanization, and IPA transcription tools, and proprietary model re-sults may vary with future API updates despite our use of fixed snapshots. 
+
+Ethical Considerations 
+
+This work uses linguistic resources and human-validated sentence examples to study Arabic– Hebrew lexical reasoning in LLMs. The dataset does not contain personal, private, or sensitive user information. Annotators have relevant linguistic expertise, and disagreements are handled through verification and discussion. The main considera-tion is to avoid over-interpreting model behavior as reflecting properties of the languages or their speakers. Our analysis is intended to diagnose limi-tations of LLMs, not to evaluate linguistic commu-nities. By identifying errors on false friends and loanwords, this work aims to support more reliable multilingual systems for tasks such as translation, language learning, and cross-lingual information access. We used AI writing assistance within the scope of “Assistance purely with the language of the pa-per” described in the ACL Policy on Publication Ethics. 
+
+References 
+
+Eihab Abu-Rabiah. 2025. Semantic and phonological effects on l2 to l1 translation: The case of cognates, false cognates, and non-cognate translation equiva-lents. Electronic Journal of Foreign Language Teach-ing , 22(1). Venkata Mahathi Akavarapu and 1 others. 2024. Au-tomated cognate detection as a supervised link pre-diction task. In Proceedings of the 19th Conference of the European Chapter of the Association for Com-putational Linguistics , pages 839–857, St. Julian’s, Malta. Association for Computational Linguistics. Mohamed Anwar, Abdelhakim Freihat, George Ibrahim, Mostafa Awad, Abdelrahman Atef Mohamed Ali Sadallah, Gurpreet Gosal, Gokul Ramakrishnan, Sarath Chandran, Biswajit Mishra, Rituraj Joshi, Ahmed Frikha, Etienne Goffinet, Abhishek Maiti, Ali El Filali, Sarah Al Barri, Samujjwal Ghosh, Rahul Pal, Parvez Mullah, Awantika Shukla, and 41 others. 2025. Jais 2: A family of Arabic-centric open large language models. Technical report, IFM. Viraat Aryabumi, John Dang, Dwarak Talupuru, Saurabh Dash, David Cairuz, Hangyu Lin, Bharat Venkitesh, Madeline Smith, Jon Ander Campos, Yi Chern Tan, Kelly Marchisio, Max Bartolo, Se-bastian Ruder, Acyr Locatelli, Julia Kreutzer, Nick Frosst, Aidan Gomez, Phil Blunsom, Marzieh Fadaee, and 2 others. 2024. Aya 23: Open weight re-leases to further multilingual progress. Preprint ,arXiv:2405.15032. Yonatan Belinkov and James Glass. 2016. Large-scale machine translation between arabic and he-brew: Available corpora and initial results. Preprint ,arXiv:1609.07701. Samuel Cahyawijaya, Ruochen Zhang, Holy Love-nia, Jan Christian Blaise Cruz, Elisa Gilbert, Hiroki Nomoto, and Alham Fikri Aji. 2025. Thank you, stingray: Multilingual large language models can not (yet) disambiguate cross-lingual word senses. In 
+
+Findings of the Association for Computational Lin-guistics: NAACL 2025 , pages 3228–3250, Mexico City, Mexico. Association for Computational Lin-guistics. Mauro Cettolo. 2016. An arabic-hebrew parallel corpus of ted talks. ArXiv , abs/1610.00572. DeepSeek-AI, Aixin Liu, Bei Feng, Bing Xue, Bingx-uan Wang, Bochao Wu, Chengda Lu, Chenggang Zhao, Chengqi Deng, Chenyu Zhang, Chong Ruan, Damai Dai, Daya Guo, Dejian Yang, Deli Chen, Dongjie Ji, Erhang Li, Fangyun Lin, Fucong Dai, and 181 others. 2025. Deepseek-v3 technical report. 
+
+Preprint , arXiv:2412.19437. Stephen Gadd. 2026. Symphonym: Universal pho-netic embeddings for cross-script name matching. 
+
+Preprint , arXiv:2601.06932. Bar Gazit, Shaltiel Shmidman, Avi Shmidman, and Yu-val Pinter. 2025. Splintering nonconcatenative lan-guages for better tokenization. In Findings of the As-sociation for Computational Linguistics: ACL 2025 ,pages 22405–22417, Vienna, Austria. Association for Computational Linguistics. Team GLM, :, Aohan Zeng, Bin Xu, Bowen Wang, Chenhui Zhang, Da Yin, Dan Zhang, Diego Ro-jas, Guanyu Feng, Hanlin Zhao, Hanyu Lai, Hao Yu, Hongning Wang, Jiadai Sun, Jiajie Zhang, Jiale Cheng, Jiayi Gui, Jie Tang, and 40 others. 2024. Chatglm: A family of large language mod-els from glm-130b to glm-4 all tools. Preprint ,arXiv:2406.12793. Juan Moreno Gonzalez, Bashar Alhafni, and Nizar Habash. 2026. A tale of two scripts: Transliteration and post-correction for judeo-arabic. In Proceedings of the 19th Conference of the European Chapter of the Association for Computational Linguistics (Vol-ume 1: Long Papers) , pages 2100–2113. Aaron Grattafiori, Abhimanyu Dubey, Abhinav Jauhri, Abhinav Pandey, Abhishek Kadian, Ahmad Al-Dahle, Aiesha Letman, Akhil Mathur, Alan Schel-ten, Alex Vaughan, Amy Yang, Angela Fan, Anirudh Goyal, Anthony Hartshorn, Aobo Yang, Archi Mi-tra, Archie Sravankumar, Artem Korenev, Arthur Hinsvark, and 542 others. 2024. The llama 3 herd of models. Preprint , arXiv:2407.21783. Nizar Habash. 2002. The Palisra Project: A vision for a one-state solution. https://www.palisra.com/ mission . Accessed: 2026-06-06. Nizar Habash. 2023. An introduction to Palisri: One lan-guage for Israel–Palestine. https://www.palisra. com/ . Accessed: 2026-06-06. Nizar Habash, Abdelhadi Soudi, and Tim Buckwalter. 2007. On Arabic Transliteration. In A. van den Bosch and A. Soudi, editors, Arabic Computational Morphology: Knowledge-based and Empirical Meth-ods , pages 15–22. Springer, Netherlands. Nizar Y Habash. 2010. Introduction to Arabic natural language processing , volume 3. Morgan & Claypool Publishers. Bradley Hauer and Grzegorz Kondrak. 2015. Auto-matic cognate identification with gap-weighted string subsequence kernels. In Proceedings of the 2015 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies , pages 1227–1231, Denver, Colorado. Association for Computational Linguis-tics. Ulf Hermjakob, Jonathan May, and Kevin Knight. 2018. Out-of-the-box universal Romanization tool uroman. In Proceedings of ACL 2018, System Demonstrations ,pages 13–18, Melbourne, Australia. Association for Computational Linguistics. Diptesh Kanojia, Sumegh Munukutla, Sharmila Ghodekar, Pushpak Bhattacharyya, and Manish Kulkarni. 2020a. Keep your dimensions on a leash: True cognate detection using siamese deep neural net-works. In Proceedings of the 7th ACM IKDD CoDS and 25th COMAD , pages 324–325, Hyderabad, India. Association for Computing Machinery. Diptesh Kanojia and 1 others. 2020b. Harnessing cross-lingual features to improve cognate detection for low-resource languages. In Proceedings of the 28th Inter-national Conference on Computational Linguistics ,pages 1358–1371, Barcelona, Spain (Online). Inter-national Committee on Computational Linguistics. Salam Khalifa, Abdelrahim Qaddoumi, Jordan Kodner, and Owen Rambow. 2025. Learning cross-dialectal morphophonology with syllable structure constraints. In Proceedings of the 12th Workshop on NLP for Similar Languages, Varieties and Dialects , pages 157–167, Abu Dhabi, UAE. Association for Compu-tational Linguistics. Yakov Kolani, Maxim Melichov, Cobi Calev, and Mor-ris Alper. 2025. Phonikud: Hebrew grapheme-to-phoneme conversion for real-time text-to-speech. 
+
+Preprint , arXiv:2506.12311. Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph Gon-zalez, Hao Zhang, and Ion Stoica. 2023. Efficient memory management for large language model serv-ing with pagedattention. In Proceedings of the 29th symposium on operating systems principles , pages 611–626. Agnieszka Lijewska. 2020. Cognate processing effects in bilingual lexical access. Bilingual lexical ambigu-ity resolution , pages 71–95. Johann-Mattis List. 2012. Lexstat: Automatic detection of cognates in multilingual wordlists. Proceedings of the EACL 2012 Joint Workshop of LINGVIS & UNCLH , pages 117–125. Tutorial and method de-scription for the LingPy LexStat algorithm. Duaa Abu-Elhij’a Mahajna. 2019. A study of loanwords and code switching in spoken and online written Ara-bic by Palestinian Israelis . Ph.D. thesis, Indiana University. Ossama Obeid, Nasser Zalmout, Salam Khalifa, Dima Taji, Mai Oudah, Bashar Alhafni, Go Inoue, Fadhl Eryani, Alexander Erdmann, and Nizar Habash. 2020. CAMeL tools: An open source python toolkit for Arabic natural language processing. In Proceedings of the Twelfth Language Resources and Evaluation Conference , pages 7022–7032, Marseille, France. Eu-ropean Language Resources Association. Tetsuji Ohyama. 2021. Statistical inference of gwet’s ac1 coefficient for multiple raters and binary out-comes. Communications in Statistics - Theory and Methods , 50(15):3564–3572. OpenAI, Josh Achiam, Steven Adler, Sandhini Agarwal, Lama Ahmad, Ilge Akkaya, Florencia Leoni Ale-man, Diogo Almeida, Janko Altenschmidt, Sam Alt-man, Shyamal Anadkat, Red Avila, Igor Babuschkin, Suchir Balaji, Valerie Balcom, Paul Baltescu, Haim-ing Bao, Mohammad Bavarian, Jeff Belgum, and 262 others. 2024. Gpt-4 technical report. Preprint ,arXiv:2303.08774. Qwen, :, An Yang, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chengyuan Li, Dayiheng Liu, Fei Huang, Haoran Wei, Huan Lin, Jian Yang, Jianhong Tu, Jianwei Zhang, Jianxin Yang, Jiaxi Yang, Jingren Zhou, and 25 oth-ers. 2025. Qwen2.5 technical report. Preprint ,arXiv:2412.15115. Mohammed J. Saeed, Tommi Vehvilainen, Evgeny Fedoseev, Sevil Caliskan, and Tatiana Vodolazova. 2025. Impact: Inflectional morphology probes across complex typologies. Preprint , arXiv:2506.23929. Djamé Seddah, Reut Tsarfaty, Sandra Kübler, Marie Candito, Jinho D. Choi, Richárd Farkas, Jennifer Fos-ter, Iakes Goenaga, Koldo Gojenola Galletebeitia, Yoav Goldberg, Spence Green, Nizar Habash, Marco Kuhlmann, Wolfgang Maier, Joakim Nivre, Adam Przepiórkowski, Ryan Roth, Wolfgang Seeker, Yan-nick Versley, and 4 others. 2013. Overview of the SPMRL 2013 Shared Task: A Cross-Framework Evaluation of Parsing Morphologically Rich Lan-guages. In Proceedings of the Workshop on Statis-tical Parsing of Morphologically-Rich Languages ,pages 146–182, Seattle, Washington, USA. Neha Sengupta, Sunil Kumar Sahu, Bokang Jia, Satheesh Katipomu, Haonan Li, Fajri Koto, William Marshall, Gurpreet Gosal, Cynthia Liu, Zhim-ing Chen, Osama Mohammed Afzal, Samta Kam-boj, Onkar Pandit, Rahul Pal, Lalit Pradhan, Zain Muhammad Mujahid, Massa Baali, Xudong Han, Sondos Mahmoud Bsharat, and 13 others. 2023. Jais and jais-chat: Arabic-centric foundation and instruction-tuned open generative large language models. Preprint , arXiv:2308.16149. Reshef Shilon, Nizar Habash, Alon Lavie, and Shuly Wintner. 2010. Machine translation between Hebrew and Arabic: Needs, challenges and preliminary so-lutions. In Proceedings of the 9th Conference of the Association for Machine Translation in the Americas: Student Research Workshop , Denver, Colorado, USA. Association for Machine Translation in the Americas. Shaltiel Shmidman, Avi Shmidman, Amir DN Cohen, and Moshe Koppel. 2024. Adapting llms to hebrew: Unveiling dictalm 2.0 with enhanced vocabulary and instruction capabilities. Preprint , arXiv:2407.07080. Aaditya Singh, Adam Fry, Adam Perelman, Adam Tart, Adi Ganesh, Ahmed El-Kishky, Aidan McLaughlin, Aiden Low, AJ Ostrow, Akhila Ananthram, Akshay Nathan, Alan Luo, Alec Helyar, Aleksander Madry, Aleksandr Efremov, Aleksandra Spyra, Alex Baker-Whitcomb, Alex Beutel, Alex Karpenko, and 467 others. 2026. Openai gpt-5 system card. Preprint ,arXiv:2601.03267. Eshaan Tanwar, Gbemileke Oke, and Tanmoy Chakraborty. 2025. Multilingual LLMs struggle to link orthography and semantics in bilingual word processing. arXiv preprint arXiv:2501.09127 .Gemma Team, Morgane Riviere, Shreya Pathak, Pier Giuseppe Sessa, Cassidy Hardin, Surya Bhupati-raju, Léonard Hussenot, Thomas Mesnard, Bobak Shahriari, Alexandre Ramé, Johan Ferret, Peter Liu, Pouya Tafti, Abe Friesen, Michelle Casbon, Sabela Ramos, Ravin Kumar, Charline Le Lan, Sammy Jerome, and 179 others. 2024. Gemma 2: Improving open language models at a practical size. Preprint ,arXiv:2408.00118. Reut Tsarfaty, Dan Bareket, Stav Klein, and Amit Seker. 2020. From spmrl to nmrl: What did we learn (and unlearn) in a decade of parsing morphologically-rich languages (mrls)? In Proceedings of the 58th an-nual meeting of the Association for Computational Linguistics , pages 7396–7408. Werner Vach and Oke Gerke. 2023. Gwet’s ac1 is not a substitute for cohen’s kappa–a comparison of basic properties. MethodsX , 10:102212. Nahathai Wongpakaran, Tinakon Wongpakaran, Danny Wedding, and Kilem L. Gwet. 2013. A comparison of Cohen’s Kappa and Gwet’s Ac1 when calculating inter-rater reliability coefficients: A study conducted with personality disorder samples. BMC Medical Research Methodology , 13(1):61. An Yang, Anfeng Li, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chang Gao, Chengen Huang, Chenxu Lv, Chujie Zheng, Day-iheng Liu, Fan Zhou, Fei Huang, Feng Hu, Hao Ge, Haoran Wei, Huan Lin, Jialong Tang, and 41 others. 2025. Qwen3 technical report. Preprint ,arXiv:2505.09388. Wajdi Zaghouani, Mustafa Jarrar, Nizar Habash, Houda Bouamor, Imed Zitouni, Mona Diab, Samhaa El-Beltagy, and Muhammed AbuOdeh. 2024. The FIGNEWS shared task on news media narratives. In 
+
+Proceedings of the Second Arabic Natural Language Processing Conference , pages 530–547, Bangkok, Thailand. Association for Computational Linguistics. A Data Resources 
+
+We compiled candidate true cognates, false friends, and loanwords from a variety of dictionaries, lin-guistic databases, and academic publications. 
+
+True Cognates and False Friends Candidate TC and FF pairs were collected from: • A Comparative Hebrew–Arabic Lexicon [Source]. • The Palisri Dictionary of the Palisra Project [Source]. 
+
+Loanwords Candidate loanwords were collected from: • Hebrew loanword resources, including educa-tional materials, Academy of the Hebrew Lan-guage documentation, and research on Mod-ern Hebrew loanword phonology [Source 1, Source 2, Source 3, Source 4]. • Arabic loanword resources, including studies of English loanwords, morphological adapta-tion, and lexical borrowing in Modern Stan-dard Arabic [Source 1, Source 2, Source 3, Source 4]. 
+
+B Proprietary Model Snapshots 
+
+To ensure the reproducibility and consistency of our experimental results, all evaluations in-volving proprietary foundation models were ex-ecuted using fixed, version-controlled API snap-shots. Specifically, we employed OpenAI’s 
+
+gpt-5.4-2026-03-05 and gpt-4o-2024-11-20 ,DeepSeek’s deepseek-v4-pro , and Alibaba Cloud’s qwen3.6-plus-2026-04-02 . By pinning our experiments to these exact snapshot versions, we mitigate the potential impact of backend model updates or silent behavioral drifts over time. 
+
+C Compute and Hyperparameters 
+
+We evaluate the open-source models on two NVIDIA A40 GPUs, each with 48 GB of mem-ory, and access the proprietary commercial models through their official APIs. All experiments with open-source models are conducted using the LM Evaluation Harness framework 6, which provides a consistent evaluation interface and supports repro-ducible comparisons. For open-source model inference, we use the vLLM framework (Kwon et al., 2023) to improve 
+
+> 6https://github.com/EleutherAI/ lm-evaluation-harness
+
+computational efficiency and memory usage. To ensure reproducibility, we use deterministic decod-ing with temperature t = 0 and limit the max-imum output length to max _token = 20 . For proprietary models, including GPT, DeepSeek, and Qwen, we use the same decoding configuration for t and max _token whenever the corresponding API supports these parameters. We exclude the Gemini model family from the evaluation to avoid potential circular evaluation bias. To reduce posi-tion bias in the semantic disambiguation task, we randomly permute the order of answer choices and construct a fixed evaluation set with randomized option labels. All results reported in this work are computed on this fixed evaluation set. 
+
+D Evaluation Prompts 
+
+This section details the prompts designed for the cognate identification and semantic disambiguation tasks. These prompts incorporate various input for-mats, including undiacritized text, fully diacritized text, Uroman transliteration, and IPA transcription. 
+
+Cognate Identification (Undiac)                              
+
+> You are provided with an Arabic word and a Hebrew word. Your task is to classify the relationship between the words into one of the following categories: - TRUE_COGNATE -FALSE_FRIEND - LOANWORD Provide only one label as the response: TRUE_COGNATE, FALSE_FRIEND, or LOANWORD. Definitions: TRUE_COGNATE: Words that share acommon Semitic root and possess semantically overlapping meanings. At least one core meaning must be present in both languages. FALSE_FRIEND: Words that exhibit similar orthographic or phonological forms but convey completely different meanings, with no meaningful semantic overlap. LOANWORD: Words that are borrowed from one language into another, resulting in similar forms without a shared Semitic root. Arabic: {arabic_word} Hebrew: {hebrew_word} Answer:
+
+Cognate Identification (Diac)             
+
+> You are provided with a fully diacritized Arabic word and a fully diacritized Hebrew word. Your task is to classify the relationship between the words into one of the following categories: - TRUE_COGNATE -FALSE_FRIEND - LOANWORD Provide only one label as the response: TRUE_COGNATE, FALSE_FRIEND, or LOANWORD. Definitions:
+
+TRUE_COGNATE: Words that share a common Semitic root and possess semantically overlapping meanings. At least one core meaning must be present in both languages. FALSE_FRIEND: Words that exhibit similar diacritized orthographic or phonological forms (including vowel patterns and consonantal skeletons) but convey completely different meanings, with no meaningful semantic overlap. LOANWORD: Words that are borrowed from one language into another, resulting in similar diacritized forms without a shared Semitic root. Arabic (diac): {arabic_word_diac} Hebrew (diac): {hebrew_word_diac} Answer: 
+
+Cognate Identification (Uroman) 
+
+You are provided with a Universal Romanization (uroman) of an Arabic word and a Hebrew word. Your task is to classify the relationship between the words into one of the following categories: - TRUE_COGNATE -FALSE_FRIEND - LOANWORD Provide only one label as the response: TRUE_COGNATE, FALSE_FRIEND, or LOANWORD. Definitions: TRUE_COGNATE: Words that share a common Semitic root and possess semantically overlapping meanings. At least one core meaning must be present in both languages. FALSE_FRIEND: Words that exhibit similar romanized forms (reflecting similar phonological or orthographic structure) but convey completely different meanings, with no meaningful semantic overlap. LOANWORD: Words that are borrowed from one language into another, resulting in similar romanized forms without a shared Semitic root. Arabic (uroman): {arabic_word_uroman} Hebrew (uroman): {hebrew_word_uroman} Answer: 
+
+Cognate Identification (IPA) 
+
+You are provided with an IPA transcription of an Arabic word and a Hebrew word. Your task is to classify the relationship between the words into one of the following categories: - TRUE_COGNATE - FALSE_FRIEND - LOANWORD Provide only one label as the response: TRUE_COGNATE, FALSE_FRIEND, or LOANWORD. Definitions: TRUE_COGNATE: Words that share a common Semitic root and possess semantically overlapping meanings. At least one core meaning must be present in both languages. FALSE_FRIEND: Words that exhibit similar phonetic forms in IPA transcription (reflecting similar pronunciation) but convey completely different meanings, with no meaningful semantic overlap. 
+
+LOANWORD: Words that are borrowed from one language into another, resulting in similar IPA transcriptions without a shared Semitic root. Arabic (IPA): {arabic_word_ipa} Hebrew (IPA): {hebrew_word_ipa} Answer: 
+
+Cognate Identification (Undiac / Sen-tence) 
+
+You are given an Arabic sentence and aHebrew sentence, along with a specific target Arabic word and a target Hebrew word extracted from these sentences. Your task is to determine the relationship between the target Arabic word and the target Hebrew word, taking into account their context within the sentences. Determine whether they are: - TRUE_COGNATE - FALSE_FRIEND - LOANWORD Answer with only one label: TRUE_COGNATE, FALSE_FRIEND, or LOANWORD. Definitions: TRUE_COGNATE: Words that share a common Semitic root AND have semantically overlapping meanings in the given context. At least one core meaning must be present in both languages. FALSE_FRIEND: Words that have similar orthographic or phonological forms BUT have completely different meanings in the given context, with no meaningful semantic overlap. LOANWORD: Words that are borrowed from one language into another, resulting in similar forms without a shared Semitic root. Arabic Sentence: {arabic_sentence} Target Arabic Word: {arabic_word} Hebrew Sentence: {hebrew_sentence} Target Hebrew Word: {hebrew_word} Answer: 
+
+Semantic Disambiguation (Undiac) 
+
+You are provided with two sentences: one written in the Arabic script and one in the Hebrew script. Which sentence is semantically appropriate? A. {sent_a} B. {sent_b} C. Both sentences are appropriate. Provide only the corresponding letter (A, B, or C) as the response. Answer: 
+
+Semantic Disambiguation (Diac) 
+
+You are provided with two fully diacritized sentences: one in Arabic script and one in Hebrew script. Which sentence is semantically appropriate? A. {sent_a} B. {sent_b} C. Both sentences are appropriate. Provide only the corresponding letter (A, B, or C) as the response. Answer: 
+
+Semantic Disambiguation (Uroman) 
+
+You are provided with two sentences in transliteration by uroman: one from Arabic and one from Hebrew. Which sentence is semantically appropriate? A. {sent_a} B. {sent_b} C. Both sentences are appropriate. Provide only the corresponding letter (A, B, or C) as the response. Answer: 
+
+Semantic Disambiguation (IPA) 
+
+You are provided with two sentences in IPA transcription: one from Arabic and one from Hebrew. Which sentence is semantically appropriate? A. {sent_a} B. {sent_b} C. Both sentences are appropriate. Provide only the corresponding letter (A, B, or C) as the response. Answer: 
+
+E Sentence Generation Prompt 
+
+Sentence Generation 
+
+You are provided with an Arabic word, aHebrew word, their corresponding meanings, and a cognate type. Your task is to generate one natural Arabic sentence and one natural Hebrew sentence, each containing the corresponding target word. Inputs: Arabic word: {arabic_word} Hebrew word: {hebrew_word} Arabic meaning: {arabic_meaning} Hebrew meaning: {hebrew_meaning} Cognate type: {cognate_type} Output format: Return only valid JSON with the following fields: arabic_word, hebrew_word, arabic_sentence, hebrew_sentence, arabic_translation_en, and hebrew_translation_en. Sentence requirements: Each sentence must contain 8–20 words. Each sentence must be natural, fluent, and representative of native-speaker usage. The target word must be clearly used in its given meaning. Inflection is allowed. Cognate constraints: If cognate_type is true_cognate, both target words should be used with the same meaning, but the Arabic and Hebrew sentences should describe different situations. 
+
+If cognate_type is false_friend, the Arabic sentence must reflect the Arabic meaning, and the Hebrew sentence must reflect the Hebrew meaning. The difference between the two meanings must be clear from context. Answer: F Annotation Guidelines Annotation Guideline: Arabic -Hebrew Cognates Classification 
+
+1. Task Overview 
+
+The objective of this annotation task is to  classify Arabic -Hebrew word pairs  as either  True Cognates  or 
+
+False Friends  based on semantic equivalence.  These words were initially classified using LLMs. You r role 
+
+as an annotator to verify this classification. 
+
+After that, you will be required to classify whether Arabic -Hebrew word pairs are  loanwords .
+
+Your task will be: 
+
+• Decide  based on  the  meaning  of the word  and  decide whether the  pair a re  True Cognates or 
+
+False Friends (Stage 1) 
+
+• Evaluate sentence  for  naturalness for both Arabic and Hebrew (Stage 2) 
+
+• Decide what is the meaning of the word and decide whether the pair are loanwords (Stage 
+
+3) 
+
+• Evaluate sentence for naturalness for both Arabic and Hebrew for loanwords  (Stage 4) 
+
+We will provide you with an annotation spreadsheet.  Below are the  entries in the annotation spreadsheet .
+
+Stage 1 (Word -Level)  - provided in tab 1 :
+
+Field  Description 
+
+arabic_diac  Arabic word with diacritics 
+
+arabic_undiac  Arabic word without diacritics 
+
+hebrew_diac  Hebrew word with diacritics 
+
+hebrew_undiac  Hebrew word without diacritics 
+
+arabic_meaning  English meaning(s) of the Arabic word 
+
+hebrew_meaning  English meaning(s) of the Hebrew word 
+
+Stage 2 (Sentence -Level)  (provided in tab 2) :
+
+Field  Description arabic_word  Arabic target word 
+
+hebrew_word  Hebrew target word 
+
+arabic_sentence  Sentence in Arabic using the target word 
+
+hebrew_sentence  Sentence in Hebrew using the target word 
+
+arabic_translation_en  English translation of the Arabic sentence 
+
+hebrew_translation_en  English translation of the Hebrew sentence 
+
+Stage 3 (Loanwords, word -level annotation) 
+
+Field  Description 
+
+arabic_word  Arabic loanword 
+
+hebrew_word  Hebrew loanword 
+
+arabic _meaning  English meaning  of  Arabic  word 
+
+hebrew_meaning  English meaning of  Arabic  word 
+
+Stage 4 (Loanwords, sentence -level annotation) 
+
+Same as stage 2. 
+
+2.  Annotation  Criteria 
+
+2.1 Stage 1: Cognate  Annotation 
+
+Label  Definition 
+
+True 
+
+Cognate 
+
+Words  which  share a common Semitic root AND have  semantically overlapping 
+
+meanings  (share a meaning) . At least one core meaning must be present in both 
+
+languages. 
+
+(ex. The words  חלב  and  حليب  which mean milk are true cognates) False 
+
+Friend 
+
+Words share similar form BUT have  completely  differen t meanings  with no meaningful 
+
+overlap. 
+
+(ex.  خريف  and  חורף  are false friend s) 
+
+How do decide on the  correct meaning :
+
+1.  Read the two words and their meanings, i s the meaning correct? 
+
+2.  Check if any meaning overlaps between the two words  from the two languages 
+
+3.  If they have  one shared  meaning,  then the word s are  True Cognate 
+
+4.  If  you accept the classification in column H (type),  be it True cognate or False friends,  then  in
+
+annotator _type (column K) , choose  Accept , otherwise, choos e Reject .
+
+5.  Please  Reject  the borrowed word from English, archaic words  (i.e. words that are not commonly 
+
+used in the two languages) , only  keep words  th at  are used  in MSA and Modern Hebrew . Also 
+
+reject, and names of places/locations, animals etc. As they are not considered cognates. 
+
+6.  If  you have  any comments,  add a  note  in column L. 
+
+7.  You will also  see  a “reasoning”  column;  this is generated by Gemini -3.1 -pro -preview . This is only 
+
+for  researchers’ references;  please  use your own judgement  when providing your annotation !
+
+Google Sheet Columns to Fill: 
+
+Column  Required  Description 
+
+annotator_type 
+
+(col. K)  Yes  Accept/Reject 
+
+note  Optional  Brief explanation or comment (if needed) 
+
+2.2 Stage 2: Sentence Naturalness 
+
+In  the second stage  you’ll  decide on  the sentence’s naturalness.  In this  task,  there are two labels: 1. 
+
+Natural 2. Unnatural 
+
+Label  Definition Natural 
+
+Grammatically correct and idiomatic;  for the Hebrew,  the  sentence should  sound like 
+
+a native  speaker production , and for the MSA it sounds like a natural choice in MSA  –
+
+i.e. no awkwardness in the choice of context. 
+
+Unnatural  Contains  grammatical errors, awkward phrasing, or would not be produced by a 
+
+native speaker  (for Hebrew). 
+
+Google Sheet Columns to Fill: 
+
+Column  Required  Description 
+
+arabic_sentence_natural  Yes  Enter: "Natural" or "Unnatural" 
+
+hebrew_sentence_natural  Yes  Enter: "Natural" or "Unnatural" 
+
+arabic_note  Optional  Comment on Arabic sentence (if Unnatural or needs 
+
+clarification) 
+
+hebrew_note  Optional  Comment on Hebrew sentence (if Unnatural or 
+
+needs clarification) 
+
+Checklist: 
+
+1.  Read the Arabic sentence  (and its translation  if not sure about meaning) 
+
+2.  Evaluate naturalness : Doe s it  sound  "Natural" or "Unnatural"  based on the definition above ?
+
+3.  Add  comment  if needed 
+
+4.  Read the Hebrew sentence and its translation 
+
+5.  Evaluate naturalness: "Natural" or "Unnatural"  based on the definition above of naturalness 
+
+6.  Add optional note if needed 
+
+7.  You don't need to verify the correctness of English  translation;  it is used for easier understanding. 
+
+There may be issues with translations. 
+
+8.  The English meaning of Arabic and Hebrew words is attached also for reference. 
+
+9.  If you marked the words as cognates and you find that the sentences are awkward (unnatural), 
+
+please suggest a new sentence without changing the word form. 
+
+2.3  Stage  3: Loanword  word -level  annotation Loanwords: the word that has been borrowed from one language (the donor language) and incorporated 
+
+into the vocabulary of another language (the recipient language). In this case, both Arabic and Hebrew 
+
+have borrowed the same word (or very similar forms) fr om a third language. 
+
+Label  Definition 
+
+Accept 
+
+The word pair is correctly identified as a loanword pair with accurate shared meaning. 
+
+Both forms are used in modern MSA and Modern Hebrew. 
+
+Reject 
+
+The word pair is NOT a valid loanword pair. Reasons include: not a loanword, archaic 
+
+usage, proper noun, incorrect meaning, or dialectal usage only. 
+
+Google Sheet Columns to Fill: 
+
+Column  Required  Description 
+
+annotator_type 
+
+(col.  L) Yes  Accept/Reject 
+
+note  Optional  Brief explanation or comment (if needed) 
+
+How do decide on the loanwords: 
+
+1.  Verify the word is a genuine loanword, The word should be commonly used in Modern Standard 
+
+Arabic (MSA) and Modern Hebrew . The word should originate from a non -Semitic source 
+
+language , Both Arabic and Hebrew forms should be phonologically similar .
+
+2.  The provided meaning should be correct for BOTH languages .
+
+3.  If meanings differ significantly between Arabic and Hebrew, note this in the comments .4.  Words to REJECT:  i)  Words that are NOT loanwords (native Semitic words)  ii)  Archaic words that 
+
+are rarely used in modern contexts Proper nouns (names of people, places, brands)  iii)  Words 
+
+that are only used in dialectal Arabic, not MSA . iv ）Words that are completely different in 
+
+meaning between the two languages 
+
+5.  You will also see  other  columns  such as  entry, id,  arabic_ipa, hebrew_ipa, phonetic_similairty, 
+
+loan_source, those  columns are  only  used for eas ier  understanding  by researchers.  please  use 
+
+your own judgement when providing your annotation! 
+
+6.  If you have any comments, add a note in column  M. 
+
+2.4 Stage 4: Loanword Sentence -level annotation 
+
+The requirement is same as stage 2. 
+
+3. Strict Guidelines & Critical Rules 
+
+Here are some important rules to follow: 
+
+1.  NO use of LLMs or AI tools (ChatGPT, Claude, Gemini, etc.) 
+
+2.  NO use of machine translation 
+
+3.  NO guessing  — consult a dictionary if uncertain 
+
+4.  Verify meanings independently using trusted dictionaries 
+
+5.  Maintain consistency throughout the dataset 
+
+6.  Add notes to explain unclear or borderline cases 
+
+4. Additional  examples 
+
+Example 1: True Cognate (Stage 1) 
+
+[Input Variables] 
+
+arabic_undiac  hebrew_undiac  arabic_meaning  hebrew_meaning 
+
+عبد  עבד  slave; servant; worship  slave; to work 
+
+[Expected  Annotation ]
+
+annotator_type  note 
+
+True Cognate  Both share core meaning "slave/servant" from root  ʕ-b-dExample 2: False Friend (Stage 1) 
+
+[Input Variables] 
+
+arabic_undiac  hebrew_undiac  arabic_meaning  hebrew_meaning 
+
+عزر  עזרה  reprimand; censure  help; assistance 
+
+[Expected  Annotation ]
+
+annotator_type  note 
+
+False Friend  Arabic "reprimand" vs Hebrew "help"  — no semantic overlap 
+
+Example 3: Natural Hebrew, Unnatural Arabic (Stage 2) 
+
+[Input Variables] 
+
+arabic_sentence  hebrew_sentence 
+
+كان المشتبه به هو الفاعل الرئيسي في عملية السرقة . החשוד היה הפועל הראשי במעשה השוד .
+
+[Expected Output] 
+
+Arabic 
+
+sentence 
+
+natural 
+
+Hebrew 
+
+sentence 
+
+natural 
+
+arabic_note  hebrew_note 
+
+Unnatural  Natural 
+
+The word " الفاعل " is not commonly used to mean 
+
+"perpetrator" in this context. A more natural choice 
+
+would be " المُنفِّذ " or rephrase the sentence entirely. 
+
+Example 4: Both Sentences Natural (Stage 2) 
+
+Sentences 
+
+arabic_sentence  hebrew_sentence     
+
+> ى راشت  ة بيضاء لتنتج حليبًا طازجًا كل صباح زز عت يالراع .הילד ליטף עז קטנה בחווה והאכיל אותה עשב טרי .
+
+[Expected  Annotation ]
+
+Arabic  sentence 
+
+natural 
+
+Hebrew 
+
+sentence 
+
+natural 
+
+arabic_note  hebrew_note 
+
+Natural  Natural 
+
+Example 5: Unnatural Hebrew (Stage 2) 
+
+Sentences 
+
+arabic_sentence  hebrew_sentence 
+
+عبر الطريق بسرعة.  הוא להעביר את הקבצים מחר. 
+
+Expected  Annotation 
+
+arabic_sentence_natural  hebrew_sentence_natural  arabic_note  hebrew_note 
+
+Natural  Unnatural  Missing conjugation; should 
+
+be " העביר " or " צריך להעביר "
+
+Example 6: Accepted Loanwords (Stage 3) 
+
+[Input Variables] 
+
+arabic_word  Hebrew_word  arabic_meaning  hebrew_meaning   
+
+> يسوش סושי
+
+sushi  sushi 
+
+[Expected Annotation] annotator_type  note 
+
+Accept  Common loanword from  Japanese , widely used in both languages 
+
+Example 7: Rejected Loanwords (Stage 3) 
+
+[Input Variables] 
+
+arabic_word  Hebrew_word  arabic_meaning  hebrew_meaning 
+
+[Expected Annotation] 
+
+annotator_type  note 
+
+5. Common Mistakes to Avoid 
+
+1.  Over -reliance on form  — Similar -looking words may be False Friends if meanings differ 
+
+2.  Ignoring polysemy  — One shared meaning is sufficient for True Cognate 
+
+3.  Translation bias  — Verify meanings in original languages 
+
+4.  Conjugation differences are  expected and  should not be a factor in the annotation decision. 
+
+Final Submission Checklist 
+
+• All entries have annotator_type filled (Stage 1) 
+
+• All entries have arabic_sentence_natural filled (Stage 2) 
+
+• All entries have hebrew_sentence_natural filled (Stage 2) 
+
+• Notes added for unclear or borderline cases 
+
+• No entries skipped 
+
+Document Version : 4.0  Last Updated : 2026 -05 -09
