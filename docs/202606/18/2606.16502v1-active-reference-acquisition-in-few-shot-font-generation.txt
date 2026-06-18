@@ -1,0 +1,475 @@
+Title: Active Reference Acquisition in Few-Shot Font Generation
+
+URL Source: https://arxiv.org/pdf/2606.16502v1
+
+Published Time: Tue, 16 Jun 2026 02:02:15 GMT
+
+Number of Pages: 17
+
+Markdown Content:
+# Active Reference Acquisition in Few-Shot Font Generation 
+
+Shinnosuke Matsuo [0009 −0007 −2393 −186 X]⋆
+
+NTT, Inc., Japan 
+
+shinnosuke.matsuo@ntt.com 
+
+Abstract. Few-shot font generation aims to synthesize the remaining glyphs of a font given one or a few reference glyphs while preserving stylistic consistency, thereby supporting font designers in efficiently com-pleting a typeface. Existing methods primarily focus on improving gen-eration quality given a fixed reference set. However, when the current reference glyphs are insufficient to represent the target style, few-shot font generation may fail to produce satisfactory results. In practical sce-narios, additional reference glyphs can often be obtained from the de-signer when necessary. Accordingly, we propose a new framework, Active Reference Acquisition in Few-Shot Font Generation , in which the model sequentially decides which character to acquire next as an additional reference. Furthermore, we propose a reference part-coverage-based ac-quisition function to efficiently query the designer. Motivated by the ob-servation that font styles are well characterized by local structural parts, we represent each glyph using a histogram of local features and select query characters that maximize the expected part coverage of the ref-erence set. By prioritizing characters that contain parts not yet covered by the current references, the proposed method progressively expands the diversity of visual parts in the reference set. As a result, generation quality is improved with fewer queries. Experiments on the Google Fonts dataset demonstrate that the proposed method achieves higher genera-tion quality than random querying and reference-agnostic baselines. The code is available at https://github.com/matsuo-shinnosuke/ActiveRef-FontGen. 
+
+Keywords: Few-shot font generation · Active reference acquisition. 
+
+## 1 Introduction 
+
+Designing a font is a highly time-consuming and labor-intensive process that relies heavily on expert craftsmanship. Even for the Latin alphabet, a designer must create at least 26 uppercase glyphs, and in practice many more, includ-ing lowercase letters, numerals, punctuation, and symbols. Moreover, all glyphs within a typeface must share consistent fine-grained stylistic characteristics, such as stroke terminals, contrast, curvature, and proportions. Ensuring such consis-tency across all characters imposes a significant burden on designers.  
+
+> ⋆
+
+This work was conducted while the author was affiliated with Kyushu University.    
+
+> arXiv:2606.16502v1 [cs.CV] 15 Jun 2026 2S. Matsuo References
+> Targets 1.Few -shot
+> font generation
+> mode l
+
+# “C” “Z” …
+
+…    
+
+> Generation results
+> Font designer
+> 2.Reference part -coverage -based
+> acquisition functio n
+> 3.Query
+> “S” 4. Acquire
+
+Fig. 1: Active reference acquisition in few-shot font generation. To alleviate this burden, the problem of few-shot font generation has been studied [2, 3, 13, 14, 6]. This task aims to synthesize a complete alphabet from one or a few reference glyphs created by a designer. For example, as illustrated in the upper part of Fig. 1, given a small set of reference characters such as “A”–“C”, the model generates the remaining characters “D”–“Z” while preserving stylistic consistency. Recent few-shot font generation methods are typically realized using either GAN-based or diffusion-based generative models. GAN-based approaches fo-cus on disentangling content (character identity) and style (font appearance), and several works further leverage compositional structures or localized style representations to capture fine-grained details [2, 3, 13, 14, 19]. More recently, diffusion-based approaches have demonstrated strong performance. In particu-lar, Diff-Font [6] provides a robust framework for one-shot font synthesis, and subsequent work has extended this line of research [21]. Despite architectural differences, these methods typically assume a fixed reference glyph set and focus on improving the accuracy of generating non-reference glyphs conditioned on the given references. However, in practical design workflows, there are situations where the cur-rent reference glyph images are insufficient and few-shot font generation fails to produce satisfactory results. In such cases, it is often possible to query the de-signer for additional reference glyphs as needed. This is particularly important for complex or decorative fonts, where a single or a small number of reference glyph images cannot fully represent the entire style. Although adding more ref-erences can potentially improve generation quality, the designer’s time is limited; therefore, it is necessary to carefully select which glyph to query next. In this paper, we propose Active Reference Acquisition in few-shot font gen-eration, a designer-in-the-loop formulation that enables efficient few-shot font generation with a limited number of queries. An overview is shown in Fig. 1. First, given one or a few initial reference glyphs for a target font, an existing few-shot font generation model is used to synthesize the remaining target char-acters. Based on the generated results, an acquisition function is computed to estimate the value of querying each candidate glyph from the designer. The glyph with the highest acquisition value is then queried and added to the reference set. Active Reference Acquisition in Few-Shot Font Generation 3High part -coverage  
+
+> →Highly informative
+
+# z        
+
+> Part
+> .. .
+> .. .
+> Frequency
+> Part
+> Low part -coverage
+> →Less informative
+> #1
+> Part feat.
+> cluster #2 #3 #4
+> Curved etc.
+> #5
+> .. .
+> .. .
+> Frequency
+> #1
+> Part feat.
+> cluster #2 #3 #4 #5
+
+(a) Part-coverage representation Current references Candidate references   
+
+> Reference
+> part hist.
+> Candidate part hist.
+> +Current reference part hist.
+
+Highest reference 
+
+part -coverage 
+
+→ Query “A ”   
+
+> .. . .. . .. .
+> .. .
+> .. .
+> Frequency
+> #1
+> Part feat.
+> cluster #2 #3 #4
+> Curved etc.
+> #5
+> .. .
+> .. .
+> .. .
+> Generation
+> results
+
+(b) Query selection that considers both candidate and reference part coverage. 
+
+Fig. 2: Overview of the reference part-coverage-based acquisition function. By iteratively repeating this process, generation performance can be improved more efficiently than with naive policies such as random querying. To address this problem, we propose an acquisition function that focuses on local structural parts of glyphs. Font styles are often characterized by distinctive parts such as vertical strokes, diagonal strokes, curves, and stroke terminals. Therefore, in few-shot font generation, it is reasonable to assume that reference glyphs covering a diverse set of parts are more informative. Accordingly, as illustrated in Fig. 2(a), we define the part coverage of each character. Specifically, local features corresponding to glyph parts are extracted using descriptors such as SIFT [11], followed by clustering to construct a his-togram of clustered part features. The part coverage is defined as the entropy of the normalized histogram. A higher value indicates that the character contains a diverse set of parts, such as the vertical strokes, curves, diagonals, and terminals found in “R”, whereas a lower value indicates limited diversity, as in characters dominated mainly by curves. The most naive strategy is to query characters solely based on their individual part coverage. However, this approach suffers from an important limitation. For example, when “B” and “K” are already included in the reference set, a character such as “R” may have high part coverage on its own; nevertheless, many of its 4 S. Matsuo 
+
+parts are already present in “B” and “K”, making it less valuable to add as an additional reference. To address this issue, as illustrated in Fig. 2(b), we propose a reference part-coverage-based acquisition function that also takes into account the part his-togram of the current reference set. Specifically, for each unacquired candidate character, we compute its part histogram from the generated glyph image, add it to the current reference part histogram, and evaluate the expected reference part coverage if that character were acquired. This expected reference part cov-erage is used as the acquisition value. By doing so, the method efficiently queries characters that contain parts not yet covered by the current reference set, pro-gressively expanding the diversity of reference parts and thereby improving the accuracy of few-shot font generation. Experiments on Google Fonts demonstrate that the proposed method achieves higher generation quality with fewer queries compared to random querying, fixed query orders derived from training data, and query strategies that ignore the current reference set. Our main contributions are summarized as follows. 
+
+– We introduce Active Reference Acquisition in few-shot font generation, a new framework that enables actively querying a designer for additional reference glyphs. 
+
+– We propose a reference part-coverage-based acquisition function that selects query characters by maximizing the expected part coverage of the reference set, explicitly accounting for redundancy with existing references. 
+
+– We demonstrate through experiments on the Google Fonts dataset that the proposed method achieves higher generation quality with fewer queries than random querying and reference-agnostic baselines. 
+
+## 2 Related Work 
+
+2.1 Few-Shot Font Generation 
+
+Few-shot font generation aims to synthesize a complete font set (e.g., all glyphs in a character set) from one or a few reference glyph images designed by an expert. A common formulation treats the standard glyphs in a source font as 
+
+content inputs and transfers the style extracted from the reference glyphs to the remaining characters, seeking both high-fidelity stylization and consistency across the generated alphabet. Early and widely studied approaches build on conditional image-to-image translation and GAN-based frameworks. Multi-Content GAN [2] addresses orna-mented fonts and enables synthesis of unobserved glyphs from limited references. Subsequent works improve few-shot generalization by exploiting compositional structures and localized style cues: DM-Font [3] introduces a dual-memory mech-anism to leverage script compositionality, while LF-Font [13] and MX-Font [14] represent style in a localized/component-wise manner to better capture fine de-tails. Tang et al. [19] further emphasize fine-grained local styles and propose cross-attention to align local style patterns between reference and target glyphs. Active Reference Acquisition in Few-Shot Font Generation 5
+
+More recently, diffusion-based models have also been explored for one-/few-shot font generation. Diff-Font [6] formulates one-shot font synthesis with dif-fusion to improve training stability and fidelity, and FontDiffuser [21] proposes diffusion-based denoising with multi-scale content aggregation and style con-trastive learning for robust imitation. Importantly, despite architectural differences, the standard few-shot font gen-eration setting largely assumes that the reference glyph set is fixed and does not consider updating it, focusing instead on maximizing generation quality given those references. In contrast, our work focuses on which additional references to query a designer for in order to improve generation efficiency, and can be combined with existing GAN- or diffusion-based generators. 
+
+2.2 Active Learning 
+
+Active learning (AL) studies how to reduce annotation cost by selectively query-ing a human annotator for labels of informative examples. In the standard pool-based setting, an algorithm iteratively chooses unlabeled samples according to an acquisition strategy (e.g., uncertainty or expected utility) and obtains their la-bels to improve a model with fewer labeled instances than random sampling [16]. Classic AL strategies include uncertainty sampling and its variants for text and classification problems [9, 8], as well as committee-based methods such as query-by-committee [17]. Beyond heuristics, Bayesian and decision-theoretic views lead to criteria that minimize expected posterior uncertainty or expected er-ror under statistical models [4]. In deep learning, AL has been combined with Bayesian approximations and diversity-aware batch selection, such as deep Bayesian active learning [5], core-set selection for CNNs [15], and batch selection via gra-dient embeddings (BADGE) [1]. Our setting differs from conventional AL in two key ways. First, AL primar-ily targets training-time data efficiency, querying labels to update a predictive model. Second, in conventional AL, queries correspond to requesting labels for instances drawn from an unlabeled data pool. In contrast, we query a designer 
+
+at inference time for additional reference glyph images to better condition a font generator, with the goal of improving generation quality under a limited number of queries. Thus, while both AL and our approach use acquisition functions, the queried object (labels vs. reference images), the timing (training vs. inference), and the objective (classification accuracy vs. generative fidelity/consistency) are fundamentally different. 
+
+2.3 Active Feature Acquisition 
+
+Active feature acquisition (AFA) studies decision-making under incomplete ob-servations where acquiring additional feature values incurs a cost. Given a par-tially observed instance, an agent sequentially decides which feature to acquire next, or when to stop acquisition and make a prediction, aiming to maximize predictive performance with a limited number of acquisitions. 6 S. Matsuo 
+
+Recent AFA methods develop principled acquisition criteria and learn acqui-sition policies directly from data. AFASMC [7] combines active querying with supervised matrix completion to exploit feature correlations, while RL-based approaches jointly learn when to acquire features and when to predict [18]. Gen-erative modeling has also been used to estimate information gain and guide acquisitions, including Partial-VAE-based information acquisition (EDDI) [12] and generative surrogate models for policy learning [10]. Although AFA is conceptually related to our approach in that both aim to maximize downstream performance with a limited number of queries, most AFA work focuses on tabular feature values and classification/regression objectives for a single instance. In contrast, we study a generative setting where the acquired information is a new reference glyph image for a font style, and the benefit is measured by improved generation quality across multiple target characters. 
+
+## 3 Problem Setting: Active Reference Acquisition 
+
+In this section, we formalize Active Reference Acquisition for few-shot font gen-eration, a new problem setting in which the system is allowed to actively acquire additional reference glyphs from a designer. Consider a target character set of size N (e.g., N = 26 for uppercase Latin letters A–Z). Let V = {1, . . . , N } denote the set of character identities. For a given font, let xc denote the ground-truth glyph image of character c ∈ V .In few-shot font generation, the system is initially provided with a small set of reference character identities S0 ⊂ V , where |S 0| = K0 and K0 is typically one or a few. Given the corresponding reference glyph images {xc | c ∈ S 0}, a generator synthesizes glyph images for the remaining characters V \ S 0.In practical design workflows, it is often possible to request additional refer-ence glyphs when the current references are insufficient. We therefore consider an interactive setting in which the system iteratively selects a new character identity to query. At iteration t, let St ⊂ V denote the current set of reference character identities. The system selects a query character qt ∈ V \ S t, obtains its glyph image xqt from the designer, and updates the reference set by setting 
+
+St+1 = St ∪ { qt}. This process continues under a query budget, resulting in a final reference set ST of size K.The objective is to design a querying policy that selects a sequence of char-acters so as to maximize the final generation quality on the remaining characters 
+
+V \ S T . Generation quality is measured by a task-specific metric (e.g., SSIM or LPIPS) between generated glyph images and the corresponding ground-truth glyph images. 
+
+## 4 Proposed Method: Reference Part-Coverage-based Acquisition Function 
+
+In this section, we propose an efficient strategy for Active Reference Acquisition 
+
+in few-shot font generation. A font style is characterized not only by the global Active Reference Acquisition in Few-Shot Font Generation 7
+
+appearance of a typeface, but also by the consistency of fine-grained local details, such as stroke terminals, junctions, curves, and decorative parts. Therefore, in few-shot font generation, it is important that the reference set covers a wide range of parts appearing across characters within the font. Based on this idea, we design an acquisition function that selects the next query character using the 
+
+predicted part coverage of the reference set after adding that character. We first describe how to represent part coverage for a glyph image in Sec. 4.1. Then, in Sec. 4.2, we introduce our Reference part-coverage-based Acquisition Function , which selects the character identity whose acquisition is expected to maximize reference part coverage. 
+
+4.1 Part-Coverage Representation 
+
+We describe how to represent the part coverage of each glyph image. Since fine-grained local details are crucial for few-shot font generation, characters that cover diverse parts can be particularly informative as references. For example, as illustrated in Fig. 2(a), some characters (e.g., R) contain multiple parts such as vertical strokes, curves, diagonals, and decorative elements (e.g., distinctive terminals), whereas other characters (e.g., O) are dominated by a smaller variety of parts (mainly curves). Our representation consists of three steps. First, given a glyph image x, we extract local descriptors from the image (e.g., SIFT descriptors, or deep local descriptors from an intermediate feature map of a trained style encoder). Second, at iteration t, we collect local descriptors from the available glyph images (the current references and the model-generated glyphs for the remaining characters) and run k-means to obtain M clusters. We then compute h(x) by assigning descriptors to these clusters. Intuitively, each cluster is expected to correspond to a recurring part pattern, such as straight strokes, curved strokes, junctions, or decorative textures. Third, we represent each glyph image x by a histogram 
+
+h(x) ∈ RM
+
+> ≥0
+
+, where the m-th bin counts how many local descriptors are assigned to cluster m. We use this histogram as the part-coverage representation. To measure part coverage as a scalar, we compute the entropy of the normal-ized histogram. Concretely, we normalize h(x) by dividing each bin by the total number of descriptors (i.e., by PMm=1 hm(x)), and compute Shannon entropy. For convenience, we define the entropy of a (nonnegative) histogram vector h as 
+
+H(h) = −
+
+> M
+
+X
+
+> m=1
+
+pm log pm, pm = hm
+
+PMm′=1 hm′
+
+. (1) If a glyph is dominated by a small subset of parts, the normalized histogram is peaked and H(h(x)) becomes small. In contrast, if a glyph contains a wider variety of parts, the histogram becomes more spread out and H(h(x)) becomes larger. We use H(h(x)) as a proxy for how well the glyph covers diverse parts. 8 S. Matsuo 
+
+4.2 Reference Part-Coverage-based Acquisition Function 
+
+Using the part-coverage representation, a naive strategy would be to query the character whose individual part coverage H(h(·)) is the largest. However, this can be suboptimal because a candidate glyph may be redundant when its parts are already covered by the current references. For example (Fig. 2), suppose that the current reference set already contains the characters “B” and “K”. Although the character “R” exhibits high individual part coverage due to its multiple parts, many of these parts (e.g., vertical strokes and curved components) are already well represented by “B” and “K”, and thus adding “R” provides limited additional coverage. In contrast, a character such as “A”, which contains distinctive diagonal strokes and a sharp apex at the top, introduces parts that are not sufficiently covered by the existing references. Even if “A” has lower individual part coverage than “R”, its addition increases the diversity of parts in the reference set and is therefore expected to improve few-shot font generation more effectively. To address this, we propose a Reference part-coverage-based acquisition func-tion that explicitly accounts for the current reference set. The goal of this acqui-sition function is to efficiently query characters that contain parts not included in the current reference set, thereby sequentially expanding the variety of parts represented by the references. Furthermore, when multiple candidate characters contain parts not present in the reference set, the function is designed to select the one with higher individual part coverage. In this way, the acquisition simul-taneously considers (i) whether a candidate character includes parts absent from the current references and (ii) how rich the candidate character is in terms of part coverage. At iteration t, let St ⊂ V be the current set of reference character identities. We aggregate the part histograms of the current references as 
+
+h(t)ref = X
+
+> c∈S t
+
+h(xc). (2) For each unqueried character c ∈ V \S t, the ground-truth glyph image cannot be accessed before acquisition. Therefore, we approximate its part coverage using the glyph image synthesized by the current few-shot generator. We denote this generated glyph by ˆx(t) 
+
+> c
+
+and compute its part histogram h(ˆ x(t) 
+
+> c
+
+).We then select the next query character by maximizing the entropy (i.e., part coverage) of the predicted reference histogram after adding c:
+
+qt = arg max 
+
+> c∈V\S t
+
+H
+
+
+
+h(t)ref + h(ˆ x(t) 
+
+> c
+
+)
+
+
+
+. (3) After querying qt and obtaining its glyph image from the designer, the reference set is updated and the procedure repeats until reaching the maximum number of allowed queries. Active Reference Acquisition in Few-Shot Font Generation 9
+
+## 5 Experiments 
+
+5.1 Dataset 
+
+To evaluate the effectiveness of our approach, we use the Google Fonts dataset. 1
+
+In all experiments, we focus on the 26 uppercase Latin letters (A–Z). From the Google Fonts collection, we extracted all fonts that contain the complete set of uppercase letters A–Z, resulting in 3,759 fonts in total. Each font is associated with a family label, and the extracted set contains 1,978 distinct families. Each glyph is rendered as a grayscale image of size 80 × 80 pixels. To minimize simi-larity between training and test fonts, we split the dataset by family rather than by individual fonts, since fonts within the same family often share highly similar design characteristics. Specifically, we partition the families into training and test sets at the family level, assigning 1,582 families (2,867 fonts) to the training set and the remaining 396 families (892 fonts) to the test set. 
+
+5.2 Implementation Details Few-Shot Font Generation Model As the base few-shot font generation model, we adopt Diff-Font [6], a conditional diffusion-based approach for one-shot font generation. Diff-Font conditions the diffusion model on the target char-acter identity and a style representation extracted from reference glyphs. The original Diff-Font framework targets Chinese and Korean font generation and incorporates explicit component information as an additional condition. In our setting, since we focus on uppercase Latin letters, we condition the generator only on the target character identity and the extracted style feature, and we omit component-related conditions. Since Diff-Font is originally designed for one-shot font generation, we extend it to the few-shot setting. When multiple reference glyphs are available, we extract a style feature from each reference glyph independently and aggregate them by mean pooling to obtain a single style representation. This aggregated style feature is then used as the conditioning input to the diffusion model. We train the generator on the training split of the Google Fonts dataset using AdamW with a learning rate of 1 × 10 −4 for 40,000 optimization steps. During training, we sample K ∈ { 1, 2, 3, 4} reference glyphs and aggregate their style features by mean pooling. 
+
+Style Encoder We train a CNN-based style encoder to extract style features from reference glyph images. The encoder is trained via a font classification task: for each font, we assign the same font label to its glyph images (A–Z) and optimize a standard multi-class classification objective. We split 20% of the training data as a validation set. We train the encoder using AdamW with learning rate 3 × 10 −4 for 400 epochs, and select the checkpoint that achieves the best validation accuracy.   
+
+> 1https://github.com/google/fonts 10 S. Matsuo
+
+Table 1: Top-8 query characters used by the Fixed baseline. The global acqui-sition order is derived from the training set by ranking characters according to their part coverage (entropy of the normalized part histogram) for each font and then averaging the ranks across fonts.                                 
+
+> Rank 12345678
+> Query character “R” “A” “E” “F” “K” “B” “H” “P” Average rank 4.62 4.95 6.19 7.65 8.20 8.97 9.18 9.89 Average part coverage 2.48 2.46 2.36 2.27 2.24 2.25 2.21 2.19
+
+Experimental Protocol We follow a standard few-shot evaluation protocol. For each test font, we start from a single reference glyph, i.e., |S 0| = 1 . Following the setup used in Diff-Font [6], the initial reference character is selected uniformly at random from the 26 uppercase letters. To ensure fair comparisons, we use the same initial reference character for all methods for each font. Starting from the initial reference, we iteratively acquire additional reference characters up to eight references in total. We report generation performance at K ∈ { 1, 2, 4, 8} shots. We use SIFT descriptors [11] as local part features and cluster them into 
+
+M = 32 groups using the k-means algorithm to construct the part histogram representation used by the acquisition function. 
+
+5.3 Evaluation Metrics 
+
+We evaluate generation quality using SSIM [20], RMSE, and LPIPS [22]. SSIM measures structural similarity between the generated glyph and the ground-truth glyph, with higher values indicating better structural consistency. RMSE measures the pixel-wise reconstruction error, where lower values indicate more accurate reproduction. LPIPS measures perceptual similarity based on deep fea-tures, where lower values indicate that the generated glyph is perceptually closer to the ground truth. All metrics are computed between generated glyph images and the corre-sponding ground-truth glyph images and are averaged over the target characters (i.e., characters not included in the reference set) and over all test fonts. 
+
+5.4 Baselines and Ablation 
+
+To demonstrate the effectiveness of our method, we compare against two base-lines and one ablation under the same number of query steps. 
+
+Random: At each iteration t, the next query character is selected uniformly at random from the unqueried set V \ S t.
+
+Fixed: A global acquisition order is precomputed from the training set and then applied uniformly to all test fonts; that is, the same sequence of characters is queried for every test font regardless of its style. Concretely, for each training font, we compute the part coverage (entropy of the normalized part histogram) Active Reference Acquisition in Few-Shot Font Generation 11 1 2 4 8
+
+> K-shot
+> 0.835
+> 0.840
+> 0.845
+> 0.850
+> 0.855
+> SSIM (  )
+> Random
+> Fixed
+> Ours
+> Ours (w/o RPC)
+
+(a) SSIM 1 2 4 8 
+
+> K-shot
+> 0.150
+> 0.155
+> 0.160
+> 0.165
+> 0.170
+> RMSE (  )
+
+(b) RMSE 1 2 4 8 
+
+> K-shot
+> 0.064
+> 0.066
+> 0.068
+> 0.070
+> 0.072
+> 0.074
+> LPIPS (  )
+
+(c) LPIPS 
+
+Fig. 3: Comparison with baselines and an ablation on Google Fonts. for each character and obtain a per-font ranking. These rankings are then aver-aged across all training fonts to derive a single global order. Table 1 shows the top-8 characters in this order. During evaluation, characters are acquired follow-ing this fixed order; if a character is already included in the current reference set (e.g., as the initial reference), it is skipped and the next character in the sequence is selected. 
+
+Ours w/o Reference Part Coverage (RPC): This ablation evaluates the importance of accounting for the current reference set in our acquisition func-tion. Instead of maximizing the reference part coverage, this variant queries the character with the largest individual part coverage among unqueried characters. Specifically, at iteration t, it selects 
+
+qt = arg max 
+
+> c∈V\S t
+
+H
+
+
+
+h(ˆ x(t) 
+
+> c
+
+)
+
+
+
+. (4) Unlike the Fixed strategy, which follows a static global order shared across all fonts, this variant dynamically selects characters depending on each test font. However, it ignores redundancy between the candidate character and the exist-ing references, and therefore serves as a naive baseline for our reference-aware acquisition. 
+
+5.5 Comparative Results 
+
+Fig. 3 summarizes the quantitative comparison with two baselines and one abla-tion. All methods start from the same single reference ( K = 1 ) and sequentially acquire additional reference characters. We evaluate few-shot font generation at 
+
+K ∈ { 1, 2, 4, 8} using SSIM, RMSE, and LPIPS. Our method consistently outperforms all three competing methods at K = 4 
+
+and K = 8 across all evaluation metrics. Comparing with Random shows that actively querying references is more effective than selecting characters at random. Compared to Fixed , which follows a static order derived from training fonts, our method dynamically selects query characters based on the target font and the current reference set, leading to superior performance. 12 S. Matsuo Current ref. Acquired ref. GT 2-shot 4-shot Current ref. Acquired ref. GT 2-shot 4-shot       
+
+> Current ref. Acquired ref. GT 1-shot 2-shot Current ref. Acquired ref. GT 1-shot 2-shot
+
+Fig. 4: Qualitative examples of generation improvements by our method. Finally, compared with the ablation Ours w/o Reference Part Coverage (RPC) ,the results indicate that selecting characters solely based on their individual part coverage is insufficient. Explicitly accounting for both the candidate’s part coverage and the existing coverage of the reference set is essential for effective acquisition. The difference at K = 2 is relatively small. With only one initial reference, the reference set contains very limited parts, and many candidate characters can introduce new parts. As a result, adding one additional reference improves performance regardless of the specific character selected. In contrast, once the reference set grows (e.g., K = 4 or K = 8 ), more parts are already covered, and effective querying requires identifying what remains missing. This explains why our reference part-coverage-based acquisition function becomes more advanta-geous as K increases. 
+
+5.6 Qualitative Results 
+
+Fig. 4 shows qualitative examples where the proposed method improves gener-ation quality after acquiring additional reference glyphs. For each example, we visualize the current reference glyph(s), the acquired reference glyph(s) selected by our acquisition function, the generated glyph before and after acquisition, and the ground-truth (GT). We highlight regions of interest using orange boxes. In the top row (1-shot → 2-shot), we observe improvements in fine-grained details such as terminals and stroke shapes. For instance, when the current refer-ence is “Z”, acquiring “R” improves the vertical stroke and terminal details of the generated “H”, which are difficult to infer from “Z” alone. Similarly, acquiring “X” refines the terminal/corner details of “E” compared to the 1-shot result. The two examples on the right further demonstrate improvements in inter-stroke spacing: acquiring “H” helps correct the spacing of “U”, and acquiring “B” improves the spacing and curved structure of “R”. The bottom row shows 2-shot → 4-shot cases, where two additional references are acquired. Similarly, the newly acquired references introduce parts not present Active Reference Acquisition in Few-Shot Font Generation 13 R G E T F B M U H N Q S W I
+
+> 0
+> 2
+> 4
+> 6
+> 8
+> 10
+
+(a) Reference: “A” A E X K H Q M C U 
+
+> 0
+> 2
+> 4
+> 6
+> 8
+> 10
+
+(b) Reference: “B” R K A E X H T Y G B W 
+
+> 0
+> 2
+> 4
+> 6
+> 8
+> 10
+
+(c) Reference: “C” 
+
+Fig. 5: Histogram of the additionally acquired reference character aggregated over all test fonts for different single-reference settings ( K = 1 ). Q EMK X J B SWP H F U VD Y
+
+> 0
+> 2
+> 4
+> 6
+> 8
+> 10
+
+(a) Reference: “A”, “R” R E Q B K W X P D Y M S L 
+
+> 0
+> 2
+> 4
+> 6
+> 8
+> 10
+
+(b) Reference: “A”, “G” A M E K Y W X Q N Z H 
+
+> 0
+> 2
+> 4
+> 6
+> 8
+> 10
+
+(c) Reference: “R”, “S” 
+
+Fig. 6: Histograms of the two additionally acquired reference characters aggre-gated over all test fonts for different two-reference settings ( K = 2 ). in the current reference set, such as distinctive stroke terminals, vertical strokes, and diagonal strokes. As a result, the generated glyphs for “K”, “V”, and “B” become closer to GT. Overall, these qualitative results support our motivation that actively acquiring complementary references that contain previously unseen parts leads to improved few-shot font generation. 
+
+5.7 Trends in Acquired References 
+
+We analyze overall trends in the characters acquired as additional references across the test fonts. Fig. 5 shows histograms of the additionally acquired refer-ence character aggregated over all test fonts for different single-reference settings (K = 1 ). Fig. 5(a)–(c) correspond to the cases where the current reference is “A”, “B”, and “C”, respectively. When the current reference is “A”, the proposed acquisition function frequently selects rounded characters such as “R”, “G”, and “B”, as well as characters with distinctive terminals such as “E”, “T”, and “F”. In contrast, when the current reference is “B”, “A” is often selected, as it con-tains sharp corners and diagonal strokes. Notably, characters such as “R” and “G” that are frequently acquired when “A” is the current reference are rarely ac-quired when “B” is given. This is because their rounded parts are already covered by the current reference. 14 S. Matsuo 1 2 4 8
+
+> K-shot
+> 0.835
+> 0.840
+> 0.845
+> 0.850
+> 0.855
+> 0.860
+> SSIM (  )
+> SIFT
+> Deep
+
+(a) SSIM 1 2 4 8 
+
+> K-shot
+> 0.150
+> 0.155
+> 0.160
+> 0.165
+> 0.170
+> RMSE (  )
+
+(b) RMSE 1 2 4 8 
+
+> K-shot
+> 0.064
+> 0.066
+> 0.068
+> 0.070
+> 0.072
+> 0.074
+> LPIPS (  )
+
+(c) LPIPS 
+
+Fig. 7: Performance comparison with different local part features. 1 2 4 8     
+
+> K-shot
+> 0.835
+> 0.840
+> 0.845
+> 0.850
+> 0.855
+> SSIM (  )
+> M= 16
+> M= 32
+> M= 64
+> M= 128
+> M= 256
+
+(a) SSIM 1 2 4 8 
+
+> K-shot
+> 0.150
+> 0.155
+> 0.160
+> 0.165
+> 0.170
+> RMSE (  )
+
+(b) RMSE 1 2 4 8 
+
+> K-shot
+> 0.064
+> 0.066
+> 0.068
+> 0.070
+> 0.072
+> 0.074
+> LPIPS (  )
+
+(c) LPIPS 
+
+Fig. 8: Performance comparison with different numbers of clusters M .Fig. 6 presents histograms of the two additionally acquired reference charac-ters aggregated over all test fonts for different two-reference settings ( K = 2 ). Fig. 6(a)–(c) correspond to the cases where the current references are (“A”, “R”), (“A”, “G”), and (“R”, “S”), respectively. Similarly to the single-reference setting, the proposed acquisition function tends to select characters that complement the parts missing from the current references. In Fig. 6(a), where the references are “A” and “R”, the rounded character “Q” is frequently selected. In Fig. 6(b), where the references are “A” and “G”, “R” is often acquired, as it contains a vertical stroke and a rightward curved component not sufficiently covered by the current references. In Fig. 6(c), where the references are “R” and “S”, angular characters such as “A” and “M” are frequently selected. 
+
+5.8 Effect of Local Part Features 
+
+Since the part coverage used in our acquisition function is computed from local part descriptors, the choice of local features is expected to influence the effec-tiveness of the proposed method. In this section, we investigate how different local part features affect active reference acquisition performance. Specifically, we compare two choices of part descriptors: (i) SIFT descriptors and (ii) deep local descriptors extracted from a shallow layer of the style encoder, where each spatial location corresponds to a local region in the glyph image. Fig. 7 reports the results. Active Reference Acquisition in Few-Shot Font Generation 15 
+
+Across all metrics, using the deep local descriptors consistently achieves bet-ter generation quality than using SIFT. While SIFT is a generic handcrafted descriptor, the style encoder is trained on the Google Fonts dataset and thus can capture font-specific local patterns more effectively. These results suggest that our method benefits from stronger local representations: the more accu-rately the local part descriptors capture fine-grained glyph details, the more effective our part-coverage-based acquisition becomes. 
+
+5.9 Effect of the Number of Clusters M
+
+Our acquisition function relies on a part histogram constructed by clustering local part descriptors; therefore, the choice of the number of clusters M can affect the quality of the part-coverage representation. In this section, we examine the impact of M on acquisition performance. We vary the number of clusters as M ∈ { 16 , 32 , 64 , 128 , 256 } and report the results in Fig. 8. We observe that M = 32 , 64 , and 128 achieve comparable performance, while very small or very large values degrade performance across all metrics. When M is too small (e.g., M = 16 ), distinct parts tend to be merged into the same cluster, which can obscure which parts are missing and may prevent the method from querying characters that contain truly uncovered parts. Conversely, when M is too large (e.g., M = 256 ), similar parts can be split into multiple clusters, which may cause the acquisition to overestimate novelty and repeatedly query characters that largely overlap with already acquired parts. These results suggest that M should be set according to the complexity of local parts in the dataset to obtain a reliable part-coverage representation. 
+
+## 6 Conclusion 
+
+In this work, we introduced Active Reference Acquisition , a new framework for few-shot font generation that enables actively querying a designer for additional reference glyphs. To address this setting, we proposed a reference part-coverage-based acquisition function that selects the next query character expected to maximize the part coverage of the current reference set. By explicitly consider-ing both the candidate character’s part coverage and the parts already covered by the references, our acquisition strategy encourages querying characters that contain previously unseen parts, leading to more effective reference expansion. Experiments on the Google Fonts dataset demonstrate the effectiveness of the proposed acquisition function. As future work, we plan to validate the proposed framework with other few-shot font generation models and on larger-scale datasets covering diverse writing systems. Since our acquisition function is largely model- and dataset-agnostic, we expect it to generalize to a wide range of generators and scripts, including non-Latin systems such as Chinese and Korean. Another promising technical di-rection is to integrate generation uncertainty into the acquisition function when using probabilistic generative models such as diffusion models. For example, by 16 S. Matsuo 
+
+repeatedly generating the same candidate character and quantifying uncertainty in its local parts, such as whether the same part of the same character is gener-ated as a straight stroke in some generations and as a curved stroke in others, the acquisition strategy could prioritize characters whose ambiguous or unstable parts are most likely to be resolved through additional designer input, leading to more informative reference acquisition. 
+
+Acknowledgements This work was supported by JST ACT-X Grant Number JPMJAX23CR. 
+
+## References 
+
+1. Ash, J.T., Zhang, C., Krishnamurthy, A., Langford, J., Agarwal, A.: Deep batch active learning by diverse, uncertain gradient lower bounds. In: International Con-ference on Learning Representations (ICLR) (2020) 2. Azadi, S., Fisher, M., Kim, V., Wang, Z., Shechtman, E., Darrell, T.: Multi-content gan for few-shot font style transfer. In: Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR) (2018) 3. Cha, J., Chun, S., Lee, G., Lee, B., Kim, S., Lee, H.: Few-shot compositional font generation with dual memory. In: Proceedings of the European Conference on Computer Vision (ECCV) (2020) 4. Cohn, D.A., Ghahramani, Z., Jordan, M.I.: Active learning with statistical models. Journal of Artificial Intelligence Research 4, 129–145 (1996) 5. Gal, Y., Islam, R., Ghahramani, Z.: Deep bayesian active learning with image data. In: Proceedings of the 34th International Conference on Machine Learning (ICML) (2017) 6. He, H., Chen, X., Wang, C., Liu, J., Du, B., Tao, D., Yu, Q.: Diff-font: Diffu-sion model for robust one-shot font generation. International Journal of Computer Vision (IJCV) 132 , 5372–5386 (2024) 7. Huang, S.J., Xu, M., Xie, M.K., Sugiyama, M., Niu, G., Chen, S.: Active fea-ture acquisition with supervised matrix completion. In: Proceedings of the 24th ACM SIGKDD International Conference on Knowledge Discovery and Data Min-ing (KDD). pp. 1571–1579 (2018) 8. Lewis, D.D., Catlett, J.: Heterogeneous uncertainty sampling for supervised learn-ing. In: Proceedings of the 11th International Conference on Machine Learning (ICML) (1994) 9. Lewis, D.D., Gale, W.A.: A sequential algorithm for training text classifiers. In: Proceedings of the 17th Annual International ACM SIGIR Conference on Research and Development in Information Retrieval (SIGIR) (1994) 10. Li, Y., Oliva, J.B.: Active feature acquisition with generative surrogate models. In: Proceedings of the 38th International Conference on Machine Learning (ICML) (2021) 11. Lowe, D.G.: Distinctive image features from scale-invariant keypoints. Interna-tional Journal of Computer Vision (IJCV) 60 (2), 91–110 (2004) 12. Ma, C., Tschiatschek, S., Palla, K., Hernández-Lobato, J.M., Nowozin, S., Zhang, C.: Eddi: Efficient dynamic discovery of high-value information with partial vae. In: Proceedings of the 36th International Conference on Machine Learning (ICML) (2019) Active Reference Acquisition in Few-Shot Font Generation 17 13. Park, S., Chun, S., Cha, J., Lee, B., Shim, H.: Few-shot font generation with lo-calized style representations and factorization. In: Proceedings of the AAAI Con-ference on Artificial Intelligence (AAAI) (2021) 14. Park, S., Chun, S., Cha, J., Lee, B., Shim, H.: Multiple heads are better than one: Few-shot font generation with multiple localized experts. In: Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) (2021) 15. Sener, O., Savarese, S.: Active learning for convolutional neural networks: A core-set approach. In: International Conference on Learning Representations (ICLR) (2018) 16. Settles, B.: Active learning literature survey. Tech. Rep. 1648, University of Wisconsin–Madison (2009) 17. Seung, H.S., Opper, M., Sompolinsky, H.: Query by committee. In: Proceedings of the Fifth Annual Workshop on Computational Learning Theory (COLT) (1992) 18. Shim, H., Hwang, S.J., Yang, E.: Joint active feature acquisition and classification with variable-size set encoding. In: Advances in Neural Information Processing Systems (NeurIPS) (2018) 19. Tang, L., Cai, Y., Liu, J., Hong, Z., Gong, M., Fan, M., Han, J., Liu, J., Ding, E., Wang, J.: Few-shot font generation by learning fine-grained local styles. In: Pro-ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recogni-tion (CVPR) (2022) 20. Wang, Z., Bovik, A.C., Sheikh, H.R., Simoncelli, E.P.: Image quality assessment: From error visibility to structural similarity. IEEE Transactions on Image Process-ing 13 (4), 600–612 (2004) 21. Yang, Z., Peng, D., Kong, Y., Zhang, Y., Yao, C., Jin, L.: Fontdiffuser: One-shot font generation via denoising diffusion with multi-scale content aggregation and style contrastive learning. In: Proceedings of the AAAI Conference on Artificial Intelligence (AAAI) (2024) 22. Zhang, R., Isola, P., Efros, A.A., Shechtman, E., Wang, O.: The unreasonable effectiveness of deep features as a perceptual metric. In: Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR) (2018)
