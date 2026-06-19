@@ -1,0 +1,214 @@
+Title: Zero-VC: Zero-Lookahead Streaming Voice Conversion via Speaker Anonymization
+
+URL Source: https://arxiv.org/pdf/2606.20218v1
+
+Published Time: Fri, 19 Jun 2026 00:59:06 GMT
+
+Number of Pages: 5
+
+Markdown Content:
+# Zero-VC: Zero-Lookahead Streaming Voice Conversion via Speaker Anonymization 
+
+# Yudong Li ID 1,2, Zihao Fang ID 1, Junwen Qiu ID 1, Ruihai Jing ID 3,Ruixiang Hang ID 3, Yingda Shen ID 1, Zhizheng Wu ID 1,2,4,∗∗ 
+
+1 The Chinese University of Hong Kong, Shenzhen 
+
+2 Shenzhen Loop Area Institute 
+
+3 Shenzhen Transsion Holdings Co., Ltd. 
+
+4 Amphion Technology Co.,Ltd. 
+
+yudongli1@link.cuhk.edu.cn, wuzhizheng@cuhk.edu.cn 
+
+# Abstract 
+
+Streaming zero-shot voice conversion struggles to disentangle timbre from linguistic content without degrading utility or in-flating latency. Current methods rely on information bottleneck (IB) or speaker perturbation. While IB filters out timbre, it dis-cards prosody, forcing models to explicitly inject features like fundamental frequency. This often requires buffering future frames, creating algorithmic lookahead latency. On the other hand, existing perturbation methods largely overlook the cru-cial trade-off between timbre leakage and utility preservation. Recognizing this neglected trade-off, we find that the inherent objective of Speaker Anonymization (SA) aligns well with bal-ancing these factors. Thus, we introduce SA as a novel pertur-bation mechanism to explicitly mitigate timbre leakage while retaining prosodic utility. Crucially, SA’s robust representa-tions significantly alleviate the generator’s reliance on future context, enabling our strictly causal, zero-lookahead network. Audio samples are available at https://amphionteam. github.io/Zero-VC-demo/ .
+
+Index Terms : streaming voice conversion, speaker anonymiza-tion, zero-lookahead 
+
+# 1. Introduction 
+
+Zero-shot Voice Conversion (VC) aims to convert a source speaker’s voice to an unseen target speaker’s voice using only a brief reference utterance [1]. In recent years, driven by ad-vances in deep learning, zero-shot VC has achieved remarkable success [2, 3, 4, 5, 6, 7, 8, 9] and has been widely adopted in var-ious real-world scenarios. However, while non-streaming VC models have demonstrated impressive conversion quality, they require full-utterance input and are not feasible for real-time applications. In real-time communication scenarios, streaming zero-shot VC faces a notoriously difficult challenge: effectively disentangling the source timbre from linguistic content while maintaining ultra-low processing latency. Current disentanglement strategies in streaming VC gen-erally fall into two categories, each facing distinct limita-tions. The prevalent paradigm relies on Information Bottle-necks (IB) [5, 10]. While extracting discrete speech units [5] or articulatory features [10] effectively filters out source iden-tity, IB inherently acts as a destructive filter that discards fine-grained paralinguistic utility, notably prosody. To compensate, state-of-the-art streaming models explicitly extract and inject acoustic features such as fundamental frequency ( f0) [5, 10]. 
+
+> **
+
+indicates the corresponding author. 
+
+However, calculating and smoothing these trajectories in a sta-ble manner often necessitates temporal buffering. For instance, StreamVC requires a multi-frame context window to estimate 
+
+f0, which inherently introduces an algorithmic lookahead (e.g., 60 ms) and cascades into high end-to-end latency. This reliance on future context creates an architectural lower bound on la-tency, hindering hard-real-time deployments. The second category is Speaker Perturbation [3, 6]. De-spite avoiding the destructive nature of strict bottlenecks, exist-ing perturbation methods often struggle to achieve a favorable trade-off between timbre leakage and utility preservation. For example, LSCodec [3] adopts signal processing techniques to perturb the source speaker’s voice, but this method suffers from severe timbre leakage. On the other hand, Seed-VC [6] adopts an off-the-shelf VC model [11] to perturb the source speaker’s voice, which achieves a relatively balanced trade-off between timbre leakage and utility preservation. However, because these methods are not explicitly designed to optimize this trade-off, the resulting balance remains sub-optimal. In this paper, we recognize this neglected trade-off as the key to breaking the latency bottleneck. We find that the primary objective of Speaker Anonymization (SA) [12]—concealing speaker identity while strictly preserving linguistic and prosodic utility—perfectly aligns with the ideal feature representation re-quired by VC. Thus, we introduce SA into the streaming VC framework as an advanced speaker perturbation strategy. Un-like previous perturbation techniques, SA explicitly optimizes this trade-off, mitigating source timbre leakage while naturally preserving intact linguistic and prosodic dynamics. Remarkably, the superior completeness of the SA-perturbed features yields a profound architectural advantage. Because the features retain natural prosody and temporal stability, the gen-erative decoder’s reliance on future frames is significantly alle-viated. Exploiting this, we propose Zero-VC , a strictly causal, zero-lookahead (one-frame-in, one-frame-out) streaming archi-tecture. While ablation studies indicate that adding a minor lookahead context yields marginal performance gains, our zero-lookahead configuration already achieves superior zero-shot VC quality. Leveraging SA, we successfully mitigate the funda-mental trade-off between utility and leakage, thereby reducing latency to the single-frame theoretical minimum. Our main contributions are summarized as follows: • We identify that existing perturbation methods overlook the critical trade-off between timbre leakage and utility preserva-tion. We introduce Speaker Anonymization (SA) as an effec-tive perturbation mechanism, successfully mitigating timbre 
+
+> arXiv:2606.20218v1 [cs.SD] 18 Jun 2026 Reference
+> WavLM
+> Source
+> Speaker
+> Anonymization
+> Streaming Encoder
+> Streaming Decoder
+> Converted
+> conditioning Learnable
+> Pooling
+> MPD MSD
+> Training-only
+> Frozen Parameter
+> Timbre
+> Linguistic Content
+
+Figure 1: The overall framework of Zero-VC. During training, the same adversarial framework as HiFi-GAN [13] is employed, utilizing a Multi-Scale Discriminator (MSD) and a Multi-Period Discriminator (MPD), and source audio is processed by a Speaker Anonymiza-tion (SA) module to resolve the leakage-utility trade-off. After training, the SA module, MSD, and MPD are discarded. 
+
+leakage while retaining essential prosodic utility. • We demonstrate that the highly informative SA representa-tions significantly alleviate the model’s reliance on future context. This enables the design of a strictly causal, zero-lookahead architecture, reducing algorithmic latency to a sin-gle frame (i.e., 20 ms), vastly outperforming the latency con-straints of SOTA IB-based systems. • Comprehensive evaluations show that our zero-lookahead system achieves superior conversion quality and latency per-formance, establishing a robust balance between ultra-low la-tency, utility preservation, and timbre similarity. 
+
+# 2. Method 
+
+The overall framework of Zero-VC is illustrated in Fig. 1. Our model adopts a strictly causal, zero-lookahead architecture, consisting of a pretrained streaming encoder module (e.g., a distilled streaming w2v-bert-2.0 [14]), a timbre encoding mod-ule, and a streaming decoder. The speaker anonymization (SA) module and two discriminators (i.e., MPD and MSD) shown in Fig. 1 are used only for training and discarded during inference. 
+
+2.1. SA-based Content Extraction 
+
+To naturally disentangle linguistic content from the source speaker’s identity, the source speech is first processed by an off-the-shelf SA module 1 [15]. Unlike traditional lossy information bottlenecks, SA explicitly perturbs the speaker identity by map-ping the source voice to a pseudo-speaker space while strictly preserving the temporal alignments, rich prosodic contours, and phonetic integrity. The anonymized audio is then fed into a streaming encoder to extract linguistic content features. To satisfy the latency constraints, the encoder operates without any future lookahead, generating acoustic representations at a regular frame shift of 20 ms. By taking the SA-perturbed audio as input, the encoder yields linguistic features that are inherently devoid of the source speaker’s timbre but retain highly expressive utility dynamics. 
+
+2.2. Timbre Encoding 
+
+To capture discriminative voice characteristics, we use the WavLM-large model 2 [16] to extract timbre features from ref-erence speech, as it has proven to be highly effective for 
+
+> 1https://github.com/DigitalPhonetics/ speaker-anonymization
+> 2https://github.com/microsoft/unilm/tree/ master/wavlm
+
+speaker verification tasks [17]. Specifically, we utilize the hidden states from the seventh transformer layer, denoted as 
+
+H = [h1, h 2, . . . , h L] ∈ RL×D , where L is the sequence length and D is the hidden dimension. To aggregate these frame-level representations into a single, fixed-length speaker embedding ( T = 1), we apply an attention-based learnable pooling layer. The attention weight αi for each frame is com-puted via a learnable linear projection Wp, and the global timbre condition ctimbre ∈ RD is then obtained by a weighted sum of the temporal features: 
+
+αi = exp( Wphi)
+
+PLj=1 exp( Wphj ) , ctimbre =
+
+> L
+
+X
+
+> i=1
+
+αihi. (1) This mechanism allows the network to automatically attend to the most speaker-discriminative phonetic segments within the reference speech. 
+
+2.3. Streaming Decoder and Training Objectives 
+
+The decoder architecture is mainly based on HiFi-GAN [13], but with critical modifications for zero-lookahead streaming. All standard convolutions are replaced with causal convolutions to ensure that the generation of the current frame does not de-pend on any future context. Following [18], we employ a three-layer Conv1D to inject the global timbre embedding ctimbre into the generation pro-cess. Given an intermediate feature map x, the conditioning layer shifts x by an offset predicted by the convolutional layers: 
+
+x′ = x + Convs (ctimbre ), (2) where Convs () denotes a stack of convolutional layers. During training, we employ the same adversarial frame-work as HiFi-GAN [13], utilizing a Multi-Scale Discriminator (MSD) and a Multi-Period Discriminator (MPD). The overall training objective is a weighted sum of the Mel-Spectrogram loss ( Lmel ), the feature matching loss ( Lf m ), and the GAN loss (Ladv ). Specifically, the final objectives for the generator and discriminator are formulated as: 
+
+LG = λmel Lmel +
+
+> K
+
+X
+
+> k=1
+
+[λf m Lf m (G; Dk ) + λadv Ladv (G; Dk )] ,
+
+LD =
+
+> K
+
+X
+
+> k=1
+
+Ladv (Dk ; G), (3) where Dk denotes the k-th sub-discriminator in the MPD and MSD, and G denotes the generator. 0.1 0.2 0.3 0.4 0.5
+
+> SS-S
+> 0.35
+> 0.40
+> 0.45
+> 0.50
+> 0.55
+> SS-R
+> LSCodec-Perturb Seed-VC-Perturb SA (Ours) Ideal Region (Low Leakage, High Similarity)
+
+Figure 2: Speaker similarity trade-off. SS-S and SS-R denote speaker similarity to source and reference, respectively. Prox-imity to the top-left region signifies a more favorable trade-off. 
+
+2.4. Streaming Inference Strategy 
+
+A key advantage of Zero-VC lies in its highly efficient stream-ing inference. Because the architecture is strictly causal, the model processes the incoming audio chunk-by-chunk (i.e., ev-ery 20 ms). During inference, we maintain a state buffer (cache) for the causal convolutional layers, which stores only the re-quired past frames defined by the receptive field. As a result, the computational complexity per frame remains constant O(1) ,independent of the total sequence length. This streaming cache mechanism, combined with the zero-lookahead design, enables Zero-VC to achieve consistently minimal algorithmic latency. 
+
+# 3. Experiments 
+
+3.1. Experimental Setup 
+
+3.1.1. Datasets 
+
+Our model is trained on LibriTTS [19], which is an English corpus with 585 hours of speech data. We discard utterances shorter than 4 seconds and resample all audio to 16 kHz, result-ing in approximately 460 hours of training data. For evaluation, we utilize the English subset of the seed-tts-eval dataset [20], comprising approximately 1,000 pairs of samples from the Common Voice dataset [21]. 
+
+3.1.2. Evaluation metrics 
+
+We evaluate Speaker Similarity (SS) using a WavLM-large model fine-tuned on the speaker verification task [22] to extract speaker embeddings. These embeddings are used to calculate the cosine similarity between the converted speech and the cor-responding source or reference speech. We report both the simi-larity to the source speech (SS-S, where a lower value indicates less leakage) and the reference speech (SS-R, where higher is better). Word Error Rate (WER) is computed using Whisper-large-v3 [23] to measure intelligibility. Prosody preservation is measured by F0 Pearson Coefficients (FPC). An overall quality score (OVRL) is predicted using Microsoft’s DNSMOS P.835 model [24] (higher scores indicate better perceived speech qual-ity). For subjective evaluation, we measure naturalness mean opinion score (NMOS) and speaker similarity mean opinion score (SMOS). NMOS considers intelligibility, prosody, and audio quality, while SMOS evaluates speaker similarity from the perspective of human perception. All subjective metrics are reported with their 95% confidence intervals. 
+
+3.1.3. Implementation Details 
+
+The VC model is trained for 1.2M steps for final evaluation, while ablation models are trained for 120k steps. We use the AdamW optimizer [25] with β1 = 0 .8, β2 = 0 .99 , a learning rate of 6 × 10 −4 and a weight decay of 0.01, coupled with a Cosine-Annealing scheduler [26]. The batch size is set to 30, where each batch consists of a 2-second source segment and a 2-second reference segment. The loss weights are configured as 
+
+λf m = 3 , λmel = 51 , and λadv = 1 .
+
+3.2. Ablation Studies 
+
+Table 1: Objective evaluation of intermediate audio generated by different perturbation strategies. Boldface denotes the best result, while underlining indicates the second best. 
+
+Method SS-S WER(%) FPC OVRL LSCodec-Perturb [3] 0.704 2.15 0.891 3.054 Seed-VC-Perturb [6] 0.411 4.45 0.688 3.249 
+
+SA 0.119 8.33 0.718 3.175 
+
+To validate the superiority of SA over existing perturbation methods, we conduct ablation studies from three perspectives. First, we directly evaluate the perturbed audio (Tab. 1). Note that for baseline perturbation methods, we use the spe-cific perturbation modules utilized in LSCodec [3] and Seed-VC [6] to process audio, rather than evaluating their entire voice conversion pipelines. LSCodec-Perturb exhibits severe timbre leakage with an SS-S of 0.704. While Seed-VC-Perturb reduces this leakage (SS-S 0.411), it causes a drop in FPC (0.688). Our SA method effectively neutralizes the source timbre (achieving an exceptionally low SS-S of 0.119) and better preserves the original prosodic contour (FPC 0.718). Although the interme-diate WER of SA appears relatively high at this stage, down-stream training (Tab. 2) reveals that the model can still achieve considerable intelligibility, demonstrating that SA provides a highly robust foundation for disentanglement. Table 2: Utility preservation trade-off of models trained with different perturbation strategies. Boldface denotes the best re-sult, while underlining indicates the second best. 
+
+Method WER FPC OVRL LSCodec-Perturb 2.64 0.681 3.097 
+
+Seed-VC-Perturb 2.67 0.659 3.093 SA 3.82 0.671 3.040 Second, we train identical VC models using the three per-turbation strategies to analyze the multi-dimensional trade-offs. As shown in Fig. 2, the model equipped with SA (blue circle) re-sides closest to the ideal region for speaker similarity, achieving the highest target similarity (SS-R) while exhibiting the lowest source timbre leakage (SS-S). In terms of utility preservation (Tab. 2), it is crucial to note that while LSCodec-Perturb strictly preserves prosody (achieving a high FPC), this metric becomes less meaningful when SS-R is extremely low. In such cases, the model may simply reconstruct the source speech without effectively altering the timbre. Furthermore, as indicated by the OVRL scores, the SA-based model maintains a competitive overall speech naturalness (OVRL 3.040) that is closely compa-rable to the baseline methods. Ultimately, our SA-based model strikes a highly competitive balance, maintaining strong intelli-Table 3: Zero-Shot VC performance. RTF is tested on an Intel Xeon Platinum 8468V-2.4 GHz CPU. Boldface denotes the best result, while underlining indicates the second best. NMOS and SMOS are reported with their 95% confidence intervals. 
+
+Group Method SS-S SS-R SMOS WER(%) FPC OVRL NMOS RTF Non-Streaming LSCodec [3] 0.277 0.426 3.64 ±0.07 9.00 0.650 3.116 3.70 ±0.06 0.077 CosyVoice [27] 0.313 0.502 3.78 ±0.06 4.02 0.644 3.182 3.82 ±0.05 2.441 Seed-VC-Small [6] 0.402 0.415 3.62 ±0.09 2.47 0.661 3.141 3.77 ±0.06 0.508 Streaming Zero-VC 0.171 0.521 3.88 ±0.05 3.96 0.688 3.044 3.81 ±0.07 0.063 0 20 40 60 80 
+
+> Context Length (ms)
+> 0.0
+> 2.5
+> 5.0
+> 7.5
+> 10 .0
+> 12 .5
+> 15 .0
+> 17 .5
+> Relative Improvement (%)
+> SS-R w/ SA WER w/ SA FPC w/ SA SS-R wo/ SA WER wo/ SA FPC wo/ SA SS-R w/ SA WER w/ SA FPC w/ SA SS-R wo/ SA WER wo/ SA FPC wo/ SA
+
+Figure 3: Relative improvement brought by lookahead context. Solid lines denote the models with SA perturbation, and dashed lines denote the models without SA perturbation. 
+
+Table 4: Algorithmic latency comparison. Note that algorithmic latency does not include inference latency.         
+
+> Method DualVC3 [28] StreamVC [5] RT-VC [10] Zero-VC Latency(ms) 40 60 47 20
+
+gibility, prosody, and overall quality without sacrificing the core objective of high-fidelity timbre conversion. Finally, to prove our hypothesis that SA alleviates the need for future context, we evaluate the relative improvement of models given varying lookahead lengths (Fig. 3). Strikingly, the performance metrics (SS-R, WER, and FPC) of the SA-trained model (solid lines) saturate almost immediately at 0 to 20 ms, showing less than a 3% relative improvement even when provided with up to 80 ms of future context. Conversely, the model without SA (dashed lines) exhibits a strong dependency on lookahead, requiring at least 40 to 60 ms of future frames to stabilize its WER and SS-R improvements (gaining more than 12% to 15%). This stark contrast compellingly verifies that the high-quality, prosody-rich representations provided by SA inherently alleviate the generator’s reliance on future context, making a zero-lookahead architecture highly effective. 
+
+3.3. Evaluation on Zero-Shot VC 
+
+Conducting a fair comparison against state-of-the-art (SOTA) real-time streaming VC models presents a challenge, as the majority of highly optimized models (e.g., StreamVC [5], RT-VC [10]) remain closed-source. Therefore, to comprehensively assess Zero-VC, we compare its conversion quality against prominent open-source non-streaming VC systems, and evalu-ate its algorithmic latency against reported metrics from recent streaming SOTA models. As shown in Tab. 3, despite operating in a strict zero-lookahead streaming paradigm, Zero-VC demonstrates highly competitive, and in many aspects superior, conversion capa-bilities compared to heavy non-streaming models. Objective metrics reveal that Zero-VC achieves the lowest source leak-age (SS-S 0.171) and the highest target similarity (SS-R 0.521). This superiority is strongly corroborated by our subjective eval-uations: Zero-VC attains the highest SMOS ( 3.88 ±0.05 ), prov-ing its exceptional zero-shot speaker adaptation capability. Re-garding utility and speech quality, Zero-VC demonstrates re-markable robustness. Impressively, it obtains the highest FPC of 0.688 and ranks second best in both intelligibility (achiev-ing a WER of 3.96%, trailing only Seed-VC-Small) and per-ceptual naturalness (attaining an NMOS of 3.81 ± 0.07 , which is only marginally behind CosyVoice). Notably, Zero-VC is lightweight, achieving a Real-Time Factor (RTF) of 0.063 on an Intel Xeon Platinum 8468V-2.4 GHz CPU, ensuring it com-fortably meets real-time processing constraints. Another primary advantage of our SA-driven architecture is the alleviation of dependency on future context. Tab. 4 il-lustrates the algorithmic latency of Zero-VC compared to re-cent streaming solutions. Note that the algorithmic latency does not include inference latency for a fair comparison, since other models are closed-source. By strictly operating on a 20 ms frame basis without requiring future frame buffers for acous-tic feature smoothing, Zero-VC achieves a minimal algorithmic latency of 20 ms. This significantly undercuts the 40-60 ms la-tency barriers typical of IB-based models, setting a new bench-mark for hard-real-time streaming voice conversion. 
+
+# 4. Limitations and Future Work 
+
+While Zero-VC achieves superior zero-lookahead latency for the core VC generator, the current training pipeline relies on an off-the-shelf SA module to preprocess source audio during training. Depending on the SA module’s specific implemen-tation, this pre-processing step may introduce its own training overhead. Future work will focus on integrating the SA objec-tive directly into the training paradigm in an end-to-end man-ner, further optimizing total system latency, and extending the framework to support cross-lingual zero-shot voice conversion. 
+
+# 5. Conclusion 
+
+In this paper, we present Zero-VC, a novel strictly causal, zero-lookahead streaming voice conversion system. By identifying the critical trade-off between timbre leakage and utility preser-vation, we introduce Speaker Anonymization as an innovative perturbation mechanism. This effective feature disentangle-ment significantly alleviates the decoder’s reliance on future context. Experimental results demonstrate that our SA-based approach outperforms traditional perturbation methods in min-imizing source leakage and maximizing target similarity, ulti-mately paving the way for ultra-low latency, high-fidelity real-time voice conversion. 6. Acknowledgments 
+
+This work is partially supported by the Internal Project Fund from Shenzhen Research Institute of Big Data (Grant No. T00120230002) and the Program for Guangdong In-troducing Innovative and Enterpreneurial Teams (Grant No. 2023ZT10X044). We thank the anonymous reviewers for their insightful comments and suggestions. We appreciate the efforts of all the subjects during the subjective evaluation. 
+
+# 7. Generative AI Use Disclosure 
+
+The authors used Google Gemini for language polishing and grammar checking. After polishing, the manuscript was re-vised, and the authors take full responsibility for the originality and final content of the publication. 
+
+# 8. References 
+
+[1] B. Sisman, J. Yamagishi, S. King, and H. Li, “An overview of voice conversion and its challenges: From statistical modeling to deep learning,” IEEE/ACM transactions on audio, speech, and language processing , vol. 29, pp. 132–157, 2020. [2] X. Zhang, X. Zhang, K. Peng, Z. Tang, V. Manohar, Y. Liu, J. Hwang, D. Li, Y. Wang, J. Chan et al. , “Vevo: Controllable zero-shot voice imitation with self-supervised disentanglement,” in The Thirteenth International Conference on Learning Repre-sentations .[3] Y. Guo, Z. Li, C. Du, H. Wang, X. Chen, and K. Yu, “Lscodec: Low-bitrate and speaker-decoupled discrete speech codec,” in 
+
+Proc. Interspeech 2025 , 2025, pp. 5018–5022. [4] Z. Ju, Y. Wang, K. Shen, X. Tan, D. Xin, D. Yang, Y. Liu, Y. Leng, K. Song, S. Tang et al. , “Naturalspeech 3: zero-shot speech syn-thesis with factorized codec and diffusion models,” in Proceed-ings of the 41st International Conference on Machine Learning ,2024, pp. 22 605–22 623. [5] Y. Yang, Y. Kartynnik, Y. Li, J. Tang, X. Li, G. Sung, and M. Grundmann, “Streamvc: Real-time low-latency voice conver-sion,” in ICASSP 2024-2024 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) . IEEE, 2024, pp. 11 016–11 020. [6] S. Liu, “Zero-shot voice conversion with diffusion transformers,” 
+
+arXiv preprint arXiv:2411.09943 , 2024. [7] X. Zhang, J. Zhang, Y. Wang, C. Wang, Y. Chen, D. Jia, Z. Chen, and Z. Wu, “Vevo2: Bridging controllable speech and singing voice generation via unified prosody learning,” arXiv e-prints , pp. arXiv–2508, 2025. [8] H. He, Y. Song, Y. Wang, H. Li, X. Zhang, L. Wang, G. Huang, E. S. Chng, and Z. Wu, “Noro: Noise-robust one-shot voice con-version with hidden speaker representation learning,” in 2025 Asia Pacific Signal and Information Processing Association Annual Summit and Conference (APSIPA ASC) . IEEE, 2025, pp. 2247– 2251. [9] X. Zhang, Z. Fang, Y. Gu, H. Chen, L. Zou, J. Zhang, L. Xue, and Z. Wu, “Leveraging diverse semantic-based audio pretrained models for singing voice conversion,” in 2024 IEEE Spoken Lan-guage Technology Workshop (SLT) . IEEE, 2024, pp. 758–765. [10] Y. Liu, C. Wang, H. Kim, R. Khan, and G. Anumanchipalli, “Rt-vc: Real-time zero-shot voice conversion with speech articulatory coding,” in Proceedings of the 63rd Annual Meeting of the Asso-ciation for Computational Linguistics (Volume 3: System Demon-strations) , 2025, pp. 385–393. [11] Z. Qin, W. Zhao, X. Yu, and X. Sun, “Openvoice: Versatile instant voice cloning,” arXiv preprint arXiv:2312.01479 , 2023. [12] M. Panariello, N. Tomashenko, X. Wang, X. Miao, P. Champion, H. Nourtel, M. Todisco, N. Evans, E. Vincent, and J. Yamag-ishi, “The voiceprivacy 2022 challenge: Progress and perspec-tives in voice anonymisation,” IEEE/ACM Transactions on Audio, Speech, and Language Processing , vol. 32, pp. 3477–3491, 2024. [13] J. Kong, J. Kim, and J. Bae, “Hifi-gan: Generative adversarial net-works for efficient and high fidelity speech synthesis,” Advances in neural information processing systems , vol. 33, pp. 17 022– 17 033, 2020. [14] L. Barrault, Y.-A. Chung, M. C. Meglioli, D. Dale, N. Dong, M. Duppenthaler, P.-A. Duquenne, B. Ellis, H. Elsahar, J. Haa-heim et al. , “Seamless: Multilingual expressive and streaming speech translation,” arXiv preprint arXiv:2312.05187 , 2023. [15] S. Meyer, F. Lux, and N. T. Vu, “Probing the feasibility of mul-tilingual speaker anonymization,” in Interspeech 2024 , 2024, pp. 4448–4452. [16] S. Chen, C. Wang, Z. Chen, Y. Wu, S. Liu, Z. Chen, J. Li, N. Kanda, T. Yoshioka, X. Xiao et al. , “Wavlm: Large-scale self-supervised pre-training for full stack speech processing,” IEEE Journal of Selected Topics in Signal Processing , vol. 16, no. 6, pp. 1505–1518, 2022. [17] S.-w. Yang, P.-H. Chi, Y.-S. Chuang, C.-I. J. Lai, K. Lakhotia, Y. Y. Lin, A. T. Liu, J. Shi, X. Chang, G.-T. Lin et al. , “Superb: Speech processing universal performance benchmark,” in Proc. Interspeech 2021 , 2021, pp. 1194–1198. [18] “Hifi-vc: High quality asr-based voice conversion,” arXiv preprint arXiv:2203.16937 , 2022. [19] H. Zen, V. Dang, R. Clark, Y. Zhang, R. J. Weiss, Y. Jia, Z. Chen, and Y. Wu, “Libritts: A corpus derived from librispeech for text-to-speech,” in Proc. Interspeech 2019 , 2019, pp. 1526–1530. [20] P. Anastassiou, J. Chen, J. Chen, Y. Chen, Z. Chen, Z. Chen, J. Cong, L. Deng, C. Ding, L. Gao et al. , “Seed-tts: A family of high-quality versatile speech generation models,” arXiv preprint arXiv:2406.02430 , 2024. [21] R. Ardila, M. Branson, K. Davis, M. Kohler, J. Meyer, M. Hen-retty, R. Morais, L. Saunders, F. Tyers, and G. Weber, “Com-mon voice: A massively-multilingual speech corpus,” in Proceed-ings of the twelfth language resources and evaluation conference ,2020, pp. 4218–4222. [22] Z. Chen, S. Chen, Y. Wu, Y. Qian, C. Wang, S. Liu, Y. Qian, and M. Zeng, “Large-scale self-supervised speech representation learning for automatic speaker verification,” in ICASSP 2022-2022 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) . IEEE, 2022, pp. 6147–6151. [23] A. Radford, J. W. Kim, T. Xu, G. Brockman, C. McLeavey, and I. Sutskever, “Robust speech recognition via large-scale weak supervision,” in International conference on machine learning .PMLR, 2023, pp. 28 492–28 518. [24] C. K. Reddy, V. Gopal, and R. Cutler, “Dnsmos p. 835: Anon-intrusive perceptual objective speech quality metric to evalu-ate noise suppressors,” in ICASSP 2022-2022 IEEE international conference on acoustics, speech and signal processing (ICASSP) .IEEE, 2022, pp. 886–890. [25] I. Loshchilov and F. Hutter, “Decoupled weight decay regulariza-tion,” in International Conference on Learning Representations .[26] ——, “Sgdr: Stochastic gradient descent with warm restarts,” in 
+
+International Conference on Learning Representations , 2017. [27] Z. Du, Q. Chen, S. Zhang, K. Hu, H. Lu, Y. Yang, H. Hu, S. Zheng, Y. Gu, Z. Ma et al. , “Cosyvoice: A scalable multi-lingual zero-shot text-to-speech synthesizer based on supervised semantic tokens,” arXiv preprint arXiv:2407.05407 , 2024. [28] Z. Ning, S. Wang, P. Zhu, Z. Wang, J. Yao, L. Xie, and M. Bi, “Dualvc 3: Leveraging language model generated pseudo context for end-to-end low latency streaming voice conversion,” in Proc. Interspeech 2024 , 2024, pp. 197–201.
