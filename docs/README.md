@@ -6,85 +6,75 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-19
-- 运行时间：2026-06-19 19:45:12 UTC
+- 最新运行日期：2026-06-20
+- 运行时间：2026-06-20 20:05:37 UTC
 - 运行状态：成功
-- 本次总论文数：21
-- 精读区：6
-- 速读区：15
+- 本次总论文数：17
+- 精读区：3
+- 速读区：14
 
 ### 今日简报（AI）
-今日精读聚焦两项高分语音研究：协同可控语音合成与古兰经语音识别预训练模型对比。
-最值得看的是FineCombo-TTS的文本+参考语音精确控制方案，以及Quranic ASR对预训练模型、标签格式的系统评估。
-下一步可关注MambAdapter轻量化适配器在语音音频参数高效迁移学习中的潜力。
-- 详情：[/202606/19/README](/202606/19/README)
+今日精读聚焦可控语音合成与语码转换ASR，速读覆盖持续学习与多语言评估等方向。
+
+最值得关注FineCombo-TTS如何用文本描述和参考语音实现精准可控合成，以及利用代码混合合成语音提升语码转换ASR性能。
+
+普通读者可关注语音合成与识别在多语言、多场景下的实用进展，探索持续学习对系统鲁棒性的增强效果。
+- 详情：[/202606/20/README](/202606/20/README)
 
 ### 精读区论文标签
-1. [FineCombo-TTS: Collaborative and Precise Controllable Speech Synthesis Using Text Descriptions and Reference Speech](/202606/19/2606.19209v2-finecombo-tts-collaborative-and-precise-controllable-speech-synthesis-using-text-descriptions-and-reference-speech)  
-   标签：评分：9.0/10、query:qwen-tts
+1. [FineCombo-TTS: Collaborative and Precise Controllable Speech Synthesis Using Text Descriptions and Reference Speech](/202606/20/2606.19209v2-finecombo-tts-collaborative-and-precise-controllable-speech-synthesis-using-text-descriptions-and-reference-speech)  
+   标签：评分：8.0/10、query:qwen-tts
    evidence：基于文本描述和参考语音的精细可控语音合成
-2. [A Comparative Study of Pretrained Transformer Models for Quranic ASR: Speech Representations, Label Formats, and Dataset Composition](/202606/19/2606.19747v1-a-comparative-study-of-pretrained-transformer-models-for-quranic-asr-speech-representations-label-formats-and-dataset-composition)  
-   标签：评分：9.0/10、query:speech-tech
-   evidence：使用预训练Transformer的古兰经语音识别，面向低资源语言
-3. [Exploring Pre-training Benefits on Phoneme Addition through Fine-tuning in Speech Synthesis](/202606/19/2606.19792v1-exploring-pre-training-benefits-on-phoneme-addition-through-fine-tuning-in-speech-synthesis)  
-   标签：评分：9.0/10、query:low-res-tts
-   evidence：低资源文本转语音迁移学习
-4. [Leveraging Audio-LLMs to Filter Speech-to-Speech Training Data](/202606/19/2606.13507v1-leveraging-audio-llms-to-filter-speech-to-speech-training-data)  
+2. [Improving Code-Switching ASR with Code-Mixing Guided Synthetic Speech](/202606/20/2606.19381v1-improving-code-switching-asr-with-code-mixing-guided-synthetic-speech)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：利用音频大语言模型过滤语音翻译数据，保持跨语言语义一致性
-5. [Zero-VC: Zero-Lookahead Streaming Voice Conversion via Speaker Anonymization](/202606/19/2606.20218v1-zero-vc-zero-lookahead-streaming-voice-conversion-via-speaker-anonymization)  
+   evidence：提出基于代码混合指数的偏好学习框架，生成高质量合成语音用于代码切换ASR训练
+3. [Analyzing Language and Geographical Variation in Speech Representations Across 60 Indic Languages](/202606/20/2606.19940v1-analyzing-language-and-geographical-variation-in-speech-representations-across-60-indic-languages)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：流式语音转换与说话人匿名化
-6. [Transcript-Free Flow-Matching Text-to-Speech via Speech Feature Conditioning](/202606/19/2606.20266v1-transcript-free-flow-matching-text-to-speech-via-speech-feature-conditioning)  
-   标签：评分：8.0/10、query:low-res-tts
-   evidence：面向低资源场景（口吃/口音语音）的TTS
+   evidence：分析60种印度语言语音表示，用于多语言自动语音识别
 
 ### 速读区论文标签
-1. [Ontology Memory-Augmented ASR Correction for Long Text-Speech Interleaved Conversations](/202606/19/2606.13464v1-ontology-memory-augmented-asr-correction-for-long-text-speech-interleaved-conversations)  
+1. [Learning to Hear Hesitation: Continual Learning for Disfluency-Aware ASR](/202606/20/2606.14391v1-learning-to-hear-hesitation-continual-learning-for-disfluency-aware-asr)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：面向长文本-语音交错对话的本体记忆增强ASR纠正
-2. [A Practical Evaluation Method for Long-Form Simultaneous Speech-to-Speech Translation](/202606/19/2606.15059v1-a-practical-evaluation-method-for-long-form-simultaneous-speech-to-speech-translation)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：同传语音翻译评估方法
-3. [MambAdapter: Lightweight Mamba-Based Adapters for Parameter-Efficient Transfer Learning in Speech and Audio](/202606/19/2606.15638v1-mambadapter-lightweight-mamba-based-adapters-for-parameter-efficient-transfer-learning-in-speech-and-audio)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：语音和音频的参数高效迁移学习方法，可应用于多语言TTS和ASR
-4. [Joycent: Diffusion-based Accent TTS without Accented Phone Prediction](/202606/19/2606.16417v2-joycent-diffusion-based-accent-tts-without-accented-phone-prediction)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：基于扩散的口音语音合成，直接与跨语言合成相关
-5. [Robust Spoofed Speech Detection via Temporal Pyramid Modeling](/202606/19/2606.16837v1-robust-spoofed-speech-detection-via-temporal-pyramid-modeling)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：利用时间金字塔的多尺度伪造语音检测，在多语言数据集评估
-6. [Not Truly Multilingual: Script Consistency as a Missing Dimension in VLM Evaluation](/202606/19/2606.17188v2-not-truly-multilingual-script-consistency-as-a-missing-dimension-in-vlm-evaluation)  
+   evidence：不流畅感知的自动语音识别
+2. [DYNA : Dynamic Episodic Memory Networks for Augmenting Large Language Models with Temporal Knowledge Graphs in Continuous Learning](/202606/20/2606.15778v1-dyna--dynamic-episodic-memory-networks-for-augmenting-large-language-models-with-temporal-knowledge-graphs-in-continuous-learning)  
+   标签：评分：7.0/10、query:fie-rag
+   evidence：RAG框架用于增强大语言模型知识
+3. [Not Truly Multilingual: Script Consistency as a Missing Dimension in VLM Evaluation](/202606/20/2606.17188v2-not-truly-multilingual-script-consistency-as-a-missing-dimension-in-vlm-evaluation)  
    标签：评分：7.0/10、query:mtg-bench
-   evidence：多脚本VLM评估基准，与非拉丁文字评估相关
-7. [DASH: Dual-View Self-Distillation with Multi-Layer Hidden Representations for Robust Speech Recognition](/202606/19/2606.19203v1-dash-dual-view-self-distillation-with-multi-layer-hidden-representations-for-robust-speech-recognition)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：通过自蒸馏实现鲁棒自动语音识别
-8. [Analyzing Language and Geographical Variation in Speech Representations Across 60 Indic Languages](/202606/19/2606.19940v1-analyzing-language-and-geographical-variation-in-speech-representations-across-60-indic-languages)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：分析60种印度语言中语音表示的语言和地理变异
-9. [PASQA: Pitch-Accent-Focused Speech Quality Assessment Model Trained on Synthetic Speech with Accent Errors](/202606/19/2606.20137v1-pasqa-pitch-accent-focused-speech-quality-assessment-model-trained-on-synthetic-speech-with-accent-errors)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：针对音调重音的语音质量评估，使用可控重音的TTS生成训练数据
-10. [Emo-LiPO: Listwise Preference Optimization for Fine-Grained Emotion Intensity Control in LLM-based Text-to-Speech](/202606/19/2606.13006v1-emo-lipo-listwise-preference-optimization-for-fine-grained-emotion-intensity-control-in-llm-based-text-to-speech)  
-   标签：评分：6.0/10、query:qwen-tts
-   evidence：LLM-TTS中的可控情感强度
-11. [MiniPIC: Flexible Position-Independent Caching in <100LOC](/202606/19/2606.13126v1-minipic-flexible-position-independent-caching-in-100loc)  
+   evidence：针对多脚本VLM评估的基准，揭示非拉丁脚本差距
+4. [When English Isn't the Best Teacher: Source Language Effects in Cross-Lingual In-Context Learning](/202606/20/2606.18033v1-when-english-isnt-the-best-teacher-source-language-effects-in-cross-lingual-in-context-learning)  
+   标签：评分：7.0/10、query:cross-lang
+   evidence：跨语言上下文学习中源语言选择效应的实证研究，与翻译迁移相关
+5. [BayLing-Duplex: Native Full-Duplex Speech Dialogue with a Single Autoregressive LLM](/202606/20/2606.14528v1-bayling-duplex-native-full-duplex-speech-dialogue-with-a-single-autoregressive-llm)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：全双工语音对话系统，利用自回归LLM实现语音合成与识别
+6. [Listening with Attention: Entropy-Guided Explainability for Transformer-Based Audio Models](/202606/20/2606.14647v1-listening-with-attention-entropy-guided-explainability-for-transformer-based-audio-models)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：Transformer ASR的模型内在可解释性框架
+7. [Context Compression Is Not One Thing: Readable Symbolic Re-expression vs. Coherent Summary at Matched Budget](/202606/20/2606.14875v1-context-compression-is-not-one-thing-readable-symbolic-re-expression-vs-coherent-summary-at-matched-budget)  
    标签：评分：6.0/10、query:fie-rag
-   evidence：提出位置无关缓存以加速RAG推理，适用于少样本场景
-12. [Code-Switching Reveals Language Anchoring in Multilingual LLMs](/202606/19/2606.19668v1-code-switching-reveals-language-anchoring-in-multilingual-llms)  
-   标签：评分：6.0/10、query:cross-lang
-   evidence：代码切换揭示多语言LLM中的语言锚定偏差
-13. [Repurposing a Speech Classifier for Guided Diffusion-Based Speech Generation](/202606/19/2606.20457v1-repurposing-a-speech-classifier-for-guided-diffusion-based-speech-generation)  
+   evidence：上下文压缩方法用于多跳问答，与RAG相关
+8. [MambAdapter: Lightweight Mamba-Based Adapters for Parameter-Efficient Transfer Learning in Speech and Audio](/202606/20/2606.15638v1-mambadapter-lightweight-mamba-based-adapters-for-parameter-efficient-transfer-learning-in-speech-and-audio)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：利用分类器引导的扩散模型进行语音生成
-14. [FlowEdit: Associative Memory for Lifelong Pronunciation Adaptation in Flow-Matching TTS](/202606/19/2606.20518v1-flowedit-associative-memory-for-lifelong-pronunciation-adaptation-in-flow-matching-tts)  
+   evidence：将Mamba集成到低秩适配器中实现语音音频参数的迁移学习
+9. [Connecting Speech to Words through Images](/202606/20/2606.16807v1-connecting-speech-to-words-through-images)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：流匹配TTS的终身发音适应
-15. [How Do Instructions Shape Speech? Cross-Attention Attribution for Style-Captioned Text-to-Speech](/202606/19/2606.20532v1-how-do-instructions-shape-speech-cross-attention-attribution-for-style-captioned-text-to-speech)  
-   标签：评分：6.0/10、query:qwen-tts
-   evidence：风格描述TTS的交叉注意力归因，揭示指令如何塑造语音
+   evidence：基于视觉的口语词汇发现方法，无需文本监督，适用于低资源语言
+10. [Robust Spoofed Speech Detection via Temporal Pyramid Modeling](/202606/20/2606.16837v1-robust-spoofed-speech-detection-via-temporal-pyramid-modeling)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：使用时间金字塔建模的多语言伪造语音检测
+11. [A Unified Framework for Context-Aware and Relation-Aware Graph Retrieval-Augmented Generation](/202606/20/2606.18075v1-a-unified-framework-for-context-aware-and-relation-aware-graph-retrieval-augmented-generation)  
+   标签：评分：6.0/10、query:fie-rag
+   evidence：提出HyGRAG层次图RAG框架，可用于少样本叙实性推理
+12. [Stellar: Scalable Multimodal Document Retrieval for Natural Language Queries](/202606/20/2606.19960v1-stellar-scalable-multimodal-document-retrieval-for-natural-language-queries)  
+   标签：评分：6.0/10、query:fie-rag
+   evidence：可扩展的多模态文档检索框架，适用于检索增强生成系统
+13. [PASQA: Pitch-Accent-Focused Speech Quality Assessment Model Trained on Synthetic Speech with Accent Errors](/202606/20/2606.20137v1-pasqa-pitch-accent-focused-speech-quality-assessment-model-trained-on-synthetic-speech-with-accent-errors)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：使用口音可控TTS进行语音质量评估
+14. [Beyond Speaker Independence: Evaluating Cross-Lingual Acoustic-to-Articulatory Inversion Across Finnish and Russian](/202606/20/2606.20478v1-beyond-speaker-independence-evaluating-cross-lingual-acoustic-to-articulatory-inversion-across-finnish-and-russian)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：跨语言声学到发音反演基准研究，涉及芬兰语和俄语
 
 
 <div class="dpr-home-promo-card">

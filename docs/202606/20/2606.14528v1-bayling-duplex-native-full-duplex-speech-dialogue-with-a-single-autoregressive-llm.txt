@@ -1,0 +1,332 @@
+Title: BayLing-Duplex: Native Full-Duplex Speech Dialogue with a Single Autoregressive LLM
+
+URL Source: https://arxiv.org/pdf/2606.14528v1
+
+Published Time: Mon, 15 Jun 2026 01:01:47 GMT
+
+Number of Pages: 11
+
+Markdown Content:
+# BayLing-Duplex: Native Full-Duplex Speech Dialogue with a Single Autoregressive LLM 
+
+Qingkai Fang 1,2,3, Shoutao Guo 1,2,3, Yang Feng 1,2,3*1Key Laboratory of Intelligent Information Processing Institute of Computing Technology, Chinese Academy of Sciences (ICT/CAS) 
+
+> 2
+
+Key Laboratory of AI Safety, Chinese Academy of Sciences 
+
+> 3
+
+University of Chinese Academy of Sciences, Beijing, China 
+
+{fangqingkai21b,guoshoutao22z,fengyang}@ict.ac.cn 
+
+Abstract 
+
+Real-time, full-duplex speech interaction is a key feature of next-generation spoken chatbots, allowing the model to listen and speak at the same time and to handle natural phenomena such as overlap, hesitation, and barge-in. Ex-isting speech language models (SpeechLMs) such as LLaMA-Omni (Fang et al., 2025a) and GLM-4-Voice (Zeng et al., 2024) are still turn-based and rely on an external Voice Ac-tivity Detection (VAD) module to mark the end of the user’s turn, which fundamentally limits their interactive ability. In this paper, we introduce BayLing-Duplex, a native full-duplex SpeechLM where a single autoregres-sive LLM decides when to listen, when to speak, and when to stop, with no auxiliary turn-taking module. The design adds only a few special tokens to the standard vocabulary, so it transfers across LLMs and reuses exist-ing training and serving stacks with no archi-tectural adaptation. Starting from the public GLM-4-Voice checkpoint and using only 400K full-duplex samples for fine-tuning followed by a lightweight DPO stage, BayLing-Duplex reaches 92% turn-taking success and 100% in-terruption success on InstructS2S-Eval, while improving the speech-response score from 2.17 to 3.39 over Moshi (Défossez et al., 2024). BayLing-Duplex also matches or surpasses its turn-based counterpart on Llama Questions, Web Questions, and Alpaca-Eval, showing that simultaneous listen-and-speak modeling does not sacrifice response quality. 1
+
+1 Introduction 
+
+Speech, as a critical interface for human-computer interaction, can enhance user experience compared with text. In recent years, with the rapid develop-ment of large language models (LLMs), building in-telligent spoken chatbots has attracted widespread  
+
+> *Corresponding author: Yang Feng.
+> 1Code and models are available at https://github.com/ BayLing-Models/BayLing-Duplex .
+
+attention from both academia and industry. GPT-4o (OpenAI, 2024) enables real-time, intelligent, and natural speech interaction, marking a step to-ward more natural human-computer interaction. The traditional approach is a cascaded pipeline of automatic speech recognition (ASR), an LLM, and text-to-speech (TTS) synthesis. While straight-forward, the cascaded design accumulates errors across stages, suffers from high response latency, and discards paralinguistic information in the in-put speech. To address these limitations, end-to-end SpeechLMs have gained attention, using a single unified model to process speech input and output. They can be categorized into native 
+
+SpeechLMs that discretize speech into tokens and extend the LLM vocabulary (Zhang et al., 2023; Zeng et al., 2024; Défossez et al., 2024), and mod-ular SpeechLMs that incorporate a speech encoder and a speech decoder around the LLM (Fang et al., 2025a,b; Wang et al., 2024). Despite different ar-chitectures, both families predominantly assume a 
+
+turn-based interaction: the model consumes one segmented user utterance and emits a single re-sponse. Deployment therefore requires a front-end Voice Activity Detection (VAD) module to mark the end of the user’s turn. The turn-based assumption has two intrinsic limitations. First, the system behavior is bounded by the VAD’s accuracy: false positives cut the user off mid-sentence and false negatives de-lay the response, since acoustic VAD has no access to dialogue semantics. Second, the turn-based ab-straction discards interaction patterns that pervade real conversation, including mid-utterance pauses that should not be mistaken for end-of-turn, user barge-in that should preempt the current response, and short backchannels that should not trigger a full reply. Outsourcing these decisions to a small front-end module places a hard ceiling on the system’s interactive ability. Full-duplex SpeechLMs address these issues by listening and speaking continuously, 1
+
+> arXiv:2606.14528v1 [cs.CL] 12 Jun 2026
+
+deciding internally when to talk (Nguyen et al., 2023; Défossez et al., 2024; Zhang et al., 2024a). However, native full-duplex training typically re-quires millions of hours of pretraining and tens of thousands of hours of paired full-duplex dialogue data (Défossez et al., 2024), which is beyond the reach of most academic teams. In this paper, we ex-plore an alternative: converting a strong turn-based SpeechLM into a competitive full-duplex one with a small, structured fine-tuning recipe. The conver-sion is non-trivial, since the model must consume the user’s incoming speech while emitting its own response, and make every turn-taking decision at the same time scale as speech tokens. In this paper, we propose BayLing-Duplex, a native full-duplex SpeechLM in which a single au-toregressive LLM jointly handles user-speech un-derstanding, dialogue-state decisions, and assistant-speech generation through a multi-channel inter-leaved sequence (Figure 1). BayLing-Duplex takes GLM-4-Voice (Zeng et al., 2024) as its backbone, integrating a speech tokenizer, an LLM, and a speech decoder; we introduce no new modules or auxiliary heads on top of the GLM-4-Voice back-bone; the only addition is four special dialogue-state tokens that share the standard token vocab-ulary. As a result, the design transfers to any au-toregressive LLM and runs on off-the-shelf LLM training and serving frameworks without any archi-tectural adaptation. Three streams – user speech, assistant text, and assistant speech – are tokenized at the same frame rate and interleaved block by block, and four dialogue-state tokens in the text channel encode silence, reply onset, text com-pletion, and speech completion. With this lay-out, every turn-taking and interruption decision reduces to ordinary next-token prediction over GLM-4-Voice’s standard vocabulary. We start from the publicly released GLM-4-Voice check-point and fine-tune it on 400K full-duplex sam-ples, followed by a lightweight Direct Preference Optimization (DPO) (Rafailov et al., 2023) stage targeting turn-taking and barge-in timing. Experi-mental results show that BayLing-Duplex reaches 92% turn-taking success rate and 100% interrup-tion success rate on InstructS2S-Eval, while im-proving the speech-response score from 2.17 to 3.39 over Moshi (Défossez et al., 2024). On full-duplex spoken question answering, BayLing-Duplex reaches 46.0%/18.1% accuracy on Llama Questions and Web Questions, significantly out-performing Moshi’s 21.0%/9.2%, and the duplex model is on par with or stronger than its turn-based counterpart on three standard spoken benchmarks. 
+
+2 BayLing-Duplex 
+
+In this section, we introduce the model architecture of BayLing-Duplex. As shown in Figure 1, we use GLM-4-Voice (Zeng et al., 2024) as the back-bone, which integrates a speech tokenizer, an LLM, and a speech decoder. The speech tokenizer is a modified Whisper-large-v3 (Radford et al., 2023) encoder with a vector quantizer that turns 16 kHz waveforms into discrete tokens at fs = 12 .5 Hz (one token per 80 ms); the LLM is a 9B-parameter decoder-only Transformer initialized from GLM-4-9B (GLM et al., 2024) with the speech tokens added to its vocabulary; and the speech decoder is a flow-matching (Lipman et al., 2023) model fol-lowed by a HiFi-GAN (Kong et al., 2020) vocoder, both adapted from CosyVoice (Du et al., 2024). The core innovation of BayLing-Duplex is the multi-channel interleaved sequence layout, which realizes full-duplex behavior without introducing any new modules or auxiliary heads. 
+
+2.1 Multi-Channel Interleaved Sequence 
+
+A full-duplex dialogue consists of a sequence of utterances by the user and the assistant, possibly with overlap to support barge-in. We organize this dialogue into a single multi-channel interleaved sequence as follows. 
+
+Two-Channel Audio Tokenization We synthe-size two single-channel audio tracks of equal length: the user track is filled with user utter-ances (silence elsewhere) and the assistant track with assistant utterances. Both are tokenized by the speech tokenizer, yielding aligned sequences 
+
+X = ( x1, . . . , x Ts ) and Y = ( y1, . . . , y Ts ). Si-lence is tokenized by the same encoder rather than replaced by a special token, preserving acoustic continuity. For each assistant utterance k, wk de-notes its textual content, and sk, e k denote its start and end times (in seconds), respectively. 
+
+Block Structure The sequence is organized in B
+
+blocks, each containing N user-speech tokens, M
+
+text tokens, and N assistant-speech tokens:             
+
+> Block b:xbN +1:( b+1) N
+> |{z }
+> user speech
+> zbM +1:( b+1) M
+> |{z }
+> text
+> ybN +1:( b+1) N
+> |{z }
+> assistant speech
+> .
+> (1)
+
+The text channel Z = ( z1, . . . , z Tz ) has length 
+
+Tz = Ts ·M/N . The model is trained to predict the 2Large Language Model 
+
+Speech Tokenizer 
+
+Speech Decoder                               
+
+> [S] [S] [A] The time is
+> “Hi, what time is it?” 0.2s 1.5s
+> {[0, 0.8)
+> {[0.8, 1.6)
+> {[0.8, 1.6)
+> {[0.8, 1.6)
+> {[1.6, 2.4)
+> {[1.6, 2.4)
+> {[1.6, 2.4)
+> {[2.4, 3.2)
+> {[2.4, 3.2)
+> [E] [S]
+> {[2.4, 3.2)
+> {[3.2, 4.0)
+> {[3.2, 4.0)
+> “The time is” 2.0s 3.2s
+> “Wait, Beijing Time!” 3.0s 3.9s
+> [A] 9PM
+> {[3.2, 4.0)
+> {[4.0, 4.8)
+> {[4.0, 4.8)
+> “9PM” 4.5s 5.4s
+> [P] [E]
+> {[4.0, 4.8)
+> {[4.8, 5.6)
+> {[4.8, 5.6)
+> [S] [S] [A] The time is [E] [S] [A] 9PM [P] [E]
+> Turn-taking
+> Interrupting
+> Interrupted Turn-taking
+> Ignore Token Input Speech Token Output Speech Token [S] SILENCE [A] ASSISTANT [P] PAD [E] EPAD
+
+Figure 1: Multi-channel interleaved sequence in BayLing-Duplex. The user speech, assistant text and assistant speech channels are interleaved block-by-block at a fixed N :M :N ratio; here N =M =2 for clarity (we use N =10 ,
+
+M =5 in practice). The text channel embeds the dialogue-state tokens [SILENCE] ([S] ), [ASSISTANT] ([A] ), [PAD] 
+
+([P] ) and [EPAD] ([E] ). The illustrated dialogue starts with the user asking “Hi, what time is it?”; the assistant takes the turn at 2.0 s with “The time is. . . ”, is interrupted at 3.0 s by “Wait, Beijing Time!”, and re-starts with “9PM” at 4.5 s. Turn-taking, being interrupted, and re-starting are all expressed as ordinary next-token prediction over the standard LLM vocabulary. 
+
+text and assistant-speech tokens autoregressively given the past sequence. 
+
+Block Size The block size N controls a funda-mental trade-off. With a small N , each block has too few text slots to express even a short sub-word, which produces jittery turn-taking and unstable re-sponse timing; with a large N , the minimum re-sponse latency exceeds the human-acceptability threshold, since the model can only respond at the granularity of one block (Défossez et al., 2024). We choose N = 10 and M = 5 throughout the paper, giving ∆t = 0 .8 s and 6.25 text tokens per second on average, close to the natural En-glish speech rate of GLM-4-Voice during turn-based decoding. N =10 matches the typical En-glish minimum-perceptible-latency threshold while keeping ∆t small enough for fluid turn-taking; we leave a systematic sweep over N to future work. 
+
+Causal Shift At block b, the model has observed user tokens up to time (b+1)∆ t, so the earliest as-sistant audio it can emit corresponds to that same instant. We therefore shift the assistant text and speech channels one block ahead of the user chan-nel during training: text and assistant-speech to-kens at block b correspond to wall-clock window 
+
+[( b+1)∆ t, (b+2)∆ t). At inference, the output is played back with the same offset ∆t added. 
+
+Text-Channel Construction The text channel 
+
+Z acts as an inner monologue: it never reaches the user, but conditions the assistant-speech to-kens within the same block. Z is initialized with 
+
+[SILENCE] everywhere and overwritten by each assistant utterance k. Its boundary indices in the text channel are 
+
+jast 
+
+k = ⌊(sk − ∆t)fs⌋ · MN − 1, (2) 
+
+jepad 
+
+k = ⌈(ek − ∆t)fs⌉ · MN , (3) with the textual content wk filling positions from 
+
+jast 
+
+k +1 . The text channel embeds four dialogue-state tokens that encode the high-level state of the dialogue: • [SILENCE] : the assistant should stay silent; • [ASSISTANT] : the start of an assistant reply; • [PAD] : the textual content has been written but the corresponding speech is still being emitted; 3• [EPAD] : both the text and the speech of the current reply are complete. When the text channel emits [SILENCE] the assistant-speech tokens correspond to silence; when it emits [ASSISTANT] followed by content, the assistant-speech tokens encode the correspond-ing utterance. With this layout, all dialogue-state decisions reduce to next-token prediction over GLM-4-Voice’s standard vocabulary, requiring no extra classification head, attention-mask trick, or state machine. 
+
+2.2 Training 
+
+We start from GLM-4-Voice’s publicly released checkpoint, which has already been pretrained on millions of hours of speech-text data and super-vised fine-tuned on turn-based dialogue. Two fur-ther stages are applied. 
+
+Stage I: Supervised Fine-Tuning The user-speech channel X is conditioning only and con-tributes no loss; the cross-entropy is evaluated only at text-channel and assistant-speech positions, with the supervised set                  
+
+> V={i:si∈Z∪Y},ℓi=−log πθ(si|s<i ).(4)
+
+[SILENCE] dominates a typical sequence while 
+
+[ASSISTANT] appears only once per turn, so we aggregate the per-position losses with per-token weights ωi to keep the rare role tokens from being drowned out:     
+
+> LSFT =
+> P
+> i∈V ωiℓi
+> P
+> i∈V ωi
+> .(5)
+
+We tune two key weights: ωsil for [SILENCE] and 
+
+ωrole for [ASSISTANT] /[EPAD] ; we write LSFT (s)
+
+when this loss is evaluated on a specific sequence 
+
+s. Ablations are reported in Section 4.4. 
+
+Stage II: Direct Preference Optimization Stage I teaches the layout but only weakly optimizes tem-poral decisions. We construct preference pairs whose positive examples are the SFT data and whose negatives differ only in timing; the construc-tion is detailed in Section 3. The training objective combines DPO with an auxiliary SFT term that pre-vents catastrophic forgetting of generation quality:                
+
+> L=LDPO +λftx · L SFT (s+),(6)
+> LDPO =−log σ
+> 
+> β
+> h
+> log πθ(s+)
+> πref (s+)−log πθ(s−)
+> πref (s−)
+> i
+> ,(7)
+
+where πref is the Stage I checkpoint. 
+
+Algorithm 1 Inference of BayLing-Duplex.                                                                       
+
+> Require: live user-speech stream; block sizes N,M; causal offset ∆t
+> Ensure: assistant-speech waveform 1: b←0, history S←()
+> 2: while dialogue is active do
+> 3: receive Nuser-speech tokens xbfrom the stream 4: S←S⊕xb
+> 5: for j= 1 , . . . , M do ▷text channel 6: zj∼πθ(· | S), mask to text + state tokens 7: S←S⊕zj
+> 8: end for
+> 9: for j= 1 , . . . , N do ▷assistant speech 10: yj∼πθ(· | S), mask to speech tokens 11: S←S⊕yj
+> 12: end for
+> 13: decode {y1, . . . , y N}and play at (b+1)∆ t
+> 14: b←b+ 1
+> 15: end while
+
+2.3 Inference 
+
+During inference, decoding proceeds block by block, as summarized in Algorithm 1. The text-channel slots are masked to text-and-state tokens and the assistant-speech slots to speech tokens; without masking, the LLM occasionally emits cross-channel tokens that corrupt the speech de-coder’s input. During training no mask is applied because the cross-entropy loss naturally suppresses incorrect token types. During silence the user chan-nel still receives the live waveform, which the tok-enizer maps to its silence token; user input is never zero-padded artificially. When the user barges in mid-block, the in-flight assistant-speech tokens fin-ish generating before the next block re-conditions on the new user audio, keeping decoding strictly autoregressive. 
+
+3 Data Construction 
+
+In this section, we describe how we construct the full-duplex training data. We build upon the multi-turn speech-to-speech dialogue corpus in-troduced in Fang et al. (2025b), which contains 200K samples derived from the Alpaca and Ul-traChat datasets through rewriting with Llama-3.3-70B-Instruct and synthesized into speech with CosyVoice’s zero-shot voice cloning (Du et al., 2024). The user instructions are synthesized with diverse voices via voice cloning, while the assistant responses use a uniform voice; this preserves voice diversity across dialogues and consistency within a dialogue. Each multi-turn dialogue is then converted into the multi-channel interleaved format for two full-duplex scenarios. For turn-taking , a 0.8 s gap 4is inserted from the end of the user’s utterance to the start of the assistant’s response, and the gap from the end of the assistant’s response to the start of the next user utterance is drawn from 
+
+Uniform(0 .5, 3.0) s. For interruption , the user re-enters at a random point during the assistant’s response, and the assistant stops after a small re-action delay δreact ∼ Uniform(0 .8, 2.0) s. We gen-erate 200K full-duplex samples for each scenario and mix them in a 1:1 ratio during training. For DPO, we reuse the same SFT samples as positive examples and synthesize negatives by per-turbing only the timing of the assistant. For turn-taking , the negative replaces the 0.8 s gap with a value drawn from Uniform(2 , 5) s, which forces the SFT model to over-predict [SILENCE] after the user finishes speaking. For interruption , the nega-tive replaces the reaction delay with a value drawn from Uniform(3 , 5) s, so that the assistant contin-ues to speak well after the user has barged in. Each positive is paired with one negative; positive and negative share the same user-channel audio and textual content wk, so the DPO objective is forced to focus its update on the dialogue-state tokens and not on textual content, which is essential for preserving response quality during the preference-optimization stage. 
+
+4 Experiments 
+
+4.1 Experimental Setup Model Configuration We use the GLM-4-Voice checkpoint as the backbone, with N =10 and M =5 
+
+(block duration ∆t = 0 .8 s). The LLM is fully fine-tuned, while the speech tokenizer and speech decoder are frozen. We add no new parameters or auxiliary heads. 
+
+Training Details Stage I (SFT) is trained on the 400K full-duplex dialogues described in Section 3 for one epoch with batch size 32 and a peak learn-ing rate of 1×10 −5, using a cosine schedule with 10% warm-up. Stage II (DPO) runs for 200 steps with a peak learning rate of 3 × 10 −7, β = 0 .5,and λftx = 0 .5, using a cosine schedule with 5% warm-up. Both stages are trained with the LLaMA-Factory codebase (Zheng et al., 2024). 
+
+4.2 Evaluation 
+
+We evaluate BayLing-Duplex on three tasks: spo-ken question answering, full-duplex turn-taking, and full-duplex interruption. In all experiments we sample from the LLM with temperature 0.8. The synthesized assistant audio is transcribed by Whisper-large-v3 (Radford et al., 2023) and seg-mented by Silero VAD (Silero Team, 2024). 
+
+Spoken Question Answering The spoken ques-tion answering task feeds a spoken question di-rectly to the full-duplex model with no exter-nal VAD, and checks whether the reference an-swer appears in the model’s response. We evalu-ate on Llama Questions (Nachmani et al., 2024) (300 items) and Web Questions (Berant et al., 2013) (2032 items, synthesized into speech by CosyVoice). 
+
+Turn-Taking For turn-taking, we follow LLaMA-Omni (Fang et al., 2025a) and use 
+
+InstructS2S-Eval , 199 spoken instructions filtered from the helpful_base and vicuna subsets of Alpaca-Eval (Li et al., 2023). We feed each instruction to the duplex model in real time and measure when the assistant starts replying after the user finishes speaking, as well as the quality of the reply. 
+
+Interruption For interruption, we pair adja-cent items from InstructS2S-Eval into 199 two-utterance audios where the second utterance starts during the first response. We measure how quickly the model stops the current response when inter-rupted, and how relevant the new reply is to the second question. All timing metrics are computed on the synthe-sized assistant audio: we run Silero VAD (Silero Team, 2024) on the waveform to obtain its non-silence segments, define tuser-end as the right edge of the last non-silence frame in the synthesized user audio, tassistant-start as the start of the assistant’s first non-silence segment, and tstop as the right edge of the assistant’s last non-silence segment that follows a barge-in (i.e., when the assistant falls silent after being interrupted). The evaluation pipeline never inspects the model’s text channel or special tokens, and Silero VAD is used only for evaluation, not for inference. We use the following metrics. 
+
+TT SR@3s : turn-taking success rate, defined as the fraction of test items for which the assistant starts replying within 3 s of the user’s end. 
+
+S2S Score : a 1–5 GPT-4o (OpenAI, 2024) judg-ment on the transcribed assistant reply, considering helpfulness, relevance, fluency, and suitability for speech interaction. 
+
+Overlap (Ovl) : the gap, in seconds, from the 5Model Llama Q. ↑ Web Q. ↑         
+
+> (N=300 )(N=2032 )Moshi 21.0 9.2 BayLing-Duplex (SFT) 44.3 18.0 BayLing-Duplex (+DPO) 46.0 18.1
+> Table 1: Full-duplex spoken QA accuracy (%). The audio is fed directly to the duplex model with no external VAD.
+
+user’s barge-in to the assistant’s stop; lower is bet-ter. 
+
+ISR@2s : the interruption success rate, defined as the fraction of test items whose overlap is at most 2 s. 
+
+Q2 S2S : the S2S Score on the assistant’s reply to the second (interrupting) question, used to mea-sure whether the model produces a relevant new response after being interrupted. For spoken QA, we report exact-match accuracy. Accuracy is computed by case-insensitive substring match between the reference answer and the Whis-per transcription of the assistant’s audio. 
+
+Baseline We compare BayLing-Duplex with Moshi (Défossez et al., 2024), a state-of-the-art native full-duplex SpeechLM with parallel audio streams and an Inner Monologue text channel. We use the publicly released Moshika checkpoint. 
+
+4.3 Main Results Spoken Question Answering Table 1 reports spoken-QA accuracy in the full-duplex setting, where the spoken question is fed directly to the duplex model and the model itself decides when to reply. We observe that: (1) BayLing-Duplex (SFT) reaches 44.3%/18.0% on Llama/Web Questions, significantly outperforming Moshi’s 21.0%/9.2% even before DPO. (2) DPO further improves ac-curacy to 46.0%/18.1%, indicating that better tim-ing also yields better content. (3) The improve-ment is consistent across both benchmarks, sug-gesting that the multi-channel layout preserves the content-modeling capability of the GLM-4-Voice backbone. 
+
+Turn-Taking and Interruption Table 2 shows turn-taking and interruption results. We observe that: (1) The SFT model already reaches 88.9% TT SR@3s and a 3.23 S2S Score, significantly out-performing Moshi (71.9%, 2.17). (2) DPO pushes TT SR@3s to 92.0% and the S2S Score to 3.39, exceeding Moshi’s 2.17 by 1.22 points. (3) The in-terruption gain is even larger: Overlap drops from 2.07 s (Moshi) to 1.51 s (SFT) and 1.10 s (+DPO); ISR@2s climbs from 81.9% to 100%; and Q2 S2S rises from 2.45 to 3.27. Interruption benefits the most because the negatives in DPO directly post-pone the [EPAD] token. 
+
+4.4 Ablation Study 
+
+We conduct ablation studies to understand the con-tribution of each component. 
+
+Token Weights Table 3 shows the ablation on the per-token weights of the SFT loss. We observe that: (1) Uniform weighting ( ω = 1 ) collapses the model to near-permanent silence, with TT SR@3s of only 60.3%. The 100% ISR@2s in this row is a degenerate consequence: a model that almost never speaks needs no time to stop. (2) Reducing ωsil 
+
+to 0.1 alone raises TT SR to 82.4%. (3) Raising 
+
+ωrole to 10 with ωsil = 0 .1 further pushes TT SR to 88.9% and the speech score to 3.23. Both ad-justments are needed: down-weighting [SILENCE] 
+
+alone or up-weighting role tokens alone is insuffi-cient, because the gradient is otherwise dominated by silence positions. 
+
+DPO Hyperparameters Table 4 sweeps the Kullback–Leibler (KL) coefficient β and the auxiliary-SFT coefficient λftx . We observe that: (1) ISR@2s reaches 100% across all settings, indi-cating that DPO is robust on interruption. (2) TT SR@3s and the S2S Score both peak at 92.0%/3.39 with β = 0 .5, λ ftx = 0 .5, which we use as the default. (3) λftx = 1 .0 slightly degrades the DPO effect, while λftx = 0 .3 recovers similar interaction quality but yields a lower S2S Score. (4) Lowering β to 0.1 makes the model drift further from the SFT policy and produces a slightly lower S2S Score (3.31), consistent with the view that the SFT checkpoint already captures most of the layout knowledge and DPO mainly fine-tunes timing. 
+
+Effect of Full-Duplex Training on Response Quality A natural concern is that learning tim-ing decisions might erode the underlying response quality. We compare BayLing-Duplex (SFT) with a turn-based SFT baseline trained on the same data in the original GLM-4-Voice format. Table 5 shows that the duplex model is on par with or stronger than the turn-based one: it loses 1.0 point on Llama Questions but gains 2.1 points on Web Questions and 0.07 on Alpaca-Eval. This indicates that multi-6Model Turn-taking Interruption SR@3s ↑ S2S ↑ Overlap (s) ↓ ISR@2s ↑ Q2 S2S ↑
+
+Moshi 71.9 2.17 2.07 81.9 2.45 BayLing-Duplex (SFT) 88.9 3.23 1.51 91.4 2.95 BayLing-Duplex (+DPO) 92.0 3.39 1.10 100.0 3.27 
+
+> Table 2: Main results on full-duplex turn-taking and interruption on InstructS2S-Eval (199 spoken instructions). SR@3s: turn-taking success rate at 3 s; S2S: GPT-4o speech-response score; Overlap: gap from user barge-in to assistant stop; ISR@2s: interruption success rate at 2 s; Q2 S2S: speech-response score on the assistant’s reply to the second (interrupting) question.
+
+ωrole ωsil 
+
+Turn-taking Interruption SR@3s ↑ S2S ↑ Ovl ↓ ISR@2s ↑ Q2 S2S ↑
+
+1 1 60.3 3.19 1.79 100.0 2.82 1 0.1 82.4 3.13 1.53 89.6 2.78 10 1 73.9 3.02 1.53 88.5 2.81 10 0.1 88.9 3.23 1.51 91.4 2.95       
+
+> Table 3: Token-weight ablation in Stage I. ωrole weights [ASSISTANT] /[EPAD] ,ωsil weights [SILENCE] .
+
+channel interleaved training introduces full-duplex behavior without sacrificing response quality: the gains in turn-taking and interruption come from a layout that exposes timing as an in-vocabulary prediction problem, not from a degraded language model. 
+
+5 Related Work 
+
+Speech Language Models SpeechLMs are generally divided into two categories: na-tive SpeechLMs that directly input and output speech tokens through a decoder-only Trans-former (SpeechGPT (Zhang et al., 2023), GLM-4-Voice (Zeng et al., 2024), IntrinsicVoice (Zhang et al., 2024b), Spirit-LM (Nguyen et al., 2025), Step-Audio (Huang et al., 2025; Wu et al., 2025)), and modular SpeechLMs that add speech en-coders and decoders around the LLM (LLaMA-Omni (Fang et al., 2025a), LLaMA-Omni 2 (Fang et al., 2025b), Mini-Omni (Xie and Wu, 2024a), SALMONN (Tang et al., 2024), Freeze-Omni (Wang et al., 2024), MinMo (Chen et al., 2025), Stream-Omni (Zhang et al., 2025), VITA-1.5 (Fu et al., 2025), VITA-Audio (Long et al., 2025)). Native models inherit the LLM training stack with minimal architectural changes, but they enlarge the per-step softmax with the union of text and speech tokens and require continued pre-training on large amounts of speech to keep the model’s text capability from collapsing. Modular models keep the LLM vocabulary clean and reuse strong off-the-shelf speech encoders and decoders, at the cost of a more elaborate training pipeline that must align the inserted modules with the frozen or partially-trained LLM. Both families assume that a complete user utterance is available before the model speaks, and segment the user audio with an external VAD; BayLing-Duplex removes the VAD entirely and lets the model itself decide when to speak. 
+
+Full-Duplex Speech Language Models Full-duplex SpeechLMs lift the turn-based assumption. dGSLM (Nguyen et al., 2023) pioneered dual-channel modeling on naturalistic conversational speech, demonstrating that a single autoregressive model can predict both speakers without an ex-ternal turn-taking signal, but at the cost of rely-ing on tens of thousands of hours of two-channel dialogue and offering limited semantic coverage. Moshi (Défossez et al., 2024) folds the user and as-sistant audio into two parallel residual vector quan-tization (RVQ) streams stacked over a text Inner Monologue and uses a depth-Transformer to emit one frame per step for low theoretical latency; the parallel-RVQ design requires per-codebook con-ditioning and full-duplex pretraining at the scale of millions of hours of speech. SyncLLM (Veluri et al., 2024) embeds an explicit wall-clock signal 7β λftx 
+
+Turn-taking Interruption SR@3s ↑ S2S ↑ Ovl ↓ Q2 S2S ↑
+
+0.1 0.3 86.4 3.36 1.01 3.09 0.1 0.5 89.4 3.31 1.05 3.07 0.1 1.0 89.4 3.30 1.10 3.10 0.3 0.3 89.4 3.38 1.01 3.06 0.3 0.5 87.9 3.30 1.05 3.13 0.3 1.0 87.4 3.36 1.11 3.22 0.5 0.3 90.1 3.35 1.01 3.17 0.5 0.5 92.0 3.39 1.10 3.27 
+
+0.5 1.0 89.4 3.37 1.12 3.11     
+
+> Table 4: DPO hyperparameter ablation. βis the KL coefficient and λftx is the auxiliary-SFT weight. ISR@2s = 100.0% across all settings and is omitted.
+
+Model Llama Q. Web Q. Alpaca 
+
+Acc. Acc. S2S Turn-based SFT 45.3 15.9 3.16 BayLing-Duplex 44.3 18.0 3.23 
+
+> Table 5: Response quality of BayLing-Duplex vs. a turn-based SFT baseline trained on the same data and the same backbone.
+
+so that user and assistant tokens advance in lock-step, but the time tokens enlarge the vocabulary and shift the burden of timing to the LLM. Omni-Flatten (Zhang et al., 2024a) flattens user-speech, assistant-speech, and assistant-text tokens into a single GPT stream, which simplifies the training stack but interleaves channels at the per-token gran-ularity and fragments the contiguous text mono-logue. SALMONN-omni (Yu et al., 2024) runs on continuous embeddings with a thinking mecha-nism, sidestepping the discretization trade-offs but requiring a separate codec for the audio output and an extra branch for the thinking trace. LSLM (Ma et al., 2024), Mini-Omni2 (Xie and Wu, 2024b), and Freeze-Omni (Wang et al., 2024) reach partial duplexity through input-side barge-in or command-based interruption: the model can be cut off but cannot decide for itself when to start or stop talking. Zhang et al. (2024c) reach duplexity at the text level via time-division multiplexing. The most relevant concurrent work is FLM-Audio (Yao et al., 2025), which similarly preserves natural text monologues but merges all channels at every step. BayLing-Duplex interleaves three channels at a coarse block granularity that preserves contiguous text mono-logues, and unifies all dialogue-state decisions as next-token prediction over the standard LLM vo-cabulary. 
+
+Text Channels and Inner Monologues Many full-duplex SpeechLMs introduce an intermedi-ate text channel as scaffolding for speech gener-ation. Moshi (Défossez et al., 2024) interleaves a per-frame Inner Monologue track that emits time-aligned text before each frame of audio and re-ports that this track is critical for keeping the spo-ken response semantically coherent. SALMONN-omni (Yu et al., 2024) pursues a similar idea on continuous embeddings with a separate thinking branch. OmniFlatten (Zhang et al., 2024a) and FLM-Audio (Yao et al., 2025) likewise weave text alongside speech tokens, reusing the LLM’s text generation pathway to plan content. Our text channel inherits this design at the granularity of one block rather than one frame: it never reaches the user but conditions the assistant-speech to-kens within the same block, and it is the chan-nel where every dialogue-state decision is made. Compared with per-step interleaving, the coarser scheme keeps each utterance’s text contiguous over several consecutive blocks, which we conjecture aligns better with the text distribution that the un-derlying LLM was pretrained on. 
+
+6 Conclusion 
+
+We introduce BayLing-Duplex, a native full-duplex SpeechLM whose multi-channel interleaved se-quence lets a single autoregressive LLM decide when to listen, speak, and stop. Four dialogue-state tokens added to the standard vocabulary turn turn-taking and interruption into ordinary next-8token prediction, with no auxiliary classifier or scheduler on top of GLM-4-Voice. With only 400K full-duplex samples and a lightweight DPO stage, BayLing-Duplex reaches 92% turn-taking and 100% interruption success. 
+
+Limitations 
+
+The training and evaluation audio is fully synthe-sized: it is single-speaker, near-field, and noise-free. Real-world deployment must handle background noise, reverberation, and competing speakers, all of which can shift the boundaries detected in the user channel and trigger spurious turn-taking events. We expect data augmentation (additive noise, room im-pulse response, distractor speakers) to mitigate this, and we leave a controlled study across in-car, out-door, and meeting-room conditions to future work. Our analysis also focuses on turn-taking and in-terruption; backchannels, multi-party conversation, and emotion-aware turn-taking are not explored. The chosen block size N =10 caps the minimum response latency at 0.8 s; reducing N would lower latency but shrink the per-block text budget, and we leave a systematic sweep over N to future work. Finally, like Moshi and OmniFlatten, our model is bounded by the quality and the bias of the un-derlying SpeechLM (GLM-4-Voice); we share its limitations on rare languages, code-switching, and out-of-distribution acoustic conditions. 
+
+Ethical Considerations 
+
+BayLing-Duplex synthesizes natural-sounding speech in real time, which lowers the barrier for voice-based impersonation, social-engineering attacks, and audio disinformation. Continuous-listening interfaces also raise privacy concerns: always-on user-channel input may inadvertently capture private speech, including utterances from bystanders who have not consented to recording. As BayLing-Duplex is built on top of GLM-4-Voice, it inherits the linguistic, demographic, and acoustic biases of that backbone, and its turn-taking and interruption decisions may behave unevenly across speakers, accents, and languages. We re-lease the model strictly for research on full-duplex dialogue modeling; production deployments should add speaker verification, on-device wake-word gat-ing, watermarking of synthesized speech, and ex-plicit user consent for continuous capture. 
+
+References 
+
+Jonathan Berant, Andrew Chou, Roy Frostig, and Percy Liang. 2013. Semantic parsing on Freebase from question-answer pairs. In Proc. of EMNLP .Qian Chen, Yafeng Chen, Yanni Chen, Mengzhe Chen, Yingda Chen, Chong Deng, Zhihao Du, Ruize Gao, Changfeng Gao, Zhifu Gao, Yabin Li, Xiang Lv, Jiaqing Liu, Haoneng Luo, Bin Ma, Chongjia Ni, Xian Shi, Jialong Tang, Hui Wang, and 17 others. 2025. Minmo: A multimodal large language model for seamless voice interaction. Alexandre Défossez, Laurent Mazaré, Manu Orsini, Amélie Royer, Patrick Pérez, Hervé Jégou, Edouard Grave, and Neil Zeghidour. 2024. Moshi: a speech-text foundation model for real-time dialogue. arXiv preprint arXiv:2410.00037 .Zhihao Du, Qian Chen, Shiliang Zhang, Kai Hu, Heng Lu, Yexin Yang, Hangrui Hu, Siqi Zheng, Yue Gu, Ziyang Ma, Zhifu Gao, and Zhijie Yan. 2024. CosyVoice: A scalable multilingual zero-shot text-to-speech synthesizer based on supervised semantic tokens. arXiv preprint arXiv:2407.05407 .Qingkai Fang, Shoutao Guo, Yan Zhou, Zhengrui Ma, Shaolei Zhang, and Yang Feng. 2025a. LLaMA-Omni: Seamless speech interaction with large lan-guage models. In Proc. of ICLR .Qingkai Fang, Yan Zhou, Shoutao Guo, Shaolei Zhang, and Yang Feng. 2025b. LLaMA-Omni 2: LLM-based real-time spoken chatbot with autoregressive streaming speech synthesis. In Proc. of ACL .Chaoyou Fu, Haojia Lin, Xiong Wang, Yi-Fan Zhang, Yunhang Shen, Xiaoyu Liu, Haoyu Cao, Zuwei Long, Heting Gao, Ke Li, Long Ma, Xiawu Zheng, Rongrong Ji, Xing Sun, Caifeng Shan, and Ran He. 2025. VITA-1.5: Towards GPT-4o level real-time vision and speech interaction. arXiv preprint arXiv:2501.01957 .Team GLM, :, Aohan Zeng, Bin Xu, Bowen Wang, Chenhui Zhang, Da Yin, Dan Zhang, Diego Ro-jas, Guanyu Feng, Hanlin Zhao, Hanyu Lai, Hao Yu, Hongning Wang, Jiadai Sun, Jiajie Zhang, Jiale Cheng, Jiayi Gui, Jie Tang, and 40 others. 2024. Chatglm: A family of large language models from glm-130b to glm-4 all tools. Ailin Huang, Boyong Wu, Bruce Wang, Chao Yan, Chen Hu, Chengli Feng, Fei Tian, Feiyu Shen, Jing-bei Li, Mingrui Chen, Peng Liu, Ruihang Miao, Wang You, Xi Chen, Xuerui Yang, Yechang Huang, Yuxiang Zhang, Zheng Gong, Zixin Zhang, and 126 others. 2025. Step-audio: Unified understanding and generation in intelligent speech interaction. Jungil Kong, Jaehyeon Kim, and Jaekyoung Bae. 2020. HiFi-GAN: Generative adversarial networks for effi-cient and high fidelity speech synthesis. In Proc. of NeurIPS .
+
+9Xuechen Li, Tianyi Zhang, Yann Dubois, Rohan Taori, Ishaan Gulrajani, Carlos Guestrin, Percy Liang, and Tatsunori B. Hashimoto. 2023. AlpacaEval: An au-tomatic evaluator of instruction-following models. 
+
+https://github.com/tatsu-lab/alpaca_eval .Yaron Lipman, Ricky T. Q. Chen, Heli Ben-Hamu, Max-imilian Nickel, and Matthew Le. 2023. Flow match-ing for generative modeling. In Proc. of ICLR .Zuwei Long, Yunhang Shen, Chaoyou Fu, Heting Gao, Lijiang Li, Peixian Chen, Mengdan Zhang, Hang Shao, Jian Li, Jinlong Peng, Haoyu Cao, Ke Li, Ron-grong Ji, and Xing Sun. 2025. Vita-audio: Fast in-terleaved cross-modal token generation for efficient large speech-language model. Ziyang Ma, Yakun Song, Chenpeng Du, Jian Cong, Zhuo Chen, Yuping Wang, Yuxuan Wang, and Xie Chen. 2024. Language model can listen while speak-ing. arXiv preprint arXiv:2408.02622 .Eliya Nachmani, Alon Levkovitch, Roy Hirsch, Ju-lian Salazar, Chulayuth Asawaroengchai, Soroosh Mariooryad, Ehud Rivlin, RJ Skerry-Ryan, and Michelle Tadmor Ramanovich. 2024. Spoken question answering and speech continuation using spectrogram-powered LLM. In Proc. of ICLR .Tu Anh Nguyen, Eugene Kharitonov, Jade Copet, Yossi Adi, Wei-Ning Hsu, Ali Elkahky, Paden Tomasello, Robin Algayres, Benoît Sagot, Abdelrahman Mo-hamed, and Emmanuel Dupoux. 2023. Generative spoken dialogue language modeling. In Transactions of the ACL .Tu Anh Nguyen, Benjamin Muller, Bokai Yu, Marta R. Costa-jussa, Maha Elbayad, Sravya Pop-uri, Christophe Ropers, Paul-Ambroise Duquenne, Robin Algayres, Ruslan Mavlyutov, Itai Gat, Mary Williamson, Gabriel Synnaeve, Juan Pino, Benoît Sagot, and Emmanuel Dupoux. 2025. SpiRit-LM: In-terleaved spoken and written language model. Trans-actions of the ACL .OpenAI. 2024. Hello GPT-4o. https://openai.com/ index/hello-gpt-4o/ .Alec Radford, Jong Wook Kim, Tao Xu, Greg Brock-man, Christine McLeavey, and Ilya Sutskever. 2023. Robust speech recognition via large-scale weak su-pervision. In Proc. of ICML .Rafael Rafailov, Archit Sharma, Eric Mitchell, Stefano Ermon, Christopher D. Manning, and Chelsea Finn. 2023. Direct preference optimization: Your lan-guage model is secretly a reward model. In Proc. of NeurIPS .Silero Team. 2024. Silero VAD: pre-trained enterprise-grade voice activity detector. https://github. com/snakers4/silero-vad .Changli Tang, Wenyi Yu, Guangzhi Sun, Xianzhao Chen, Tian Tan, Wei Li, Lu Lu, Zejun Ma, and Chao Zhang. 2024. SALMONN: Towards generic hearing abilities for large language models. In Proc. of ICLR .Bandhav Veluri, Benjamin N. Peloquin, Bokai Yu, Hongyu Gong, and Shyamnath Gollakota. 2024. Be-yond turn-based interfaces: Synchronous LLMs as full-duplex dialogue agents. In Proc. of EMNLP .Xiong Wang, Yangze Li, Chaoyou Fu, Yunhang Shen, Lei Xie, Ke Li, Xing Sun, and Long Ma. 2024. Freeze-Omni: A smart and low latency speech-to-speech dialogue model with frozen LLM. arXiv preprint arXiv:2411.00774 .Boyong Wu, Chao Yan, Chen Hu, Cheng Yi, Chengli Feng, Fei Tian, Feiyu Shen, Gang Yu, Haoyang Zhang, Jingbei Li, Mingrui Chen, Peng Liu, Wang You, Xiangyu Tony Zhang, Xingyuan Li, Xuerui Yang, Yayue Deng, Yechang Huang, Yuxin Li, and 90 others. 2025. Step-audio 2 technical report. Zhifei Xie and Changqiao Wu. 2024a. Mini-Omni: Language models can hear, talk while thinking in streaming. arXiv preprint arXiv:2408.16725 .Zhifei Xie and Changqiao Wu. 2024b. Mini-Omni2: Towards open-source GPT-4o with vision, speech and duplex capabilities. arXiv preprint arXiv:2410.11190 .Yiqun Yao, Xiang Li, Xin Jiang, Xuezhi Fang, Naitong Yu, Wenjia Ma, Aixin Sun, and Yequan Wang. 2025. FLM-Audio: Natural monologues improves native full-duplex chatbots via dual training. arXiv preprint arXiv:2509.02521 .Wenyi Yu, Siyin Wang, Xiaoyu Yang, Xianzhao Chen, Xiaohai Tian, Jun Zhang, Guangzhi Sun, Lu Lu, Yux-uan Wang, and Chao Zhang. 2024. SALMONN-omni: A codec-free LLM for full-duplex speech understanding and generation. arXiv preprint arXiv:2411.18138 .Aohan Zeng, Zhengxiao Du, Mingdao Liu, Kedong Wang, Shengmin Jiang, Lei Zhao, Yuxiao Dong, and Jie Tang. 2024. GLM-4-Voice: Towards intelligent and human-like end-to-end spoken chatbot. arXiv preprint arXiv:2412.02612 .Dong Zhang, Shimin Li, Xin Zhang, Jun Zhan, Pengyu Wang, Yaqian Zhou, and Xipeng Qiu. 2023. SpeechGPT: Empowering large language models with intrinsic cross-modal conversational abilities. 
+
+arXiv preprint arXiv:2305.11000 .Qinglin Zhang, Luyao Cheng, Chong Deng, Qian Chen, Wen Wang, Siqi Zheng, Jiaqing Liu, Hai Yu, Chaohong Tan, Zhihao Du, and Shiliang Zhang. 2024a. OmniFlatten: An end-to-end GPT model for seamless voice conversation. arXiv preprint arXiv:2410.17799 .Shaolei Zhang, Shoutao Guo, Qingkai Fang, Yan Zhou, and Yang Feng. 2025. Stream-Omni: Simultaneous multimodal interactions with large language-vision-speech model. arXiv preprint arXiv:2506.13642 .
+
+10 Xin Zhang, Xiang Lyu, Zhihao Du, Qian Chen, Dong Zhang, Hangrui Hu, Chaohong Tan, Tianyu Zhao, Yuxuan Wang, Bin Zhang, Heng Lu, Yaqian Zhou, and Xipeng Qiu. 2024b. IntrinsicVoice: Empower-ing LLMs with intrinsic real-time voice interaction abilities. arXiv preprint arXiv:2410.08035 .Xinrong Zhang, Yingfa Chen, Shengding Hu, Xu Han, Zihang Xu, Yuanwei Xu, Weilin Zhao, Maosong Sun, and Zhiyuan Liu. 2024c. Beyond the turn-based game: Enabling real-time conversations with duplex models. arXiv preprint arXiv:2406.15718 .Yaowei Zheng, Richong Zhang, Junhao Zhang, Yanhan Ye, Zheyan Luo, Zhangchi Feng, and Yongqiang Ma. 2024. LlamaFactory: Unified efficient fine-tuning of 100+ language models. In Proc. of ACL: System Demonstrations .
+
+11
