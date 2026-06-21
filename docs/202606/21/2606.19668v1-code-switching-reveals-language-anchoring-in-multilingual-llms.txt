@@ -1,0 +1,1719 @@
+Title: Code-Switching Reveals Language Anchoring in Multilingual LLMs
+
+URL Source: https://arxiv.org/pdf/2606.19668v1
+
+Published Time: Fri, 19 Jun 2026 00:19:28 GMT
+
+Number of Pages: 36
+
+Markdown Content:
+# Code-Switching Reveals Language Anchoring in Multilingual LLMs 
+
+Jeonghyun Park 1, Seunghyun Yoon 2, Yonghyun Jun 1, Hwanhee Lee 1†
+
+> 1
+
+Chung-Ang University, Seoul, Korea, 2Adobe Research, USA 
+
+{tom0365, zgold5670, hwanheelee}@cau.ac.kr, syoon@adobe.com https://jeonghyunpark2002.github.io/CANVAS_project_page 
+
+Abstract 
+
+Multilingual Large Language Models (MLLMs) are increasingly expected to handle Code-Switched (CS) inputs, yet mixing languages frequently degrades perfor-mance relative to source- or target-language monolingual counterparts. To understand this degradation, we use grammar-forced CS as a controlled diagnostic setting for locating CS representations relative to their source and target counterparts. We introduce 
+
+Anchor Bias , a geometric measure that quantifies language anchoring —whether aCS hidden state aligns closer to its source or target language counterpart. Across diverse MLLMs, Anchor Bias reveals a consistent grammar-frame effect: source-framed CS stays source-anchored, whereas target-framed CS shifts target-ward and shows larger Question Answering (QA) degradation. Motivated by this representational pattern, we propose CANVAS (Contextual Anchor-based 
+
+Neural Vector Alignment Steering), an inference-time intervention that extracts asource-side canvas from the input and softly steers target-language hidden states toward the source anchor during prefill. CANVAS consistently recovers QA F1 across MLLMs and CS conditions, showing that internal anchoring signals provide an actionable target for mitigating CS inference failures. The Code is available at https://github.com/ jeonghyunpark2002/CANVAS.git 
+
+1 Introduction 
+
+Multilingual Large Language Models (MLLMs) are increasingly expected to handle Code-Switched (CS) inputs, where users mix multiple languages within an interaction. However, stan-dard evaluations (Hu et al., 2020; Liang et al., 2020) largely assume monolingual contexts, over-looking this pervasive practice. Crucially, CS is 
+
+> †
+
+Corresponding author. Code -Switched Inputs  Representation Space                  
+
+> Who wrote Pride and Prejudice?
+> 누가 오만과 편견을 썼나요 ?
+> SRC
+> Who wrote 오만과 편견 ?CS
+> TGT
+> Grammar Force ( SRC )
+> Grammar Force ( TGT )
+> 누가 Pride and Prejudice 를썼나요 ?CS 누가 Pride and Prejudice 를썼나요 ?
+> Who wrote Pride and Prejudice?
+> EN KO
+> EN KO
+> TGT Anchor
+> SRC Anchor
+> TGT Anchor
+> SRC Anchor
+> SRC -like
+> TGT -like
+> Grammatical fr ame determines
+> anchor direction !
+> Source -Language Anchor
+> EN
+> KO
+> Target -Language Anchor
+
+Figure 1: Locating code-switched inputs in the mul-tilingual representation space. Source- and target-framed CS variants preserve different grammatical structures for the same information need, plotted along-side their matched monolingual anchors. 
+
+not random lexical noise but a structured lin-guistic phenomenon governed by grammatical or-ganization (Do˘ gruöz et al., 2021; Winata et al., 2023). Consequently, an MLLM competent on monolingual inputs can still face unique pro-cessing failures when an information need is expressed through a structured mixed-language form, frequently degrading performance com-pared to monolingual counterparts. Prior work evaluates CS across robustness, translation, generation, and multilingual general-ization (Laureano De Leon et al., 2024; Huza-ifah et al., 2024; Abdaljalil et al., 2025; Mo-hamed et al., 2025; Heredia et al., 2025; Winata et al., 2026). While these studies show that mixed-language inputs expose fragilities hidden by monolingual benchmarks, and existing MLLM analyses suggest latent language preferences or English-centered processing pathways (Wendler et al., 2024; Zhao et al., 2024; Sharma et al., 2025), neither explains how a CS instance is geometri-cally positioned relative to its matched monolin-gual counterparts. Understanding the representational pattern be-hind this performance drop requires mapping where the mixed-language hidden state lies rela-tive to its monolingual references: source-aligned, target-shifted, or intermediate. Since identical QA 1
+
+> arXiv:2606.19668v1 [cs.CL] 18 Jun 2026
+
+failures can stem from different internal represen-tational causes, we probe the geometric layout of the model’s representation space rather than rely-ing only on answer-level analysis. To this end, we study code-switched QA in a controlled setting designed for representation-level diagnosis. For each CS question, we use se-mantically matched source- and target-language counterparts as monolingual references. Follow-ing CodeMixQA (Winata et al., 2026), we lever-age grammar-forced CS variants to isolate the 
+
+grammatical frame . By holding the question fixed while isolating which language organizes the ut-terance, we test whether the CS state stays be-tween monolingual references or moves toward the frame language’s representation. Figure 1 illustrates this framework with an English–Korean example. A source-framed ques-tion (e.g., ”Who wrote 오만과 편견?” ) embeds target lexical items into a source syntactic back-bone, while a target-framed question (e.g., ’누
+
+가 Pride and Prejudice 를 썼나요?” ) does the re-verse. Together with the matched source-only and target-only questions, which serve as the mono-lingual anchors, this paired construction isolates the frame variable and reveals which monolingual subsystem the MLLM internally follows when in-terpreting the same cross-lingual intent. To quantify this representation-level phe-nomenon, we introduce Anchor Bias , a geomet-ric measure assessing whether a CS hidden state aligns closer to its source- or target-language counterpart. Our analysis across diverse MLLMs reveals a consistent, frame-dependent pattern: source-framed CS remains close to the source an-chor, whereas target-framed CS exhibits a sharp representational shift target-ward, coinciding with larger performance drops. This suggests that CS inputs tend to degrade more when their represen-tations move away from the source-side trajectory that better preserves answer quality. Motivated by these geometric findings, we pro-pose CANVAS (Contextual Anchor-based Neural 
+
+Vector Alignment Steering) to test whether a source-ward representation correction can miti-gate this shift via an inference-time intervention. CANVAS extracts a source-side canvas from the in-context input and softly steers target-language hidden states toward that canvas during prefill. Across MLLMs and CS conditions, CANVAS consistently improves QA F1 without parame-ter updates. Its largest gains appear under target-framed CS, suggesting that source-canvas align-ment can mitigate the target-ward anchoring pat-tern identified by our analysis, a pattern that re-flects realistic bilingual usage such as native-language sentence frames with embedded English technical terms (Bali et al., 2014; Winata et al., 2023; Yong et al., 2023). 
+
+2 Experimental Setup 
+
+2.1 Experimental Framework Task setup. We analyze how MLLMs inter-nally process mixed-language intent using code-switched QA as a controlled setting. For a given information need, we evaluate a matched quad-rant of question variants ( Q(x)) across a source language, a target language, and two distinct CS forms, as illustrated in Figure 1. Following com-mon English–target-language evaluation conven-tions (Laureano De Leon et al., 2024; Winata et al., 2023, 2026), we treat English as the source lan-guage and the paired non-English language as the target; Appendix E tests source-language gener-alization. Each instance keeps the factual query fixed and varies only the linguistic frame, enabling direct representational and behavioral comparison. 
+
+Dataset and Variant Construction. To align our evaluation, we utilize the fact-seeking queries from SimpleQA Verified (Haas et al., 2026) as the source language questions ( qSRC ) and map them to the corresponding grammar-forced CS pairs from CodeMixQA (Winata et al., 2026). Each pair provides two structural alignments: GF-SRC (En-glish structure with target lexical inserts, qSRC )and GF-TGT (target structure with English lexi-cal inserts, qTGT ). For the target-language coun-terpart ( qTGT ), we translate the source question via Qwen3-235B-A22B (Yang et al., 2025). This pipeline yields a complete matched quadruplet 
+
+Q(x) = {qSRC , q TGT , q GF -SRC , q GF -TGT } eval-uated against a unified reference answer. We pair 
+
+qSRC with nine target languages (Bengali, Span-ish, French, Hindi, Korean, Marathi, Toba Batak, Urdu, Chinese), evaluating 955 unique source queries across 2,880 matched comparisons (see Appendix F.1 for detailed statistics). 
+
+Target-Language Anchors. Because the GF-TGT condition adheres to the target-language syn-tactic frame, word-level translation largely pre-serves its surface backbone. Consequently, qTGT 
+
+serves as a natural target-language anchor for 2representation-level analysis. Appendix F.2 pro-vides further discussion on alignment. 
+
+2.2 Implementation Details Models. To examine whether language anchor-ing appears across architectures and model fam-ilies, we evaluate various MLLMs. We use Aya-Expanse-8B (Dang et al., 2024), Qwen3.5-4B, Qwen3.5-9B, Qwen3.5-27B (Yang et al., 2025), Llama-3.1-70B-Instruct, Llama-3.3-70B-Instruct (Meta AI, 2024), Mixtral-8x7B-Instruct (Jiang et al., 2024), Phi-3.5-MoE-Instruct (Abdin et al., 2024), Qwen3-30B-A3B (Yang et al., 2025), and Qwen3.6-35B-A3B (Yang et al., 2025). 
+
+Inference Setups. We use greedy decoding throughout our experiments. Translations are gen-erated with Qwen3-235B-A22B-2507 (Yang et al., 2025) via OpenRouter; all other models in the pool are run locally. Details are reported in Appendix C (with prompt templates in Appendix F.4). 
+
+2.3 Evaluation Metrics Evaluation Metric. The model receives one question variant at a time and generates an answer. We score each generated answer against the Sim-pleQA reference answer using normalized token-overlap F1. We report F1 per condition and sum-marize CS degradation as the gap between F1 on 
+
+qSRC and F1 on qCS .
+
+Internal Hidden Signals. Output F1 establishes whether CS changes answer quality, but it does not reveal how the model internally interprets the mixed-language question. We therefore ex-tract hidden states from the question region for matched source, target, and CS variants and com-pare the CS representation against both monolin-gual counterparts. This representation comparison asks where CS lies relative to the two reference language states and forms the basis of the anchor-bias analysis in Section 3. 
+
+3 Language Anchoring of Code-Switched Inputs 
+
+We investigate where a code-switched hidden state lies in the multilingual representation space rela-tive to its matched monolingual counterparts. Geo-metrically, if a CS input is processed as a balanced bilingual construction, its representation should occupy an intermediate space. Conversely, if the mixed input adheres to a dominant language pro-cessing pathway, its hidden state will skew toward either the source or target anchor. To formally quantify this position, we introduce anchor bias , a geometric metric that reveals a consistent, frame-dependent language anchoring pattern across di-verse MLLM architectures and transformer layers. 
+
+3.1 Formulating Anchor Bias Metric Derivation. For a matched question set, let qs = qSRC , qt = qTGT , and qc = qCS . For a model M and question variant q, let HM (q) ∈
+
+RL×T ×d denote the hidden states over layers, to-kens, and dimensions. We mean-pool the question-content token span C(q) (excluding shared in-struction and template markers) to obtain the layer-wise context vector rℓ(q) ∈ Rd:
+
+rℓ(q) = 1
+
+|C(q)|
+
+X
+
+> t∈C(q)
+
+HM (q)[ ℓ, t, :] . (1) We define the layer-wise similarity as sℓ(qi, q j ) = cos( rℓ(qi), rℓ(qj )) . The raw layer-wise anchor bias of a CS question is then defined as AB ℓ(qc) = 
+
+sℓ(qs, q c) − sℓ(qt, q c), where positive values indi-cate closer proximity to the source anchor and neg-ative values signal a target-ward skew. 
+
+Anisotropy Normalization. Raw cosine simi-larities are not directly comparable across model families due to shifting background anisotropies and scale variations in multilingual hidden spaces (Ethayarajh, 2019; Timkey and van Schi-jndel, 2021). In highly anisotropic spaces, unre-lated input representations can exhibit artificially high baseline similarity, obscuring relative cross-lingual distances (see Appendix G.1 for baseline diagnostics). We counteract this by applying a layer-specific random cosine normalization. We estimate μMℓ as the mean cosine over random source question pairs with non-overlapping an-swers, capturing pure directional bias rather than semantic overlap. The normalized similarity is computed as: 
+
+˜sℓ(qi, q j ) = sℓ(qi, q j ) − μMℓ
+
+1 − μMℓ
+
+. (2) Using this normalized similarity, we define nor-malized layer-wise anchor bias as gAB ℓ(qc) =˜sℓ(qs, q c) − ˜sℓ(qt, q c). To obtain a stable model-level estimate, we average gAB ℓ(qc) over the upper half of transformer layers ( Lupper ): 
+
+AB upper nrm (qc) = 1
+
+|L upper |
+
+X
+
+> ℓ∈L upper
+
+gAB ℓ(qc). (3) 3Model AB upper nrm QA behavior (F1) SRC-anchored layers (%)                                                                                                                                              
+
+> GF-S RC GF-T GT ∆AB SRC GF-S RC GF-T GT TGT GF-S RC GF-T GT ∆layer
+> Aya-Expanse-8B +0.300 -0.220 +0.520 9.3 7.0 (-2.3) 4.4 (-4.9) 2.4 85.6 42.8 +42.8
+> Qwen3.5-4B +0.169 -0.262 +0.431 10.0 8.2 (-1.8) 7.2 (-2.8) 4.8 70.7 29.2 +41.5
+> Mixtral-8x7B +0.273 -0.452 +0.725 10.8 6.7 (-4.1) 5.8 (-5.0) 4.5 74.6 33.2 +41.4
+> Qwen3-30B-A3B +0.393 -0.081 +0.474 11.2 8.8 (-2.4) 6.5 (-4.7) 7.7 78.5 42.1 +36.4
+> Phi-3.5-MoE +0.248 -0.300 +0.548 13.1 9.6 (-3.5) 6.5 (-6.6) 3.0 64.8 31.7 +33.1
+> Qwen3.5-9B +0.185 -0.256 +0.441 13.1 11.9 (-1.2) 8.1 (-5.0) 8.7 72.9 32.5 +40.4
+> Qwen3.5-27B +0.154 -0.197 +0.351 16.6 13.3 (-3.3) 10.4 (-6.2) 11.8 73.5 34.4 +39.1
+> Llama3.3-70B +0.267 -0.191 +0.458 18.9 13.7 (-5.2) 11.6 (-7.3) 6.5 81.4 39.5 +41.9
+> Qwen3.6-35B-A3B +0.215 -1.011 +1.226 21.4 17.0 (-4.4) 13.5 (-10.3) 11.1 76.2 38.1 +38.1
+> Llama3.1-70B +0.257 -0.225 +0.482 23.1 16.9 (-6.2) 13.5 (-9.6) 6.2 80.6 38.0 +42.6
+> Mean +0.246 -0.320 +0.566 14.8 11.3 (-3.5) 8.7 (-6.2) 6.7 75.9 36.2 +39.7
+
+Table 1: Effect of grammatical frame across models. Upper-layer anchor bias, QA F1 on source, code-switched, and target-language inputs, and the percentage of source-anchored layers. Red values indicate F1 drops relative to SRC; TGT is reported as a monolingual reference. 
+
+This restriction follows prior findings that upper layers encode more abstract, task-aligned seman-tic representations than lower ones (Peters et al., 2018; Tenney et al., 2019), a property extending to modern generative LLMs (Marks and Tegmark, 2024), thereby yielding a single robust anchor-bias score per condition. 
+
+3.2 Frame-Dependent Anchoring Analysis Frame-Dependent Language Anchoring. As shown in Table 1, internal anchor bias consistently follows the input’s grammatical backbone rather than lexical mix. GF-SRC (source-framed) ex-hibits a positive mean anchor bias of +0 .246 , con-firming orientation toward the source anchor. Con-versely, GF-TGT (target-framed) demonstrates a distinct target-ward shift with a negative mean bias of −0.320 . This swing ( ∆AB = +0 .566 )firmly establishes that the grammatical frame is a strong factor shaping the direction of internal lan-guage anchoring. Order-control experiments fur-ther show that changing the grammatical/order frame while holding the lexical side fixed shifts the representation anchor (Appendix G.5) 
+
+Behavioral QA Alignment of Anchor Bias. 
+
+This frame-dependent representational shift cor-responds to QA performance. As shown in Ta-ble 1, GF-SRC produces a smaller average F1 degradation relative to the monolingual source in-put ( −3.5) than GF-TGT ( −6.2), suggesting that closer proximity to the source anchor tends to preserve task performance better. This behavioral alignment is consistent across individual model– condition pairs, where AB upper nrm correlates posi-tively with ∆F1 (ρ = +0 .485 , p < 0.01 ). 
+
+Layer-Wise Robustness. We examine whether this anchoring shift persists across model depth. Specifically, we quantify the percentage of layers exhibiting positive AB upper nrm (i.e., source-anchored layers) for each model and grammar-forced condi-tion. As shown in Table 1, GF-SRC yields a pre-dominantly source-heavy trajectory across 75 .9% 
+
+of layers on average, whereas GF-TGT drops sharply to 36 .2% . This substantial gap demon-strates that the structural frame influences internal representation trajectories robustly throughout the model’s depth rather than just at the final layers. 
+
+Per-layer anchor trajectory. We further visual-ize how anchor bias evolves across model depth. Table 1 reports normalized upper-layer anchor bias for cross-model comparison, whereas Fig-ure 2 plots raw AB ℓ at each layer for the two grammar-forced CS conditions: GF-SRC and GF-TGT. We use raw AB ℓ for this layer-wise visu-alization because normalization rescales AB ℓ by the positive factor 1/(1 − μℓ): it preserves the sign and within-layer ordering, but can visually over-amplify lower layers when μℓ is close to 1 due to anisotropy. Figure 2 confirms the same frame-dependent pattern observed in Table 1. GF-SRC stays mostly source-oriented, while GF-TGT shifts target-ward. This contrast is small in early layers and becomes clearer toward the top of the model, with the strongest target-ward anchoring concentrated in the final 30% of layers. This depth profile motivates applying intervention at later lay-ers, where the source–target anchoring contrast is more pronounced, rather than during earlier repre-sentation formation. 40 10 20 30                                
+
+> 0.4
+> 0.3
+> 0.2
+> 0.1
+> 0.0
+> Anchor bias
+> Aya-Expanse-8B
+> 010 20 30
+> 0.2
+> 0.1
+> 0.0
+> Qwen3.5-4B
+> 010 20 30
+> 0.25
+> 0.20
+> 0.15
+> 0.10
+> 0.05
+> 0.00
+> Qwen3.5-9B
+> 020 40 60
+> 0.2
+> 0.1
+> 0.0
+> Qwen3.5-27B
+> 020 40 60 80
+> 0.4
+> 0.3
+> 0.2
+> 0.1
+> 0.0
+> Llama3.1-70B
+> 020 40 60 80
+> Layer
+> 0.4
+> 0.3
+> 0.2
+> 0.1
+> 0.0
+> Anchor bias
+> Llama3.3-70B
+> 010 20 30
+> Layer
+> 0.4
+> 0.3
+> 0.2
+> 0.1
+> 0.0
+> Mixtral-8x7B
+> 010 20 30
+> Layer
+> 0.2
+> 0.1
+> 0.0
+> Phi-3.5-MoE
+> 020 40
+> Layer
+> 0.2
+> 0.1
+> 0.0
+> 0.1 Qwen3-30B-A3B
+> 010 20 30 40
+> Layer
+> 0.20
+> 0.15
+> 0.10
+> 0.05
+> 0.00
+> Qwen3.6-35B-A3B
+> GF-Src GF-Tgt
+
+Figure 2: Per-layer anchor bias across model depth. Raw AB ℓ on question-content tokens, averaged across examples, plotted against layer index for each model. Positive: source-anchored; negative: target-anchored. 
+
+4 Aligning Code-Switched Representations with CANVAS 
+
+Motivated by our finding that target-ward anchor-ing becomes increasingly target-anchored in the upper layers of target-framed code-switched in-puts (Section 3), we propose a precisely targeted intervention for CS inputs: CANVAS (Contextual Anchor-based Neural Vector Alignment Steering). CANVAS leverages this late-stage geometric win-dow to extract an in-context source canvas from the input itself and softly steers target-language hidden states toward it during prefill. We apply this steering only in the designated upper layers, where the source–target anchoring contrast is most pro-nounced, and set its strength using the instance-specific controller introduced below. 
+
+Stage 1: Token Partition. CANVAS starts by separating the CS input into source, target, and shared spans, which are then used to estimate a source canvas and set the interpolation strength. Given a CS input qCS , we partition the input span as C(qCS ) = Csrc ∪ Ctgt ∪ Coth , where Csrc con-tains source-language tokens, Ctgt contains target-language tokens, and Coth contains punctuation, numbers, whitespace artifacts, or other language-neutral tokens. We partition input tokens using lightweight token-level language tagging; imple-mentation details are provided in Appendix H.4. 
+
+Stage 2: Source Canvas Construction. Us-ing this partition, CANVAS runs an initial for-ward prefill pass to extract baseline hidden states 
+
+HM (qCS ) ∈ RL×T ×d from the templated user-query span (see Appendix H.5 for the extraction protocol). We restrict intervention to the upper lay-ers Lctrl = {⌊ 0.7L⌋, . . . , L − 1}, isolating the final 30% of model depth where abstract seman-tic anchoring stabilizes. These later layers pro-vide more robust contextual targets for alignment than lower layers tied to surface forms. For each layer ℓ ∈ L ctrl , we compute two layer-specific an-chors—the source canvas (csrc  
+
+> ℓ
+
+) and the target an-chor (atgt  
+
+> ℓ
+
+)—via mean-pooling over their respec-tive token sets: 
+
+csrc  
+
+> ℓ
+
+= 1
+
+|Csrc |
+
+X
+
+> t∈Csrc
+
+HM (qCS )[ ℓ, t, :] , (4) and the target anchor ,
+
+atgt  
+
+> ℓ
+
+= 1
+
+|Ctgt |
+
+X
+
+> t∈Ctgt
+
+HM (qCS )[ ℓ, t, :] . (5) The source canvas subsequently acts as the dy-namic, in-context reference representation for aligning target-language hidden states. 
+
+Stage 3: Canvas Alignment Scoring. To quan-tify the directional drift, we define the layer-wise 
+
+canvas direction as the normalized vector from the target anchor to the source canvas: uℓ = ( csrc  
+
+> ℓ
+
+−
+
+atgt  
+
+> ℓ
+
+)/∥csrc  
+
+> ℓ
+
+− atgt  
+
+> ℓ
+
+∥2. Let Cmix = Csrc ∪ Ctgt . We compute the aggregated mixed representation mℓ
+
+over all source- and target-language tokens: 
+
+mℓ = 1
+
+|Cmix |
+
+X
+
+> t∈Cmix
+
+HM (qCS )[ ℓ, t, :] . (6) The overall canvas alignment score γ(qCS ) is de-fined as the upper-layer average of the cosine sim-ilarity between the mixed representation and the 5Avg. F1 ∆F1 by CS condition Model L Lctrl BASE Rand Adapt q GF-S RC GF-T GT Random Selective                                                                                                                                           
+
+> Llama3.2-1B 16 (11 ,15) 2.57 2.68 3.20 ∗∗ +0.08 +0.82 +1.01 +0.62
+> Mistral-7B 32 (22 ,31) 4.53 4.96 5.06 ∗∗ +0.14 +0.80 +0.65 +0.55
+> Aya-Expanse-8B 32 (22 ,31) 5.99 5.99 6.88 ∗∗ +0.62 +1.41 +0.63 +0.91
+> Llama3.1-8B 32 (22 ,31) 6.21 6.72 7.79 ∗∗ +1.21 +0.64 +2.15 +2.34
+> Mixtral-8x7B 32 (22 ,31) 6.77 6.82 6.91 –+0.16 +0.29 +0.38 -0.29
+> Qwen3-30B-A3B 48 (33 ,47) 6.91 6.93 8.11 ∗∗ +0.06 +2.48 +0.71 +1.55
+> Qwen3.5-4B 36 (25 ,35) 7.58 7.35 8.14 ∗∗ +0.37 +0.70 +0.33 +0.86
+> Phi-3.5-MoE 32 (22 ,31) 7.99 7.93 8.82 ∗∗ +0.12 +1.31 +0.61 +1.26
+> Qwen3.5-9B 40 (28 ,39) 9.89 10.01 10.24 ∗-0.20 +0.77 +0.22 +0.61
+> Llama3.1-70B 80 (56 ,79) 12.89 12.98 13.20 –-0.52 +0.67 +0.73 +0.35
+> Llama3.3-70B 80 (56 ,79) 12.96 13.27 13.61 ∗+0.29 +1.66 +0.61 +0.04
+> Qwen3.5-27B 48 (33 ,47) 14.14 14.22 15.40 ∗∗ +0.28 +1.74 +0.96 +2.03
+> Qwen3.6-35B-A3B 40 (28 ,39) 15.80 16.07 17.53 ∗∗ +0.66 +3.58 +1.41 +1.28
+
+Table 2: CANVAS intervention results. Avg. F1 is averaged over four CS conditions; condition-wise columns report Adapt–Base ∆F1. Rand/Adapt denote random-direction/adaptive CANVAS. Bold/underline mark best/second-best values; ∗q < 0.05 , ∗∗ q < 0.01 after BH–FDR correction. 
+
+canvas direction: 
+
+γ(qCS ) = 1
+
+|L ctrl |
+
+X
+
+> ℓ∈L ctrl
+
+cos( mℓ, uℓ) . (7) A positive γ means that the CS representation is aligned with the source canvas direction, while a negative γ indicates target-side anchoring. 
+
+Stage 4: Adaptive Interpolation. Using the instance-specific score γCS = γ(qCS ), CANVAS dynamically calibrates the steering intensity α:
+
+α = clip [αmin , α max ](α0 − λγ CS ) , (8) where α0 represents the base steering intensity at neutral alignment, λ > 0 controls the sensitiv-ity to the alignment score, and αmin , α max define the clipped operating range. The negative-slope rule implements adaptive mitigation: if γCS > 0
+
+(source-canvas aligned), the steering intensity de-creases; if γCS < 0 (target-oriented), the steering intensity increases. This design applies stronger correction to more target-skewed CS states while keeping the update bounded under a single global schedule across all evaluated models and condi-tions. We provide hyperparameter validation and sensitivity analyses in Appendices H.1 and H.15. 
+
+Stage 5: Online source-canvas interpolation. 
+
+Following α determination, CANVAS initiates a second prefill pass using upper-layer activation hooks. For each target-language token position 
+
+t ∈ Ctgt at layer ℓ ∈ L ctrl , we inject the source canvas via soft interpolation: 
+
+ehℓ,t = (1 − α) hℓ,t + α csrc  
+
+> ℓ
+
+. (9) This operation runs online, modifying only the la-tent vectors at target-token positions while leav-ing the surface text completely untouched. The ad-justed hidden states are saved directly into the KV cache, from which the model greedily decodes the final answer. 
+
+4.1 Intervention Protocol and Results 
+
+To evaluate the practical effectiveness of CAN-VAS, we compare its downstream CS performance against standard greedy decoding ( BASE ). 
+
+Evaluation protocol. We evaluate BASE de-coding against two CANVAS configurations: (1) 
+
+Rand , a baseline that injects an identical interpo-lation but utilizes a randomly sampled steering di-rection; and (2) Adapt , our full framework that dynamically sets the steering intensity α via the instance-specific score γ. Beyond the grammar-forced conditions (GF-SRC, GF-TGT), we expand our evaluation to the Random and Selective lexical switching conditions from CodeMixQA (Winata et al., 2026), yielding four structural environments to test CANVAS’s robustness. 
+
+Consistent QA Enhancement Across Condi-tions. As shown in Table 2, CANVAS ( Adapt )improves average F1 across all evaluated MLLMs, supporting the view that source-canvas alignment can recover part of the CS performance loss. The most substantial accuracy gains concentrate un-der the GF-TGT condition—the setting where our probing finds the strongest target-ward represen-tation drift and the largest F1 degradation. Fur-thermore, consistent gains under Random and Se-lective conditions demonstrate that source-canvas alignment operates as a generalizable linguistic 610 20 30 40 50 60 70 80 90            
+
+> SRC-TGT axis
+> 0
+> 10
+> 20
+> 30
+> 40
+> Residual PC1
+> TGT SRC
+> Base CANVAS
+> GF-Src
+> TGT
+> SRC
+> CS Base
+> CS CANVAS
+> 10 20 30 40 50 60 70 80 90
+> SRC-TGT axis
+> 0
+> 10
+> 20
+> 30
+> 40
+> TGT SRC
+> Base
+> CANVAS
+> GF-Tgt
+
+Figure 3: Latent displacement along the SRC–TGT axis. We project token states onto a 2D subspace where the horizontal axis captures the global SRC–TGT direction. Faded points indicate individual instances, large markers denote condition centroids, and arrows show the directional shift induced by CANVAS. 
+
+correction mechanism. CANVAS further general-izes to a Spanish source anchor, shows significant paired gains for most models, and adds only mod-est overhead without external model calls (Appen-dices E.2, H.13, and H.10). It therefore remains a lightweight method for broad CS settings. 
+
+4.2 Analysis and Geometric Diagnostics Geometric Verification of Representational Steering. To check whether the intervention produces the intended geometric correction, we visualize the latent trajectories of Qwen3.5-27B before and after the intervention. We project hid-den states onto the primary SRC–TGT population vector, derived as the macro-average difference between clean source and target representations. For the vertical axis, we first remove this SRC– TGT direction from each representation and then take the first principal component of the remaining residual variation. As shown in Figure 3, the rep-0.4              
+
+> 0.5
+> 0.6
+> 0.7 GF-Src GF-Tgt
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> 0.4
+> 0.5
+> 0.6
+> 0.7 Random
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Selective
+> SRC token ratio
+> Effective intervention strength
+
+Figure 4: Adaptive intervention strength. CANVAS assigns larger interpolation strength α to more target-heavy inputs, measured by lower source-token ratio ρ.
+
+resentational centroids for both GF-SRC and GF-TGT undergo a substantial, rightward vector shift post-intervention, moving toward the clean source population space. This geometric relocation sup-ports the interpretation that CANVAS shifts the latent processing path toward the source-side an-chor. 
+
+Adaptive Response to Structural Skew. To verify whether CANVAS responds to the degree of cross-lingual drift estimated from internal rep-resentations and adjusts its interpolation strength accordingly, we analyze the operational sensitiv-ity of the adaptive controller. Aggregating data across all models, we compute the instance-level source token ratio ρ = |Csrc |/(|Csrc | + |Ctgt |)
+
+and track its correlation with the runtime steering intensity α. As illustrated in Figure 4, CANVAS exhibits tight, deliberate sensitivity to the input’s structural imbalance without manual thresholding: GF-SRC queries naturally preserve a high source ratio and trigger mild alignment ( ρ = 0.5936 ,
+
+γ = −0.0070 , α = 0.4533 ), whereas target-heavy GF-TGT inputs automatically elicit more aggressive geometric adjustments ( ρ = 0 .4044 ,
+
+γ = −0.1394 , α = 0 .6083 ). This monotonic pat-tern suggests that CANVAS allocates stronger in-tervention to inputs with greater target-ward drift, where source-side correction is more needed. 
+
+Robustness on Monolingual Inputs. Although CANVAS targets language-mixed inputs, it should remain stable in ordinary monolingual or source-dominant contexts. Our adaptive controller sup-ports this by reducing the effective interpolation strength when the input shows little target-ward 7Model Bilingual CS Trilingual CS                                                                 
+
+> ID -EN HA -EN Bi. Mean JV -ID -EN SU -ID -EN Tri. Mean
+> BASE CANVAS BASE CANVAS ∆Acc BASE CANVAS BASE CANVAS ∆Acc
+> Mistral-7B 25.45 26.67 39.90 40.40 +0.86 29.09 28.28 56.57 56.57 −0.41
+> Llama-3.1-8B 20.81 23.64 60.61 65.66 +3.94 37.37 43.64 78.38 79.39 +3.64
+> Aya-Expanse-8B 16.16 18.59 44.44 50.00 +3.99 28.28 30.91 84.65 85.25 +1.62
+> Qwen3.5-27B 25.25 28.28 90.40 90.40 +1.52 59.60 58.38 86.46 86.67 −0.51
+> Mean 21.92 24.30 58.84 61.62 +2.58 38.59 40.30 76.52 76.97 +1.09
+
+Table 3: CANVAS on PingPong multi-turn CS QA. Five-option multiple-choice accuracy (%) for B ASE and CANVAS . Bi. / Tri. Mean report the average ∆Acc for bilingual and trilingual CS settings. 
+
+drift, making the update close to an identity oper-ation rather than applying a fixed intervention. We empirically validate this safety property on pure monolingual and source-heavy inputs ( ρSRC ≥
+
+0.80 ) (detailed in Appendix H.3), where CANVAS preserves standard parametric performance. 
+
+4.3 Generalization to Multi-Turn CS Dialog. 
+
+We test whether CANVAS generalizes be-yond tightly controlled, single-turn prompts to noisy, long-context multi-turn environments. We evaluate on the answerable QA subset of Ping-Pong (Farhansyah et al., 2026), a human-authored multi-party dialog benchmark. The evaluated settings cover Indonesian–English (id-en), Hausa– English (ha-en), Javanese–Indonesian–English (jv-id-en), and Sundanese–Indonesian–English (su-id-en). Using the same 30% upper-layer schedule, CANVAS transfers effectively to this setting (Table 3). It yields a +2 .58 accuracy gain on bilingual conversation pairs (id-en, ha-en) across all tested architectures. Even under trilin-gual settings (jv-id-en, su-id-en), where forcing a binary partition is naturally lossy, CANVAS secures a positive average improvement of +1 .09 
+
+Acc. Appendix H.16 further shows positive gains on retrieval-augmented QA and topic classifica-tion. Together, these results suggest that in-context source alignment generalizes beyond controlled short-answer QA to more realistic CS settings. 
+
+5 Related Work 
+
+5.1 Multilingual Consistency in LLMs 
+
+Prior work shows that multilingual LLMs do not behave uniformly across languages, reporting fair-ness gaps, hallucination gaps, retrieval-augmented generation failures, and cross-language prefer-ences (Piqueras and Søgaard, 2022; Ramesh et al., 2023; Chataigner et al., 2024; Wu et al., 2024; Park and Lee, 2025). Other studies exam-ine cross-lingual factual consistency and repre-sentation transfer, showing that knowledge can be unevenly represented or accessed across lan-guages (Qi et al., 2023; Xu et al., 2023). Closely related work further suggests that multilingual models may rely on latent language preferences or English-centered internal processing (Wendler et al., 2024; Zhao et al., 2024; Sharma et al., 2025). Our work extends this line of analysis to code-switched inputs, asking whether a single mixed-language question is internally anchored toward the source or target side. 
+
+5.2 Code-Switching in LLMs 
+
+Code-switching has long been studied as a struc-tured linguistic phenomenon shaped by grammat-ical, discourse-level, and interactional constraints, rather than as random multilingual noise (Do˘ gruöz et al., 2021; Winata et al., 2023). Recent NLP work studies CS as an evaluation setting for ro-bustness, translation, generation, understanding, and reasoning (Laureano De Leon et al., 2024; Huzaifah et al., 2024; Abdaljalil et al., 2025; Mo-hamed et al., 2025; Heredia et al., 2025; Winata et al., 2026). Controlled CS studies further show that code-switched inputs can reveal syntactic gen-eralization, language-specific knowledge access, output-language alignment, and cross-lingual con-sistency effects in LLMs (Sterner and Teufel, 2025b,a; Kim et al., 2025; Oh et al., 2026). Our work follows this probing perspective, but fo-cuses on internal language anchoring: we mea-sure whether a CS representation becomes more source-like or target-like, and whether this anchor predicts QA degradation. 
+
+6 Conclusion 
+
+We study how MLLMs process code-switched in-puts through the lens of internal language anchor-ing. We introduce anchor bias to measure whether a CS representation is closer to its source or target-8language counterpart, and show that grammatical frames consistently shift CS representations to-ward the corresponding language anchor. We fur-ther propose CANVAS, an inference-time inter-vention that uses the same anchor signal to softly align target-language token representations toward an in-context source canvas. 
+
+Limitations 
+
+Our analysis is limited in that it models code-switched processing through paired source and tar-get anchors. This controlled axis enables matched comparisons with monolingual siblings and links representation shifts to downstream behavior, but it also compresses richer multilingual dynam-ics into a source–target contrast. Natural code-switching may involve local syntax, borrowed terms, named entities, discourse context, and language-specific factual familiarity that cannot be fully captured by a single anchor direction. We therefore treat anchor bias as a measurable and ac-tionable component of CS processing, rather than a complete account of multilingual degradation. 
+
+Ethics Statement 
+
+We conduct all experiments using publicly avail-able multilingual datasets and models that are dis-tributed under documented research licenses, and we follow the usage terms set by the original providers. Our short-answer factoid QA setting is based on the CodeMixQA construction proto-col, and our multi-turn QA setting is based on PingPong. Target-language counterparts are pro-duced by a strong neural translator (Qwen3-235B-A22B), and grammar-forced code-switched vari-ants are utilized following the CodeMixQA proto-col from prior work. No new human-subject data are collected, and no personally identifying infor-mation is introduced by our pipeline. 
+
+Acknowledgement 
+
+This work was supported by the Institute of In-formation & Communications Technology Plan-ning & Evaluation (IITP) grant funded by the Korea government (MSIT) [RS-2021-II211341, Artificial Intelligence Graduate School Program (Chung-Ang University)] and the National Re-search Foundation of Korea (NRF) grant funded by the Korea government(MSIT) (RS-2025-24683575). This work was also supported by the National Research Foundation of Korea (NRF) grant funded by the Korean government (MSIT) (RS-2026-25494299). 
+
+References 
+
+Samir Abdaljalil, Erchin Serpedin, Khalid Qaraqe, and Hasan Kurban. 2025. Evaluating multilin-gual and code-switched alignment in LLMs via syn-thetic natural language inference. arXiv preprint arXiv:2508.14735 .Marah Abdin, Sam Ade Jacobs, Ammar Ahmad Awan, Jyoti Aneja, Ahmed Awadallah, Hany Awadalla, Nguyen Bach, Amit Bahree, Arash Bakhtiari, Harki-rat Behl, and 1 others. 2024. Phi-3 technical report: A highly capable language model locally on your phone. arXiv preprint arXiv:2404.14219 .Kalika Bali, Jatin Sharma, Monojit Choudhury, and Yo-garshi Vyas. 2014. "i am borrowing ya mixing?" an analysis of english-hindi code mixing in facebook. In Proceedings of the first workshop on computa-tional approaches to code switching , pages 116– 126. Lucas Bandarkar, Chenyuan Yang, Mohsen Fayyaz, Junlin Hu, and Nanyun Peng. 2026. Multi-lingual routing in mixture-of-experts. Preprint ,arXiv:2510.04694. Cléa Chataigner, Afaf Taïk, and Golnoosh Farnadi. 2024. Multilingual hallucination gaps in large lan-guage models. arXiv preprint arXiv:2410.18270 .Yuxin Chen, Zhengzhou Cai, Xiangtian Ji, Weixiang Zhao, An Zhang, Xiang Wang, and Tat-Seng Chua. 2026. Understanding multilingualism in mixture-of-experts llms: Routing mechanism, expert spe-cialization, and layerwise steering. arXiv preprint arXiv:2601.14050 .Gheorghe Comanici, Eric Bieber, Mike Schaekermann, Ice Pasupat, Noveen Sachdeva, Inderjit Dhillon, Marcel Blistein, Ori Ram, Dan Zhang, Evan Rosen, and 1 others. 2025. Gemini 2.5: Pushing the frontier with advanced reasoning, multimodality, long con-text, and next generation agentic capabilities. arXiv preprint arXiv:2507.06261 .John Dang, Shivalika Singh, Daniel D’Souza, Arash Ahmadian, Alejandro Salamanca, Madeline Smith, Aidan Peppin, Sungjin Hong, Manoj Govindassamy, Terrence Zhao, and 1 others. 2024. Aya expanse: Combining research breakthroughs for a new multi-lingual frontier. arXiv preprint arXiv:2412.04261 .A. Seza Do˘ gruöz, Sunayana Sitaram, Barbara E. Bul-lock, and Almeida Jacqueline Toribio. 2021. A sur-vey of code-switching: Linguistic and social per-spectives for language technologies. In Proceed-ings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th Interna-tional Joint Conference on Natural Language Pro-cessing (Volume 1: Long Papers) , pages 1654–1666, Online. Association for Computational Linguistics. 
+
+9Kawin Ethayarajh. 2019. How contextual are contextu-alized word representations? comparing the geome-try of bert, elmo, and gpt-2 embeddings. In Proceed-ings of the 2019 conference on empirical methods in natural language processing and the 9th interna-tional joint conference on natural language process-ing (EMNLP-IJCNLP) , pages 55–65. Mohammad Rifqi Farhansyah, Hanif Muhammad Zhafran, Farid Adilazuarda, Shamsuddeen Hassan Muhammad, Maryam Ibrahim Mukhtar, Nedjma Ousidhoum, Genta Indra Winata, Ayu Purwarianti, and Alham Fikri Aji. 2026. Pingpong: A natural benchmark for multi-turn code-switching dialogues. 
+
+Preprint , arXiv:2601.17277. Lukas Haas, Gal Yona, Giovanni D’Antonio, Sasha Goldshtein, and Dipanjan Das. 2026. Simpleqa ver-ified: A reliable factuality benchmark to measure parametric knowledge. Preprint , arXiv:2509.07968. Maite Heredia, Gorka Labaka, Jeremy Barnes, and Aitor Soroa. 2025. Conditioning LLMs to generate code-switched text. arXiv preprint arXiv:2502.12924 .Junjie Hu, Sebastian Ruder, Aditya Siddhant, Gra-ham Neubig, Orhan Firat, and Melvin Johnson. 2020. Xtreme: A massively multilingual multi-task benchmark for evaluating cross-lingual generaliza-tion. Preprint , arXiv:2003.11080. Muhammad Huzaifah, Weihua Zheng, Nattapol Chan-paisit, and Kui Wu. 2024. Evaluating code-switching translation with large language models. In 
+
+Proceedings of LREC-COLING , pages 6381–6394. Albert Q. Jiang, Alexandre Sablayrolles, Antoine Roux, Arthur Mensch, Blanche Savary, Chris Bam-ford, Devendra Singh Chaplot, Diego de las Casas, Emma Bou Hanna, Florian Bressand, and 1 oth-ers. 2024. Mixtral of experts. arXiv preprint arXiv:2401.04088 .Seoyeon Kim, Huiseo Kim, Chanjun Park, Jinyoung Yeo, and Dongha Lee. 2025. Can code-switched texts activate a knowledge switch in LLMs? a case study on English-Korean code-switching. In Find-ings of the Association for Computational Linguis-tics: EMNLP 2025 , pages 22303–22327, Suzhou, China. Association for Computational Linguistics. Frances Adriana Laureano De Leon, Harish Tay-yar Madabushi, and Mark Lee. 2024. Code-mixed probes show how pre-trained models generalise on code-switched text. In Proceedings of the 2024 Joint International Conference on Computational Linguistics, Language Resources and Evaluation (LREC-COLING 2024) , pages 3457–3468, Torino, Italia. ELRA and ICCL. Yaobo Liang, Nan Duan, Yeyun Gong, Ning Wu, Fen-fei Guo, Weizhen Qi, Ming Gong, Linjun Shou, Daxin Jiang, Guihong Cao, Xiaodong Fan, Ruofei Zhang, Rahul Agrawal, Edward Cui, Sining Wei, Taroon Bharti, Ying Qiao, Jiun-Hung Chen, Winnie Wu, and 5 others. 2020. XGLUE: A new bench-mark dataset for cross-lingual pre-training, under-standing and generation. In Proceedings of the 2020 Conference on Empirical Methods in Natural Lan-guage Processing (EMNLP) , pages 6008–6018, On-line. Association for Computational Linguistics. Aixin Liu, Bei Feng, Bing Xue, Bingxuan Wang, Bochao Wu, Chengda Lu, Chenggang Zhao, Chengqi Deng, Chenyu Zhang, Chong Ruan, and 1 others. 2024. Deepseek-v3 technical report. arXiv preprint arXiv:2412.19437 .Samuel Marks and Max Tegmark. 2024. The geometry of truth: Emergent linear structure in large language model representations of true/false datasets. In First Conference on Language Modeling .Meta AI. 2024. Introducing Meta Llama 3: The most capable openly available LLM to date. https:// ai.meta.com/blog/meta-llama-3/ . Accessed: 2026-05-26. Amr Mohamed, Yang Zhang, Michalis Vazirgiannis, and Guokan Shang. 2025. Lost in the mix: Eval-uating LLM understanding of code-switched text. 
+
+arXiv preprint arXiv:2506.14012 .Juhyun Oh, Haneul Yoo, Faiz Ghifari Haznitrama, and Alice Oh. 2026. Ola: Output language align-ment in code-switched llm interactions. Preprint ,arXiv:2601.03589. Jeonghyun Park and Hwanhee Lee. 2025. Investigating language preference of multilingual rag systems. In 
+
+Findings of the Association for Computational Lin-guistics: ACL 2025 , pages 5647–5675. Matthew E Peters, Mark Neumann, Luke Zettlemoyer, and Wen-tau Yih. 2018. Dissecting contextual word embeddings: Architecture and representation. In Proceedings of the 2018 conference on empiri-cal methods in natural language processing , pages 1499–1509. Laura Cabello Piqueras and Anders Søgaard. 2022. Are pretrained multilingual models equally fair across languages? In Proceedings of the 29th Inter-national Conference on Computational Linguistics ,pages 3597–3605. Jirui Qi, Raquel Fernández, and Arianna Bisazza. 2023. Cross-lingual consistency of factual knowledge in multilingual language models. In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing , pages 10650–10666, Singa-pore. Association for Computational Linguistics. Krithika Ramesh, Sunayana Sitaram, and Monojit Choudhury. 2023. Fairness in language models be-yond english: Gaps and challenges. In Findings of the association for computational linguistics: EACL 2023 , pages 2106–2119. 
+
+10 Nikhil Sharma, Kenton Murray, and Ziang Xiao. 2025. Faux polyglot: A study on information disparity in multilingual large language models. In Proceed-ings of the 2025 Conference of the Nations of the Americas Chapter of the Association for Computa-tional Linguistics: Human Language Technologies (Volume 1: Long Papers) , pages 8090–8107, Albu-querque, New Mexico. Association for Computa-tional Linguistics. Aaditya Singh, Adam Fry, Adam Perelman, Adam Tart, Adi Ganesh, Ahmed El-Kishky, Aidan McLaugh-lin, Aiden Low, AJ Ostrow, Akhila Ananthram, and 1 others. 2025. Openai gpt-5 system card. arXiv preprint arXiv:2601.03267 .Igor Sterner and Simone Teufel. 2025a. Code-switching and syntax: A large-scale experiment. In 
+
+Findings of ACL , pages 11526–11533. Igor Sterner and Simone Teufel. 2025b. Minimal pair-based evaluation of code-switching. In Proceedings of ACL , pages 18575–18598. Ian Tenney, Dipanjan Das, and Ellie Pavlick. 2019. Bert rediscovers the classical nlp pipeline. In Pro-ceedings of the 57th annual meeting of the asso-ciation for computational linguistics , pages 4593– 4601. William Timkey and Marten van Schijndel. 2021. All bark and no bite: Rogue dimensions in transformer language models obscure representational quality. In Proceedings of the 2021 Conference on Empiri-cal Methods in Natural Language Processing , pages 4527–4546, Online and Punta Cana, Dominican Re-public. Association for Computational Linguistics. Chris Wendler, Veniamin Veselovsky, Giovanni Monea, and Robert West. 2024. Do llamas work in English? on the latent language of multilin-gual transformers. In Proceedings of the 62nd Annual Meeting of the Association for Computa-tional Linguistics (Volume 1: Long Papers) , pages 15366–15394, Bangkok, Thailand. Association for Computational Linguistics. Genta Winata, Alham Fikri Aji, Zheng Xin Yong, and Thamar Solorio. 2023. The decades progress on code-switching research in NLP: A systematic sur-vey on trends and challenges. In Findings of the As-sociation for Computational Linguistics: ACL 2023 ,pages 2936–2978, Toronto, Canada. Association for Computational Linguistics. Genta Indra Winata, David Anugraha, Patrick Amadeus Irawan, Anirban Das, Haneul Yoo, Paresh Dashore, Shreyas Kulkarni, Ruochen Zhang, Haruki Sakajo, Frederikus Hudi, and 1 oth-ers. 2026. Can large language models understand, reason about, and generate code-switched text? 
+
+arXiv preprint arXiv:2601.07153 .Suhang Wu, Jialong Tang, Baosong Yang, Ante Wang, Kaidi Jia, Jiawei Yu, Junfeng Yao, and Jinsong Su. 2024. Not all languages are equal: Insights into multilingual retrieval-augmented generation. arXiv preprint arXiv:2410.21970 .Shaoyang Xu, Junzhuo Li, and Deyi Xiong. 2023. Lan-guage representation projection: Can we transfer factual knowledge across languages in multilingual language models? In Proceedings of the 2023 Con-ference on Empirical Methods in Natural Language Processing , pages 3692–3702. An Yang, Anfeng Li, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chang Gao, Chengen Huang, Chenxu Lv, and 1 others. 2025. Qwen3 technical report. arXiv preprint arXiv:2505.09388 .Zheng-Xin Yong, Ruochen Zhang, Jessica Zosa Forde, Skyler Wang, Arjun Subramonian, Holy Lovenia, Samuel Cahyawijaya, Genta Indra Winata, Lintang Sutawika, Jan Christian Blaise Cruz, Yin Lin Tan, Long Phan, Rowena Garcia, Thamar Solorio, and Alham Fikri Aji. 2023. Prompting multilingual large language models to generate code-mixed texts: The case of south East Asian languages. In Pro-ceedings of the 6th Workshop on Computational Ap-proaches to Linguistic Code-Switching , pages 43– 63, Singapore. Association for Computational Lin-guistics. Yiran Zhao, Wenxuan Zhang, Guizhen Chen, Kenji Kawaguchi, and Lidong Bing. 2024. How do large language models handle multilingualism? Preprint ,arXiv:2402.18815. Kening Zheng, Wei-Chieh Huang, Jiahao Huo, Zhong-hao Li, Henry Peng Zou, Yibo Yan, Xin Zou, Jungang Li, Junzhuo Li, Hanrong Zhang, Xum-ing Hu, and Philip S. Yu. 2026. Unveiling lan-guage routing isolation in multilingual moe models for interpretable subnetwork adaptation. Preprint ,arXiv:2604.03592. 
+
+11 A Appendix Table of Contents 
+
+1. Section B describes the use of LLMs during manuscript preparation. 2. Section C provides implementation details ,including the OpenRouter pipeline, local de-coding setup, hidden-state extraction, quantiza-tion fallback, and hardware resources. 3. Section D provides complementary analyses for MoE models , including MoE routing ex-traction, routing-profile similarity, routing con-figuration, Cohen’s d for routing separation, and the relationship between expert routing and representation-level anchor bias. 4. Section E tests source-language generaliza-tion with Spanish as the source anchor , cov-ering both the Spanish-pivot anchor-bias repli-cation and Spanish-anchor CANVAS results. 5. Section F describes the dataset construction and matched comparison statistics , caveats on translated target-language questions, addi-tional code-switching conditions, and prompt templates. 6. Section G provides additional anchor-bias 
+
+analyses, including anisotropy diagnostics, language-wise breakdowns, metric variants, frontier-model scaling validation, and same-lexicon order counterfactuals that disentangle lexical language from word order. 7. Section H provides detailed analyses of CAN-VAS , including the adaptive α schedule, layer-wise effects, source-heavy checks, token-level language tagging, hidden-state extraction, layer-span ablations, language-wise mitigation, case studies, model-wise movement diagnos-tics, cost analysis, additional movement anal-yses, cumulative recovery trajectories, statis-tical tests, detector sensitivity, hyperparame-ter sensitivity, and task extensions to retrieval-augmented QA, multi-turn dialog QA, and topic classification. 
+
+B The Use of Large Language Models 
+
+We write the manuscript ourselves, and an LLM (ChatGPT) is used solely for refinement—style, clarity, and grammar. It is not used for ideation or content generation. 
+
+C Implementation Details 
+
+OpenRouter pipeline. Translation of Sim-pleQA questions and answer generation by the high-capacity reference model Qwen3-235B-A22B-2507 (Yang et al., 2025), accessed via the OpenRouter OpenAI-compatible chat-completion API, with DeepInfra as the sole underlying provider for all calls (selected for consistent la-tency, to avoid provider switching, and to improve reproducibility). The maximum translation length is 256 tokens and the maximum answer length is 64 tokens; sampling temperature is set to 0
+
+(greedy). 
+
+Local model decoding. All dense models (Aya-Expanse-8B, Qwen3.5-4B/9B/27B, Llama-3.1-70B-Instruct, Llama-3.3-70B-Instruct) and all MoE models (Mixtral-8x7B-Instruct, Phi-3.5-MoE-Instruct, Qwen3-30B-A3B, Qwen3.6-35B-A3B) are run locally with deterministic greedy decoding. Specifically, we set do_sample=False 
+
+and use each model’s default end-of-sequence token. For Qwen-3 family models, we set 
+
+enable_thinking=False where the tokenizer supports it. 
+
+Hidden-state extraction. For representation analysis, we apply each model’s chat tem-plate to the question, run a forward pass with 
+
+output_hidden_states=True , and pool repre-sentations over the question-content region. We exclude shared prompt tokens (system instruction, assistant prefix, chat-template markers) from the pooled representation so that cosine-based comparisons focus on the question itself rather than on identical instruction text. 
+
+Quantization fallback. Models are loaded with automatic device mapping in bfloat16 where pos-sible. If bf16 OOMs on the available hard-ware, we fall back to 4-bit NF4 quantization via 
+
+bitsandbytes (used for all 70B-class dense mod-els and the largest MoE checkpoints) or, for in-termediate cases, to 8-bit. The CANVAS hidden-state interpolation is applied after dequantization at each control layer, so the intervention does not interact with the quantization scheme. 
+
+Hardware. All local inference runs use a single SLURM node with 4× NVIDIA RTX 6000 Ada Generation GPUs (48 GB each), connected via PCIe. Per-model runtime is dominated by the pre-fill pass with hidden-state extraction. A full eval-12 Model Cosine similarity over expert-frequency vectors Jaccard overlap over active expert sets                                                       
+
+> cos(SRC ,CS) cos(TGT ,CS) Jacc(SRC ,CS) Jacc(TGT ,CS)
+> GF-S RC GF-T GT dGF-S RC GF-T GT dGF-S RC GF-T GT dGF-S RC GF-T GT d
+> Qwen3-30B-A3B 0.924 0.879 +0.64 0.912 0.943 -0.49 0.910 0.886 +0.94 0.897 0.917 -0.68
+> Qwen3.6-35B-A3B 0.933 0.905 +0.63 0.925 0.944 -0.40 0.646 0.586 +0.56 0.596 0.653 -0.53
+> Phi-3.5-MoE 0.896 0.843 +0.55 0.905 0.942 -0.51 0.969 0.960 +0.65 0.960 0.967 -0.42
+
+Table 4: Routing similarity under grammar-forced CS. We compare CS routing profiles against source and target routes. Highlighted columns indicate the frame-matched route. 
+
+uation pass for one model and one CS condition completes within roughly 0.05 –0.3 h for models up to 8B parameters, 0.4–0.8 h for 27 –35 B mod-els, and 0.6–1.1 h for 70 B-class dense models and the largest MoE checkpoints (Mixtral-8x7B), measured as the sum of per-example base, oracle, and CANVAS generation wall-clock times in the result logs. 
+
+D Code-Switching for MoE Models 
+
+D.1 Routing Similarity in MoE Models 
+
+The representation-level results show where grammar-forced CS inputs are placed in the hidden-state space. However, hidden-state geom-etry is only one axis of how MLLMs process lan-guage. In mixture-of-experts (MoE) models, lan-guage processing can also be examined through the sparse computational pathway selected by the router: each token is assigned to a small subset of feed-forward experts. Recent work on multilin-gual MoE models shows that different languages can induce distinct routing patterns and partially specialized experts (Bandarkar et al., 2026; Chen et al., 2026; Zheng et al., 2026). This makes routing a complementary axis for analyzing lan-guage understanding in MLLMs. While prior anal-yses mainly focus on monolingual or language-separated inputs, CS provides a more fine-grained setting: a single question contains material from two languages, but its grammatical frame may be dominated by one of them. We therefore ask whether the language anchor observed in hidden-state geometry also appears in the model’s expert-routing profile. 
+
+Routing profiles. We collect top-k expert se-lections from router or gate modules during the same forward pass for MoE models. We aggre-gate expert selections over the question-content re-gion and compare whether the CS routing profile is closer to the source or target-language routing profile. For each matched question set, we run sep-arate forward passes for the source, CS, and target-language variants under the same prompt format. At each MoE layer, the router selects top-k experts for every question-content token. Let zℓ,t,j (q) de-note the j-th selected expert for token t at layer 
+
+ℓ when processing question variant q, where j ∈{1, . . . , k }. We aggregate these selections into a layer-wise expert-frequency vector fℓ(q), whose e-th component is      
+
+> fℓ,e (q) = 1
+> k|C(q)|
+> X
+> t∈C(q)
+> kX
+> j=1
+> I[zℓ,t,j (q) = e].(10)
+
+This vector records how often each expert is se-lected for a given input condition. Thus, source, CS, and target-language questions each induce their own routing-frequency profile. 
+
+Routing similarity. We compare each CS rout-ing profile against the source and target-language routing profiles. First, we compute cosine similar-ity between expert-frequency vectors: 
+
+Scos  
+
+> ℓ
+
+(qi, q j ) = cos( fℓ(qi), fℓ(qj )) . (11) Second, we compute the Jaccard overlap between active expert sets. Let 
+
+Aℓ(q) = {e | fℓ,e (q) > 0} (12) be the set of experts activated by question q at layer ℓ. We define 
+
+Sjac  
+
+> ℓ
+
+(qi, q j ) = |Aℓ(qi) ∩ Aℓ(qj )||Aℓ(qi) ∪ Aℓ(qj )| . (13) For each CS condition, we report its routing align-ment with the source route, S(qs, q c), and with the target route, S(qt, q c), averaging each score over matched examples and MoE layers. We addition-ally report Cohen’s d as a standardized effect size between the GF-S RC and GF-T GT routing-score distributions; positive values indicate larger scores for GF-S RC , while negative values indicate larger scores for GF-T GT . Details are provided in Ap-pendix D.2. 13 Routing shifts toward the frame language. Ta-ble 4 shows that the grammatical frame also shapes the sparse routing path selected by MoE models. Source-framed CS inputs are routed more like the source-language question: their expert-frequency vectors and active expert sets are closer to the SRC routing profile. Conversely, target-framed CS inputs are routed more like the target-language question, showing higher alignment with the TGT routing profile. This pattern holds con-sistently across both cosine similarity over expert-frequency vectors and Jaccard overlap over active expert sets. The Cohen’s d values further show that the two grammar-forced conditions induce clearly separated routing distributions. Beyond this direc-tional pattern, routing behavior also aligns with the representation-level anchor signal. At the ex-ample level, routing bias, defined as source-route alignment minus target-route alignment, correlates strongly with anchor bias for cosine routing pro-files ( ρ = +0 .703 , p < 0.001 ) and moderately for Jaccard routing profiles ( ρ = +0 .464 , p < 0.001 ). This suggests that expert-routing shifts track the same internal anchoring reflected in hidden states and are behaviorally relevant. 
+
+D.1.1 MoE Routing Configuration 
+
+We report the routing configuration for the MoE models used in the expert-selection analysis. These details are important because routing sim-ilarity depends on the number of available experts, the number of experts selected per token, and the number of MoE layers from which routing traces are collected. Models with different expert counts and top-k values can have different baseline over-lap patterns, so these metadata help interpret the routing-similarity results in Table 4.                
+
+> Model Experts top-kRouting layers
+> Phi-3.5-MoE 16 232
+> Qwen3-30B-A3B 128 848
+> Qwen3.6-35B-A3B 256 840
+> Table 5: MoE routing configuration. We compute routing similarity from the top-kexpert selections over question-content tokens at each MoE layer.
+
+For each model, we collect expert selections over the question-content region after applying the same prompt format used in the representation analysis. We then aggregate these token-level se-lections into layer-wise expert-frequency vectors. This makes the routing analysis parallel to the hidden-state analysis: both compare matched EN, TGT, and CS variants over the same question re-gion. 
+
+D.2 Cohen’s d for Routing Separation 
+
+We use Cohen’s d to quantify how strongly the routing-score distributions differ between GF-SRC and GF-T GT . For a given routing metric, let a
+
+and b denote the per-example routing scores under GF-S RC and GF-T GT , respectively. We compute 
+
+d = μ(a) − μ(b)
+
+q
+
+(σ2 
+
+> a
+
++ σ2 
+
+> b
+
+)/2
+
+, (14) where μ(·) and σ2(·) denote the mean and vari-ance of each distribution. The sign of d gives the direction of the effect: d > 0 means that GF-S RC 
+
+has larger routing scores, while d < 0 means that GF-T GT has larger routing scores. The magnitude 
+
+|d| measures standardized separation; as a com-mon rule of thumb, values around 0.2, 0.5, and 0.7
+
+are often interpreted as small, medium, and large effects. We use d only as an effect-size summary, not as a statistical significance test. 
+
+D.3 Expert Routing Mirrors Anchor Bias 
+
+Table 4 in the main text shows that grammar-forced CS inputs route toward the frame-matched language route. Here, we provide a compact mech-anism check linking this expert-level signal to representation-level anchor bias, without repeat-ing the main routing table. Each point in Figure 5 is an example-level CS input from an MoE model. The x-axis is rout-ing bias, computed as the SRC-vs-TGT differ-ence in CS routing similarity, and the y-axis is representation anchor bias computed from hid-den states. Positive values indicate SRC-oriented behavior, whereas negative values indicate TGT-oriented behavior. Thus, points in the upper-right and lower-left quadrants indicate examples where expert routing and representation geometry agree in their language orientation. The positive asso-ciation suggests that language anchoring is re-flected not only in hidden-state geometry but also in sparse expert selection. 
+
+E Source-Language Generalization: Spanish Pivot 
+
+E.1 Anchor Bias Experimental setup. We replace English with Spanish as the source language and build eight CS 14 Figure 5: Routing bias tracks representation anchor bias. Each point is an example-level CS input from an MoE model. The horizontal axis reports SRC-vs-TGT expert-routing bias, and the vertical axis reports rep-resentation anchor bias. The positive association indi-cates that expert allocation shifts in the same SRC/TGT direction as representation-space anchor bias. 
+
+pairs: ES ↔{Toba Batak, Bengali, French, Hindi, Korean, Marathi, Urdu, Chinese}. Questions, sys-tem prompts, and gold answers are in Span-ish; CS inputs follow the same GF-Src / GF-Tgt grammar-forcing protocol as the main exper-iments. We evaluate Aya-Expanse-8B, Qwen3.5-4B, Qwen3.5-9B, and Qwen3.5-27B. Anchor bias uses the same upper-half aggregation and per-layer random cosine normalization as Table 1. 
+
+Results. Table 6 shows the same frame-dependent split with Spanish as the source. GF-Src is consistently ES-anchored (+0 .213 
+
+to +0 .358 ), while GF-Tgt is consistently TGT-anchored ( −0.190 to −0.337 ). The mean gap is 
+
++0 .541 , larger than the English-pivot upper-half gap of +0 .384 computed over the same four models. QA follows the same ordering: GF-Src has a smaller mean F1 drop than GF-Tgt ( −3.4
+
+vs. −5.9 pp), and SRC-anchored layer ratios are much higher for GF-Src ( ∼82% ) than GF-Tgt (∼35% ). 
+
+Interpretation. The Spanish pivot rules out an English-specific explanation: the model tracks the language that supplies the grammatical frame, not English identity itself. The effect is also not weakened when the source language is less domi-nant in pre-training. We therefore interpret anchor bias as a general source-language anchoring phe-nomenon: upper-layer representations follow the grammatical backbone of the input, whether that source is English or Spanish. MoE routing diag-nostics are not repeated for this pivot. 
+
+E.2 CANVAS Setup. We test whether CANVAS generalizes beyond English as the source anchor. We con-struct a Spanish-pivot CS dataset by pairing each TGT language with Spanish in place of English and translating the English gold answers to Span-ish via Qwen3.6-35B-A3B. We evaluate four con-ditions per example: ES-ORACLE (pure-Spanish question, upper bound), B ASE (Spanish–TGT CS, no intervention), CANVAS (CS with steering toward the Spanish anchor), and TGT-ORACLE 
+
+(pure-TGT question, lower bound). We pair Span-ish with eight TGT languages, giving 1,280 exam-ples per model ( 8 pairs × 2 CS conditions × 80 
+
+items). 
+
+Pipeline. We keep the adaptive inter-polation schedule used in the main runs (α = clip [0 .05 ,0.75] (0 .45 − 1.5γ), 30% layer budget) and replace only the SRC anchor with Spanish. For non-Latin TGT scripts (Bengali, Devanagari, Korean, Chinese), we tag tokens by character-level script: Latin-script tokens are treated as SRC and non-Latin tokens as TGT. For Latin-script TGT languages (French, Toba Batak), we fall back to the lingua language detector. The system prompt declares Spanish as the answer language. 
+
+Result. We report results in Table 7. We observe a positive ∆F1 CANVAS on all five models, with a mean improvement of +0 .67 F1 over direct CS an-swering. Llama-3.1-8B benefits the most ( +1 .47 ), and the two smaller Qwen variants gain +0 .75 and 
+
++0 .85 . Even Mistral-7B ( +0 .15 ) and Qwen3.5-27B ( +0 .13 ) show no regression and stay well above their corresponding TGT-oracle baselines. 
+
+Script-dependent behaviour. We find a clear script-dependent pattern when aggregating per-pair gains across the five models. The six non-Latin TGT pairs ( BEN , HIN , KOR , MAR , URD ,
+
+> ZHO
+
+) all gain ∆F1 in the range +0 .52 to +1 .35 
+
+(mean +0 .95 ), while the two Latin-script TGT pairs ( BBC -ESP +0 .03 and FRA -ESP −0.37 ) av-erage −0.17 . This pattern is consistent with the tagger design: script-based tagging is unambigu-ous for non-Latin TGT languages, whereas the 
+
+lingua fallback used for Latin-script TGT lan-guages can struggle to separate Spanish from mor-15 Model AB upper nrm (ES as source ) QA behavior (F1) SRC-anchored layers (%)                                                                
+
+> GF-S RC GF-T GT ∆AB SRC GF-S RC GF-T GT GF-S RC GF-T GT ∆layer
+> Aya-Expanse-8B +0.358 -0.337 +0.695 14.8 11.2 (-3.6) 8.3 (-6.5) 83.8 40.5 +43.3
+> Qwen3.5-4B +0.261 -0.256 +0.517 7.4 4.7 (-2.7) 2.5 (-4.9) 79.8 32.7 +47.1
+> Qwen3.5-9B +0.281 -0.270 +0.550 12.4 9.5 (-2.9) 6.5 (-5.9) 80.7 33.5 +47.2
+> Qwen3.5-27B +0.213 -0.190 +0.403 17.1 12.7 (-4.4) 10.7 (-6.4) 82.4 35.0 +47.4
+> Mean +0.278 -0.263 +0.541 12.9 9.5 (-3.4) 7.0 (-5.9) 81.7 35.4 +46.3
+
+Table 6: Source-language anchor bias with Spanish (ES) as source. Metrics follow Table 1: AB upper nrm averages normalized anchor bias over the upper half of layers, and SRC-anchored layers count the fraction of layers with 
+
+AB nrm > 0.                                   
+
+> Model ES-ora Base CANVAS TGT-ora ∆F1 CANVAS
+> Llama3.1-8B 10.54 7.06 8.53 2.57 +1.47
+> Mistral-7B 8.00 3.46 3.61 1.16 +0.15
+> Qwen3.5-4B 7.36 3.60 4.35 2.17 +0.75
+> Qwen3.5-9B 12.39 8.03 8.88 3.85 +0.85
+> Qwen3.5-27B 17.10 11.68 11.81 9.17 +0.13
+> Mean 11.08 6.77 7.44 3.78 +0.67
+
+Table 7: CANVAS with a Spanish anchor. F1 (%) on the Spanish-pivot CS dataset. ES-ora and TGT-ora are pure-Spanish and pure-target baselines, respectively. CANVAS improves over direct CS answering for all five models, showing that the source-anchor intervention is not English-specific. 
+
+phologically similar Romance-language tokens, most notably French. The non-Latin sub-pool, therefore, provides the cleanest evaluation of the language-agnostic claim, and its Spanish-anchor gains match the magnitude of the English-anchor CANVAS improvements reported in the main pa-per. 
+
+Takeaway. CANVAS produces positive ∆F1 across all five evaluated models when Span-ish replaces English as the source anchor, with the strongest effect on non-Latin TGT languages where script-based tagging is most reliable. This result argues against the alternative explanation that the English-anchor gains depend on a privi-leged role of English in the representation space: the same steering mechanism transfers to another high-resource source language with only the run-time language-detection backend changed. The Latin-script TGT sub-pool further suggests that the main practical bottleneck for non-English an-chors is SRC/TGT tagging precision, rather than the steering mechanism itself. 
+
+F Dataset Details 
+
+F.1 Dataset Statistics 
+
+We provide dataset statistics to clarify the scale and balance of the controlled CS evaluation. Our setup starts from English SimpleQA questions and pairs each question with a target-language coun-terpart and a code-switched variant. Because each CS example is evaluated together with its matched EN and TGT forms, the resulting evaluation is or-ganized around EN–TGT–CS comparisons rather than independent monolingual examples.          
+
+> Item Count
+> Unique English source questions 955 Target languages 9CS examples per language 320 Examples per language–condition 80 Matched EN–TGT–CS comparisons 2,880 CS conditions 4Evaluated variants per CS example 3Total evaluated input instances 8,640
+
+Table 8: Dataset statistics. Each CS example is evalu-ated with matched EN, TGT, and CS inputs under the same reference answer. The four CS conditions are bal-anced within each language pair. 
+
+As shown in Table 8, each target language con-tributes 320 CS examples, with 80 examples for each CS condition. Since each CS example is evaluated with its matched English and target-language counterparts, the full evaluation contains 8,640 input instances. This balanced construc-tion ensures that differences between GF-S RC and GF-T GT are not driven by unequal language or condition coverage. We use nine target languages: Bengali, Spanish, French, Hindi, Korean, Marathi, Toba Batak, Urdu, and Chinese. 16 F.2 Caveat on Translated Target Questions 
+
+In our matched set Q(x) =
+
+{qSRC , q TGT , q GF -SRC , q GF -TGT }, qSRC and the two grammar-forced CS variants come from CodeMixQA (Winata et al., 2026), but qTGT 
+
+is generated by Qwen3-235B-A22B from qSRC 
+
+using the prompt in Section F.4. For short, factoid SimpleQA queries (e.g., “Who wrote Pride and Prejudice?” → “누가 오만과 편견을
+
+썼나요?” ) the translation direction is essentially deterministic and the resulting qTGT has the same syntactic frame as qGF -TGT . For more complex queries, however, the translator can pick a paraphrase whose syntactic frame differs from the CodeMixQA CS construction (e.g., choosing an active vs. passive frame, or a dif-ferent connective ordering). Because of this, we treat qTGT as a target-language reference for representation-level anchor comparison rather than as a strict word-order-matched twin of the CS variants; all behavioral claims in the paper are reported either per condition or as deltas relative to qSRC , so they are unaffected by this mismatch. The cosine-based anchor-bias measure is also robust to surface-syntactic variation because it pools over question-content tokens within each variant separately rather than aligning tokens across variants. 
+
+F.3 Additional Code-Switching Conditions 
+
+In addition to the two grammar-forced conditions used in the main analysis, we also examine ran-dom and selective code-switching conditions from CodeMixQA (Winata et al., 2026). These con-ditions provide useful controls because they in-troduce bilingual lexical mixing without impos-ing the same explicit grammatical-frame contrast as GF-S RC and GF-T GT . Random switching re-places tokens without a strong linguistic selection criterion, while selective switching targets more informative lexical items. As a result, these con-ditions help separate the general effect of lexical mixing from the more specific effect of grammat-ical frame. As shown in Table 9, both random and se-lective switching reduce QA performance, con-firming that code-switched lexical mixing itself can be challenging for MLLMs. However, their anchor-bias values remain much closer to zero than the grammar-forced contrast reported in the main results. This suggests that arbitrary or lexi-        
+
+> Condition Anchor bias ∆F1
+> RANDOM −0.026 −5.19
+> SELECTIVE −0.103 −4.37
+> Table 9: Additional CS controls. Random and se-lective switching degrade performance even without imposing the same grammar-frame contrast as GF-SRC /GF-T GT . These controls show that arbitrary lex-ical mixing can be harmful, while the grammar-forced pair isolates the stronger structural anchoring effect.
+
+cally selective mixing does not by itself create the strong directional anchoring observed under GF-SRC and GF-T GT . Instead, the main contrast is driven by the grammatical frame that organizes the mixed-language question. 
+
+F.4 Prompt Templates 
+
+We provide the prompt templates used for con-structing target-language questions and generating short answers. The templates are intentionally re-strictive: the translation prompt preserves the orig-inal information needed, and the answer prompt asks for a short English answer without explana-tions. 
+
+Target-language question construction. For each English SimpleQA question, we use Qwen3-235B-A22B to obtain a target-language counter-part. The prompt asks the model to preserve the original information needed and output only the translated question. 
+
+> Target-language question construction
+
+System: You are a professional translator. 
+
+User: Translate the following English ques-tion into {target language}. 
+
+Constraints 
+
+• Preserve the meaning exactly. • Preserve named entities unless they have a standard form in the target language. • Do not add explanations. • Output only the translated question. 
+
+Input question 
+
+{question} 
+
+English short-answer generation. For answer generation, the model receives one question at a time and is instructed to return a short English an-swer. We use deterministic decoding and a maxi-mum output length of 64 tokens. 17 English short-answer generation 
+
+System: You are a short-answer QA system. Return only the final answer as a short phrase. Answer must be in English. No explanation. 
+
+User: {question} 
+
+G Anchor Bias Details 
+
+G.1 Anisotropy Diagnostics 
+
+Cosine similarities in hidden-state spaces can be inflated by representation anisotropy: even unre-lated inputs may occupy similar directions and therefore show high background cosine similar-ity. This is especially important for cross-model comparisons, because different model families can have very different random-cosine baselines. To quantify this effect, we estimate a random base-line cosine for each model from unrelated question pairs.                                         
+
+> Model Type Random cos. 1−μ
+> Aya-Expanse-8B Dense 0.7944 0.2056
+> Llama3.3-70B Dense 0.8729 0.1271
+> Llama3.1-70B Dense 0.8775 0.1225
+> Qwen3.5-4B Dense 0.9112 0.0888
+> Qwen3.5-27B Dense 0.9145 0.0855
+> Qwen3.5-9B Dense 0.9320 0.0680
+> Mixtral-8x7B MoE 0.8862 0.1138
+> Phi-3.5-MoE MoE 0.8698 0.1302
+> Qwen3.6-35B-A3B MoE 0.9379 0.0621
+> Qwen3-30B-A3B MoE 0.9791 0.0209
+> Table 10: Random baseline cosine for anisotropy correction. We estimate the average cosine similar-ity between representations of unrelated questions for each model. High random cosine values indicate strong background alignment in the hidden-state space; 1−μ
+> is the denominator used in the random cosine normal-ization.
+
+As shown in Table 10, random baseline co-sine values are high across all models and exceed 
+
+0.90 for several Qwen-family models. This means that raw cosine similarity can overstate represen-tational closeness even for unrelated inputs. We therefore subtract the model- and layer-specific random baseline before comparing EN–CS and TGT–CS similarities in the main anchor-bias. We use a random-pair baseline rather than the SRC– TGT cosine because SRC–TGT cosine is itself a content-anchored quantity we want to measure relative to chance; layer-wise min–max scaling would similarly entangle normalization with the very anchor distance under study. 
+
+G.2 Language-wise Anchor Bias Setup. We group the matched SRC/CS/TGT triples by target language and CS condition, then compute the same normalized anchor-bias metric used in Table 1. For each language–condition cell, we average over examples and models. We also re-port CS F1 in the same point scale as the main ta-bles so that representation movement and QA be-havior can be read together. 
+
+Results. Table 11 shows that the anchor signal is not only a model-level effect. The GF-Src col-umn is generally more SRC-oriented than GF-Tgt, but the strength of this split differs by language. This language-level variation explains why the ag-gregate AB–F1 pattern should be interpreted as a structured multilingual phenomenon rather than as a single global scalar. 
+
+G.3 Additional Anchor-Bias Variants 
+
+Table 20 reports four variants of the anchor-bias metric to verify that the GF-Src > 0 / GF-Tgt < 0
+
+sign pattern is not an artefact of a specific pool-ing or normalization choice. AB raw is the raw question-content cosine difference; AB nrm nor-malizes by 1−bm (the model’s random-cosine dy-namic range, shown in the second column); AB tok 
+
+applies per-token L2 normalization before pool-ing; and AB tok,nrm combines both. All four vari-ants agree on the sign for every model–condition pair: GF-Src is positive (SRC-anchored) for mod-els with positive main-table bias, GF-Tgt is uni-versally negative (TGT-anchored), and all Ran-dom and Selective conditions are negative. The normalized variants (AB nrm , AB tok,nrm ) am-plify absolute magnitudes substantially for mod-els with small dynamic range (e.g., Llama3.2-1B, 
+
+1−bm=0 .0041 ) but do not change the ordering or direction of any entry. We use AB nrm (normalized mean-pool) as the primary metric. 
+
+G.4 Frontier Model Scaling Validation Setup. The Layer-AB and Mitigation pools used in the main paper are restricted to models whose weights are publicly available, so that the anchor-bias analysis and CANVAS mitigation can be per-formed on internal hidden states. A natural con-cern is whether code-switched degradation also persists at the closed-source frontier scale, where models substantially outperform our open pool on general QA. We address this concern by eval-uating three frontier API models on the same 18 Language AB upper nrm by CS condition CS F1 by CS condition 
+
+GF-S RC GF-T GT Random Selective GF-S RC GF-T GT Random Selective Toba Batak +4.40 +4.00 +4.03 +4.02 10.1 10.6 8.9 12.6 Hindi +2.30 +0.53 +1.11 +0.57 15.2 14.1 16.0 15.4 Chinese (Mandarin) +1.00 -1.65 -0.05 -0.21 13.9 9.0 13.7 16.1 Spanish +0.21 -1.22 -0.58 -0.78 15.8 12.2 16.7 16.5 Urdu +0.57 -1.56 -0.74 -0.77 12.8 13.5 13.1 14.8 French +0.18 -1.25 -0.91 -0.96 13.5 12.7 10.3 9.9 Bengali -0.28 -2.04 -1.06 -1.51 8.9 9.1 13.6 8.9 Korean -0.26 -1.97 -1.68 -1.44 15.6 8.6 10.5 11.0 Marathi -0.29 -2.16 -1.27 -1.68 13.6 12.0 10.0 15.3 
+
+Mean +0.87 -0.81 -0.13 -0.31 13.3 11.3 12.5 13.4 
+
+Table 11: Language-wise anchor bias by CS condition. We group examples by target language and CS condition and report the same normalized anchor-bias family used in Table 1. F1 is shown on the same point scale as the main tables. 
+
+Language Avg. F1 ∆F1 by CS condition BASE CANVAS GF-S RC GF-T GT Random Selective 
+
+Hindi 10.47 11.43 +0.65 +1.51 +1.23 +0.44 Marathi 8.98 11.25 +1.43 +3.28 +2.26 +2.13 Spanish 10.37 10.55 -0.10 +0.20 +0.69 -0.06 Urdu 9.49 10.22 +0.15 +0.96 +1.01 +0.81 Simplified Chinese 9.44 9.91 +0.18 +0.98 +0.29 +0.42 Korean 7.83 9.48 +1.49 +2.10 +1.51 +1.52 French 8.69 8.79 +0.02 -0.50 +0.39 +0.51 Bengali 7.37 8.61 +0.65 +1.52 +1.23 +1.54 Toba Batak 6.94 7.01 -0.33 -0.05 +0.37 +0.31 
+
+Mean 8.84 9.70 +0.46 +1.11 +1.00 +0.85 
+
+Table 12: Language-wise CANVAS mitigation. We use the same reporting convention as Table 2: Avg. F1 is averaged over four CS conditions, and condition-wise columns report CANVAS–Base F1 changes. 
+
+2,879 -row CS dataset used throughout the pa-per: DeepSeek-V3.2 (Liu et al., 2024), Gemini 2.5 Flash (Comanici et al., 2025), and GPT-5.4-mini (Singh et al., 2025). All three models are queried via OpenRouter under identical decoding settings (greedy, max_new_tokens = 48 ) and the same system prompt as the open pool. Each model produces predictions for the EN, CS, and TGT conditions; we report F1 against the same gold an-swers. 
+
+Frontier CS degradation. Table 13 reports ag-gregate F1 across the three conditions. Two find-ings stand out. First, all three frontier mod-els exhibit CS degradation: ∆F1 CS −EN ranges from −1.88 (GPT-5.4-mini) to −7.64 (Gemini 2.5 Flash). Although the magnitude varies, the direc-tion is consistent — none of the frontier models is immune to code-switching. Second, the source-language anchoring ordering F1 TGT < F1 CS <
+
+F1 EN that we report for the open pool is preserved in every frontier model. The TGT −EN gap ranges from −3.54 to −19 .07 , indicating that source-language preference is not a small-model artifact but a property that scales with model capacity.                     
+
+> Model EN CS TGT ∆F1 CS-EN ∆F1 TGT-EN
+> DeepSeek-V3.2 19.97 16.86 11.28 −3.11 −8.69
+> Gemini 2.5 Flash 28.42 20.78 9.34 −7.64 −19 .07
+> GPT-5.4-mini 19.59 17.71 16.05 −1.88 −3.54
+
+Table 13: Frontier model scaling check. Three closed-source frontier models evaluated via OpenRouter on the same 2,879 -row CS dataset. CS degradation (∆F1 CS −EN < 0) and the source-language preference ordering F1 TGT < F1 CS < F1 EN both hold for every frontier model. 
+
+Open vs. frontier CS performance. A useful cross-check is the actual CS performance gap rel-ative to model scale. Our largest open model, Qwen3.6-35B-A3B ( 35B parameters, ∼ 3B ac-tive per token), reaches CS F1 15 .80 under di-rect CS answering and 17 .53 with CANVAS ap-plied (Table 19). The frontier results in Table 13 sit at 16 .86 (DeepSeek-V3.2), 17 .71 (GPT-5.4-mini), and 20 .78 (Gemini 2.5 Flash). CANVAS there-fore brings the open MoE model within 0.18 F1 of GPT-5.4-mini and ahead of DeepSeek-V3.2; only Gemini 2.5 Flash retains a meaningful 3.25 F1 lead. Given that DeepSeek-V3.2 is roughly an or-der of magnitude larger in total parameter count 19 than Qwen3.6-35B-A3B, the practical CS F1 gap is small relative to the underlying capacity differ-ence: scaling alone does not close the CS gap, while a representation-level intervention applied to a moderate-capacity open model achieves com-parable CS performance. 
+
+G.5 Lexical Language versus Word Order Setup. We test whether word order alone can move an input across the source–target anchor axis. Starting from the Korean-target examples, we construct two same-lexicon order diagnos-tics using OpenRouter Qwen3-235B-A22B only to change the order of the existing lexical mate-rial. SRC-TGT order keeps source-language lex-ical material but arranges it in target-like order, while TGT-SRC order keeps target-language lex-ical material but arranges it in source-like or-der. We compare these probes with pure source text (SRC), pure target text (TGT), and the two grammar-forced CS conditions. We evaluate three local 7–8B-level models and report normalized an-chor bias, where positive values indicate source-oriented representations and negative values indi-cate target-oriented representations. 
+
+Results. Table 14 shows that word order does af-fect the strength of anchoring, even though it does not fully determine the anchor direction. When we keep source-language words but impose target-like order, SRC-TGT order moves away from the pure SRC endpoint: its mean AB nrm drops from 
+
++1 .000 to +0 .647 . This means that changing only the order of the source sentence already reduces source anchoring and shifts the representation to-ward the target side. Conversely, when we keep target-language words but impose source-like or-der, TGT-SRC order moves slightly away from the pure TGT endpoint: its mean AB nrm increases from −1.000 to −0.876 . This movement is smaller than the source-to-target-order case on average, al-though Aya-Expanse-8B shows a relatively large shift. The two order-counterfactual probes therefore occupy intermediate positions rather than collaps-ing exactly to either monolingual endpoint. SRC-TGT order stays between SRC and the CS con-ditions on the source side, while TGT-SRC order 
+
+stays between TGT and the CS conditions on the target side. This confirms that grammatical frame is not a superficial formatting detail: chang-ing only the order of the same lexical material is enough to move the internal representation away from its original monolingual anchor. 
+
+H CANVAS Details 
+
+H.1 Adaptive Alpha Schedule and Clip Range Setup. CANVAS uses the adaptive interpolation rule from the main method section: 
+
+α = clip [αmin ,α max ] (α0 − λγ CS ) ,
+
+where γCS is the representation-alignment score computed from the clean prefill over the ques-tion span. The term −λγ CS is intentional: if the CS state is already source-canvas aligned ( γCS >
+
+0), CANVAS applies a weaker correction; if it is target-oriented ( γCS < 0), CANVAS increases the interpolation strength. The main paper setting is 
+
+(α0, λ, α min , α max ) = (0 .45 , 1.5, 0.05 , 0.75) .
+
+Schedule choice. We use this single global schedule because it balances three constraints: it improves average CS F1, preserves the intended monotonic behavior, and keeps the intervention bounded. The center α0 = 0 .45 gives a moder-ate interpolation when the alignment score is near neutral, while λ = 1.5 creates a visible sepa-ration between source-aligned and target-oriented inputs before clipping. A smaller λ would flatten that adaptivity; a much larger λ would make mod-erate alignment changes saturate the clip bounds more often. We choose the clip range [0 .05 , 0.75] 
+
+to keep the lower regime close to an identity up-date and the upper regime short of target-state replacement. We do not tune language-specific, condition-specific, or model-specific constants. 
+
+Parameter interpretation. The four values control different aspects of the same bounded con-troller. Raising α0 strengthens the default update for inputs with γCS ≈ 0, whereas lowering it makes neutral cases closer to direct CS answering. Raising αmin forces more interpolation even for strongly source-aligned cases, while lowering it makes the low end more nearly identity-like. Rais-ing αmax permits stronger source-canvas mixing for target-oriented cases, while lowering it caps those corrections earlier; at our upper bound, at least one quarter of the original target-token repre-sentation is preserved. Table 15 summarizes these roles. 20 Model SRC SRC-TGT order CS GF-S RC CS GF-T GT TGT-SRC order TGT                         
+
+> Aya-Expanse-8B 1.000 0.445 0.313 -0.606 -0.765 -1.000
+> Llama3.1-8B 1.000 0.692 0.032 -0.641 -0.910 -1.000
+> Qwen3.5-4B 1.000 0.804 0.076 -0.627 -0.954 -1.000
+> Mean 1.000 0.647 0.140 -0.625 -0.876 -1.000
+
+Table 14: Lexical language versus word order on Korean-target examples. We report normalized anchor bias. SRC-TGT order keeps source-language words but places them in target-like order; TGT-SRC order keeps target-language words but places them in source-like order. Positive values indicate source-oriented representations; negative values indicate target-oriented representations.                     
+
+> Component Value Interpretation Base strength αbase 0.45 Sets αwhen γCS ≈0. Larger values strengthen neutral cases. Adaptivity scale λ1.5Scales −λγ CS . Larger values separate SRC-/TGT-oriented cases more sharply. Lower clip αmin 0.05 Keeps strongly SRC-aligned cases near identity. Larger values force a stronger minimum update. Upper clip αmax 0.75 Prevents full target-state replacement. Larger values allow stronger source-canvas mixing.
+
+Table 15: CANVAS adaptive-α schedule. We use one global bounded controller for all languages, conditions. 
+
+Observed distribution. We visualize the effective α distribution from the CANVAS representation-analysis dump in Figure 6. We find that the learned behavior matches the intended controller: GF-S RC has a higher source-token ratio and receives a weaker intervention on average ( α = 0.453 ), while GF-T GT is more target-heavy and receives a stronger intervention (α = 0.608 ). We also observe that random and selective switching falls between these two endpoints. 
+
+H.2 Layer-wise CANVAS Analysis Setup. We analyze where the CANVAS-induced representation shift appears across depth. CAN-VAS intervenes only after the control-layer bound-ary, so the expected pattern is layer-local: lower layers should remain close to the base CS trajec-tory, while upper layers should show an increasing source-directed shift after entering Lctrl .
+
+Results. Figure 7 shows this trajectory as a heatmap over the relative position inside Lctrl . The left panel reports ∆ cos SRC , and the right panel reports −∆ cos TGT , so darker colors in both pan-els indicate a stronger source-ward correction. The shift becomes larger toward the later part of the control interval, supporting the mechanism im-plied by the anchor-bias analysis: CANVAS redi-rects the late-layer CS state rather than globally rewriting the entire prompt representation. 
+
+H.3 Source-heavy Checks CANVAS preserves source-heavy inputs. We next check cases that are already mostly source-language text. We select examples with a de-tected source-token ratio ρSRC ≥ 0.80 from the full CANVAS runs and split them into three di-agnostic rows. “All source-heavy” is the full se-lected set. “Steered source-heavy” keeps only ex-amples where the detector still finds at least one target-language token span ( |Ctgt | > 0), so CAN-VAS actually has hidden states to modify. “Iden-tity source-heavy” contains examples with no de-tected target span ( |Ctgt | = 0 ), where CANVAS should leave the prompt effectively unchanged. Table 16 shows that the full source-heavy set uses a moderate mean α (0.445) and preserves perfor-mance: average F1 changes from 9.08 to 9.12, with 97.3% of examples showing no F1 drop. Even in the stricter steered subset, where CAN-VAS actually intervenes, the average change re-mains small ( ∆F1=-0.21), and 96.0% of examples show no drop. 
+
+H.4 Token-Level Language Tagging for CANVAS 
+
+CANVAS requires identifying which question tokens belong to the source-language span and which belong to the target-language span. We therefore apply lightweight token-level language tagging before computing the source canvas and target anchor. Each token in the question-content span is assigned one of three labels: S RC , T GT ,or OTHER . SRC denotes source-language to-21 0 
+
+> 1
+> 2
+> 3
+> 4
+> 5
+
+GF-Src 
+
+> = 0.453
+
+GF-Tgt    
+
+> = 0.608
+> 0.2 0.4 0.6
+> 0
+> 1
+> 2
+> 3
+> 4
+> 5
+
+Random   
+
+> = 0.566
+> 0.2 0.4 0.6
+
+Selective 
+
+> = 0.586
+
+Effective intervention strength 
+
+> Probability density
+
+Figure 6: Effective α distribution under the validation-selected CANVAS rule. We plot the area-normalized probability density of the effective interpolation strength used by CANVAS. We mark the validation-selected cen-ter α0 = 0 .45 and clip range [0 .05 , 0.75] with dashed and dotted vertical lines, respectively. We assign weaker updates to SRC-heavy GF-S RC examples and stronger updates to TGT-heavy GF-T GT examples, while random and selective switching remain between these two endpoints.                                              
+
+> Subset Definition Mean ρSRC Mean αBase F1 CANVAS F1 ∆F1 No-drop (%) Fixed / Lost All source-heavy ρSRC ≥0.80 0.991 0.445 9.08 9.12 +0.04 97.3 265/246 Steered source-heavy ρSRC ≥0.80 ,|Ctgt |>00.861 0.366 15.04 14.83 -0.21 96.0 18/26 Identity source-heavy ρSRC ≥0.80 ,|Ctgt |= 0 1.000 0.450 8.68 8.74 +0.06 97.4 247/220
+
+Table 16: CANVAS on source-heavy CS inputs. We split high-source-ratio examples into all cases, cases with at least one target-token span that CANVAS can steer, and cases with no detected target span where CANVAS should behave as an identity operation. No-drop reports the percentage of examples where CANVAS F1 is at least direct CS F1. Fixed/Lost counts base-zero to CANVAS-positive cases and base-positive to CANVAS-zero cases. 
+
+kens, which correspond to English tokens in our main English–target-language setting. T GT de-notes target-language tokens, and OTHER de-notes punctuation, numbers, whitespace artifacts, or language-neutral tokens. Because chat templates include system instruc-tions and assistant-prefix tokens that are shared across all inputs, we first locate the raw user ques-tion inside the full templated prompt. When tok-enizer offset mappings are available, we use them to identify the token positions overlapping with the question span. Tokens outside this span are not used for canvas construction, alignment estima-tion, or interpolation. This ensures that the CAN-VAS signal is computed from the code-switched question itself rather than from shared prompt text. For non-Latin target languages, we use Uni-code script information. Tokens containing only Hangul (U+AC00–U+D7A3), CJK (U+4E00– U+9FFF), Devanagari (U+0900–U+097F), Ara-bic, or Bengali-script characters are labeled as TGT . Tokens containing only Latin-script alpha-betic characters are labeled as S RC , except for Latin-script target languages. For Spanish, French, and Toba Batak, script information alone is insuf-ficient because both English and the target lan-guage use Latin characters. In these cases, we use the Lingua probabilistic language detector * re-stricted to the {English, target} language pair to assign each Latin-script token to S RC or T GT . To-kens with mixed Latin and non-Latin characters are conservatively labeled as T GT , while punctua-tion and empty or non-alphabetic surfaces are la-beled as O THER .For BPE tokenizers, raw token strings may not 
+
+> *https://github.com/pemistahl/lingua-py
+
+22 0.0 0.2 0.4 0.6 0.8 1.0        
+
+> Relative position inside ctrl
+> GF-Src
+> GF-Tgt
+> Random
+> Selective
+> cos SRC
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Relative position inside ctrl
+> cos TGT
+> 0.00
+> 0.05
+> 0.10
+> 0.15
+> 0.20
+> Shift magnitude
+
+Figure 7: Layer-wise CANVAS effect. We plot the magnitude of the source-ward shift across the relative position inside Lctrl . Darker cells indicate larger ∆ cos SRC or larger −∆ cos TGT . The effect is strongest near the later control layers, matching the layer-wise anchoring analysis. 
+
+directly reflect the original Unicode surface form. We therefore decode each token ID back into its surface string before applying script-based tag-ging. If either the source or target span contains too few tokens, CANVAS skips the intervention for that example and falls back to ordinary decod-ing. 
+
+H.5 Hidden-State Extraction for CANVAS 
+
+CANVAS computes its source canvas, target an-chor, and alignment score from the hidden states of the user question, not from the full chat-templated input. For each example, the model in-put is the concatenation of system-prompt tokens, user-question tokens, and assistant-prefix tokens: 
+
+x = [ xsys ; xq; xasst ], (15) where xsys contains the shared QA instruction, xq
+
+contains the actual code-switched question, and 
+
+xasst contains model-specific generation-template tokens such as assistant role markers. Since xsys 
+
+and xasst are shared across inputs and can obscure the representation of the CS question itself, all CANVAS signals are computed only from token positions overlapping with xq.Concretely, we run a clean forward pass with hidden-state outputs enabled. For a model with L
+
+layers, sequence length T , and hidden size d, this gives 
+
+HM (qCS ) ∈ RL×T ×d. (16) We then identify the token positions correspond-ing to the user question using tokenizer offsets when available. These question positions are fur-ther tagged as source, target, or other, producing 
+
+Csrc , Ctgt , and Coth .For each selected upper layer ℓ ∈ Lctrl , we gather the hidden states at source-language posi-tions and average them along the token dimension to obtain one layer-specific source canvas: 
+
+csrc  
+
+> ℓ
+
+= 1
+
+|Csrc |
+
+X
+
+> t∈Csrc
+
+HM (qCS )[ ℓ, t, :] . (17) The target anchor is computed analogously: 
+
+atgt  
+
+> ℓ
+
+= 1
+
+|Ctgt |
+
+X
+
+> t∈Ctgt
+
+HM (qCS )[ ℓ, t, :] . (18) Thus, each selected layer has its own source can-vas and target anchor. For example, if two source-token hidden states at a layer are 
+
+[a, b, c, d ] and [e, f, g, h ],
+
+their mean source canvas is 
+
+ a + e
+
+2 , b + f
+
+2 , c + g
+
+2 , d + h
+
+2
+
+
+
+.
+
+This layer-specific averaging is repeated indepen-dently for every ℓ ∈ L ctrl , so CANVAS aligns target-token states to the source canvas of the same layer rather than to a single global vector. 
+
+H.6 CANVAS Layer-span Ablation Evaluation protocol. We compare direct code-switched answering (BASE) with CANVAS on the same short-answer QA setting used in the previous sections. For the intervention study, we evaluate MLLMs across four CS conditions: GF-SRC, GF-TGT, random switching, and selective switching. We report average F1 over the four CS conditions and condition-wise F1 changes rela-tive to BASE. We also include a random-direction baseline, CANVAS rand , which keeps the same adaptive α controller and 30% layer budget as CANVAS but replaces the source–target represen-tation direction with a random interpolation direc-tion. 23 Model CANVAS-10 CANVAS-30 CANVAS-50 CANVAS-70 CANVAS-90 CANVAS rand                                                               
+
+> Aya-Expanse-8B 6.03 6.30 7.11 6.70 4.91 5.99
+> Llama3.1-8B 7.11 7.68 8.03 7.25 5.28 6.72
+> Mistral-7B 4.92 5.13 5.15 4.27 3.38 4.96
+> Phi-3.5-MoE 7.96 8.58 8.81 8.30 6.17 7.93
+> Qwen3.5-27B 14.93 15.03 14.45 12.85 8.95 14.22
+> Qwen3.5-4B 7.80 7.98 7.81 7.03 4.83 7.35
+> Qwen3.5-9B 10.04 10.24 9.52 8.72 5.56 10.01
+> Qwen3-30B-A3B 7.17 8.13 8.10 7.33 6.00 6.93
+> Mean 8.24 8.64 8.62 7.81 5.64 8.01
+> Table 17: Layer-span ablation for CANVAS. We report average F1 over the four CS conditions. CANVAS-
+> kapplies the adaptive intervention to the last k%of layers. CANVAS rand uses the same adaptive αand the same 30% layer span as CANVAS-30, but replaces the source–target representation direction with a random interpolation direction.
+
+Setup. We vary the intervention span while keeping the current adaptive schedule fixed, α =clip [0 .05 ,0.75] (0 .45 −1.5γCS ). CANVAS-k applies the intervention only to the last k% of layers. We choose the 30% span as the main setting because it matches the upper-layer region where the anchor-bias analysis shows stable language-frame com-mitment, while still leaving the lower and middle layers to encode the original CS question with-out intervention. Thus, the ablation tests whether CANVAS should act as a late anchor correction or as a broad representation rewrite. 
+
+Results. Table 17 supports this choice. CAN-VAS-30 gives the best average F1, while CAN-VAS-50 performs nearly on par and can be viewed as a stronger, wider-span variant. We use CAN-VAS-30 as the main setting because it achieves the same level of improvement with a narrower inter-vention span, making it the minimal effective in-tervention: it targets the late anchor-commitment region while leaving more of the lower and middle-layer CS composition untouched. In con-trast, performance drops for CANVAS-70 and collapses for CANVAS-90. This pattern suggests that increasing the span beyond the late control region does not simply strengthen the same cor-rection. Once the intervention reaches too far into lower layers, it perturbs lexical and compositional processing before the model has formed a stable high-level CS state; the source-direction update then competes with question encoding rather than correcting a late anchor. The random-direction baseline is also lower than CANVAS-30 for ev-ery evaluated model, so the gain does not come from arbitrary hidden-state mixing; it depends on applying the source–target anchor direction in the late control region identified by the analysis. 
+
+H.7 Language-wise CANVAS Mitigation Setup. We reuse the main CANVAS outputs and group examples by target language. Follow-ing Table 2, Avg. F1 is the mean over the four CS conditions, and each condition column reports CANVAS–Base F1 change. 
+
+Results. Table 12 shows that CANVAS im-proves most language groups, with the largest gains on languages where the direct CS baseline is weaker. The gains are not restricted to a sin-gle CS construction: improvements appear across grammar-forced, random, and selective switching, although some high-resource or already-stable cases show smaller or slightly negative changes. 
+
+H.8 CANVAS Case Studies Overview. We pair one recovery with one fail-ure for the same Llama-3.1-8B model. Each fig-ure combines the CS question and answer with layer-wise cosine similarity to the SRC and TGT anchors and the resulting anchor bias. The pair shows what CANVAS changes internally and also bounds the claim: source-ward movement is use-ful on average, but it is not an answer verifier. 
+
+Success Case The success case uses a Korean– English CS question with 11 Korean tokens and 6 English tokens. Its alignment score is strongly target-oriented ( γ=−0.396 ), so CANVAS selects 
+
+α=0 .75 and steers Korean-token hidden states in layers 22–31. Figure 8 shows that direct CS an-swering returns 2019 , while CANVAS recovers the gold year 1660 .The lower panels show the internal correction behind the answer change. Similarity to the EN anchor rises under CANVAS, similarity to the KO anchor falls across the steered layers, and anchor bias flips from negative to positive from layer 23 24 Success case: CANVAS fixes a CS answer (Llama-3.1-8B, Korean–English) 
+
+Model Llama-3.1-8B-Instruct 
+
+CS input Süleymaniye 는 대화재에서 몇 년도에 damage 되었나요?
+
+(“In what year was the Süleymaniye [Mosque] damaged in the Great Fire?”) 
+
+Gold answer 1660 Base CS answer CANVAS answer Diagnostics 
+
+2019 1660 α=0 .75 ; γ=−0.396 ; EN tokens = 6 ; KO tokens = 11 ;steered layers = 10 (layers 22–31 of 32) 
+
+Token breakdown. The question contains 11 Korean tokens (TGT) and only 6 English tokens (SRC), giving 
+
+γ=−0.396 (strongly TGT-anchored). CANVAS detects this imbalance and applies α=0 .75 interpolation toward the English anchor in the top 10 layers. 22        
+
+> 23
+> 24
+> 25
+> 26
+> 27
+> 28
+> 29
+> 30
+> 31
+> Layer
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> Cosine similarity
+> (a) Similarity to EN (SRC)
+> Base EN
+> CANVAS EN
+> 22
+> 23
+> 24
+> 25
+> 26
+> 27
+> 28
+> 29
+> 30
+> 31
+> Layer
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> Cosine similarity
+> (b) Similarity to KO (TGT)
+> Base KO
+> CANVAS KO
+> 22
+> 23
+> 24
+> 25
+> 26
+> 27
+> 28
+> 29
+> 30
+> 31
+> Layer
+> 0.6
+> 0.4
+> 0.2
+> 0.0
+> 0.2
+> AB = cos(SRC)  cos(TGT)
+> SRC-anchored
+> TGT-anchored
+> AB flips +
+> (c) Anchor bias AB per layer
+> AB base
+> AB canvas
+
+Figure 8: CANVAS success case: representation trajectory. Top : qualitative example showing the wrong base answer (2019) and the correct CANVAS answer (1660) for a Korean–English CS question. Bottom (a–c) : layer-by-layer hidden-state cosine similarity to the EN anchor (SRC) and KO anchor (TGT) for the CS prompt, and the resulting anchor bias AB= cos( hEN , hCS ) − cos( hKO , hCS ). In the base run, AB stays negative throughout (KO-anchored). CANVAS flips AB to positive from layer 23 onward (EN-anchored), which is sufficient for the model to recover the correct answer. 
+
+onward. This example, therefore, connects the in-tended source-ward intervention to a concrete an-swer recovery. 
+
+Failure Case The failure case uses a Spanish– English GF-Tgt question with 14 Spanish tokens and 6 English tokens. CANVAS sees a target-oriented alignment score ( γ=−0.234 ) and applies its maximal interpolation ( α=0 .75 ). In Figure 9, direct CS answering already returns the gold year 
+
+2018 , but CANVAS changes the answer to 2017 .The layer trace explains the failure boundary. CANVAS reduces Spanish similarity and pushes anchor bias toward the source side, but the shift is incomplete at the top of the stack: anchor bias briefly crosses zero in the early steered layers and returns negative by the final layer. At the same time, the direct CS state is already sufficient for the correct answer. The strong source-ward cor-rection, therefore, perturbs an already correct an-swer state without producing a stable final source-oriented state. This case shows why source-anchor correction improves CS answering on average, but is not a correctness certificate for every example. 
+
+H.9 Model-wise CANVAS Analysis Setup. We group the CANVAS representation analyses by model. For each model, we compare the code-switched representation before and af-ter intervention against two reference anchors: the source-language question representation and the target-language question representation. We com-pute the metrics over the control-layer interval 
+
+Lctrl and mean-pool question-content tokens, so the comparison focuses on the question state rather than the generated answer. 
+
+Metrics. Table 18 reports the model-wise move-ment signals. ∆AB measures whether CANVAS increases source-oriented anchor bias. ∆ cos SRC 
+
+measures the change in similarity to the SRC and TGT anchors. The projection ratio η measures how much of the intervention displacement lies along the SRC–TGT axis; a positive η means that 25 Failure case: CANVAS changes a correct CS answer (Llama-3.1-8B, Spanish–English) 
+
+Model Llama-3.1-8B-Instruct 
+
+CS input En qué año la diseñadora de moda Mowalola Ogunlesi abandonó Central Saint Martins? 
+
+(“In what year did fashion designer Mowalola Ogunlesi drop out of Central Saint Martins?”) 
+
+Gold answer 2018 Base CS answer CANVAS answer Diagnostics 
+
+2018 2017 α=0 .75 ; γ=−0.234 ; EN tokens = 6 ; ES tokens = 14 ;steered layers = 10 (layers 22–31 of 32) 
+
+Token breakdown. The question contains 14 Spanish tokens (TGT) and 6 English tokens (SRC), so CANVAS applies its strongest source-ward interpolation. Here the direct CS answer is already correct, but the intervention changes the generated year. 22    
+
+> 23
+> 24
+> 25
+> 26
+> 27
+> 28
+> 29
+> 30
+> 31
+> Layer
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+> Cosine similarity
+> (a) Similarity to EN (SRC)
+> Base -> EN
+> CANVAS -> EN
+> 22
+> 23
+> 24
+> 25
+> 26
+> 27
+> 28
+> 29
+> 30
+> 31
+> Layer
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+> Cosine similarity
+> (b) Similarity to ES (TGT)
+> Base -> ES
+> CANVAS -> ES
+> 22
+> 23
+> 24
+> 25
+> 26
+> 27
+> 28
+> 29
+> 30
+> 31
+> Layer
+> 0.6
+> 0.4
+> 0.2
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> AB = cos(SRC) - cos(TGT)
+> SRC-anchored
+> TGT-anchored
+> brief AB > 0
+> (c) Anchor bias AB per layer
+> AB base
+> AB canvas
+
+Figure 9: CANVAS failure case: representation trajectory. Top : qualitative example where direct CS answering returns the gold year (2018), while CANVAS outputs a wrong year (2017). Bottom (a–c) : layer-by-layer cosine similarity to the EN anchor (SRC), similarity to the Spanish anchor (TGT), and anchor bias AB= cos( hEN , hCS )−
+
+cos( hES , hCS ). CANVAS moves the CS state toward the SRC side but does not produce a stable final source-oriented state, while also changing an already correct answer. 
+
+the movement is in the SRC direction. 
+
+Results. Across analyzed models, CANVAS consistently increases AB, increases cosine simi-larity to the SRC anchor, and yields positive pro-jection ratios on the SRC–TGT axis. Figure 11 shows the same analysis as a model-wise represen-tation grid. Each row corresponds to one model, and each column corresponds to a grammar-forced CS condition. The arrows summarize the move-ment from the base CS centroid to the CAN-VAS centroid, making it possible to compare whether the same source-directed shift appears across model families. 
+
+Model-wise diagnostics. We provide model-wise versions of the two main CANVAS diagnos-tics. Figure 12 decomposes the signed projection ratio η by model and CS condition. The mass of each density remains mostly to the right of zero, and Pr( η > 0) stays above 90% for every ana-lyzed model. Figure 13 decomposes the adaptive controller by model. Within each model, a lower source-token ratio ρ generally receives a larger ef-fective interpolation strength α, showing that the validation-selected schedule remains adaptive. 
+
+H.10 CANVAS Cost Analysis Setup. We measure the wall-clock cost of CAN-VAS on the same full CS evaluation set used for the main intervention results. For each model and example, we record direct CS answering latency and CANVAS latency, then compute the empirical cost ratio by dividing CANVAS latency by direct CS latency. This is an end-to-end latency measure-ment, not a per-token FLOP estimate. 
+
+Results. Table 19 reports the model-wise cost. CANVAS improves average F1 from 8.79 to 9.61 over the 13-model pool while using 1.13 × the la-tency of direct CS answering on average. In abso-lute time, CANVAS takes 866.9 ms per example on average, i.e., less than one second per question. This is only 24.1 ms above the direct CS answer-ing average in the same model pool. The overhead remains small because CANVAS reuses the same model and applies a hidden-state intervention dur-26 Model ∆AB ∆ cos SRC η Pr( η > 0) Mean α
+
+Aya-Expanse-8B 0.143 0.036 0.160 92.0 0.542 
+
+Llama3.1-8B 0.159 0.059 0.214 93.9 0.562 
+
+Mistral-7B 0.224 0.087 0.171 92.1 0.613 
+
+Phi-3.5-MoE 0.071 0.026 0.121 90.4 0.548 
+
+Qwen3.5-27B 0.111 0.032 0.248 93.8 0.523 
+
+Qwen3.5-4B 0.156 0.050 0.243 94.1 0.594 
+
+Qwen3.5-9B 0.139 0.047 0.238 94.3 0.576 
+
+Qwen3-30B-A3B 0.088 0.029 0.192 93.6 0.469 
+
+Table 18: Model-wise representation movement under CANVAS. ∆AB measures the increase in source-oriented anchor bias, and ∆ cos SRC measures the change in similarity to the source-language anchor. η measures the signed projection of the displacement on the SRC–TGT axis, and Pr( η > 0) reports the percentage of examples whose displacement has a source-ward component.                                                                                                                                                                         
+
+> Model Avg. F1 Mean latency Generation diagnostics Tail latency BASE CANVAS ∆F1 Base ms CANVAS ms Cost ×Base len. CANVAS len. Faster ex. Base p95 CANVAS p95
+> Aya-Expanse-8B 5.99 6.88 +0.89 334.8 404.2 1.21 4.3 5.0 31.1% 1216 1554
+> Mistral-7B 4.53 5.06 +0.54 644.9 583.2 0.90 8.1 7.6 37.5% 1633 1576
+> Qwen3.5-4B 7.58 8.14 +0.56 444.3 528.7 1.19 2.6 2.4 26.7% 862 888
+> Qwen3.5-9B 9.89 10.24 +0.35 442.1 544.7 1.23 2.4 2.3 18.7% 777 898
+> Qwen3.5-27B 14.14 15.40 +1.25 975.1 1166.4 1.20 2.8 2.7 17.1% 1855 2100
+> Llama3.2-1B 2.57 3.20 +0.63 137.4 138.3 1.01 3.3 3.1 38.9% 460 399
+> Llama3.1-8B 6.21 7.79 +1.59 279.2 288.6 1.03 3.5 3.1 27.8% 755 700
+> Llama3.1-70B 12.89 13.20 +0.31 1207.7 1518.0 1.26 2.4 2.4 13.8% 2212 2622
+> Llama3.3-70B 12.96 13.61 +0.65 1157.1 1466.7 1.27 2.3 2.3 13.3% 1974 2345
+> Mixtral-8x7B 6.77 6.91 +0.13 3167.0 1853.3 0.59 13.3 12.6 86.2% 5762 3467
+> Phi-3.5-MoE 7.99 8.82 +0.83 757.0 824.6 1.09 4.2 4.1 11.5% 2337 2331
+> Qwen3-30B-A3B 6.91 8.11 +1.20 653.2 905.0 1.39 2.9 2.9 5.4% 1416 1784
+> Qwen3.6-35B-A3B 15.80 17.53 +1.73 756.7 1047.7 1.38 2.3 2.2 2.3% 1177 1619
+> Mean 8.79 9.61 +0.82 842.8 866.9 1.13 4.2 4.1 25.4% 1726 1714
+
+Table 19: CANVAS cost analysis. We measure empirical wall-clock latency per example for direct CS answering and CANVAS on the same evaluation set. Cost × is CANVAS latency divided by direct CS latency. Length is a lightweight token proxy computed from generated answer strings, Faster ex. is the percentage of examples where CANVAS is faster than direct CS answering, and p95 reports the 95th-percentile latency in milliseconds. 
+
+ing prefill, instead of calling an additional model. 
+
+Why some ratios are below one. Some models show empirical cost ratios below 1.0 even though CANVAS adds a clean prefill and a steered pre-fill. This happens because the reported latency in-cludes autoregressive answer generation. If CAN-VAS changes the hidden state so that the model emits a shorter answer or reaches EOS earlier, the shorter decoding phase can offset the ex-tra prefill pass. The integrated diagnostics in Ta-ble 19 support this interpretation: Mistral-7B and Mixtral-8x7B have cost ratios below one, shorter CANVAS outputs on average, and lower 95th-percentile latency under CANVAS. Mixtral-8x7B is especially clear: CANVAS is faster on 86.2% of examples and reduces p95 latency from 5762 ms to 3467 ms. We therefore interpret ratios below one as an empirical decoding-length effect, not as a claim that CANVAS is cheaper per forward pass. 
+
+Interpretation. The main takeaway is that CANVAS provides a consistent F1 gain with mod-est wall-clock overhead. Since the method adds sub-second latency per example on average and does not require an external model call, we view it as practical for real-time or interactive CS ques-tion answering settings. 
+
+H.11 Additional Movement Analysis 
+
+We first test whether CANVAS changes the in-ternal representation in the intended direction. We aggregate examples across the eight models used for the representation analysis. For each exam-ple, we extract four question-level representations from the control layers: the source-only represen-tation, the target-only representation, the CS rep-resentation without intervention, and after CAN-VAS. We mean-pool question-content token states within each layer and then average over the se-lected control layers, so the metric reflects the question representation rather than the generated answer. We measure the signed projection ratio 
+
+η = ⟨rCANVAS  
+
+> CS
+
+− rBASE  
+
+> CS
+
+, rSRC − rTGT ⟩/∥rSRC −
+
+rTGT ∥22, where η > 0 indicates source-ward movement and η < 0 indicates target-ward move-ment. As shown in Figure 10, the distribution lies 27 Table 20: Anchor-bias metric variants. AB raw is the question-content-only cosine anchor bias (cos( hSRC , hCS ) − cos( hTGT , hCS ), mean-pooled over question tokens). AB nrm divides AB raw by 1−bm, the model-specific random-cosine dynamic range. AB tok L2-normalizes each token vector before pooling; AB tok,nrm 
+
+additionally applies the same normalization. Main tables report AB nrm . All values are verified against source data. 
+
+Model 1−bm Cond. Mean-pool Token-norm 
+
+AB raw AB nrm AB tok AB tok,nrm 
+
+Qwen3.5-4B 0.0636 GF-S RC +0.038 +0.59 +0.042 +0.66 GF-T GT −0.279 −4.39 −0.276 −4.33 RAND −0.142 −2.24 −0.138 −2.17 SEL −0.196 −3.08 −0.193 −3.03 
+
+Mistral-7B 0.0454 GF-S RC −0.175 −3.86 −0.160 −3.51 GF-T GT −0.450 −9.90 −0.440 −9.69 RAND −0.342 −7.52 −0.328 −7.23 SEL −0.366 −8.06 −0.354 −7.79 
+
+Llama3.1-8B 0.0254 GF-S RC −0.011 −0.43 −0.015 −0.60 GF-T GT −0.381 −14.97 −0.385 −15.12 RAND −0.235 −9.25 −0.239 −9.40 SEL −0.277 −10.87 −0.281 −11.03 
+
+Aya-Expanse-8B 0.0719 GF-S RC +0.030 +0.42 +0.041 +0.57 GF-T GT −0.434 −6.04 −0.427 −5.94 RAND −0.273 −3.79 −0.262 −3.65 SEL −0.316 −4.40 −0.308 −4.28 
+
+Qwen3.5-9B 0.0211 GF-S RC +0.036 +1.72 +0.037 +1.75 GF-T GT −0.272 −12.93 −0.267 −12.68 RAND −0.138 −6.57 −0.135 −6.40 SEL −0.187 −8.86 −0.183 −8.69 
+
+Qwen3.5-27B 0.0206 GF-S RC +0.018 +0.87 +0.019 +0.94 GF-T GT −0.290 −14.10 −0.284 −13.76 RAND −0.155 −7.54 −0.151 −7.34 SEL −0.202 −9.78 −0.197 −9.55 
+
+Llama3.1-70B 0.0203 GF-S RC −0.104 −5.15 −0.104 −5.13 GF-T GT −0.472 −23.29 −0.469 −23.14 RAND −0.338 −16.66 −0.335 −16.53 SEL −0.374 −18.44 −0.371 −18.31 
+
+Llama3.3-70B 0.0186 GF-S RC −0.060 −3.24 −0.061 −3.27 GF-T GT −0.446 −23.99 −0.443 −23.83 RAND −0.295 −15.90 −0.293 −15.79 SEL −0.337 −18.11 −0.334 −17.99 
+
+mostly on the positive side for all CS conditions. Across the 32 model–condition cells, CANVAS shifts the anchor bias toward the source side in every cell and increases SRC similarity in ev-ery cell. Using the same upper-layer anchor bias defined in Section 3, CANVAS moves AB upper 
+
+source-ward by +0 .136 on average (range +0 .071 
+
+to +0 .224 across the eight models; per-model val-ues in Table 18), so the shift is consistently in the SRC direction. The projection metric also follows the intended direction: mean η is positive across model–condition cells (+0 .1983) , and 93 .0% of examples have η > 0, indicating that most CAN-VAS updates move CS representations source-ward. These results show that CANVAS not only improves QA scores, but also moves CS hidden states along the intended internal anchor direction. 0.0 0.1 0.2 0.3 0.4 0.5 0.6 
+
+> Projection ratio
+> Condition-wise normalized density
+> GF-Src
+> GF-Tgt
+> Random
+> Selective
+
+Figure 10: Source-ward representation movement. 
+
+Signed projection ratio η of the CANVAS displace-ment onto the SRC–TGT axis ( η > 0: source-ward; 
+
+η < 0: target-ward). 
+
+H.12 Cumulative Recovery Trajectory Setup. The per-layer projection ηℓ measures the fraction of the SRC–TGT representational gap that CANVAS closes at control layer ℓ. Reading these layer-wise contributions cumulatively answers a 28 Relative position r Mean S(r)                      
+
+> 0.0 0.000 0.1 0.127 0.2 0.306 0.3 0.516 0.4 0.749 0.5 (midpoint) 1.001 0.6 1.261 0.7 1.536 0.8 1.819 0.9 2.096 1.0 (final) 2.359
+> Table 21: Aggregate cumulative recovery along the control window. r∈[0 ,1] is the relative position within each model’s control-layer interval, and S(r)is the cu-mulative projection up to that position averaged across
+> 7,195 examples from eight models. The mean cumula-tive shift reaches exactly 1.0at the window midpoint and continues to grow to 2.36 by the final control layer.
+
+complementary question: how far along the SRC– TGT axis does the intervention carry the CS repre-sentation by each step? For a model with control window Lctrl = [ ℓ0, ℓ 0 + N − 1] , we define the cu-mulative recovery at relative position r∈[0 , 1] as 
+
+S(r) =  
+
+> ℓ0+⌊r(N−1) ⌋
+
+X
+
+> ℓ=ℓ0
+
+ηℓ.
+
+A value S(r) ≥ 1 means that the intervention has accumulated a shift equal to or larger than the full SRC–TGT representational distance by rela-tive position r. Using relative position rather than absolute layer count makes the trajectory compa-rable across models whose control windows have different lengths ( N =10 for the 32-layer mod-els, N =14 for Qwen3-30B-A3B, and N =19 for Qwen3.5-27B). 
+
+Aggregate trajectory. Table 21 reports ¯S(r)
+
+across all 7,195 examples from the eight models used in the representation analysis. The mean cu-mulative shift grows monotonically and reaches exactly ¯S(0 .5)=1 .001 at the window midpoint, then continues to ¯S(1 .0)=2 .36 by the final con-trol layer. Per-layer contributions therefore com-pound rather than cancel: by the time the interven-tion has used half of its allotted layers, the average representation has on aggregate already traversed the full SRC–TGT gap. 
+
+Crossing distribution. 71 .7% of examples cross S=1 at some point inside the control window. Among those, the median first-crossing position is r∗=0 .46 , and the mean is 0.53 —closely aligned with the aggregate midpoint behaviour. Only 6.4% cross within the first 30% 
+
+of the window and 37 .7% within the first 50% , so most trajectories use the second half of the control window to complete the traversal. This justifies the 30% layer budget: a shorter span would leave the majority of examples short of full traversal, while a longer span risks perturbing lower-layer composition (see Appendix H.6). 
+
+Model variance. Table 22 reports the same statistics per model. Trajectory length varies widely with capacity: Qwen3.5-27B accumulates the largest final shift ( ¯S(1 .0)=4 .72 ) with 71% 
+
+of inputs crossing by the midpoint, while Phi-3.5-MoE accumulates the smallest ( ¯S(1 .0)=1 .21 )with only 9% crossing that early. Larger Qwen models show both higher cumulative magnitudes and earlier crossings; Llama-3.1-8B reaches the gap relatively quickly ( r∗=0 .44 ) but at a smaller magnitude than the 27B Qwen. Despite this spread, every model except Phi-3.5-MoE drives more than 65% of its examples past full traversal. 
+
+Condition dependence. Table 23 shows the same trajectory broken down by CS condi-tion. Cumulative shift is largest for GF-T GT 
+
+( ¯S(1 .0)=2 .58 , 76% ever cross) and smallest for GF-S RC ( ¯S(1 .0)=1 .96 , 63% ever cross), with random and selective switching in between. This ordering mirrors the adaptive α schedule: target-heavy inputs receive stronger interventions, and the stronger interventions translate directly into longer cumulative trajectories along the SRC– TGT axis. 
+
+Interpretation. The cumulative analysis sup-ports three conclusions. First, per-layer interven-tions compound rather than cancel: by the mid-point of the control window, the mean shift already matches the full SRC–TGT gap. Second, the 30% layer budget is not redundant: only 37 .7% of ex-amples cross S=1 within the first half of the win-dow, so the remaining layers are needed to bring the bulk of examples past full traversal. Third, the condition-level differences confirm that the adap-tive controller produces representation-level ef-fects rather than nominal α adjustments alone — target-heavy inputs end the window further along the SRC–TGT axis than source-heavy inputs do, by an amount consistent with their adaptive α.29 Model ¯S(0 .5) ¯S(1 .0) %cross by 0.5 %ever cross median r∗                                             
+
+> Aya-Expanse-8B 0.748 1.601 23.1% 65.2% 0.556
+> Llama3.1-8B 1.034 2.140 40.7% 69.1% 0.444
+> Mistral-7B 0.770 1.710 26.1% 68.8% 0.556
+> Phi-3.5-MoE 0.422 1.212 8.8% 53.0% 0.778
+> Qwen3-30B-A3B 1.001 2.687 40.7% 77.3% 0.462
+> Qwen3.5-4B 1.080 2.427 46.1% 76.2% 0.444
+> Qwen3.5-9B 1.067 2.376 44.9% 74.7% 0.444
+> Qwen3.5-27B 1.886 4.719 71.4% 89.1% 0.333
+> Mean 1.001 2.359 37.7% 71.7% 0.462
+
+Table 22: Cumulative recovery per model. ¯S(r) is the mean cumulative projection at relative position r within the control window. “%cross by 0.5” is the fraction of examples whose cumulative S first reaches 1.0 at or before the midpoint. “%ever cross” is the fraction that crosses S=1 anywhere in the window. r∗ is the median relative position of the first crossing among examples that cross.                
+
+> CS condition ¯S(0 .5) ¯S(1 .0) %ever cross GF-S RC 0.769 1.964 63.4% GF-T GT 1.142 2.584 75.9% RANDOM 0.996 2.350 72.6% SELECTIVE 1.095 2.536 74.5%
+
+Table 23: Cumulative recovery by CS condition. 
+
+Target-heavy conditions (GF-T GT , S ELECTIVE ) accu-mulate a larger cumulative shift and cross S=1 more often than source-heavy GF-S RC , mirroring the adap-tive α schedule. 
+
+H.13 CANVAS Statistical Analysis 
+
+We assess the statistical reliability of the QA gains in Table 2 using paired per-example F1 scores from the six MLLMs in our primary sta-tistical cohort in Table 24 — those with B ASE 
+
+/ CANVAS adapt predictions on the full 2880 -question evaluation set and diverse MLLMs (Aya-Expanse-8B, Qwen3.5-{4B, 9B, 27B}, Llama-3.1-8B, Mistral-7B). For each model M and CS con-dition c we form the paired difference δM,c (x) = F1 CANVAS (M, c, x ) − F1 BASE (M, c, x ) over the ∼
+
+720 shared instances per condition. 
+
+Tests. For each of the 6×4 = 24 (model, condi-tion) cells we run a one-sided Wilcoxon signed-rank test against H0 : median( δM,c ) ≤ 0 and control the false discovery rate using the Ben-jamini–Hochberg procedure at q = 0 .05 . To sep-arate per-model noise from a population-level ef-fect, we treat the per-model means ¯δM,c as the unit of analysis: for each condition we report the cross-model mean, a model-level bootstrap 95 % CI ( 10 ,000 resamples of the six models with re-placement), and a one-sided binomial sign test against H0 : p = 0 .5 on the number of models with ¯δM,c > 0.
+
+Results. All six MLLMs show a positive over-all ¯δM (one-sided sign test, p = 1 .6×10 −2), with an overall mean lift of +0 .73 F1 (model-level 95 % CI [+0 .41 , +1 .10] ). The same 6/6 all-positive sign-test outcome ( p = 1 .6×10 −2) holds for GF-S RC , GF-T GT , and S ELECTIVE ; model-level bootstrap CIs in every one of the four CS conditions: S ELECTIVE +0 .95 ([+0 .50 , +1 .49] ), RANDOM +0 .80 ([+0 .22 , +1 .35] ), GF-T GT 
+
++0 .61 ([+0 .32 , +0 .90] ), and GF-S RC +0 .56 
+
+([+0 .20 , +0 .99] ). After BH–FDR correction across the 24 cells, eight are individually signifi-cant at q < 0.05 . The strongest per-cell evidence is concentrated in LLAMA -3.1-8B (three of four cells significant, with q = 0 .004 on both RANDOM and S ELECTIVE ), M ISTRAL -7B (two of four, including GF-T GT with ∆F1 = +0 .62 ,
+
+q = 0 .011 , and S ELECTIVE at q = 0 .018 ), and AYA -E XPANSE -8B (GF-T GT q = 0 .039 , R AN - 
+
+> DOM
+
+q = 0 .031 ). Across all 24 cells the point estimate is positive in 23 — a one-sided binomial test against p = 0 .5 gives p = 1 .5×10 −6, ruling out a chance pattern of cell-level lifts. 
+
+Anchor signal validity. The upper-layer an-chor bias used by CANVAS separates GF-S RC 
+
+from GF-T GT at large effect sizes at the per-example level: on anchor_bias_cos_qonly the per-model Cohen’s d values are +0 .77 (Qwen3.5-4B), +0 .79 (Qwen3.5-27B), +0 .81 (Qwen3.5-9B), and +1 .09 (Aya-Expanse-8B), all at or above the |d| ≥ 0.7 conventional threshold for a “large” separation. The Spearman correlation between this anchor signal and ∆F1 CS vs EN aggregated to the 
+
+(model , condition ) level is ρ = +0 .524 with boot-strap 95 % CI [+0 .07 , +0 .81] (p = 0 .037 , n = 16 
+
+cells). Together, the all-positive sign tests under three of four CS conditions and overall, the 23 /24 
+
+positive cell directions, and the large Cohen’s d on the anchor signal itself indicate that CANVAS’s gains are a robust population-level effect rather 30 GF-S RC                                                                                                                                                             
+
+> Model ∆F1 95% CI dzq
+> Aya-Expanse-8B +0 .94 [−0.19 ,+2 .13] 0.06 0.071
+> Qwen3.5-4B +0 .36 [−0.42 ,+1 .15] 0.03 0.288
+> Qwen3.5-9B +0 .14 [−0.66 ,+0 .93] 0.01 0.367
+> Qwen3.5-27B +0 .20 [−0.82 ,+1 .20] 0.01 0.367
+> Llama3.1-8B +1.50 [+0 .39 ,+2 .64] 0.10 0.018
+> Mistral-7B +0 .20 [−0.48 ,+0 .85] 0.02 0.170
+> Mean +0 .56 [−0.36 ,+1 .48] 0.04 —
+> GF-T GT
+> Model ∆F1 95% CI dzq
+> Aya-Expanse-8B +1.17 [+0 .16 ,+2 .18] 0.08 0.039
+> Qwen3.5-4B +0 .02 [−1.15 ,+1 .17] 0.00 0.367
+> Qwen3.5-9B +0 .49 [−0.12 ,+1 .17] 0.06 0.170
+> Qwen3.5-27B +0 .95 [−0.16 ,+2 .09] 0.06 0.071
+> Llama3.1-8B +0 .42 [−0.80 ,+1 .65] 0.03 0.217
+> Mistral-7B +0.62 [+0 .01 ,+1 .23] 0.07 0.011
+> Mean +0 .61 [−0.34 ,+1 .58] 0.05 —
+> Random
+> Model ∆F1 95% CI dzq
+> Aya-Expanse-8B +1.22 [+0 .12 ,+2 .34] 0.08 0.031
+> Qwen3.5-4B +0 .05 [−0.75 ,+0 .85] 0.00 0.470
+> Qwen3.5-9B −0.18 [−0.97 ,+0 .63] −0.02 0.773
+> Qwen3.5-27B +1.28 [+0 .21 ,+2 .38] 0.09 0.031
+> Llama3.1-8B +1.85 [+0 .71 ,+2 .98] 0.12 0.004
+> Mistral-7B +0 .56 [−0.05 ,+1 .23] 0.06 0.132
+> Mean +0 .80 [−0.12 ,+1 .74] 0.06 —
+> Selective
+> Model ∆F1 95% CI dzq
+> Aya-Expanse-8B +1 .13 [+0 .04 ,+2 .29] 0.07 0.052
+> Qwen3.5-4B +0 .91 [−0.16 ,+2 .01] 0.06 0.140
+> Qwen3.5-9B +0 .58 [−0.26 ,+1 .45] 0.05 0.106
+> Qwen3.5-27B +0 .13 [−1.12 ,+1 .40] 0.01 0.449
+> Llama3.1-8B +2.17 [+0 .91 ,+3 .49] 0.12 0.004
+> Mistral-7B +0.79 [+0 .23 ,+1 .44] 0.10 0.018
+> Mean +0 .95 [−0.06 ,+2 .01] 0.07 —
+
+Table 24: Statistical analysis of CANVAS, per condition. Each panel reports the per-model paired difference 
+
+∆F1 = CANVAS adapt − BASE (F1 × 100) on the full evaluation set. 95 % CIs are from 10 ,000 paired bootstrap resamples of question examples; dz is the Hedges-corrected paired effect size; q is the Benjamini–Hochberg-adjusted Wilcoxon signed-rank p-value (one-sided, alternative > 0) across all 6×4=24 cells. Bold entries are significant at q < 0.05 . The Mean row averages the per-model statistics within each condition. 
+
+than the consequence of a few favourable cells. 
+
+H.14 CANVAS Detector Sensitivity Motivation. CANVAS uses token-level lan-guage tags to decide which question tokens form the source canvas and which target-language token states are interpolated during prefill. The detector does not change the model, the decoding objec-tive, the control layers, or the adaptive rule 
+
+α = clip [0 .05 ,0.75] (0 .45 − 1.5γCS ).
+
+It only changes the S RC /T GT /O THER token parti-tion. We therefore evaluate how much the final in-tervention result depends on the language tagger. 
+
+Detector variants. We compare four taggers while keeping all other CANVAS components fixed. C URRENT is the tagger used in the main ex-periments: Unicode script rules for non-Latin tar-get languages and Lingua for Latin-script target languages. U NICODE -ONLY removes Lingua and labels Latin alphabetic tokens as source-language tokens; this is a lower-dependency stress test that should mainly hurt Latin-script target pairs. SOURCE -WORDSET uses the English source ques-tion as a lexical reference: Latin tokens that appear in the English source question are labeled S RC ,and remaining Latin content tokens are treated as TGT . This variant is analysis-only because it uses the source reference. R EFERENCE -ORACLE uses the available source and target reference questions to approximate a perfect token-level partition; it is not a deployable inference-time method, but it gives an upper bound on how much better token tagging could improve CANVAS. The runner also exposes optional langid and langdetect back-ends when those packages are installed, but the de-fault comparison avoids adding new dependencies and focuses on the current tagger, a no-detector stress test, and two reference-aided upper-bound settings. 
+
+Evaluation protocol. We run each detector on the same full CS examples and generation settings used for the main evaluation, using four models: Qwen3.5-4B, Llama3.1-8B, Mistral-7B, and Aya-Expanse-8B. We report macro-average F1 over GF-S RC , GF-T GT , random switching, and se-lective switching, along with condition-wise F1, mean α, and the percentage of examples where CANVAS skips intervention because either the source or target span is empty. The key com-parison is between C URRENT and R EFERENCE -
+
+> ORACLE
+
+. If the oracle row improves substantially, better token-level language identification offers re-maining headroom. If the oracle row is close to the current tagger, the main CANVAS gains are not strongly limited by detector quality. 
+
+Results. Table 25 shows that detector choice has only a small effect on aggregate CANVAS perfor-31 Detector Avg. F1 ∆ vs. current GF-Src GF-Tgt Random Selective Mean α Skip (%) Current tagger 6.98 +0.00 7.15 6.09 7.16 7.51 0.574 5.1 Unicode only 6.96 -0.01 7.15 6.14 7.09 7.48 0.542 38.4 Source-wordset 6.97 -0.00 7.18 6.00 7.18 7.53 0.521 6.2 Reference oracle 7.00 +0.03 7.27 6.00 7.15 7.58 0.512 9.6     
+
+> Table 25: Detector sensitivity for CANVAS. We keep the CANVAS steering rule fixed and vary only the token-level language tagger. Avg. F1 is macro-averaged over the four CS conditions. ∆is measured against the current Unicode+Lingua tagger. The reference-oracle row is an analysis-only upper bound and is not used as the deployable method.
+
+mance. The current tagger obtains 6.98 average F1, while the reference oracle obtains 7.00 aver-age F1, a gain of only +0.03. This means that a nearly perfect reference-based token partition does not materially change the intervention result in this model pool. The unicode-only stress test remains close in F1 (6.96), but it skips many more exam-ples (38.4%) because it cannot reliably split source and target spans when both languages use Latin script. The source-wordset variant also stays close to the current tagger, which suggests that the cur-rent detector already captures most of the useful source/target partition for CANVAS. 
+
+Interpretation. We therefore treat CANVAS as weakly dependent on the particular detector used here. Better token-level tagging may still help in-dividual Latin-script language pairs, but the full-run oracle comparison shows limited remaining headroom at the aggregate level. This also sup-ports the main intervention claim: the improve-ment is not primarily caused by a fragile language-detector choice, but by the representation-space source–target correction applied after token parti-tioning. 
+
+H.15 CANVAS Hyperparameter Sensitivity 
+
+We test whether the adaptive controller de-pends on a narrow hyperparameter optimum. The main paper setting instantiates the bounded schedule α = clip [αmin ,α max ](α0 − λγ CS ) with 
+
+(α0, λ, α min , α max ) = (0 .45 , 1.5, 0.05 , 0.75) . We report the surrounding negative-slope neighbour-hood on the same two-model panel (Qwen3.5-4B and Llama3.1-8B, two 100 -example seeds per model, macro-averaged over four CS conditions). The sweep varies α0 (0.40 –0.65 ) and the clipping range while keeping the effective slope −λ =
+
+−1.5, and Table 26 lists variants whose Mean F1 lies at or below the main setting. All listed vari-ants still improve over direct CS answering, with 
+
+∆F1 confined to a narrow [+0 .92 , +1 .04] band. The values used in the main paper are therefore a conservative bounded operating point in a flat negative-slope neighbourhood rather than a frag-ile optimum. 
+
+H.16 Task Extensions RAG setup. We use retrieval to test whether the CANVAS gain is limited to parametric fac-tual recall. We evaluate Llama-3.1-8B on two QA settings: the CodeMixQA short-answer task and PingPong multi-turn dialog QA. The no-retrieval condition ( K = 0) answers from the original task input, whereas the top-one retrieval condi-tion ( K = 1 ) prepends one retrieved passage be-fore answering so that the model can use external evidence in addition to its stored knowledge. For CodeMixQA, retrieval uses the CS question itself as the search query. For PingPong, we evaluate two retrieval queries: a question-only query and a dialog-aware query that concatenates the ques-tion with the full multi-turn dialog. The latter tests retrieval when the evidence-bearing entity or re-lation is only recoverable from the surrounding conversation rather than the final question alone. CodeMixQA uses token F1 against short gold an-swers, while PingPong QA follows the five-option multiple-choice protocol and reports parsed-letter accuracy. 
+
+Topic-classification setup. We also test a non-QA dialog task using the PingPong topic-classification split. Each example contains a code-switched multi-turn conversation and one topic la-bel from five categories. We provide the dialog and the label options to Llama-3.1-8B, parse the selected label from the model output, and report five-class accuracy for direct inference and CAN-VAS. 
+
+Results. Table 27 collects the extension re-sults. On CodeMixQA, retrieval raises the direct-answer baseline substantially, and CANVAS still improves the retrieved condition from 19.71 to 20.60 F1. The gain is larger in the matched no-retrieval condition, where CANVAS improves 32 Adaptive schedule Avg. F1 (%) 
+
+center slope αmin αmax Qwen3.5-4B Llama3.1-8B Mean ∆
+
+0.45 −1.5 0.05 0.75 7.98 7.68 7.83 +1.04 ★
+
+0.45 −1.5 0.05 0.80 7.93 7.76 7.82 +1.02 0.45 −1.5 0.10 0.80 7.91 7.74 7.82 +1.02 0.45 −1.5 0.10 0.85 7.89 7.73 7.81 +1.01 0.40 −1.5 0.05 0.75 7.95 7.63 7.79 +0.99 0.40 −1.5 0.05 0.80 7.91 7.65 7.78 +0.98 0.40 −1.5 0.05 0.70 7.89 7.64 7.76 +0.97 0.50 −1.5 0.10 0.75 7.94 7.69 7.82 +1.02 0.55 −1.5 0.10 0.85 7.70 7.92 7.81 +1.01 0.60 −1.5 0.15 0.85 7.81 7.80 7.80 +1.01 0.55 −1.5 0.15 0.85 7.70 7.88 7.79 +0.99 0.65 −1.5 0.15 0.90 7.82 7.73 7.78 +0.98 0.60 −1.5 0.15 0.80 7.77 7.76 7.76 +0.97 0.55 −1.5 0.10 0.80 7.66 7.86 7.76 +0.96 0.55 −1.5 0.15 0.80 7.66 7.82 7.74 +0.95 0.55 −1.5 0.10 0.90 7.75 7.73 7.74 +0.94 0.60 −1.5 0.15 0.90 7.83 7.60 7.72 +0.92 
+
+Base — — — 7.41 6.19 6.80 —
+
+Table 26: CANVAS hyperparameter sensitivity. Schedule α = clip [αmin ,α max ](center − 1.5γCS ). The starred row ( ★) is the main paper setting; we list only variants whose Mean F1 falls at or below it. All variants improve over B ASE , with ∆F1 in [+0 .92 , +1 .04] .                                                             
+
+> Dataset Task Search Query Retrieval Metric Items BASE CANVAS ∆
+> CodeMixQA Short-answer QA –K= 0 Token F1 2880 5.81 7.51 +1 .70
+> CodeMixQA Retrieval-augmented QA Question K= 1 Token F1 2880 19.71 20.60 +0 .89
+> PingPong Multi-turn dialog QA –K= 0 Accuracy 1683 46.76 48.48 +1 .72
+> PingPong Retrieval-augmented dialog QA Question K= 1 Accuracy 1683 44.86 46.64 +1 .78
+> PingPong Retrieval-augmented dialog QA Question + dialog K= 1 Accuracy 1683 46.23 48.48 +2 .26
+> PingPong Topic classification ––Accuracy 396 49.75 51.26 +1 .52
+
+Table 27: Retrieval and task extensions for CANVAS. We evaluate Llama-3.1-8B with direct inference (B ASE )and the same CANVAS intervention used in the main experiments. K = 0 uses no retrieved passage, whereas 
+
+K = 1 prepends one retrieved passage for the QA tasks. For PingPong RAG, we compare retrieval from the question alone with retrieval from the question concatenated with its dialog context. 
+
+short-answer QA by +1 .70 F1. On PingPong, CANVAS improves dialog QA without retrieval from 46.76 to 48.48 accuracy ( +1 .72 ) and re-mains beneficial in both top-one RAG settings. The question-only retrieval setting improves from 44.86 to 46.64 accuracy ( +1 .78 ), while the dialog-aware retrieval setting improves from 46.23 to 48.48 accuracy ( +2 .26 ). These RAG gains show that the effect is not limited to recovering source-language parametric knowledge: when retrieved evidence is available, source-canvas alignment still helps the model integrate the CS query with external context. Dialog-aware retrieval gives a stronger retrieved baseline and the larger CAN-VAS gain, showing that the surrounding dialog can improve retrieval when the final question alone un-derspecifies the evidence request. The same inter-vention improves topic classification from 49.75 to 51.26 accuracy, extending the effect beyond QA. 33 5.0 2.5 0.0 2.5 5.0 7.5 10.0 12.5 15.0 
+
+> 6
+> 4
+> 2
+> 0
+> 2
+> 4
+> Qwen3.5-4B
+> Residual PC1
+
+GF-Src        
+
+> 2.5 0.0 2.5 5.0 7.5 10.0 12.5 15.0
+> 6
+> 4
+> 2
+> 0
+> 2
+> 4
+> 6
+
+GF-Tgt        
+
+> 10 010 20 30 40 50 60
+> 10
+> 0
+> 10
+> 20
+> 30
+> Qwen3.5-9B
+> Residual PC1
+
+GF-Src         
+
+> 10 010 20 30 40 50 60
+> 10
+> 0
+> 10
+> 20
+> 30
+
+GF-Tgt         
+
+> 10 20 30 40 50 60 70 80 90
+> 0
+> 10
+> 20
+> 30
+> 40
+> Qwen3.5-27B
+> Residual PC1
+
+GF-Src         
+
+> 10 20 30 40 50 60 70 80 90
+> 0
+> 10
+> 20
+> 30
+> 40
+
+GF-Tgt         
+
+> 420246810 12
+
+SRC-TGT axis 
+
+> 12
+> 10
+> 8
+> 6
+> 4
+> 2
+> 0
+> Llama3.1-8B
+> Residual PC1
+
+GF-Src        
+
+> 20246810 12
+
+SRC-TGT axis  
+
+> 12
+> 10
+> 8
+> 6
+> 4
+> 2
+> 0
+
+GF-Tgt 
+
+TGT SRC CS Base CS CANVAS Figure 11: Model-wise CANVAS representation movement. We visualize the same representation analysis for four representative models. Each row is a model and each column is a grammar-forced CS condition. Triangles mark SRC/TGT anchors, gray points mark base CS states, teal points mark CANVAS states, and arrows connect the base and CANVAS centroids. Across models, CANVAS shifts the CS centroid toward the source-side region of the SRC–TGT axis. 
+
+34 0 
+
+> 1
+> 2
+> 3
+
+Qwen3.5-4B  
+
+> Pr( > 0) = 94.1%
+> 0
+> 1
+> 2
+> 3
+
+Qwen3.5-9B  
+
+> Pr( > 0) = 94.3%
+> 0
+> 1
+> 2
+> 3
+
+Qwen3.5-27B   
+
+> Pr( > 0) = 93.8%
+> 0
+> 1
+> 2
+> 3
+> 4
+
+Aya-8B   
+
+> Pr( > 0) = 92.0%
+> 0
+> 1
+> 2
+> 3
+> 4
+
+Llama3.1-8B   
+
+> Pr( > 0) = 93.9%
+> 0
+> 1
+> 2
+> 3
+> 4
+
+Mistral-7B          
+
+> Pr( > 0) = 92.1%
+> 0.1 0.0 0.1 0.2 0.3 0.4 0.5 0.6
+> 0
+> 2
+> 4
+> 6
+
+Phi-3.5-MoE          
+
+> Pr( > 0) = 90.4%
+> 0.1 0.0 0.1 0.2 0.3 0.4 0.5 0.6
+> 0
+> 1
+> 2
+> 3
+> 4
+
+Qwen3-30B-A3B  
+
+> Pr( > 0) = 93.6%
+
+Signed projection ratio    
+
+> Probability density
+> GF-Src GF-Tgt Random Selective
+
+Figure 12: Model-wise source-ward representation movement. We plot the signed projection ratio η of the CAN-VAS displacement onto the SRC–TGT anchor axis for each analyzed model. Positive values indicate movement toward the source anchor. Each panel reports the percentage of examples with η > 0.
+
+35 0.2 
+
+> 0.4
+> 0.6
+
+Qwen3.5-4B Qwen3.5-9B 
+
+> 0.2
+> 0.4
+> 0.6
+
+Qwen3.5-27B Aya-8B 
+
+> 0.2
+> 0.4
+> 0.6
+
+Llama3.1-8B Mistral-7B      
+
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> 0.2
+> 0.4
+> 0.6
+
+Phi-3.5-MoE      
+
+> 0.0 0.2 0.4 0.6 0.8 1.0
+
+Qwen3-30B-A3B 
+
+SRC token ratio    
+
+> Effective interpolation strength
+> GF-Src GF-Tgt Random Selective
+
+Figure 13: Model-wise adaptive intervention strength. We compare the source-token ratio ρ with the effective interpolation strength α selected by CANVAS for each analyzed model. Lower ρ corresponds to more target-heavy inputs, and the binned trend lines show how the adaptive rule changes intervention strength within each model. 
+
+36

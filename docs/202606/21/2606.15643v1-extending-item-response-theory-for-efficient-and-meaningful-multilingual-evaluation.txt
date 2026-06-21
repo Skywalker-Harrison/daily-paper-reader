@@ -1,0 +1,1322 @@
+Title: Extending Item Response Theory for Efficient and Meaningful Multilingual Evaluation
+
+URL Source: https://arxiv.org/pdf/2606.15643v1
+
+Published Time: Tue, 16 Jun 2026 01:03:38 GMT
+
+Number of Pages: 19
+
+Markdown Content:
+## Extending Item Response Theory for Efficient and Meaningful Multilingual Evaluation 
+
+Gili Lior 1,2 Tzviel Frostig 3 Gabriel Stanovsky 2 Matan Eyal 1
+
+> 1
+
+Google Research 2The Hebrew University of Jerusalem 3PhaseV Trials   
+
+> {gililior,matane}@google.com gabriel.stanovsky@mail.huji.ac.il tzviel@phasevtrials.com
+
+Abstract 
+
+Multilingual benchmarks are central to eval-uating large language models (LLMs) across languages, but they suffer from three issues: exhaustive evaluation scales linearly with the number of languages, automatic translation in-troduces errors that are easily missed at scale, and some items conflate general and culture-specific knowledge. We address all three with a unified statistical framework, Multilingual-IRT , which extends Item Response Theory with per-language difficulty deviations, split discrim-inability separating content from language ef-fects, and per-language ability residuals. Fit-ting Multilingual-IRT on 25 LLMs across 29 languages of MMLU-Pro-X, we show that its fitted parameters support three practical appli-cations: predicting unobserved (item, LLM, language) instances with 11 −16% lower bi-nary cross-entropy than the strongest accuracy-based baseline, surfacing candidate translation errors distributed across all 28 non-English lan-guages, whereas accuracy-based baselines con-centrate detections in a few languages, and re-covering culture-specific items that accuracy-based baselines miss. 1
+
+1 Introduction 
+
+Multilingual benchmarks enable the evaluation of model capabilities across diverse languages, in-cluding in low-resource and culture-specific set-tings (Xu et al., 2025; Qin et al., 2025). To enable direct cross-lingual comparison, such benchmarks are typically parallel, i.e., the same items are tested across multiple languages, so that differences in model performance can be attributed to language-rather than item-variation (Bandarkar et al., 2024; Zhang et al., 2025). Despite their popularity, current parallel multilin-gual benchmarks suffer from three fundamental is-sues. First, the cost of exhaustive evaluation scales  
+
+> 1Project page: https://gililior.github.io/multili ngual_irt
+
+linearly with the number of languages in the bench-mark, making it prohibitively expensive to evaluate all LLMs on all samples (Wu et al., 2025). Second, multilingual benchmarks are often built via auto-matic translation, making them prone to translation errors (Agrawal et al., 2024), which are hard to identify (Peter et al., 2025). Third, independently of translation quality, some items conflate between general and culture-specific knowledge, which has been shown to affect model performance (Goldman et al., 2025). In this work, we propose a unified framework that jointly reduces evaluation cost, surfaces trans-lation errors, and disentangles general from culture-specific knowledge, by extending Item Response Theory (IRT; Lord, 1952) to multilingual settings. IRT models the probability that a given test-taker answers a given item correctly, by characterizing each benchmark item i with a difficulty parameter bi
+
+and a discriminability parameter ai, which captures how strongly the item differentiates between test-takers (Birnbaum, 1968). In parallel, each test-taker j is parameterized by a latent ability θj , and together these parameters define the probability that test-taker j answers item i correctly. We extend the traditional formulation of IRT to 
+
+Multilingual-IRT , with three mathematical com-ponents which capture the structure of parallel multilingual benchmarks: (1) An item’s language-specific difficulty deviations ( dil ) let its difficulty vary across languages, reflecting how translation can make the same question harder in different languages. (2) An LLM’s (i.e., the test taker) 
+
+language-specific ability residual εjl captures how an LLM’s proficiency in language l deviates from its overall ability θj . (3) The content-and-language discriminability split decomposes an item’s dis-criminability ai into a language-invariant com-ponent abase  
+
+> i
+
+, capturing how the item’s content separates LLMs’ performance, and a language-dependent component alang  
+
+> i
+
+, capturing the sepa-1
+
+> arXiv:2606.15643v1 [cs.CL] 14 Jun 2026
+
+ration introduced by the language-specific resid-ual εjl . For example, a simple math problem may barely separate LLMs by overall ability (low abase  
+
+> i
+
+)yet separate them sharply by their proficiency in the given language (high alang  
+
+> i
+
+). Together, these adaptations assign a probability of correctness to every (item , LLM , language) instance. We fit Multilingual-IRT on the predictions of 25 LLMs across 29 languages on MMLU-Pro-X (Xuan et al., 2025) and use the fitted param-eters to revisit the three issues above, compar-ing against accuracy-based non-parametric base-lines. First, Multilingual-IRT enables efficient evaluation: across a wide range of subsampling rates, it predicts unseen (item , LLM , language) 
+
+instances with substantially lower binary cross-entropy ( 11 −16% reduction) than the strongest accuracy-based baseline, avoiding exhaustive eval-uation across all languages while maintaining pre-diction quality. Second, ranking items by their per-language difficulty shift dil surfaces candidate translation errors distributed across all 28 non-English languages, unlike accuracy-based base-lines, whose detections concentrate in only a few of these languages. Third, ranking items by the discriminability ratio alang  
+
+> i
+
+/a base  
+
+> i
+
+recovers culture-specific items that accuracy-based baselines miss. We also mathematically analyze the fitted parame-ters, finding, for example, that the discriminability parameters abase  
+
+> i
+
+, a lang  
+
+> i
+
+encode signal that simple accuracy-based statistics cannot. We summarize our contributions: • Multilingual-IRT , a unified statistical frame-work for parallel multilingual benchmarks, that jointly models item difficulty, discrim-inability, and LLM ability across languages. • Three downstream applications addressing key issues in multilingual benchmarks: ef-ficient evaluation, automated flagging of can-didate translation errors, and detection of culture-specific items. • An empirical study on MMLU-Pro-X, cov-ering 29 languages and 25 LLMs, showing that IRT-based methods offer advantages over non-parametric accuracy-based baselines. 
+
+2 Background and Related Work 
+
+In this section we provide the basics of IRT theory (§2.1), and describe how current NLP benchmarks leverage IRT to evaluate LLMs (§2.2). 
+
+2.1 Item Response Theory 
+
+Item Response Theory (IRT) is a statistical frame-work originally derived from psychometric testing, used to quantify the relationship between an in-dividual’s latent ability and their performance on specific test items (Lord, 1952; Lord et al., 1968) Under this paradigm, each question in the test is characterized by item parameters, while each test-taker (in our case, the evaluated LLM) is assigned a latent ability score. In the foundational Two-Parameter Logistic (2PL) IRT model (Birnbaum, 1968), the probability of a correct response for test taker j in question i is: 
+
+pij = 11 + e−ai(θj −bi) (1) Or equivalently logit( pij ) = ai(θj − bi), where θj
+
+is the latent ability of the test taker, and the two item parameters ai and bi represent the discriminability and difficulty of the item, respectively. The dif-ficulty bi is the ability level at which a test-taker has a 50% chance of success. The discriminabil-ity ai controls how sharply the success probability changes around bi: high ai means the item cleanly separates test-takers of different abilities, low ai
+
+means it does not. Building on this, Multidimensional Item Re-sponse Theory (MIRT; Reckase (2009)) extends 2PL IRT by modeling a test-taker’s ability as a vec-tor θj rather than a scalar, letting an item load onto multiple distinct traits simultaneously: 
+
+logit( pij ) = a⊤ 
+
+> i
+
+θj − bi (2) where ai is a vector of discriminability parameters, one per latent trait dimension in θj .
+
+2.2 IRT in LLM Evaluation 
+
+Recently, IRT has been adopted in NLP primarily to enhance evaluation efficiency. A line of work uses IRT for benchmark compression (Polo et al., 2024; Kipnis et al., 2025), dynamic performance estima-tion (Hofmann et al., 2025), and adaptive testing to minimize evaluation costs (Li et al., 2025). Beyond efficiency, IRT is also used to analyze benchmark validity, separating item difficulty from model abil-ity (Zhou et al., 2026) and testing whether LLM ability and item difficulty interact in the expected way, with stronger models succeeding on harder items, similar to human test-takers (Säuberli et al., 2025; Liu et al., 2025). 2These applications, however, have been so far restricted to monolingual (typically English) bench-marks, and to the best of our knowledge has not extended IRT to model the parallel structure of multilingual benchmarks. 
+
+2.3 Limitations of Standard IRT for Multilingual Benchmarks 
+
+While 2PL MIRT supports multiple latent traits, it requires non-trivial adaptation for multilingual benchmarks. First, it suffers from rotational indeterminacy :any invertible linear transformation of the latent space yields an equally good fit, so the mapping between latent dimensions and specific traits is not identifiable (Chen and Zhang, 2020; Chen et al., 2021). While this can be resolved by specifying in advance which items load on which traits (Chen and Zhang, 2020), it is unclear how to do so for multilingual benchmarks. This would require to know up front which items probe which language-specific aspects, but this is exactly what to find out using the model. Second, both standard 2PL IRT and 2PL MIRT do not capture the parallel structure of multilin-gual benchmarks: translations of the same item are treated as unrelated items, even though answer-ing item i correctly in one language l is correlated with answering it correctly in another language l′.These are valuable signals for imputing missing data, detecting translation errors, and identifying culture-specific items, none of which traditional IRT models can exploit. Our suggested Multilingual-IRT model ad-dresses both gaps jointly: it resolves rotational in-determinacy through an asymmetric construction of the latent dimensions, and it models the parallel structure of multilingual benchmarks explicitly. 
+
+3 The Multilingual-IRT Model 
+
+In this section, we present our adaptation of the standard IRT model to multilingual benchmarks. We assume a parallel benchmark: each item ap-pears in multiple languages, and the correspon-dence between an item’s versions across languages is known. 
+
+Definition 1 ( Multilingual-IRT ) For item i ∈{1, . . . , I }, LLM j ∈ { 1, . . . , J }, and language 
+
+l ∈ { 1, . . . , L }, the correctness Yijl ∈ { 0, 1}
+
+of LLM j on item i in language l is modeled as 
+
+Yijl ∼ Bernoulli (pijl ), with logit (pijl ) = abase  
+
+> i
+
+θj + alang  
+
+> i
+
+(εj )l − (bi + dil ),
+
+subject to the sum-to-zero constraints 
+
+> L
+
+X
+
+> l=1
+
+dil = 0 ,
+
+> L
+
+X
+
+> l=1
+
+(εj )l = 0 ,
+
+with the cross-lingual prior εj ∼ N (0 , σ 2Rlng ),where Rlng ∈ RL×L is a learned correlation matrix. 
+
+Multilingual-IRT is built around three compo-nents, each accommodating important features of parallel multilingual benchmarks not supported by the standard IRT setup. Multilingual-IRT can be viewed as the most expressive member of the M2-IRT family ( Modular and Multilingual IRT; Ta-ble 1), whose other members retain only a subset of the three components. Below we elaborate on each of the components. 
+
+(1) Language-specific difficulty deviations dil .
+
+Translation can make the same item harder in one language than in another, e.g., when nuance is lost or hints are dropped. Multilingual-IRT lets item 
+
+i’s difficulty in language l become bi + dil , where 
+
+bi ∈ R is a baseline difficulty shared across lan-guages and dil captures language-specific deviation. The sum-to-zero constraint on dil makes bi identi-fiable as the cross-lingual mean difficulty: dil > 0
+
+indicates that translation into language l makes item i harder than its cross-lingual average, and 
+
+dil < 0 that it makes it easier. 
+
+(2) Language-specific ability residuals εj ∈ RL
+
+with prior Rlng ∈ RL×L. An LLM’s proficiency varies across languages, and prior work has shown that performance is correlated across related lan-guages (Ahuja et al., 2023; Singh et al., 2025). 
+
+Multilingual-IRT decomposes each LLM’s per-language ability into a language-invariant overall ability θj ∈ R and a language-specific residual vec-tor εj ∈ RL, where (εj )l is LLM j’s deviation in language l from its overall ability θj . The residuals are coupled across languages through the learned correlation matrix Rlng ∈ RL×L: Rlng  
+
+> l,l ′
+
+captures how similarly languages l and l′ affect LLM per-formance, with values close to 1 indicating that residuals tend in the same direction. Rlng is learned jointly with the rest of the model parameters and provides a data-driven measure of cross-lingual similarity in LLM behavior, without typological or 3language-family supervision. Beyond its role as a prior, Rlng itself becomes an interpretable artifact that reveals cross-lingual patterns diverging from established typological groupings. 
+
+(3) Decomposed discriminability abase  
+
+> i
+
+, a lang  
+
+> i
+
+.
+
+The language of presentation can itself affect how strongly an item discriminates between LLMs: a question solvable by most models in English may separate them sharply once translated into a low-resource language. Multilingual-IRT decomposes the standard discriminability ai into two scalars: 
+
+abase  
+
+> i
+
+, capturing how much the item’s content sep-arates LLMs (a language-invariant property), and 
+
+alang  
+
+> i
+
+, capturing the additional separation intro-duced by the change of language . In Definition 1, 
+
+abase  
+
+> i
+
+multiplies the overall ability θj and alang  
+
+> i
+
+mul-tiplies the language-specific residual ( εj ), so the two discriminabilities interact with the correspond-ing sources of LLMs’ variation. 
+
+4 Experimental Setup 
+
+In this section we describe how we fit Multilingual-IRT and the other M2-IRT family’s variants. 
+
+LLMs. We evaluate 25 LLMs spanning seven model families: Aya (Üstün et al., 2024), Qwen3.5 (Team, 2026), OLMo-3 (Olmo et al., 2025), Gemma-3 (Gemma Team et al., 2025), Llama-3 (Grattafiori et al., 2024), Phi-4 (Abdin et al., 2024), and GPT-OSS (Agarwal et al., 2025), ranging in size from 2B to 120B parameters. We use the instruction-tuned variants. Model details are listed in Table 5 in the Appendix. 
+
+Benchmark: domains and languages. We fit 
+
+Multilingual-IRT and its variants on LLM predic-tions for MMLU-Pro-X (Xuan et al., 2025), a multiple-choice questions benchmark of 11,759 items with 10 answer options per question, span-ning diverse domains such as mathematics, physics, and law across 29 languages. The languages in-clude both high-resource (e.g., English, German, Chinese) and low-resource (e.g., Yoruba, Swahili), covering a wide range of scripts and families. The full list of languages is given in Table 6 in the Ap-pendix. 
+
+The M2-IRT family of variants. To isolate each component’s contribution, we fit a set of simpler variants, unified under our M2-IRT family (Table 1), each retaining only a subset of the components. 
+
+Indep-IRT fits a separate standard IRT model per language. Parallel-IRT adds shared item parame-ters ai, b i together with a language-specific ability 
+
+θjl . Coupled-IRT reparameterizes this ability as a shared component plus a language-specific residual (θjl → θj + εjl ) and places the cross-lingual prior 
+
+Rlng over the residuals, using a single discrimina-tion ai.2 Finally, the full Multilingual-IRT model assigns the shared ability and the residual distinct discrimination loadings abase  
+
+> i
+
+, a lang  
+
+> i
+
+; the asymmetry between the scalar θj and the sum-to-zero vector 
+
+εjl breaks the rotational indeterminacy of standard MIRT. 
+
+Model fit. We fit the Multilingual-IRT and its variants using stochastic variational infer-ence (SVI; Hoffman et al. (2013)), which approx-imates the posterior at the benchmark’s ∼8.5Mobservations, where alternatives such as MCMC are infeasible. Throughout, we report posterior means and standard deviations for each parameter. Implementation, priors, and optimization details are in Appendix B. 
+
+Identifiability. As noted above, Multilingual-IRT 
+
+is constructed to break the rotational indeterminacy of standard MIRT models. We verify this empiri-cally with a simulation study and a seed-stability test (Table 7 and 8 in Appendix). Together these confirm that the Multilingual-IRT formulation we suggest is not just identifiable in principle but also reproducible in practice. 
+
+5 Downstream Applications 
+
+As mentioned earlier, multilingual benchmarks suf-fer from three core issues: evaluation cost, trans-lation errors, and culture-specific items inflate be-tween cultural and general knowledge. Below, we show how Multilingual-IRT ’s fitted parameters pro-vide three downstream applications that address these issues. In all of these, we compare Multilingual-IRT 
+
+against parametric ablations and non-parametric baselines. The parametric ablations are taken from the M2-IRT family variants (Table 1), which let us attribute each application’s performance to the spe-cific component it relies on. The non-parametric baselines are accuracy-based scores computed di-rectly from the predictions tensor Yijl and tailored to each application, isolating the gain from the para-metric approach.          
+
+> 2The parameterizations of Parallel-IRT and Coupled-IRT
+> are mathematically equivalent, since θj+εjl can be absorbed into a single θjl . We retain it to study the role of Rlng .
+
+4Variant Name Difficulty ( bi) Disc. ( ai) Ability ( θj ) # Learned Parameters Response model ( pijl )                                                         
+
+> Indep-IRT bil ail θjl 2IL +JL σ(ail (θjl −bil ))
+> Parallel-IRT bi+dil aiθjl I(L+1) + JL σ(ai(θjl −(bi+dil )))
+> Coupled-IRT bi+dil aiθj+ ( εj)lI(L+1) + JL σ(ai(θj+ ( εj)l−(bi+dil )))
+> Multilingual-IRT bi+dil abase
+> i, a lang
+> iθj+ ( εj)lI(L+2) + JL σ
+> 
+> abase
+> iθj+alang
+> i(εj)l−(bi+dil )
+> 
+
+Table 1: The M2-IRT family variants . Each row shows how a variant adapts the parameters of the standard IRT model (Eq. 1). # Learned parameters denotes the total number of learned parameters for a given I items, J LLMs, and L languages. Sum-to-zero constraint is applied on dil and (εj )l wherever they are presented. Moreover, (εj )l is drawn from a shared cross-lingual prior parameterized by Rlng , as presented in Definition 1. 
+
+5.1 Efficient Evaluation 
+
+We first evaluate how Multilingual-IRT can help in efficient multilingual benchmarking, where exhaustive evaluation every LLM on every 
+
+(item , LLM , language) instance of the benchmark can be overly expensive. For instance, MMLU-Pro-X consists of 11,759 items in 29 languages, so evaluating 25 LLMs against it requires filling an 
+
+∼8.5M predictions tensor Yijl .
+
+Multilingual-IRT instead can fit its parameters from a partial set of observations and predict the remainder, so most of the tensor never needs to be evaluated. While the model introduces addi-tional parameters to be learned, both estimating them and predicting held-out entries cost negligi-bly compared to LLM inference (Appendix D). We sample a fraction ρ ∈ (0 , 1) of 
+
+(item , LLM , language) instances on which to run inference, and fit both Multilingual-IRT and our baseline models on this subset. The learned param-eters are then used to predict the success probabili-ties bpijl on the unobserved (1 − ρ) fraction. 
+
+Multilingual-IRT predicts unseen instances bet-ter than any non-parametric baseline, mostly due to simple item-parameter sharing of 
+
+ai, bi across languages. As shown in Figure 1, 
+
+Multilingual-IRT outperforms every accuracy-based baseline at any fraction of observations ρ,with 11–16% lower Binary Cross Entropy (BCE) and smaller but consistent gains in ROC-AUC on the unobserved instances. A natural follow-up question is which component of Multilingual-IRT 
+
+drives the predictive gains. Examining the M2-IRT 
+
+family’s different variants, we see that the biggest difference in performance is between Indep-IRT ,which fits each language separately, and Parallel-IRT , which shares item parameters bi and ai across languages while allowing per-language difficulty deviations dil . Beyond that, coupling per-language ability residuals through the cross-lingual prior over (εj )l (Coupled-IRT ) and splitting discrim-inability into abase  
+
+> i
+
+, a lang  
+
+> i
+
+(Multilingual-IRT ) do not improve prediction substantially. 
+
+Predictions are stable in ρ. Multilingual-IRT 
+
+reaches nearly its full predictive performance from a small fraction of observed instances. BCE im-proves by only 4.2% when going from ρ=0 .1 to 
+
+ρ=0 .9 of observed instances, with most of the gain achieved by ρ=0 .4. In practice, this means 60% of the instances can be left unseen with negligible loss in prediction quality. 
+
+5.2 Detection of Translation Errors 
+
+Creating multilignual benchmarks via automatic translation may introduce errors that distort the evaluation signal, and the massive scale of such benchmarks makes these artifacts difficult to de-tect (Peter et al., 2025). Because exhaustive man-ual review is prohibitively e, automated methods are needed to flag candidate translation errors for subsequent targeted review by human annotators or LLMs. 
+
+Multilingual-IRT ’s lends itself to translation er-ror detection by observing how an instance diffi-culty diverges from the item’s base difficulty bi
+
+via its language-specific difficulty deviations dil .Specifically, errors that alter a question’s mean-ing, remove hints, or invalidate the answer choices would make the item harder. Due to the P 
+
+> l
+
+dil = 0 
+
+constraint, the added difficulty of translation errors may be captured via a positive dil . Based on this, we formulate a ranking score to surface candidate translation errors: 
+
+s(i, l ) = dil 
+
+dSE (dil ) (3) Where dSE (dil ) is the posterior standard deviation from SVI. Because this score relies on an LLM-invariant parameter, it captures the translation qual-ity independent of the evaluated LLMs. 50.2 0.4 0.6 0.8              
+
+> fraction of observed instances ½
+> 0.42
+> 0.44
+> 0.46
+> 0.48
+> 0.50
+> 0.52
+> # BCE  (unseen instances)
+> (a)
+> 0.2 0.4 0.6 0.8
+> fraction of observed instances ½
+> 0.78
+> 0.80
+> 0.82
+> 0.84
+> 0.86
+> AUC  " (unseen instances)
+> (b)
+> item-mean ( ¹Yi)
+> Multilingual-IRT
+> c
+> Ai+c
+> Ajl
+> Parallel-IRT
+> c
+> Ai+c
+> Ajl +c
+> Ail
+> Indep-IRT
+
+Figure 1: Prediction scores over unseen (item , LLM , language) instances, as a function of the fraction of seen instances. Two complementary metrics are shown: (a) Binary Cross Entropy (BCE), and (b) ROC-AUC. Coupled-IRT ’s curve entirely overlaps with Parallel-IRT and so it is not visible. The accuracy-based non-parametric baselines are computed directly on the predictions tensor Yijl , where bAS = logit ( ¯YS ) is the logit of the corresponding mean over the index set S, e.g., ¯Yi = mean j,l Yijl (averages over LLMs and languages). The baselines are: (1) per-item mean, bpijl = ¯Yi; (2) logit-additive model, bpijl = bAi + bAjl ; and (3) logit-additive model with a per-(item, language) term, bpijl = bAi + bAjl + bAil .
+
+LLM-as-a-judge for translation error detection. 
+
+We annotate translation errors surfaced by the dif-ferent methods using Gemini-2.5-Flash (Comanici et al., 2025) as a judge (Full prompt in Listing 1 in Appendix). For each pair of an English source ques-tion and its target-language translation, the judge assigns a severity level (Critical, Minor, or None) and selects one of four error categories: Semantic Shift, Logic Alteration, Source Intrusion, or For-matting Failure. Throughout this section, we use the term critical-strict to denote instances labeled as Critical that also fall into one of three categories: Semantic Shift, Logic Alteration, or Formatting Failure. We isolate these three because they funda-mentally alter the set of correct answers. Source Intrusion is analyzed separately, since untranslated English terms can make a question easier rather than harder, and do not alter the meaning of the question or its choices as critical errors do. Fig-ure 8 in Appendix provides examples and presents the taxonomy of the identified translation errors. 
+
+Humans broadly agree with the judge’s anno-tations of translation errors. To validate the model’s ability to identify translation errors, four in-house annotators evaluated a sample of 77 detected error instances by Gemini-2.5-Flash across Arabic, French, and Russian. Annotators were presented with the judge’s full output (error type, severity, and explanation) and were tasked to agree , par-tially agree , or disagree . As shown in Table 2, the model demonstrates strong precision across both strict (68%) and lenient (79%) agreement criteria, with consistent alignment across error categories, indicating that the judge provides a reliable signal for automated error detection in multilingual bench-marks. Detailed annotation guidelines are available in Figure 7 in Appendix. 
+
+Gemini-2.5-Flash’s translation-error annota-tions agree with a multi-judge majority, with a tendency to over-flag errors. Following re-cent work advocating an ensemble approach to LLM-as-a-judge evaluation (Verga et al., 2024), we test whether Gemini-2.5-Flash’s anno-tations agree with a majority vote over Gemini-2.5-Flash, GPT-5.4 mini (OpenAI, 2026), and Claude Haiku 4.5 (Anthropic, 2025). We draw a balanced subset of 60 K items annotated by Gemini-2.5-Flash, half flagged with translation errors and half clear, and have the two additional judges an-notate them. On this subset, Gemini-2.5-Flash agrees with the majority in 86.3% of cases. The 13.7% of disagreements are asymmetric: most are items where Gemini-2.5-Flash flagged an er-ror that both other judges cleared, while only a small fraction (under 2% of the subset) are items Gemini-2.5-Flash judged error-free but both oth-6logit ¹Yi ¡ logit ¹Yil                              
+
+> ¹Yi;  en  ¡ ¹Yil
+> Indep-IRT
+> Parallel-IRT
+> Coupled-IRT
+> Multilingual-IRT
+> logit ¹Yi¡logit ¹Yil
+> ¹Yi; en ¡¹Yil
+> Indep-IRT
+> Parallel-IRT
+> Coupled-IRT
+> Multilingual-IRT
+> 1.00
+> 0.38 1.00
+> 0.45 0.29 1.00
+> 0.37 0.24 0.59 1.00
+> 0.38 0.24 0.59 0.91 1.00
+> 0.17 0.13 0.40 0.43 0.43 1.00
+> Random
+> logit ¹Yi¡logit ¹Yil
+> ¹Yi; en ¡¹Yil
+> Indep-IRT
+> Parallel-IRT
+> Coupled-IRT
+> Multilingual-IRT
+> 14%
+> 41%
+> 37%
+> 23%
+> 17%
+> 17%
+> 7%
+> 14%
+> 31%
+> 28%
+> 25%
+> 22%
+> 22%
+> 11%
+> 29%
+> 18%
+> 20%
+> 13%
+> 14%
+> 14%
+> 7%
+> 5%
+> 7%
+> 9%
+> 9%
+> 9%
+> 5%
+> 8%
+> 7%
+> 9% 7% 7% 5%
+> 29%
+> 12%
+> 14%
+> 14%
+> 27%
+> language
+> wo
+> yo
+> zu
+> sw
+> zh
+> hi
+> ar
+> bn
+> de
+> ne
+> other
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Jaccard Similarity
+> (a) (b)
+
+Figure 2: Top-1000 critical-strict translation errors surfaced by seven scoring methods (§5.2). (a) Pairwise Jaccard overlap between top-scored translation errors. (b) Language distribution of errors detected by top-scored items. The IRT difficulty-shift score s(i, l ) = dil / cSE( dil ) is computed for Multilingual-IRT (n=255 ), Coupled-IRT 
+
+(n=319 ), Parallel-IRT (n=309 ), and Indep-IRT (n=357 ). The accuracy-based non-parametric baselines are an English-anchored difference ¯Yi, en − ¯Yil (n=421 ) and a logit-additive analog logit ¯Yi − logit ¯Yil (n=451 ). Both metrics are averaged across the 25 LLMs, with ¯Yi additionally averaged across all languages. We also include a uniform-random selection over non-English instances as a baseline for the base rate of translation errors ( n=76 ). 
+
+ers flagged. Gemini-2.5-Flash thus errs toward over-flagging rather than under-flagging, which is a failure mode well suited to our candidate-flagging pipeline, where flagged items are subsequently re-viewed. 
+
+The errors surfaced by Multilingual-IRT are largely complementary to those captured by raw accuracy. Figure 2 characterizes the top-1000 
+
+critical-strict errors surfaced by the score s(i, l )
+
+(Eq. 3) for Multilingual-IRT and other M2-IRT fam-ily variants, as well as two accuracy-based methods, and a random baseline. While the accuracy meth-ods yield a higher absolute number of critical errors, the pairwise Jaccard overlap between Multilingual-IRT and the accuracy methods’ critical-error sets is notably small (Figure 2a). This indicates that the errors surfaced by Multilingual-IRT are some-what orthogonal to those captured by raw accuracy. The language breakdown (Figure 2b) concretely il-lustrates this divergence: accuracy-based methods concentrate ≥ 70% of their critical error detection in three low-resource African languages (Wolof, Yoruba, and Zulu). In contrast, the Multilingual-IRT ranking surfaces errors that are distributed much more uniformly across the full 28 -language space, with no single language exceeding 11% of the total and a diverse long tail of languages. 
+
+Shared difficulty and decomposed discrim-inability both extend error detection to higher-resource languages. Figure 2b traces how the language distribution shifts across the M2-IRT fam-ily variants. Indep-IRT , which fits each language in-dependently, behaves like the accuracy-based meth-ods, concentrating ∼71% of detections in Wolof, Yoruba, and Zulu. Introducing shared item parame-ters with per-language deviations dil (Parallel-IRT )already reduces this concentration to ∼53% , surfac-ing errors in higher-resource languages. Adding the cross-lingual prior Rlng on top ( Coupled-IRT ) pro-duces no further change. Only the discriminability decomposition ( Multilingual-IRT ) yields a roughly uniform distribution. One possible explanation is that decomposing ai into abase  
+
+> i
+
+and alang  
+
+> i
+
+frees dil 
+
+from absorbing language-dependent discriminabil-ity, so that dil is not inflated for items merely be-cause their language is hard for LLMs in general. 
+
+Negative language-specific difficulty deviations identify untranslated English terms in non-English questions. When dil is negative, which makes s(i, l ) negative also, Multilingual-IRT sig-nals that a translation is relatively easy compared to its baseline difficulty bi. Interestingly, we find that this negative tail surfaces Source Intrusion errors, i.e., English terms left untranslated in the question. 7Evaluation Target Size ( n) Strict Prec. Lenient Prec.                   
+
+> Overall 77 67.5% 79.2%
+> By Severity
+> Critical 43 55.8% 72.1% Minor 34 82.4% 88.2%
+> By Error Category
+> Semantic Shift 51 68.6% 78.4% Logic Alteration 20 60.0% 80.0% Formatting Failure 683.3% 83.3%
+
+Table 2: Human validation of the Gemini-2.5-Flash translation-error judge. Results are shown for the overall set of annotations, by severity and error category. 
+
+Ranking by the Multilingual-IRT score −s(i, l ),the top 1000 items contain 16 .8% Source Intrusion errors, far more than the best accuracy baseline (5% ) or the random baseline ( 4% ). A possible explanation for this difficulty degradation is that untranslated English “leftovers” provide some kind of a shortcut for the LLM. Rather than relying on multilingual capabilities, the model leverages its English performance, which inflates its success rate and make the question easier. While raw ac-curacy struggles to differentiate this artifact from true cross-lingual ability, the Multilingual-IRT dif-ficulty deviation parameter dil succeeds. 
+
+5.3 Finding Culture-Specific Items 
+
+Multilingual benchmarks often contain items that conflate general knowledge with culture-specific knowledge. For example, questions about an entity famous only in a particular country, or about histori-cal events tied to a specific nation. Such items have been shown to affect model performance (Goldman et al., 2025), and flagging them enables filtering or culture-aware evaluation. 
+
+Multilingual-IRT ’s discriminability parameters 
+
+abase  
+
+> i
+
+, a lang  
+
+> i
+
+can surface culture-specific items: as defined in §3, abase  
+
+> i
+
+captures how much an item sep-arates LLMs along a language-invariant axis, while 
+
+alang  
+
+> i
+
+captures how much the change of language modulates this separation. We therefore expect culture-specific items to have a large alang  
+
+> i
+
+relative to abase  
+
+> i
+
+, which we capture via the ratio alang  
+
+> i
+
+/a base  
+
+> i
+
+.
+
+LLM-as-a-judge for labeling culture specific items. We use Gemini-2.5-Flash as a judge to an-notate the top 2K culture-specific candidates from each scoring method (full prompt in Listing 2 in the Appendix). Given the English question, the judge returns whether the item is culture-specific, along with one of six specificity types (Region/Country,                   
+
+> Human–Human Human–Gemini-2.5-Flash Metric (Overlapping) (Overall) (High Conf.) Size ( n)30 112 79 Cohen’s κ0.57 (Fleiss’) 0.56 0.83 Raw Agree. 83% 83% 95%
+> F1(P / R) –0.68 (.69/.67) 0.86 (.86/.86)
+
+Table 3: Agreement metrics for the cultural speci-ficity task. The model’s alignment with human anno-tators scales significantly on high-confidence items. P and R are for precision and recall. 
+
+Religion/Philosophy, Language-internal, Named-entity, Social-convention, or Universal). Figure 10 in the Appendix provides examples and presents the taxonomy of culture-specific items. 
+
+Human–Gemini-2.5-Flash agreement tracks hu-man confidence. To validate the Gemini-2.5-Flash culture-specific labels, seven in-house an-notators independently provided 273 annotations (112 unique items). In Table 3, we report the agreement between the human annotators and the Gemini-2.5-Flash judge. We find that baseline human inter-annotator agreement was only mod-erate, demonstrating the inherent subjectivity of the task. Overall human–Gemini-2.5-Flash agree-ment was also moderate, similar to human inter-annotator agreement, but scaled dramatically with human confidence – when restricting the evalua-tion to items where annotators reported high con-fidence, human–Gemini-2.5-Flash agreement rose substantially. Conversely, agreement fell sharply on medium- and low-confidence cases ( n = 28 
+
+and n = 5) . These results suggest Gemini-2.5-Flash is a reliable proxy for unambiguous cultural judgments. Annotation guidelines are available in Figure 9 in Appendix. 
+
+The decomposed discriminability parameters of Multilingual-IRT and the accuracy baselines identify largely disjoint sets of culture-specific content. As shown in Figure 5 in the Appendix, the items surfaced by alang  
+
+> i
+
+/a base  
+
+> i
+
+barely overlap with those surfaced by either accuracy baseline (Jaccard ≤ 0.11 ). Quantitatively, alang  
+
+> i
+
+/a base  
+
+> i
+
+sur-faces the most culture-specific items ( 26 .1% in its highest-scored 2K items), compared to accuracy-based methods ( 24 .2% ), with a base rate under random selection of 19 .8% .
+
+Culture-specific items are harder overall, with a small native-language advantage. Culture-specific items selected by any of our scoring meth-8−4 −2 0 2 4 6  
+
+> bi(item difficulty)
+> 0.00
+> 0.05
+> 0.10
+> 0.15
+> 0.20
+> 0.25
+> density
+> ¹b = +1 :32
+> ¹b = +0 :51
+> *p < 10 ¡4
+> Cultural (n=1758)
+> Non-cultural (n=6954)
+
+Figure 3: Distribution of bi for the n = 8712 items submitted to the Gemini-2.5-Flash judge, split by its cultural-specificity label. 
+
+ods are systematically harder than non-cultural ones (Figure 3). One might further expect culture-specific items to be easier in the language tied to their content, and we find a small advantage on two different tests: (i) U.S./U.K.-tied cultural items are easier in English than non-cultural items are (+0 .035 vs. +0 .008 , p < 10 −5); and (ii) items tied to non-English regions ( n = 158 ) are easier in their own region’s language than they would be if each item were randomly reassigned to another region’s language ( +0 .063 vs. +0 .037 , p = 0 .028 ). The stronger effect for U.S./U.K. items likely reflects the U.S.-centric distribution of MMLU-Pro-X’s cul-tural content, as 87 .6% of region-tagged cultural items were U.S./U.K.-tied. 
+
+6 Analysis 
+
+In this section we study what the parameters of 
+
+Multilingual-IRT capture, beyond their practical value. We examine two questions: how do the fitted parameters relate to simple accuracy-based statis-tics one could compute directly from Yijl (§6.1), and what cross-lingual structure does the learned correlation matrix Rlng surface (§6.2). 
+
+6.1 IRT Parameters vs. Accuracy-Based Statistics 
+
+For each Multilingual-IRT parameter, we construct a corresponding accuracy-based statistic, by aver-aging Yijl along the relevant axis. Specifically, the mapping is as follows: (1) per-item accuracy for difficulty bi, (2) per-LLM accu-racy for ability θj , (3) per-(LLM, language) accu-racy for the language-specific ability residual εj ,(4) the language-specific deviation in item accuracy Parameter Empirical Statistic rbi −logit ¯Yi 0.988 
+
+dil −[logit ¯Yil − logit ¯Yi] 0.664 
+
+θj logit ¯Yj 0.991 
+
+εjl logit ¯Yjl − logit ¯Yj 0.964 
+
+a(1)  
+
+> i
+
+std j,l Yijl 0.548 
+
+a(2)  
+
+> i
+
+std l Y il 0.702 
+
+Table 4: Pearson correlation between Multilingual-IRT 
+
+learned parameters and corresponding accuracy-based non-parametric statistics. 
+
+from the item’s overall mean for dil , and (5) spread statistics ( std j,l Yijl and std l ¯Yi·l) for the discrim-inability parameters abase  
+
+> i
+
+and alang  
+
+> i
+
+. Full formulas and Pearson correlations against each fitted param-eter are in Table 4. 
+
+Difficulty and ability parameters match accu-racy averages. As seen in Table 4, the base dif-ficulty and ability parameters bi, θj , and εj cor-relate almost perfectly with their accuracy-based matching statistics. For these, the IRT fit largely reproduces what one could compute directly from per-item, per-LLM, and per-(LLM, language) ac-curacies. The language-specific difficulty devia-tion dil correlates with its empirical statistic more loosely ( r = 0 .66 ), reflecting a sample-size limita-tion rather than a gap between IRT and accuracy statistics: a simulation study over larger Js shows that dil recovery climbs from r=0 .53 at J=25 to 
+
+r=0 .89 by J=240 (Figure 6 in the Appendix). 
+
+Discriminability parameters capture signal that accuracy misses. The discriminability parame-ters abase  
+
+> i
+
+and alang  
+
+> i
+
+behave differently from the oth-ers: their closest accuracy proxies recover only about half of each parameter’s variance. They are also unique to Multilingual-IRT within the M2-IRT family as no other variant decomposes dis-criminability, so this signal is inaccessible for both accuracy-based statistics and simpler IRT models. 
+
+6.2 Multilingual-IRT Recovers Linguistic Structure via Rlng 
+
+Beyond modeling, Rlng provides a data-driven map of cross-lingual interactions in LLM behavior, with-out any supervision. Figure 4 visualizes the fitted correlation matrix Rlng , with languages grouped by family (indicated by colored bounding boxes). No-tably, strong positive within-family blocks emerge 9af  
+
+> de
+> en
+> es
+> fr
+> it
+> pt
+> cs
+> ru
+> sr
+> uk
+> bn
+> hi
+> mr
+> ne
+> te
+> ur
+> ar
+> sw
+> wo
+> yo
+> zu
+> ja
+> ko
+> zh
+> id
+> th
+> vi
+> hu
+> af
+> de
+> en
+> es
+> fr
+> it
+> pt
+> cs
+> ru
+> sr
+> uk
+> bn
+> hi
+> mr
+> ne
+> te
+> ur
+> ar
+> sw
+> wo
+> yo
+> zu
+> ja
+> ko
+> zh
+> id
+> th
+> vi
+> hu 1.00
+> 0.75
+> 0.50
+> 0.25
+> 0.00
+> 0.25
+> 0.50
+> 0.75
+> 1.00
+> Pearson correlation
+
+Figure 4: Fitted language correlation matrix Rlng ,the learned prior correlation on per-language ability residuals εj . Colored bounding boxes around the axis labels group languages by linguistic family or geo-graphic region: Germanic, Romance, Slavic, South Asian, Semitic, African, East Asian , Southeast Asian, Uralic. No group labels are supplied at fit time. 
+
+despite no explicit linguistic family signal being provided during fitting. We observe clear diagonal blocks for Romance (es, fr, it, pt), Slavic (cs, ru, sr, uk), South Asian (bn, hi, mr, ne, te, ur), and African (sw, zu, yo, wo) languages, indicating that the model recovers latent linguistic structure from evaluation data alone. The Indic sub-block within the South Asian family is particularly tight, and the African languages form an exceptionally coherent cluster, despite spanning diverse branches such as Niger-Congo and Bantu. We also observe that the Germanic family di-verges along resource levels: English correlates weakly with other Germanic languages (af, de) and instead clusters with high-resource Semitic (ar) and East Asian languages (ja, zh), which are typologically distant languages that likely share high representation in pre-training corpora. Further-more, the matrix reveals a notable off-diagonal sig-nal: a strong negative correlation between English and the African languages (wo, yo, zu), suggest-ing that LLMs which exceed their expected abil-ity in English often underperform in these lower-resource settings. To sum up, Rlng captures both fine-grained phylogenetic structure and a coarse resource-level gradient, both recovered without su-pervision. 
+
+7 Conclusion 
+
+We introduced Multilingual-IRT , an Item Response Theory extension for parallel multilingual bench-marks that models per-language difficulty devia-tions dil , content and language discriminability (abase  
+
+> i
+
+, alang  
+
+> i
+
+), and correlated per-language ability residuals εj via Rlng . Across 25 LLMs and 29 languages of MMLU-Pro-X, Multilingual-IRT im-proves prediction, surfaces translation errors, and identifies culture-specific items, offering a practi-cal foundation for multilingual benchmark auditing and use. 
+
+8 Limitations 
+
+Multilingual-IRT assumes aligned item transla-tions, so it does not directly apply to indepen-dently sourced language-specific datasets. It is also sample-size sensitive: with 25 LLMs, dil and the off-diagonal entries of Rlng are less precisely re-covered and would benefit from larger model pools, though they remain effective in our downstream applications. 
+
+References 
+
+Marah Abdin, Jyoti Aneja, Harkirat Behl, Sébastien Bubeck, Ronen Eldan, Suriya Gunasekar, Michael Harrison, Russell J Hewett, Mojan Javaheripi, Piero Kauffmann, and 1 others. 2024. Phi-4 technical re-port. arXiv preprint arXiv:2412.08905 .Sandhini Agarwal, Lama Ahmad, Jason Ai, Sam Alt-man, Andy Applebaum, Edwin Arbus, Rahul K Arora, Yu Bai, Bowen Baker, Haiming Bao, and 1 others. 2025. gpt-oss-120b & gpt-oss-20b model card. arXiv preprint arXiv:2508.10925 .Ashish Agrawal, Barah Fazili, and Preethi Jyothi. 2024. Translation errors significantly impact low-resource languages in cross-lingual learning. In Proceedings of the 18th Conference of the European Chapter of the Association for Computational Linguistics (Vol-ume 2: Short Papers) , pages 319–329, St. Julian’s, Malta. Association for Computational Linguistics. Kabir Ahuja, Harshita Diddee, Rishav Hada, Milli-cent Ochieng, Krithika Ramesh, Prachi Jain, Ak-shay Nambi, Tanuja Ganu, Sameer Segal, Mohamed Ahmed, Kalika Bali, and Sunayana Sitaram. 2023. MEGA: Multilingual evaluation of generative AI. In Proceedings of the 2023 Conference on Empir-ical Methods in Natural Language Processing , pages 4232–4267, Singapore. Association for Computa-tional Linguistics. Anthropic. 2025. Introducing Claude Haiku 4.5. https: //www.anthropic.com/news/claude-haiku-4-5 .Accessed: 2026-05-26. 
+
+10 Lucas Bandarkar, Davis Liang, Benjamin Muller, Mikel Artetxe, Satya Narayan Shukla, Donald Husa, Naman Goyal, Abhinandan Krishnan, Luke Zettlemoyer, and Madian Khabsa. 2024. The belebele benchmark: a parallel reading comprehension dataset in 122 lan-guage variants. In Proceedings of the 62nd Annual Meeting of the Association for Computational Lin-guistics (Volume 1: Long Papers) , pages 749–775, Bangkok, Thailand. Association for Computational Linguistics. Allan Birnbaum. 1968. Some latent trait models and their use in inferring an examinee’s ability. In Fred-eric M. Lord and Melvin R. Novick, editors, Statisti-cal Theories of Mental Test Scores , pages 397–479. Addison-Wesley, Reading, MA. Yunxiao Chen, Xiaoou Li, Jingchen Liu, and Zhil-iang Ying. 2021. Item response theory—a statistical framework for educational and psychological mea-surement. Statistical Science .Yunxiao Chen and Siliang Zhang. 2020. Estimation methods for item factor analysis: An overview. 
+
+Emerging Topics in Statistics and Biostatistics .Gheorghe Comanici, Eric Bieber, Mike Schaekermann, Ice Pasupat, Noveen Sachdeva, Inderjit Dhillon, Mar-cel Blistein, Ori Ram, Dan Zhang, Evan Rosen, and 1 others. 2025. Gemini 2.5: Pushing the frontier with advanced reasoning, multimodality, long context, and next generation agentic capabilities. arXiv preprint arXiv:2507.06261 .Leo Gao, Jonathan Tow, Baber Abbasi, Stella Bider-man, Sid Black, Anthony DiPofi, Charles Foster, Laurence Golding, Jeffrey Hsu, Alain Le Noac’h, Haonan Li, Kyle McDonell, Niklas Muennighoff, Chris Ociepa, Jason Phang, Laria Reynolds, Hailey Schoelkopf, Aviya Skowron, Lintang Sutawika, and 5 others. 2024. The language model evaluation har-ness. Gemma Team, Aishwarya Kamath, and 1 others. 2025. Gemma 3 technical report. arXiv preprint arXiv:2503.19786 .Omer Goldman, Uri Shaham, Dan Malkin, Sivan Eiger, Avinatan Hassidim, Yossi Matias, Joshua Maynez, Adi Mayrav Gilady, Jason Riesa, Shruti Rijhwani, and 1 others. 2025. Eclektic: a novel challenge set for evaluation of cross-lingual knowledge transfer. 
+
+arXiv preprint arXiv:2502.21228 .Aaron Grattafiori, Abhimanyu Dubey, Abhinav Jauhri, Abhinav Pandey, Abhishek Kadian, Ahmad Al-Dahle, Aiesha Letman, Akhil Mathur, Alan Schelten, Alex Vaughan, and 1 others. 2024. The llama 3 herd of models. arXiv preprint arXiv:2407.21783 .Matthew D Hoffman, David M Blei, Chong Wang, and John Paisley. 2013. Stochastic variational inference. 
+
+Journal of machine learning research .Valentin Hofmann, David Heineman, Ian Magnusson, Kyle Lo, Jesse Dodge, Maarten Sap, Pang Wei Koh, Chun Wang, Hannaneh Hajishirzi, and Noah A. Smith. 2025. Fluid language model benchmarking. In Second Conference on Language Modeling .Diederik P Kingma and Jimmy Ba. 2014. Adam: A method for stochastic optimization. arXiv preprint arXiv:1412.6980 .Alex Kipnis, Konstantinos Voudouris, Luca M. Schulze Buschoff, and Eric Schulz. 2025. metabench - a sparse benchmark of reasoning and knowledge in large language models. In The Thirteenth Interna-tional Conference on Learning Representations .Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph E. Gonzalez, Hao Zhang, and Ion Stoica. 2023. Effi-cient memory management for large language model serving with pagedattention. In Proceedings of the ACM SIGOPS 29th Symposium on Operating Systems Principles .Peiyu Li, Xiuxiu Tang, Si Chen, Ying Cheng, Ronald Metoyer, Ting Hua, and Nitesh V Chawla. 2025. Adaptive testing for llm evaluation: A psychome-tric alternative to static benchmarks. arXiv preprint arXiv:2511.04689 .Yunting Liu, Shreya Bhandari, and Zachary A Pardos. 2025. Leveraging llm respondents for item evalua-tion: A psychometric analysis. British Journal of Educational Technology , 56(3):1028–1052. Frederic Lord. 1952. A theory of test scores. Psycho-metric monographs .Frederic M Lord, Melvin R Novick, and Allan Birn-baum. 1968. Statistical theories of mental test scores .Addison-Wesley, Reading, Mass. Team Olmo, Allyson Ettinger, Amanda Bertsch, Bailey Kuehl, David Graham, David Heineman, Dirk Groen-eveld, Faeze Brahman, Finbarr Timbers, Hamish Ivi-son, and 1 others. 2025. Olmo 3. arXiv preprint arXiv:2512.13961 .OpenAI. 2026. Introducing GPT-5.4 mini and nano. 
+
+https://openai.com/index/introducing-gpt -5-4-mini-and-nano/ . Accessed: 2026-05-26. Jan-Thorsten Peter, David Vilar, Tobias Domhan, Dan Malkin, and Markus Freitag. 2025. Mind the gap... or not? how translation errors and evalua-tion details skew multilingual results. arXiv preprint arXiv:2511.05162 .Du Phan, Neeraj Pradhan, and Martin Jankowiak. 2019. Composable effects for flexible and accelerated prob-abilistic programming in numpyro. arXiv preprint arXiv:1912.11554 .Felipe Maia Polo, Lucas Weber, Leshem Choshen, Yuekai Sun, Gongjun Xu, and Mikhail Yurochkin. 2024. tinybenchmarks: evaluating llms with fewer examples. arXiv preprint arXiv:2402.14992 .
+
+11 Libo Qin, Qiguang Chen, Yuhang Zhou, Zhi Chen, Yinghui Li, Lizi Liao, Min Li, Wanxiang Che, and Philip S Yu. 2025. A survey of multilingual large language models. Patterns , 6(1). Mark D. Reckase. 2009. Multidimensional item re-sponse theory. Handbook of Statistics , 26:607–642. Andreas Säuberli, Diego Frassinelli, and Barbara Plank. 2025. Do LLMs give psychometrically plausible responses in educational assessments? In Proceed-ings of the 20th Workshop on Innovative Use of NLP for Building Educational Applications (BEA 2025) ,pages 266–278, Vienna, Austria. Association for Computational Linguistics. Shivalika Singh, Angelika Romanou, Clémentine Four-rier, David Ifeoluwa Adelani, Jian Gang Ngui, Daniel Vila-Suero, Peerat Limkonchotiwat, Kelly Marchi-sio, Wei Qi Leong, Yosephine Susanto, Raymond Ng, Shayne Longpre, Sebastian Ruder, Wei-Yin Ko, Antoine Bosselut, Alice Oh, Andre Martins, Leshem Choshen, Daphne Ippolito, and 4 others. 2025. Global MMLU: Understanding and addressing cultural and linguistic biases in multilingual evalua-tion. In Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Vol-ume 1: Long Papers) , pages 18761–18799, Vienna, Austria. Association for Computational Linguistics. Qwen Team. 2026. Qwen3.5: Accelerating productivity with native multimodal agents. Ahmet Üstün, Viraat Aryabumi, Zheng Yong, Wei-Yin Ko, Daniel D’souza, Gbemileke Onilude, Neel Bhan-dari, Shivalika Singh, Hui-Lee Ooi, Amr Kayid, Fred-die Vargus, Phil Blunsom, Shayne Longpre, Niklas Muennighoff, Marzieh Fadaee, Julia Kreutzer, and Sara Hooker. 2024. Aya model: An instruction fine-tuned open-access multilingual language model. In 
+
+Proceedings of the 62nd Annual Meeting of the As-sociation for Computational Linguistics (Volume 1: Long Papers) , pages 15894–15939, Bangkok, Thai-land. Association for Computational Linguistics. Pat Verga, Sebastian Hofstatter, Sophia Althammer, Yix-uan Su, Aleksandra Piktus, Arkady Arkhangorodsky, Minjie Xu, Naomi White, and Patrick Lewis. 2024. Replacing judges with juries: Evaluating llm genera-tions with a panel of diverse models. arXiv preprint arXiv:2404.18796 .Minghao Wu, Weixuan Wang, Sinuo Liu, Huifeng Yin, Xintong Wang, Yu Zhao, Chenyang Lyu, Longyue Wang, Weihua Luo, and Kaifu Zhang. 2025. The bitter lesson learned from 2,000+ multilingual bench-marks. arXiv preprint arXiv:2504.15521 .Yuemei Xu, Ling Hu, Jiayi Zhao, Zihan Qiu, Kexin Xu, Yuqi Ye, and Hanwen Gu. 2025. A survey on multilingual large language models: Corpora, alignment, and bias. Frontiers of Computer Science ,19(11):1911362. Weihao Xuan, Rui Yang, Heli Qi, Qingcheng Zeng, Yunze Xiao, Aosong Feng, Dairui Liu, Yun Xing, Jun-jue Wang, Fan Gao, Jinghui Lu, Yuang Jiang, Huitao Li, Xin Li, Kunyu Yu, Ruihai Dong, Shangding Gu, Yuekang Li, Xiaofei Xie, and 13 others. 2025. MMLU-ProX: A multilingual benchmark for ad-vanced large language model evaluation. In Proceed-ings of the 2025 Conference on Empirical Methods in Natural Language Processing , pages 1513–1532, Suzhou, China. Association for Computational Lin-guistics. Yidan Zhang, Yu Wan, Boyi Deng, Baosong Yang, Hao-Ran Wei, Fei Huang, Bowen Yu, Dayiheng Liu, Jun-yang Lin, Fei Huang, and Jingren Zhou. 2025. P-MMEval: A parallel multilingual multitask bench-mark for consistent evaluation of LLMs. In Proceed-ings of the 2025 Conference on Empirical Methods in Natural Language Processing , pages 4809–4836, Suzhou, China. Association for Computational Lin-guistics. Hongli Zhou, Hui Huang, Ziqing Zhao, Lvyuan Han, Huicheng Wang, Kehai Chen, Muyun Yang, Wei Bao, Jian Dong, Bing Xu, and 1 others. 2026. Lost in benchmarks? rethinking large language model bench-marking with item response theory. In Proceedings of the AAAI Conference on Artificial Intelligence ,volume 40, pages 35085–35093. 
+
+12 A Models and Languages                                                       
+
+> Family Model Params Variant Aya tiny-aya-global 3B Instruct aya-expanse-8b 8B Instruct aya-expanse-32b 32B Instruct Qwen3.5 Qwen3.5-2B 2B Instruct (dense) Qwen3.5-4B 4B Instruct (dense) Qwen3.5-9B 9B Instruct (dense) Qwen3.5-27B 27B Instruct (dense) Qwen3.5-35B-A3B 35B / 3B act. MoE Qwen3.5-122B-A10B 122B / 10B act. MoE OLMo-3 Olmo-3-7B-Instruct 7B Instruct Olmo-3-7B-Think 7B Reasoning Olmo-3.1-32B-Instruct 32B Instruct Olmo-3.1-32B-Think 32B Reasoning Gemma-3 gemma-3-4b-it 4B Instruct gemma-3-12b-it 12B Instruct gemma-3-27b-it 27B Instruct Llama-3 Llama-3.2-3B-Instruct 3B Instruct Llama-3.1-8B-Instruct 8B Instruct Llama-3.3-70B-Instruct 70B Instruct Phi-4 Phi-4-mini-instruct 3.8B Instruct Phi-4-mini-reasoning 3.8B Reasoning Phi-4-reasoning 14B Reasoning Phi-4-reasoning-plus 14B Reasoning (RL) GPT-OSS gpt-oss-20b 21B / 3.6B act. MoE, Reasoning gpt-oss-120b 117B / 5.1B act. MoE, Reasoning
+
+Table 5: The 25 LLMs evaluated in this work, grouped by family and ordered by size within each family. 
+
+Code Language Code Language af Afrikaans ne Nepali ar Arabic pt Portuguese bn Bengali ru Russian cs Czech sr Serbian de German sw Swahili en English te Telugu es Spanish th Thai fr French uk Ukrainian hi Hindi ur Urdu hu Hungarian vi Vietnamese id Indonesian wo Wolof it Italian yo Yoruba ja Japanese zh Chinese (Simpl.) ko Korean zu Zulu mr Marathi 
+
+Table 6: The 29 languages evaluated in this work, with their ISO 639-1 codes. 
+
+B Hyperparameters and Priors 
+
+This appendix gives the full prior specification and optimization recipe used for every Multilingual-IRT fit reported in the paper. All models are imple-mented in NumPyro (Phan et al., 2019). 
+
+Priors. We use the following weakly-informative priors. Item discriminabilities are log-normal: 
+
+log abase  
+
+> i
+
+, log alang  
+
+> i
+
+∼ N (0 , σ 2log a), σ log a = 0 .35 ,
+
+so that each a(d) 
+
+> i
+
+stays positive and is shrunk to-ward 1. Baseline item difficulty and per-language difficulty residuals are: 
+
+bi ∼ N (0 , σ 2 
+
+> b
+
+), σb = 1 .0,
+
+˜dil ∼ N (0 , σ 2
+
+> d
+
+), σd = 0 .30 ,
+
+with ˜dil projected to satisfy the sum-to-zero con-straint of Definition 1 (see reparameterization be-low). The model’s overall ability follows: 
+
+θj ∼ N (0 , σ 2
+
+> μ
+
+), σμ = 0 .5.
+
+The cross-language ability residuals εj ∈ RL are multivariate normal, 
+
+εj ∼ N  0, σ 2 Rlng  ,σ ∼ HalfNormal(0 .5) , Rlng ∼ LKJ(2) ,
+
+with εj projected to sum-to-zero across l. The 
+
+LKJ(2) concentration biases Rlng mildly toward the identity, regularizing the  L
+
+> 2
+
+= 29 2
+
+=406 off-diagonal entries that must be estimated from J=25 
+
+per-LLM residual vectors. 
+
+Reparameterizations. Two standard reparame-terizations make the posterior easier to fit without changing the model semantically. 
+
+(i) Sum-to-zero by mean-centering. The con-straints on dil and (εj )l (Definition 1) are enforced by sampling unconstrained variables and subtract-ing their cross-language mean: e.g. ˜dil iid 
+
+∼ N (0 , σ 2
+
+> d
+
+)
+
+and 
+
+dil = ˜dil − 1
+
+> LL
+
+X
+
+> l′=1
+
+˜dil ′ ,
+
+and analogously for εj . This is a hard constraint imposed by construction (not a soft penalty) and – in contrast to the alternative (L−1) -free + negated-sum form – gives every language the same marginal variance σ2
+
+> d
+
+(L−1) /L , avoiding the likelihood satu-ration at large L that the asymmetric form induces when the language singled out as “last” accumu-lates variance (L−1) σ2
+
+> d
+
+.
+
+(ii) Non-centered MVN for εj . Let Lcorr be the lower Cholesky factor of Rlng . With standardized residuals zj ∼ N (0, I L) we sample 
+
+εraw  
+
+> j
+
+= σ · Lcorr zj ,
+
+(εj )l = ( εraw  
+
+> j
+
+)l − 1
+
+> L
+
+P 
+
+> l′
+
+(εraw  
+
+> j
+
+)l′ ,
+
+which has the same marginal distribution but couples the latents through a fixed linear trans-form rather than through a covariance, remov-ing the funnel pathology that plain centered 13 MVN priors induce in SVI. We accordingly place the prior on the Cholesky factor directly, 
+
+Lcorr ∼ LKJCholesky( L, 2) , which is equivalent to Rlng ∼ LKJ(2) .
+
+Optimization. We optimize the evidence lower bound (ELBO) with the Adam optimizer (Kingma and Ba, 2014) at learning rate 10 −2 for 
+
+30 ,000 steps. The variational family is arank-10 multivariate normal over all latent variables ( AutoLowRankMultivariateNormal in NumPyro). The guide is initialized at the prior me-dian ( init_to_median ); we found that the default uniform initialization ( init_to_uniform with ra-dius 2) saturated the Bernoulli logits at L=29 and prevented convergence, because the initial ai · θjl 
+
+products land in the tens, pushing logit( pijl ) to 
+
+±30 and the per-instance log-likelihood to −∞ .After fitting, we draw 1,000 samples from the guide and report the per-site posterior mean and standard deviation, including deterministic sites ( dil , (εj )l,
+
+Rlng = Lcorr L⊤
+
+> corr
+
+). Every Multilingual-IRT fit re-ported in §4 uses the same SVI seed; the seed-stability check in Appendix F sweeps S=10 alter-native seeds with the rest of this recipe held fixed. 
+
+C LLM-as-a-Judge 
+
+Both the translation-error audit (§5.2) and the cultural-specificity audit (§5.3) use Gemini-2.5-Flash via the Gemini Batch API. We chose Gemini-2.5-Flash for its multilingual coverage (the translation-error judge sees source-target pairs across all 28 non-English languages), its low cost (∼$24 total for both audits combined; see Ap-pendix D), and its support for structured JSON out-put via the Gemini response_schema parameter, which constrains each judgment to a fixed schema and eliminates parsing errors. All judgments use the default temperature setting from the Gemini Batch API. We run a single judge pass per instance and do not measure intra-judge consistency. The judge prompts are shown below (Listings 1 and 2). 
+
+D Compute Cost 
+
+We document the compute used across three cat-egories: open-source LLM inference, IRT model fitting, and closed-source API judging. 
+
+LLM Inference. We evaluated 25 open-source LLMs on MMLU-Pro-X across 29 languages (11 ,759 items per language), producing ∼8.5Mitem-level predictions, using the LM Evaluation Harness (Gao et al., 2024) with a vLLM back-end (Kwon et al., 2023). GPU allocation fol-lowed model size: models up to ∼11B (both Aya 3B/8B, Qwen3.5-2B/4B, Llama-3.1-8B/3.2-3B, Phi-4-mini instruct and reasoning, gemma-3-4b/12b, Olmo-3-7B instruct/think, Phi-4-reasoning, Phi-4-reasoning-plus, Qwen3.5-9B) ran on a sin-gle GPU (24–48 GB); mid-size models (Olmo-3.1-32B instruct/think, gemma-3-27b, gpt-oss-20b, Qwen3.5-27B/35B-A3B, aya-expanse-32b) on 2 GPUs; and the three largest (gpt-oss-120b, Llama-3.3-70B, Qwen3.5-122B-A10B) on 8 A100 80 GB GPUs. 
+
+IRT Model Fitting. All IRT fits use NumPyro stochastic variational inference (SVI) on a sin-gle NVIDIA RTX A5000 (24 GB), with a low-rank Gaussian guide (rank 10), learning rate 10 −2,and 30,000 SVI steps unless noted; wall-clock equals GPU-hours since each fit uses one GPU. The full set of fits totals 366 runs and ∼7.7 GPU-hours, dominated by the partial-observation sweep (270 fits, ∼6.0 h) and the identifiability-scaling study (20 fits, 0.95 h); the main Multilingual-IRT ,
+
+Parallel-IRT , and Indep-IRT fits together account for under 0.1 h. 
+
+Closed-Source API Judging. The cultural-specificity (§5.3) and translation-error (§5.2) judges use Gemini-2.5-Flash via the Gemini Batch API ( ∼285K calls, ∼225M input and ∼23M out-put tokens total). The translation-error judge dom-inates (275K calls, 220M/22M tokens) over the cultural-specificity judge (8.7K calls, 4.4M/0.7M tokens). At Batch API rates ($0.075 and $0.30 per 1M input/output tokens), the estimated cost is $23.20 and $0.54 respectively, ∼$23.80 total. 14 Listing 1: Prompt template for the translation-error judge (§5.2). 
+
+You are an expert multilingual linguist and an objective translation quality judge . Your task is to evaluate the quality of a translated multiple - choice question from English to {target_language }. You must determine if the translation accurately preserves the academic meaning , logic , and formatting of the source text . You will be provided with the English source text and the Target translation . Evaluate the translation against the following Error Taxonomy : 1. Critical Semantic Shift : Does the translation reverse or fundamentally change the core meaning ? (e.g., mistranslating " buying " as " selling ", or "sphere " as " sky ") . 2. Logic Alteration : Does the translation alter the fundamental truth value of the options ? (e.g., accidentally translating an explicitly false multiple - choice option in a way that makes it factually true ). 3. Source Intrusion : Are English source words lazily left in parentheses alongside the translation instead of relying on proper localized terminology ? 4. Formatting & Localization Failure : Are numbers , decimal separators , LaTeX formulas , or typographic symbols poorly adapted to the target locale conventions ? Provide your evaluation as a valid JSON object using the exact schema below . Do not output any markdown formatting , conversational text , or explanations outside of the JSON structure . JSON Schema : {" has_error ": true / false , " severity ": " Critical " | " Minor " | " None ", " primary_error_category ": " Semantic Shift " | "Logic Alteration " | " Source Intrusion " | "Formatting Failure " | " None ", " explanation ": "A concise , 1 -2 sentence explanation of the specific error and the exact mistranslated word / phrase . If no error , output '
+
+Accurate translation . '"}--- SOURCE ( English ) ---Question : { en_question } Options : { en_options } Correct answer : { en_answer_letter }) { en_answer_text } --- TRANSLATION ({ target_language }) ---Question : { tgt_question } Options : { tgt_options } Correct answer : { tgt_answer_letter }) {tgt_answer_text } 
+
+Listing 2: Prompt template sent to Gemini-2.5-Flash for the cultural-specificity judge (§5.3. 
+
+You are an expert evaluator of multiple - choice exam questions . Your task is to determine whether answering the following question requires * culture - specific knowledge * (e.g., knowledge tied to a particular country , region , legal system , religion , language community , named entity , social custom , regional cuisine , currency , or local convention ). A question is UNIVERSAL if its content is broadly applicable across cultures : math , hard - science facts , general logic , biology , chemistry , physics , generic programming , and similar . A question is CULTURALLY SPECIFIC if it tests knowledge that : - references a particular country 's laws , history , geography , politics , or institutions (" U.S. tax law ", " the Indian Constitution ", " the EU GDPR ") , - references a particular religious or philosophical tradition 's tenets , - requires understanding of a specific language 'sgrammar , idiom , or wordplay beyond the surface meaning , - references region - specific named entities (specific authors , cuisines , athletes , brands , or local conventions ) , - assumes social conventions or value systems tied to a particular culture . Provide your evaluation as a valid JSON object using the exact schema below . Do not output any markdown formatting , conversational text , or explanations outside of the JSON structure . JSON Schema : {" is_culturally_specific ": true / false , " specificity_type ": " Universal " | " Region / Country " | " Religion / Philosophy " | " Language - internal " |" Named - entity " | " Social - convention " | " None ", " region ": " ISO code , country , or 'None ' if not applicable ", " confidence ": " high " | " medium " | " low ", " explanation ": "A concise , 1 -2 sentence explanation . If universal , output ' Universal : <subject area >. '"}--- QUESTION ( English source ) ---Subject : { category } Question : { question } Options : { options } Correct answer : { answer_letter }) { answer_text } 
+
+15 E Complementary Results alang                        
+
+> i =a base
+> i
+> max
+> `
+> ¹Y i`  ¡ mean ` ¹Y i`
+> ¹Y i;  en  ¡ ¹Y i`
+> random
+> alang
+> i=a base
+> i
+> max
+> `
+> ¹Yi` ¡mean `¹Yi`
+> ¹Yi; en ¡¹Yi`
+> random
+> 1.00 0.13 0.14 0.11
+> 0.13 1.00 0.58 0.11
+> 0.14 0.58 1.00 0.11
+> 0.11 0.11 0.11 1.00
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Jaccard
+
+Figure 5: Pairwise Jaccard overlap between the cultural-positive sets surfaced by each ranker at top-2000 
+
+(§5.3). Accuracy-based non parametric baselines are: (1) max l ¯Yil −mean l ¯Yil (“one language stands out”), and (2) the English-anchored gap mean l̸ =en ( ¯Yi, en − ¯Yil )
+
+(“English is consistently easier than other languages”). A uniform-random baseline is also used to mark the base rate of cultural specific items in the benchmark. 
+
+F Empirical Identifiability 
+
+This appendix gives the full protocol and results behind the identifiability claim in §2.3, via a sim-ulation study (parameter recovery from a known ground truth) and a seed-stability test (consistency of the fit on real data across SVI runs). 
+
+Simulation study. We sample ground-truth pa-rameters (θj , εj , a base  
+
+> i
+
+, a lang  
+
+> i
+
+, b i, d il , σ, R lng ) from the prior assumed by Multilingual-IRT (hyper-parameters in Appendix B), generate responses 
+
+Yijl ∼ Bernoulli( pijl ) at the real benchmark’s 
+
+(I, J, L ) = (11 ,759 , 25 , 29) dimensions, refit 
+
+Multilingual-IRT on Y , and correlate the fitted posterior means against the ground truth. We re-peat this across S = 10 independent draws of the ground truth and report median Pearson r per pa-rameter family (Table 7). We additionally re-run the simulation at J ∈ { 30 , 60 , 120 , 240 } and report recovery as a function of J (Figure 6). 
+
+Seed stability. We refit Multilingual-IRT on the full MMLU-Pro-X response tensor for S = 10 in-dependent SVI seeds, holding data and priors fixed, and compute the Pearson correlation between fitted posterior means for every pair of seeds, separately for each parameter family. With S = 10 seeds this yields  10 2
+
+ = 45 pairwise correlations per parame-ter; we report the median, minimum, and maximum across pairs (Table 8). For Rlng we correlate the off-diagonal entries of Lcorr L⊤
+
+> corr
+
+; for the scalar σ,where Pearson is undefined, we report the relative spread (max − min) /mean across seeds. 
+
+Effect of the prior. We refit Multilingual-IRT 
+
+on the full MMLU-Pro-X response tensor under four alternative prior regimes: weak (roughly 2×
+
+the manuscript scales, LKJ(1 .5) ); strong (roughly half the manuscript scales, LKJ(4) ); sparse (dil ∼
+
+Laplace(0 , 0.15) , other scales unchanged); and 
+
+sparse hier. (dil ∼ Laplace(0 , λ ) with λ ∼
+
+HalfNormal(0 .15) ). For each regime we compute the Pearson correlation between its posterior mean and the manuscript posterior mean, per parameter family; σ is a scalar, so we report the ratio to the manuscript value instead (Table 9). 30 60 120 240   
+
+> J(number of models)
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> median Pearson r (fitted vs. truth)
+> μj
+> "jk
+> a(1)
+> i
+> a(2)
+> i
+> bi
+> dik
+> Rlng (off-diag)
+
+Figure 6: Parameter recovery (median Pearson r) versus 
+
+J, the number of LLMs in the simulation. 
+
+Parameter median r min r max rθj 1.000 1.000 1.000 
+
+εjl 0.998 0.974 1.000 
+
+a(1)  
+
+> i
+
+0.897 0.839 0.925 
+
+a(2)  
+
+> i
+
+0.853 0.357 0.961 
+
+bi 0.996 0.994 0.996 
+
+dil 0.532 0.508 0.540 
+
+Rlng (off-diag) 0.643 0.614 0.724 
+
+σlng (rel. err., median) −24 .0% 
+
+Table 7: Parameter recovery in the simulation study (§F). Pearson r between ground truth and fitted posterior mean across S independent draws. 
+
+16 ANNOTATOR INSTRUCTIONS : T RANSLATION ERRORS (human-validation app) 
+
+Task. You will see a multiple-choice question that an AI judge flagged as having a translation error from English into your target language. Decide whether you agree (an error exists and the judge’s explanation correctly identifies it), 
+
+partially agree (an error exists but the explanation is wrong, incomplete, or misses its full scope; a short note is required), or disagree (no real error; meaning and formatting are preserved). 
+
+Translation error categories: 
+
+• Semantic Shift : the translation changes the meaning of a word, phrase, or option (e.g., “buying” rendered as “selling”). • Logic Alteration : the truth value of an answer option changes (e.g., a false option becomes factually true). • Source Intrusion : English source words are left in parentheses instead of proper target-language terminology. • Formatting Failure : numbers, decimal separators, LaTeX, or symbols are not adapted to the target locale, or options are duplicated/shuffled. 
+
+Figure 7: Instructions shown to annotators for the translation-error judge, defining the agree/partially-agree/disagree labels and the four error categories. Reading tips omitted for space. 
+
+Parameter median r min r max rθj 1.000 1.000 1.000 
+
+εjk 1.000 1.000 1.000 
+
+a(1)  
+
+> i
+
+0.998 0.997 0.998 
+
+a(2)  
+
+> i
+
+0.996 0.996 0.997 
+
+bi 1.000 1.000 1.000 
+
+dik 0.944 0.944 0.945 
+
+Rlng (off-diag) 0.965 0.849 0.998 
+
+σlng (rel. spread) 8.916% 
+
+Table 8: Pairwise Pearson correlation across S=10 in-dependent SVI seeds for the Multilingual-IRT fit on the full MMLU-Pro-X response tensor. With S=10 this is the distribution of  10 2
+
+=45 pairwise correlations per parameter family. 
+
+Parameter weak strong sparse sparse hier. 
+
+θj 1.000 1.000 1.000 1.000 
+
+εjl 0.999 0.999 1.000 0.999 
+
+a(1)  
+
+> i
+
+0.997 0.994 1.000 0.999 
+
+a(2)  
+
+> i
+
+0.993 0.994 0.999 0.995 
+
+bi 0.999 0.999 1.000 1.000 
+
+dil 0.991 0.950 0.918 0.932 
+
+Rlng off-diag 0.998 0.984 1.000 0.970 
+
+σlng (ratio) 0.961 1.024 0.989 1.016 
+
+Table 9: Pearson correlation between the manuscript posterior mean and the posterior under the alternate prior regime. The bottom row reports the ratio of fitted 
+
+σ to the manuscript value (a scalar, so Pearson is unde-fined). 
+
+17 Category  id  English question  Lang  Target translation  Judge’s error explanation  Sev.  Error category 
+
+Detection method(s) 
+
+biology  3318  How does asexual reproduction take place in bryophytes and lower vascular plants? (G) “… bryophytes reproduce by producing seeds …” 
+
+de  Wie erfolgt die ungeschlechtliche Fortpflanzung bei den Moosen und niederen Gefäßpflanzen? (G) “Moose vermehren sich … durch die Produktion von Sporen …” 
+
+Option G translates “seeds” as “Sporen” (spores), fundamentally changing the biological meaning of the answer. 
+
+Critical  Semantic Shift 
+
+IRT (+s) only 
+
+engineering  11080  Superheated steam at 330 psia, 600°F flows through a nozzle at 12,000 lb/hr. The final pressure at the exit is 5 psia. Calculate the exit jet velocity and areas. 
+
+ru  Перегретый пар при 330 psia и 600°F проходит через сопло с расходом 12 000 фунтов/час. Рассчитайте скорость выходной струи и площади. 
+
+The sentence “The final pressure at the exit is 5 psia” is dropped from the translation, removing a needed problem parameter. 
+
+Minor  Semantic Shift 
+
+IRT (+s) only 
+
+economics  7247  Suppose real GDP increases. We can conclude without a doubt that… 
+
+yo  Jẹ́  ki a sọ pé orí ìsúnná GDP tòót ọ́ 
+
+gòkè. A lè pinnu láìsí iyèméjì pé… 
+
+“real GDP” is rendered “orí ìsúnná GDP” (lit. “GDP source/origin”), and “inflation” (opt. H) as “àìsàn owo” (“money sickness”). 
+
+Critical  Semantic Shift 
+
+IRT (+s), acc-drop, acc-proxy, random 
+
+economics  6619  Which of the following is a DISADVANTAGE of using pure time-series models (relative to structural models)? 
+
+wo  Ban ci lii di topp mooy NJUUMTE ci jëfandikoo modeel waktu-wàll yu dëgër… 
+
+“disadvantage” is translated “NJUUMTE”, which means mistake/error; it should be “NDONO”/“NJAARE”. 
+
+Critical  Semantic Shift 
+
+acc-drop only 
+
+business  813  Round .1476 to (a) 2 decimal places (b) 3 decimal places (c) 1 decimal place. 
+
+sw  Kokotoa .1476 hadi (a) alama 2 za desimali (b) alama 3 za desimali… 
+
+“Round” is translated “Kokotoa” (Calculate); it should be “Zungusha” (round off). 
+
+Critical  Semantic Shift 
+
+random only 
+
+other  5246  At the equator, how fast is the earth’s surface turning? (A) about 2500 miles per hour … (I) about 1000 miles per hour 
+
+es  ¿A qué velocidad gira la superficie de la Tierra en el ecuador? (A) aproximadamente 2500 kilómetros por hora … 
+
+Every option silently converts “miles per hour” to “kilómetros por hora” without converting the number, changing all values and the key. 
+
+Critical  Logic Alteration 
+
+IRT (+s) only 
+
+psychology  2100  Erikson’s ___ stage of psychosocial development corresponds to Freud’s phallic stage. (F) industry vs. guilt (G) initiative vs. guilt 
+
+fr  le stade ___ du développement psychosocial d’Erikson correspond au stade phallique de Freud. (F) initiative contre culpabilité (G) initiative contre culpabilité 
+
+Option F (“industry vs. guilt”) is translated identically to the key G as “initiative contre culpabilité”, creating two correct answers. 
+
+Minor  Logic Alteration 
+
+IRT (+s) only 
+
+philosophy  10697  Use indirect truth tables to determine whether the set of propositions is consistent: D ≡ E / F ∨ D / ~E · ~F 
+
+zh  使⽤间接真值表判断每组命题是 否⼀致： D ≡ EF ∨ D~E · ~F 
+
+The three propositions “D ≡ E”, “F ∨
+
+D”, “~E · ~F” are concatenated into “D ≡ EF ∨ D~E · ~F”, destroying their logical structure. 
+
+Critical  Formatting Failure 
+
+IRT (+s) only 
+
+math  7321  Find the number that makes the statement true: 0.32 g = _ cg. 
+
+ru  Найдите число, которое делает утверждение верным: 0.32 г = _ сг. 
+
+The decimal point in “0.32” is kept; Russian convention requires a comma (“0,32”) — a localization/formatting failure. 
+
+Minor  Formatting Failure 
+
+IRT (+s) only 
+
+math  8621  … probability that Joe will eat at least two different kinds of fruit? opt.: \frac{8}{9} 
+
+zu  … ithuba lokuthi uJoe adle okungenani izinhlobo ezimbili ezahlukene zezithelo liyini? opt.: rac{8}{9} 
+
+The macro \frac is mangled to the literal text “rac” in all ten options, breaking every fraction. 
+
+Critical  Formatting Failure 
+
+acc-proxy only 
+
+other  5671  Which of these is not a “lock” function on a standard desktop computer keyboard? (A) print lock (B) scroll lock (C) caps lock (D) number lock 
+
+cs  Která z těchto funkcí není „zámkem“ na standardní klávesnici stolního počítače? (A) print lock (B) scroll lock (C) caps lock (D) number lock 
+
+All four options (“print lock”, “scroll lock”, “caps lock”, “number lock”) are left in English, untranslated into Czech. 
+
+Critical  Source Intrusion 
+
+IRT (−s) only 
+
+health  6239  A 14-year-old girl began having sex with multiple partners; which defense mechanism best explains her behavior? (A) Acting out (B) Intellectualization …
+
+it  Una ragazza di 14 anni ha iniziato ad avere rapporti con diversi partner; quale meccanismo di difesa spiega il suo comportamento? (A) Acting out (B) Intellettualizzazione … 
+
+Option A, the key, keeps the English term “Acting out”; options B–J are translated into Italian. 
+
+Minor  Source Intrusion 
+
+IRT (−s) only Figure 8: Gemini-2.5-Flash LLM-as-a-judge verdicts on machine-translated MMLU-Pro-X items, spanning the four error categories and both severities (§5.2). 
+
+18 ANNOTATOR INSTRUCTIONS (cultural-specificity judge) 
+
+Task. Decide whether a multiple-choice question requires knowledge tied to a specific culture, region, religion, or language, or whether the answer is universal across cultures. 
+
+Culturally Specific if the question references a specific country’s laws/history/geography/institutions; a specific religious or philosophical tradition’s tenets; a specific language’s grammar, idiom, or wordplay; region-specific named entities (authors, cuisines, brands, conventions); or social conventions tied to a particular culture. 
+
+Universal if the content holds across cultures: math, hard sciences, generic programming, and similar. A hard-science or programming question that merely mentions a country or language is still Universal. 
+
+Specificity types (if culturally specific): • Region/Country : a specific country’s laws, history, or institutions. • Religion/Philosophy : a religious or philosophical tradition. • Language-internal : a specific language’s grammar or wordplay. • Named-entity : a culturally-embedded person, work, or brand. • Social-convention : social customs or value systems. • Other : culturally specific but none of the above. 
+
+Figure 9: Instructions shown to annotators for the cultural-specificity judge, defining Culturally Specific vs. Universal and the specificity sub-types. Worked examples and edge-case guidance omitted for space. Category  id  English question  Specificity type  Region  Judge’s explanation for decision  Detection method(s) 
+
+law  1591  Which of the following is not within the power of a federal subpoena to command a person to do? 
+
+Region/Country  US  Concerns the powers of a U.S. federal subpoena; federal law and subpoenas are specific to the United States legal system. 
+
+ai(2) /a i(1) 
+
+history  4812  Excerpt from an Enlightenment-era pamphlet defending every man’s right to his own opinion — which statement best describes such Enlightenment intellectuals? 
+
+Region/Country  France  Requires the historical context of the Enlightenment and the French Revolution — specific to European history. 
+
+ai(2) /a i(1) 
+
+random 
+
+other  5011  Controlling for inflation and PPP, about how much did GDP per capita increase from 1950 to 2016 in China? 
+
+Region/Country  China  Asks for the GDP-per-capita increase in China over 1950–2016; requires knowledge of Chinese economic history. 
+
+random 
+
+other  5459  What percentage of children in Vietnam (age 8) reported physical punishment by teachers in the past week in 2009? 
+
+Region/Country  Vietnam  Asks for a specific 2009 statistic on physical punishment of children in Vietnam — tied to one country and its social context. 
+
+ai(2) /a i(1) 
+
+psychology  2417  Although they disagreed with his infidelities, many Americans supported President Bill Clinton’s policy decisions. This dichotomy of opinion demonstrates a split in … 
+
+Named-entity  USA  Explicitly references “President Bill Clinton” and “Americans” — requires a specific political figure and a national public’s reaction. 
+
+ai(2) /a i(1) 
+
+history  4811  Excerpt from Voltaire’s Candide — the optimistic philosophy it satirizes is most associated with which Enlightenment thinker? 
+
+Named-entity  France  Requires knowledge of specific Enlightenment philosophers (Voltaire, Hume, Leibniz) and their critiques, tied to European intellectual history. 
+
+ai(2) /a i(1) 
+
+philosophy  10735  Singer claims that famine-relief organizations direct our aid to distant refugees: … 
+
+Named-entity  — References the philosopher Peter Singer and his specific arguments on famine relief — part of a particular academic discourse. 
+
+ai(2) /a i(1) 
+
+philosophy  10586  Critics of speech codes adopted in the 1980s and early 1990s argued that these codes violated which principle? 
+
+Social-convention  United States 
+
+Refers to campus “speech codes” of the 1980s– early 1990s and First-Amendment-style free-speech principles — specific to the U.S. 
+
+ai(2) /a i(1) 
+
+psychology  1966  A psychologist is asked to counsel a 10-year-old child in a school setting. Which statement describes the best way to meet the prescribed ethical responsibility? 
+
+Social-convention  — Ethical guidelines for counseling minors (consent vs. assent) vary across legal systems and professional bodies; “best practice” is not universally defined. 
+
+max k Ȳik  − mean k Ȳik 
+
+Ȳi,en  − Ȳik 
+
+random 
+
+history  4709  Excerpt citing fatwas and the Sunni consensus against the Safavids — the passage indicates the Ottomans regarded the Safavids as … 
+
+Religion/Philosophy  Middle East 
+
+Requires knowledge of the religious (Sunni– Shia) divide between the Ottoman, Safavid and Mughal Empires. 
+
+ai(2) /a i(1) 
+
+philosophy  10459  Guru Nanak and his successors instructed the use of particular Sikh Ragas in order to promote which of the following? 
+
+Religion/Philosophy  India  Directly references Guru Nanak and Sikh Ragas — requires knowledge of Sikh religious practice. 
+
+ai(2) /a i(1) 
+
+computer science 
+
+10292  Elements of a vector are entered on an APL computer: V ← 3 4 2 -1. Show what each statement displays: ×/V, ÷/V, */V, -/V, +/V. 
+
+Language-internal  — Requires knowledge of APL, a programming language with unique syntax and operators; its specific implementation is not universal. 
+
+ai(2) /a i(1) 
+
+random 
+
+philosophy  10463  In Yiddish, what is the word for covenant?  Language-internal  — Asks for a word in Yiddish — tests a specific term within a particular language and cultural context. 
+
+max k Ȳik  − mean k Ȳik 
+
+Figure 10: Real Gemini-2.5-Flash LLM-as-a-judge verdicts on culturally-specific MMLU-Pro-X items, spanning all five cultural specificity_type s (§5.3). 
+
+19
