@@ -6,73 +6,80 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-22
-- 运行时间：2026-06-22 20:44:19 UTC
+- 最新运行日期：2026-06-23
+- 运行时间：2026-06-23 20:33:47 UTC
 - 运行状态：成功
-- 本次总论文数：17
-- 精读区：5
-- 速读区：12
+- 本次总论文数：20
+- 精读区：4
+- 速读区：16
 
 ### 今日简报（AI）
-1) 今日17篇论文中精读5篇，聚焦VLM评估的脚本一致性缺陷与机器翻译的外在话语评测。  
-2) 最值得关注：VLM评估需加入脚本一致性维度；机器翻译质量在目标导向任务中的话语评估方法待优化。  
-3) 下一步可深入多语言评估标准化，并关注东南亚语言音频深度伪造检测基准。
-- 详情：[/202606/22/README](/202606/22/README)
+今日日报共收录20篇论文，精读2篇高价值工作。最值得关注的是：VLM评估普遍忽略脚本一致性这一关键维度，以及面向低资源场景的可控口吃语音合成方法。建议普通读者重点阅读这两篇，以理解多语言评估的潜在盲区与语音数据增强的新路径。
+- 详情：[/202606/23/README](/202606/23/README)
 
 ### 精读区论文标签
-1. [Not Truly Multilingual: Script Consistency as a Missing Dimension in VLM Evaluation](/202606/22/2606.17188v2-not-truly-multilingual-script-consistency-as-a-missing-dimension-in-vlm-evaluation)  
+1. [Not Truly Multilingual: Script Consistency as a Missing Dimension in VLM Evaluation](/202606/23/2606.17188v2-not-truly-multilingual-script-consistency-as-a-missing-dimension-in-vlm-evaluation)  
    标签：评分：9.0/10、query:mtg-bench
-   evidence：评估VLM在多脚本下的一致性，直接针对非拉丁脚本在视觉语言任务中的评估
-2. [How Far Can Machine Translation Quality Take You? Extrinsic Discourse Evaluation in Goal-Oriented Setups](/202606/22/2606.16596v1-how-far-can-machine-translation-quality-take-you-extrinsic-discourse-evaluation-in-goal-oriented-setups)  
+   evidence：评估视觉语言模型对旁遮普语多种文字图像的脚本一致性
+2. [DisSpeech: Low-Resource Controllable Mandarin Stuttered Speech Synthesis for ASR Augmentation](/202606/23/2606.21457v1-disspeech-low-resource-controllable-mandarin-stuttered-speech-synthesis-for-asr-augmentation)  
+   标签：评分：9.0/10、query:low-res-tts
+   evidence：低资源可控中文口吃语音合成用于ASR增强
+3. [Adding Robust Code-Switching Capabilities to High Performance Multilingual ASR](/202606/23/2606.21990v1-adding-robust-code-switching-capabilities-to-high-performance-multilingual-asr)  
+   标签：评分：9.0/10、query:speech-tech
+   evidence：增强多语言语音识别的语码切换鲁棒性
+4. [Are Multilingual Models Actually Improving? Isolating True Cross-Lingual Transfer](/202606/23/2606.21954v1-are-multilingual-models-actually-improving-isolating-true-cross-lingual-transfer)  
    标签：评分：8.0/10、query:cross-lang
-   evidence：机器翻译的外在篇章评估
-3. [SCAR: Semantic Continuity-Aware Retrieval for Efficient Context Expansion in RAG](/202606/22/2606.16661v1-scar-semantic-continuity-aware-retrieval-for-efficient-context-expansion-in-rag)  
-   标签：评分：8.0/10、query:fie-rag
-   evidence：用于RAG上下文扩展的自适应检索策略
-4. [Reliable Neural-Codec Text-to-Speech by ASR Self-Verification and Distillation: Near-Zero Catastrophic Failures Across Models and Codecs](/202606/22/2606.18323v1-reliable-neural-codec-text-to-speech-by-asr-self-verification-and-distillation-near-zero-catastrophic-failures-across-models-and-codecs)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：利用ASR自验证和蒸馏提升神经编解码TTS可靠性
-5. [ReNikud: Audio-Supervised Hebrew Grapheme-to-Phoneme Conversion](/202606/22/2606.20179v1-renikud-audio-supervised-hebrew-grapheme-to-phoneme-conversion)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：使用音频监督的希伯来语字素到音素转换用于TTS
+   evidence：多语言模型跨语言迁移强度的度量
 
 ### 速读区论文标签
-1. [MAF: Multimodal Adaptive Few-shot Prompting for Sentiment Analysis with MLLMs](/202606/22/2606.15694v1-maf-multimodal-adaptive-few-shot-prompting-for-sentiment-analysis-with-mllms)  
-   标签：评分：7.0/10、query:fie-rag
-   evidence：多模态自适应少样本提示检索方法，可迁移至事实性推理RAG任务
-2. [Bridging the SEA Gap: An Initial Benchmark for Neural Audio Codec-Synthesized Speech Deepfakes in South-East Asian Languages](/202606/22/2606.15968v1-bridging-the-sea-gap-an-initial-benchmark-for-neural-audio-codec-synthesized-speech-deepfakes-in-south-east-asian-languages)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：面向东南亚语言的多语言语音深度伪造检测基准
-3. [Stringalign: Moving beyond summary statistics with a transparent Unicode-aware tool for evaluating automatic transcription models](/202606/22/2606.16015v1-stringalign-moving-beyond-summary-statistics-with-a-transparent-unicode-aware-tool-for-evaluating-automatic-transcription-models)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：评估自动语音识别模型的Unicode感知工具
-4. [When English Isn't the Best Teacher: Source Language Effects in Cross-Lingual In-Context Learning](/202606/22/2606.18033v1-when-english-isnt-the-best-teacher-source-language-effects-in-cross-lingual-in-context-learning)  
+1. [Code-Switching Reveals Language Anchoring in Multilingual LLMs](/202606/23/2606.19668v1-code-switching-reveals-language-anchoring-in-multilingual-llms)  
    标签：评分：7.0/10、query:cross-lang
-   evidence：跨语言上下文学习中的源语言效应
-5. [Code-Switching Reveals Language Anchoring in Multilingual LLMs](/202606/22/2606.19668v1-code-switching-reveals-language-anchoring-in-multilingual-llms)  
+   evidence：通过代码切换研究多语言LLM中的语言锚定
+2. [Beyond Speaker Independence: Evaluating Cross-Lingual Acoustic-to-Articulatory Inversion Across Finnish and Russian](/202606/23/2606.20478v1-beyond-speaker-independence-evaluating-cross-lingual-acoustic-to-articulatory-inversion-across-finnish-and-russian)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：跨语言评估芬兰语和俄语，建立基线基准
+3. [SDP-Codec: A Speaker-Decoupled Speech Codec with Pitch Injection for Low-Bitrate Coding and Zero-Shot Voice Conversion](/202606/23/2606.21157v1-sdp-codec-a-speaker-decoupled-speech-codec-with-pitch-injection-for-low-bitrate-coding-and-zero-shot-voice-conversion)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：跨语言和方言的零样本语音转换
+4. [Rubric-as-Experts: Case-Specific MQM Rubrics for Translation Quality Evaluation](/202606/23/2606.21559v1-rubric-as-experts-case-specific-mqm-rubrics-for-translation-quality-evaluation)  
    标签：评分：7.0/10、query:cross-lang
-   evidence：代码切换揭示多语言LLM中的语言锚定现象
-6. [MambAdapter: Lightweight Mamba-Based Adapters for Parameter-Efficient Transfer Learning in Speech and Audio](/202606/22/2606.15638v1-mambadapter-lightweight-mamba-based-adapters-for-parameter-efficient-transfer-learning-in-speech-and-audio)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：基于Mamba适配器的语音音频参数高效迁移学习
-7. [Bridging the Usability Gap: Lessons from Interpreting Studies for Machine Interpreting Design](/202606/22/2606.16009v1-bridging-the-usability-gap-lessons-from-interpreting-studies-for-machine-interpreting-design)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：机器口译评估方法和可用性
-8. [Constraining to Generalize: Subspace Tuning for Few-shot Generalization of Audio-Language Models](/202606/22/2606.18560v1-constraining-to-generalize-subspace-tuning-for-few-shot-generalization-of-audio-language-models)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：子空间微调实现音频语言模型的少样本泛化
-9. [Querit-Reranker: Training Compact Multilingual Rerankers via Efficient Label-Free Distribution Adaptation](/202606/22/2606.19037v1-querit-reranker-training-compact-multilingual-rerankers-via-efficient-label-free-distribution-adaptation)  
-   标签：评分：6.0/10、query:fie-rag
-   evidence：高效分布自适应的多语言重排序器
-10. [S-JEPA : Soft Clustering Anchors for Self-Supervised Speech Representation Learning](/202606/22/2606.19398v1-s-jepa--soft-clustering-anchors-for-self-supervised-speech-representation-learning)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：基于软聚类的自监督语音表示学习，与多语言语音相关
-11. [Transcript-Free Flow-Matching Text-to-Speech via Speech Feature Conditioning](/202606/22/2606.20266v1-transcript-free-flow-matching-text-to-speech-via-speech-feature-conditioning)  
+   evidence：针对翻译质量评估的案例特定MQM评分规则
+5. [ProsoCodec: Prosody-Oriented Speech Codec for Voice Conversion](/202606/23/2606.21888v1-prosocodec-prosody-oriented-speech-codec-for-voice-conversion)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：面向韵律的语音编解码器用于语音转换
+6. [ISCSLP 2026 CoT-TTS Challenge: Chain-of-Thought Reasoning for Context-Aware Text-to-Speech](/202606/23/2606.21933v1-iscslp-2026-cot-tts-challenge-chain-of-thought-reasoning-for-context-aware-text-to-speech)  
+   标签：评分：7.0/10、query:qwen-tts
+   evidence：上下文感知的可控TTS竞赛
+7. [Benchmarking Large Language Models for Grapheme-to-Phoneme Conversion: A Japanese Case Study](/202606/23/2606.22009v1-benchmarking-large-language-models-for-grapheme-to-phoneme-conversion-a-japanese-case-study)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：针对日语字素到音素转换的LLM基准测试，对语音合成至关重要
+8. [Evaluating Large Language Models for Hausa and Fongbe Machine Translation: Benchmarks, Failures, and Metric Reliability](/202606/23/2606.22269v1-evaluating-large-language-models-for-hausa-and-fongbe-machine-translation-benchmarks-failures-and-metric-reliability)  
+   标签：评分：7.0/10、query:cross-lang
+   evidence：评估大模型在豪萨语和丰贝语（低资源西非语言）上的翻译质量与指标可靠性
+9. [Surpassing Scale by Efficiency: A Compact 135M Parameter Foundational LLM Natively Adapted for the Bangla Language](/202606/23/2606.16383v1-surpassing-scale-by-efficiency-a-compact-135m-parameter-foundational-llm-natively-adapted-for-the-bangla-language)  
    标签：评分：6.0/10、query:low-res-tts
-   evidence：无转录本的流匹配语音合成，针对构音障碍语音，方法可迁移至低资源语言
-12. [MixProLAP: Mixture-Induced Uncertainty Modeling for Probabilistic Language-Audio Pretraining](/202606/22/2606.20418v1-mixprolap-mixture-induced-uncertainty-modeling-for-probabilistic-language-audio-pretraining)  
+   evidence：面向孟加拉语（低资源非拉丁文字）的紧凑型大语言模型
+10. [L-Proto: Language-Aware Episodic Prototypical Training for Multilingual Speaker Verification](/202606/23/2606.17416v1-l-proto-language-aware-episodic-prototypical-training-for-multilingual-speaker-verification)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：用于多语言语音表示的概率性音频-语言预训练
+   evidence：语言感知的片段原型训练用于多语言说话人验证
+11. [One-Step Token-to-Waveform Generation with MeanFlow in Latent Space](/202606/23/2606.18072v1-one-step-token-to-waveform-generation-with-meanflow-in-latent-space)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：使用MeanFlow的一步式Token到波形TTS
+12. [Constraining to Generalize: Subspace Tuning for Few-shot Generalization of Audio-Language Models](/202606/23/2606.18560v1-constraining-to-generalize-subspace-tuning-for-few-shot-generalization-of-audio-language-models)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：音频语言模型的少样本适配以实现泛化
+13. [Reference-Driven Multi-Speaker Audio Scene Generation from In-the-Wild Priors](/202606/23/2606.19325v1-reference-driven-multi-speaker-audio-scene-generation-from-in-the-wild-priors)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：文本到音频流匹配用于多说话人场景生成，与语音合成技术相关
+14. [RIVET: Robust Idempotent Voice Attribute Editing](/202606/23/2606.19629v1-rivet-robust-idempotent-voice-attribute-editing)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：利用等幂性实现鲁棒语音属性编辑
+15. [Repurposing a Speech Classifier for Guided Diffusion-Based Speech Generation](/202606/23/2606.20457v1-repurposing-a-speech-classifier-for-guided-diffusion-based-speech-generation)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：将语音分类器重用于引导扩散语音生成，与可控语音合成相关
+16. [Phonemes to the Rescue: Multilingual Tokenization Based on International Phonetic Alphabet](/202606/23/2606.20993v1-phonemes-to-the-rescue-multilingual-tokenization-based-on-international-phonetic-alphabet)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：使用国际音标的多语言分词方法，改善跨语言表示
 
 
 <div class="dpr-home-promo-card">
