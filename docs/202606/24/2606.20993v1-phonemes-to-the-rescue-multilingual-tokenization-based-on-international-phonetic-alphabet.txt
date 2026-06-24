@@ -1,0 +1,2471 @@
+Title: Phonemes to the Rescue: Multilingual Tokenization Based on International Phonetic Alphabet
+
+URL Source: https://arxiv.org/pdf/2606.20993v1
+
+Published Time: Tue, 23 Jun 2026 00:28:56 GMT
+
+Number of Pages: 27
+
+Markdown Content:
+## Phonemes to the Rescue: Multilingual Tokenization Based on International Phonetic Alphabet 
+
+Milan Miletić 
+
+University of Amsterdam 
+
+m.miletic@uva.nl 
+
+Julie Kallini 
+
+Stanford University 
+
+kallini@stanford.edu 
+
+Ekaterina Shutova 
+
+University of Amsterdam 
+
+e.shutova@uva.nl 
+
+Abstract 
+
+Multilingual language models often exhibit performance disparities across languages that can arise as early as the tokenization stage. Widely-used subword tokenization approaches favor high-resource languages, and tokenizer-free methods still yield longer sequences for scripts with a higher bytes-per-character ra-tio. To address these shortcomings, we pro-pose to use the International Phonetic Alpha-bet (IPA) as a language-agnostic input rep-resentation for multilingual tokenizers. IPA provides a compact symbol inventory, greater cross-lingual character overlap, and a more balanced byte-per-character distribution across languages. We train matched pairs of text vs. IPA subword tokenizers across 24 languages and 14 scripts and demonstrate that IPA tok-enizers consistently improve tokenization qual-ity, especially for non-Latin scripts, and gener-alize more effectively to unseen languages and scripts. 
+
+a github.com/Mikki99/ipa-tokenization 
+
+1 Introduction 
+
+Despite their growing global impact, multilingual language models (MLMs) continue to exhibit per-formance disparities across languages. Prior work shows that these differences originate as early as the tokenization stage, with direct consequences for downstream model performance (Petrov et al., 2023; Lotz et al., 2025; Arnett and Bergen, 2025; Rust et al., 2020). The main challenge of multilin-gual tokenization is how to represent a large num-ber of diverse languages in a common fixed-size vocabulary. Currently predominant subword tok-enization algorithms (BPE, Sennrich et al. 2016; UnigramLM, Kudo 2018) learn this vocabulary by optimizing objectives defined over corpus statis-tics. By design, this process favors languages that are more prevalent in the training set. As a result, underrepresented languages, especially those with TEXT i(classic)  IPA i(ours)         
+
+> colour less green ideas
+> 無色の緑のアイ デア
+> без бо јне зелен еиде је
+> en
+> ja
+> sr
+> mɯ ɕokɯ no midoɾi no aidea
+> bezbo jne zelen eideje
+> kʌ l̩ ɹləs ɡɹin ajdiəz en
+> ja
+> sr
+
+Subword 
+
+tokenization                                      
+
+> Tokens _per _word
+> 1.33 1.6 2.67
+> en
+> colour +less +green +ideas
+> colour less +green +ideas
+> ja sr
+> Bytes _per _character
+> c色з
+> a63 a
+> e8,89 , b 2
+> d0, b 7
+> 1.00 2.68 1.79
+> en ja sr
+> Character _overlap
+> en ja
+> sr
+> 7
+> 9
+> 12
+> 0
+> 00
+> 0
+> *corpus _estimates
+> Symbol _inventory
+> 26
+> 30
+> 2,000 +
+> en ja sr
+> #unique _chars
+> *corpus
+> _estimates
+> Tokens _per _word
+> 1.33 1.2 2.0
+> en
+> kʌ l̩ ɹ+ləs +ɡɹin +ajdiəz
+> kʌ l̩ ɹləs +ɡɹin +ajdiəz
+> ja sr
+> Bytes _per _character
+> kɕz
+> a6ba
+> c9,95
+> a7ab
+> 1.32 1.28 1.09
+> en ja sr
+> en ja
+> sr
+> Character _overlap
+> 3
+> 2
+> 32
+> 1
+> 64
+> *corpus _estimates
+> Symbol _inventory
+> #unique _chars
+> 60
+> 51
+> 42
+> en ja sr
+> *corpus
+> _estimates
+
+Figure 1: Benefits of IPA for multilingual tokeniza-tion. We show how our trained Text and IPA tokeniz-ers segment the same input sequence in English (en), Japanese (ja), and Serbian (sr). Switching to IPA maps all languages into a shared phonetic alphabet, which (i) increases cross-lingual character overlap, (ii) reduces the symbol inventory needed to represent the corpus, and (iii) mitigates byte-per-character differences. To-gether, this results in better overall tokenization quality, as shown for instance by reduced tokens per word (what we later refer to as word fertility). 
+
+rich morphologies or those using non-Latin scripts, often require more tokens for encoding the same se-mantic content (Ahia et al., 2023). This leads to in-creased computational cost, slower inference times, and diminished fluency and output quality in those languages (Qin et al., 2025). A prominent alter-native to subword tokenization in recent years is 
+
+tokenization-free byte-level modeling, which rep-resents each input byte as a token. While this ap-proach avoids many of the issues associated with traditional tokenizers, the shift to byte tokens alone 
+
+does not eliminate cross-lingual disparities: char-acters in some scripts require up to 4 × as many bytes to encode than those in other scripts, lead-ing to longer input sequences—and thus, higher computational costs—for those languages (Mielke et al., 2021; Limisiewicz et al., 2024). This indi-
+
+> arXiv:2606.20993v1 [cs.CL] 18 Jun 2026
+
+cates that tokenization quality across languages de-pends not only on the tokenization method (or lack thereof), but also on the input encoding on which it operates. Guided by this observation, in this work we consider an alternative input representation that is offered by the International Phonetic Alphabet (IPA, International Phonetic Association 1999) in-stead of using standard orthography. IPA maps languages into a shared (phonetic) alphabet, in-creasing character-level overlap across languages that otherwise use disjoint scripts. Because the symbol inventory is small ( ≈ 200 characters), a fixed-size subword vocabulary can be used more efficiently, with less of its capacity wasted on script-specific variants of the same words or mor-phemes. Finally, IPA is encoded mostly with 1– 2 byte UTF-8 characters, which mitigates script-driven differences in bytes-per-character and there-fore reduces disparities in per-language encoding cost. An overview of IPA’s benefits is illustrated in Fig. 1 and we provide empirical results to sup-port these claims in Appendix I. These benefits in-spired IPA’s usage in NLP at various stages of the modeling pipeline, from pre-training tasks (Gale et al., 2023) to prompting (Nguyen et al., 2024), or even integrating it into multimodal pipelines (Mat-suhira et al., 2023). However, to the best of our knowledge, we are the first to systematically evalu-ate the effects of IPA on multilingual tokenization quality across a diverse set of configurations and languages. Concretely, we train subword tokenizers on mul-tilingual data spanning 24 languages and 14 dis-tinct scripts in two input formats—standard orthog-raphy and IPA—while varying the tokenization al-gorithm, vocabulary size, and data sampling strat-egy. We evaluate each tokenizer on a suite of intrinsic tokenization quality metrics measuring compression, token frequency distribution proper-ties, vocabulary usage, and cross-lingual equity. We further train GPT-2 models on a set of se-lected tokenizers and evaluate them on two widely used multilingual downstream tasks: XNLI and PAWS-X. We find that IPA tokenizers consistently outperform standard text tokenizers on intrinsic metrics, under their respective best configurations, without sacrificing downstream task performance. Overall, our approach preserves MLM capabilities, while yielding more equitable treatment across lan-guages. 
+
+2 Background and Related Work 
+
+Disparities in tokenization quality. Prior work has shown that standard multilingual subword tok-enizers systematically treat languages inequitably (Petrov et al., 2023; Ahia et al., 2023; Ali et al., 2024, inter alia). Resulting frequency-based vocab-ularies allocate more capacity to high-resource lan-guages, so that lower-resource languages are split into many more tokens per word. This is espe-cially amplified in case of morphologically more complex languages, as well as those using non-Latin scripts. Petrov et al. (2023) quantify this disparity, showing a difference in the amount of tokens needed to encode the same semantic con-tent of up to 15 × between languages. This over-segmentation has direct consequences, as the im-pacted languages will require much higher training and inference costs. 1
+
+These findings have inspired several recent works that aim to tackle these tokenization chal-lenges. Petrov et al. (2023) suggest training mono-lingual tokenizers for each language and then merg-ing them based on tokenization parity. Inher-iting the idea of tokenization parity, Foroutan et al. (2025) introduce Parity-Aware BPE, opti-mizing the training objective in classic BPE such that merges are guided by per-language compres-sion levels, instead of simple frequency. Feher et al. (2025) propose a dynamic tokenization ap-proach, which merges frequently co-occurring sub-words on the fly to reduce the token-count infla-tion. The main alternative to subword tokeniza-tion in recent years have been different flavors of byte-level approaches, which eliminate learned segmentation by treating each byte in the input as a separate token (Xue et al., 2022; Kallini et al., 2024; Yu et al., 2023, inter alia). How-ever, cross-lingual disparities still remain even when working with byte tokens, as languages dif-fer in the number of bytes-per-character, as well as the number of symbols needed to encode the same semantic content (Arnett et al., 2024). Re-cent work has sought to address this issue with more adaptive forms of byte-level tokenization. Ahia et al. (2024) introduce MAGNET, which in-tegrates adaptive gradient-based tokenization into the model through script-specific predictors that place token boundaries so as to equalize segmen-                                                                                                                                                             
+
+> 1Lundin et al. (2025) refer to this effect as token tax , show-ing that doubling in tokens can increase training cost by a fac-tor of four. LATN ARAB CYRL DEVA JPAN HANG HANI THAI LAOO MYMR GREK HEBR ETHI
+> Stage DE EN ES FI FR IT PL SW TR AR FA UR RU SR HI JA KO ZH TH LO MY EL HE AM Tokenizer training 33-333-3333333333333----GPT-2 pre-training 33-333-3333333333333----Intrinsic eval 333333333333333333333333
+> XNLI 333-3--333-33-3--33--3--PAWS-X 333-3----------333------
+
+Table 1: Language coverage at different stages of our experiments. Columns show languages (ISO 639-1 codes) grouped by script (ISO 15924 codes). We provide the language/script-to-ISO mapping in Appendix C.1. 3 indicates that a language is included in the corresponding stage. For tokenizer and GPT-2 training we use a sample from the CulturaX dataset (Nguyen et al., 2023). For intrinsic evaluation we use WikiPron (Lee et al., 2020) and FLORES+ (NLLB Team et al., 2024). We perform downstream evaluation on XNLI (Conneau et al., 2018) and PAWS-X (Yang et al., 2019). 
+
+tation granularity across scripts. Owodunni et al. (2025) propose FLEXITOKENS, introducing a more flexible training objective that allows the compres-sion rate to adapt across languages and scripts, as well as across domains within the same language. While our method could in principle be applied to byte-level approaches (see Appendix J), we fo-cus on currently predominant subword tokeniza-tion in this work. We provide a summary of dif-ferent tokenization methods in Appendix B. 
+
+IPA in Natural Language Processing. IPA has seen a growing range of applications in NLP in recent years, particularly in settings that require phonological awareness. Leong and Whitenack (2022) and Sohn and Mortensen (2025) show ben-efits of IPA representations for improved perfor-mance in named entity recognition (NER) tasks. Gale et al. (2023) introduce the BORT model, an extension of BART (Lewis et al., 2020) with added self-supervised pre-training pronunciation tasks by leveraging IPA representations. Nguyen et al. (2024) propose phonemic prompting as a way to enhance the multilingual capabilities of LLMs. Matsuhira et al. (2023) developed IPA-CLIP, by in-corporating IPA representations into a multimodal setting, extending the CLIP model. Taken together, these studies highlight the versatility and effective-ness of IPA in enhancing cross-lingual generaliza-tion, representation learning, and multilingual per-formance. Most closely related to our work are Goriely et al. (2024), who also pre-train GPT-2 models on IPA input, testing both character-level and BPE tokenization. However, their study is lim-ited to a monolingual setting (English) and does not analyze the impact of IPA on tokenization qual-ity. 
+
+3 Data and Languages 
+
+3.1 Languages 
+
+Table 1 summarizes language coverage at each stage of our experiments. For tokenizer training (Section 4.3) and GPT-2 pre-training (Section 4.5) we consider 18 languages spanning 10 scripts. We evaluate the intrinsic tokenization quality (Sec-tion 4.4) on the same language set together with six additional languages (AM, EL, ES, HE, MY, PL) that introduce four new scripts (GREK, HEBR, ETHI, MYMR) and allow us to test zero-shot generaliza-tion to languages/scripts unseen during tokenizer training. In total, this results in 24 languages and 14 scripts considered in this work. Our language selection aimed to cover a diverse sample across orthographic, typological, and re-source profiles. For instance, it includes high-resource Indo-European languages (e.g., EN, DE, FR, IT, RU), as well as comparatively lower-resource languages (e.g., SW, LO, MY, AM), which are often underrepresented in multilingual pre-training pipelines. We also consider morphologi-cally rich languages (e.g., FI, TR) which often ex-hibit worse tokenization quality (Raj et al., 2024) and those with more complex orthographies (e.g., ZH, JA, KO, TH, LO) which are typically more ex-pensive to encode due to their Unicode ranges. We also include a language written in multiple scripts, JA, spanning Katakana, Hiragana, and Kanji (col-lectively labeled as JPAN). 2,3 
+
+> 2Although, in our experiments we only consider Katakana and Hiragana, due to limitations in Epitran’s Kanji support
+> 3Serbian is also a multi-script language (LATN and CYRL), but our sample only contained Cyrillic text.
+
+3.2 Datasets CulturaX. For tokenizer training (Section 4.3) and GPT-2 pre-training (Section 4.5), we use Cul-turaX (Nguyen et al., 2023), a large-scale mul-tilingual web corpus derived from filtered mC4 (Xue et al., 2021) and OSCAR (Suárez et al., 2019, 2020). We apply additional post-processing to remove residual non-linguistic artifacts and re-duce cross-language contamination on our sample of languages (Appendix C.4). We sample a to-tal of 1GB of data distributed across our 18 lan-guages using four strategies: (i) byte-uniform ,allocating an equal number of bytes to each lan-guage; (ii) semantic-uniform , allocating equal semantic content by compensating for language-specific byte premiums (Arnett et al., 2024); (iii) data-proportional , sampling in proportion to each language’s share in CulturaX; and (iv) 
+
+data-smoothed , applying temperature sampling (α=0 .3) to upweight lower-resource languages (as done in mT5, Xue et al. (2021); mBERT, Devlin (2018); XLM-R, (Conneau et al., 2020)). The first two strategies provide a balanced sample of lan-guages (under different notions of balance), while the latter two result in unbalanced , but arguably more realistic distributions in practice. More details and distribution visualizations are in Ap-pendix C.2. 
+
+WikiPron and FLORES+. For evaluating in-trinsic tokenization quality we use two datasets: (i) WikiPron (Lee et al., 2020), a multilingual col-lection of word lists paired with IPA transcrip-tions extracted from Wiktionary 4 and (ii) FLO-RES+ (NLLB Team et al., 2024), a dataset of human-translated parallel sentences across more than 200 languages. We use WikiPron for word-level metrics (word fertility and proportion of con-tinued words; see Section 4.4) and FLORES+ for all the remaining metrics, computed at the sentence level. Details can be found in Appendix C. 
+
+XNLI and PAWS-X. We fine-tune and evaluate selected models on XNLI (Conneau et al., 2018) and PAWS-X (Yang et al., 2019), two standard mul-tilingual natural language understanding (NLU) benchmarks. These two benchmarks cover 13 and 7 languages from our selection, respectively, as shown in Table 1. 
+
+> 4https://www.wiktionary.org/
+
+4 Methodology 
+
+4.1 Overview 
+
+Our experiments compare subword tokenization trained on two input representations: standard or-thographic text ( Text ) and its phonemic transcrip-tion in the International Phonetic Alphabet ( IPA ). Starting from the same multilingual corpora, we (i) build an IPA version of each dataset with a multi-lingual grapheme-to-phoneme (G2P) pipeline, (ii) train matched pairs of Text vs. IPA tokenizers on different configurations, (iii) evaluate intrinsic to-kenization quality across languages, and (iv) pre-train GPT-2 models with selected tokenizers and evaluate cross-lingual transfer by fine-tuning on English and testing zero-shot on other languages. 
+
+4.2 Grapheme-to-phoneme conversion 
+
+To train and evaluate IPA tokenizers and IPA-based language models, we require IPA text at scale. While some resources provide curated IPA tran-scriptions (e.g., WikiPron (Lee et al., 2020) or Universal Dependencies (UD; Nivre et al., 2020)), these are often limited in size and language cover-age. In this work, we utilize Epitran (Mortensen et al., 2018), an open-source rule-based grapheme-to-phoneme (G2P) toolkit designed specifically for multilingual applications. Epitran supports more than 60 languages across a variety of scripts and is being actively extended. It takes standard or-thographic text as input, together with the source language and script code (e.g. tokenization ,
+
+eng-Latn ), and returns its IPA equivalent (e.g. 
+
+> towkənəzejʃən
+
+). We applied minor language-specific fixes and extensions, as well as efficiency improvements to Epitran’s conversion pipeline, to adapt it best to our needs (see Appendix D for a detailed discussion). For languages that are not supported by Epitran (Greek and Hebrew), we use Phonemizer (Bernard and Titeux, 2021) instead. We discuss G2P conversion quality in Appendix E 
+
+4.3 Tokenizer training 
+
+To isolate how the input representation affects subword tokenization we vary a set of configu-rations outlined below. For each configuration we train a paired set of tokenizers: one on Text 
+
+and one on IPA . We train all tokenizers with Sen-tencePiece (Kudo and Richardson, 2018) to al-low comparisons across subword algorithms un-der consistent training conditions and because it avoids whitespace-based pre-tokenization, which is important for languages in our study without ex-plicit word boundary markers. We detail hyper-parameter settings and representation-specific ad-justments (such as Unicode normalization and character coverage) in Appendix H.1. 
+
+Experimental grid. We vary three factors in our experiments: (1) subword tokenization algo-rithm (BPE, UnigramLM), (2) vocabulary size (40k, 80k, 100k, 200k), and (3) data sampling strategy (byte-uniform , semantic-uniform ,
+
+data-proportional , data-smoothed ; defined in Section 4.3). This yields 2 × 4 × 4 = 32 config-urations, and thus 32 paired Text /IPA tokenizers (64 tokenizers in total). 
+
+4.4 Intrinsic evaluation metrics 
+
+We assess tokenization quality using ten metrics grouped into four categories—compression, token frequency distribution shape, vocabulary usage, and cross-lingual equity—and refer to Appendix F for formal definitions. 
+
+4.4.1 Compression 
+
+We report four compression metrics: (i) Word Fer-tility (WF) , the average number of subword to-kens per unique word type, where lower values in-dicate that words are represented with fewer pieces; (ii) Proportion of Continued Words (PCW) , the fraction of unique words split into more than one token, where lower values indicate fewer splits; (iii) Average Token Length (ATL) , the mean to-ken length measured in input characters of the representation ( Text or IPA ), where higher val-ues indicate tokens spanning longer segments; and (iv) Compression Rate (CR) , the average num-ber of input characters per token at the sentence level, where higher values indicate stronger com-pression. 
+
+4.4.2 Token frequency distribution shape 
+
+We characterize the token frequency profile with two metrics: (i) Rényi Entropy (RE) , computed from token frequencies on evaluation data and re-ported for α=1 (Shannon), α=2 (collision), and 
+
+α=∞ (min-entropy), where higher values indi-cate more uniform token usage across the vocabu-lary; and (ii) Zipf Deviation (ZipfD) , which mea-sures how closely the empirical rank–frequency curve matches an ideal Zipfian distribution, where lower values indicate closer adherence to Zipf’s law (Lotz et al., 2025). 
+
+4.4.3 Vocabulary usage 
+
+We quantify vocabulary usage with two metrics: (i) Vocabulary Utilization (VU) , the share of the learned vocabulary that appears at least once in the evaluation data, where higher values indicate less unused capacity; and (ii) Type–Token Ratio (TTR) , the number of distinct token types divided by the total number of produced tokens, where higher values indicate more diverse token usage rel-ative to sequence length. 
+
+4.4.4 Cross-lingual equity 
+
+We assess cross-lingual equity with two metrics: (i) Tokenization Parity (TP) , the average ratio of token counts between English and a target language computed over parallel sentence pairs, where values closer to 1 indicate similar segmen-tation length (Petrov et al., 2023); and (ii) Tok-enization Fairness Gini (TFG) , the Gini coeffi-cient over language-level tokenization cost, where cost is defined as token count normalized by input bytes, and lower values indicate more equal tok-enization cost across languages (Meister, 2025). 
+
+4.5 GPT-2 pre-training and fine-tuning Tokenizer selection. Since training a language model for all 32 tokenizer settings for both Text and IPA is computationally expensive, we select a small set of tokenizers for GPT-2 pre-training experiments using our intrinsic evaluation. We rank the 32 Text and 32 IPA tokenizers by macro-averaging each intrinsic metric over languages and then aggregating the resulting metric-wise ranks into a single mean-rank score. We select the high-est ranked Text and IPA tokenizers, which we re-fer to as Text Opt and IPA Opt , respectively. Text Opt tokenizer is found under the following setting [BPE, 200k, data-proportional ], while for IPA Opt it is [UnigramLM, 200k, byte-uniform ]. Be-cause these optima arise under different settings, the comparison is no longer driven only by the in-put representation. Therefore, we also select two control tokenizers: Text tokenizer with IPA Opt settings ( Text Subopt ) and IPA tokenizer with Text Opt settings ( IPA Subopt ). We, thus, pre-train four GPT-2 models in total. The ranking procedure and the full ranking results are reported in Appendix G. 
+
+Pre-training. We train GPT-2 Small models (Radford et al., 2018, 2019) from scratch on the data-smoothed sample of CulturaX for our 18 languages using the four selected tokenizers. TEXT  IPA      
+
+> balanced unbalanced
+> TEXT IPA
+> balanced unbalanced
+> Overall #
+> Text
+> Opt
+> IPA
+> Opt
+> Text
+> Subopt
+> IPA
+> Subopt
+> TEXT : 118 IPA
+> BPE _Tokenizers UnigramLM _Tokenizers
+> : 158
+
+Figure 2: Intrinsic performance across all tokenizer configurations for Text and IPA representations. Each heatmap cell reports a metric value macro-averaged across languages and min–max normalized to [0 , 1] (higher is better) for a configuration defined by vocabulary size, subword algorithm, and data-sampling strategy. Cells marked with a trophy indicate a >0.1 advantage over the paired configuration in the other representation ( Text vs. IPA ). Outlined cells denote the selected Opt/Subopt tokenizers for GPT-2 training. Takeaway: Across configurations, IPA is consistently stronger on compression (WF, PCW, ATL, CR) and cross-lingual equity (TFG), while Text yields higher token-frequency uniformity as measured by Rényi entropies ( α ∈ { 1, 2, ∞} ). Overall, IPA wins more often (158 trophies) than Text (118 trophies). 
+
+Given that all of our tokenizers use a 200 k vocab-ulary, we end up with a total of 240M parameter models (rather than 125M in the original GPT-2 Small, which uses a 50 k vocabulary). All hyperpa-rameters are fixed across models and their values are reported in Appendix H.2. 
+
+Fine-tuning and evaluation. For both XNLI and PAWS-X, we consider three fine-tuning regimes: (1) monolingual, (2) multilingual, and (3) English-only. In the monolingual regime, a pre-trained model is fine-tuned and evaluated in-dependently for each language. In the multilin-gual regime, the model is fine-tuned jointly on data from all languages and evaluated separately on each language. In the English-only regime, the model is fine-tuned exclusively on the English training data and evaluated both on a held-out En-glish split and, in a zero-shot setting, on all re-maining languages to measure cross-lingual trans-fer abilities. 
+
+5 Results and Analysis 
+
+5.1 Intrinsic tokenization quality across languages and configurations 
+
+We begin with two complementary diagnostic views: the configuration-level heatmaps (Fig. 2), which compare intrinsic performance across all to-kenizer settings for Text vs. IPA , and a detailed per-language evaluation (Fig. 3) of the optimal tok-enizers (with mean statistics for suboptimal ones). 
+
+IPA consistently improves tokenization qual-ity. Under their respective optimal settings, IPA improves overall tokenization quality across lan-guages compared to Text (Fig. 3). Across all tested configurations, IPA records more notable wins than Text (158 vs. 118; ∆>0.1 in the normal-ized metric scale), as shown in Fig. 2, with espe-cially consistent advantages on compression met-rics (WF, PCW, ATL, CR) and cross-lingual eq-uity (TFG).Text, by contrast, consistently achieves higher Rényi entropies, indicating a more even spread of token usage across the vocabulary. This pattern is best interpreted in light of IPA’s com-pression gains: higher compression suggests that the learned units are, on average, more word-like, which in turn yields a more Zipfian token distribu-tion, concentrating probability mass more strongly on frequent units while producing a longer tail of rare tokens. Rényi entropy inevitably drops in this scenario, but not as a sign of poorer tokenization, but as a consequence of a more coherent subword structure, which is generally a desirable property. Fig. 5 further summarizes paired effect sizes dz per metric, aggregated across languages ( dz > 0 ⇒
+
+IPA is better than Text; see Appendix N), corrob-orating that IPA’s gains are systematic rather than driven by a single language or setting. ar  
+
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 5
+> 10
+> 15
+> 20
+> Word Fertility
+
+↓  
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+> Continued Words
+
+↓  
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 1
+> 2
+> 3
+> 4
+> Avg. Token Length
+
+↑  
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 1
+> 2
+> 3
+> 4
+> 5
+> 6
+> Compression Rate
+
+↑  
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 4
+> 6
+> 8
+> 10
+> 12
+> Renyi Entropy (alpha=1)
+
+↑  
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 2
+> 4
+> 6
+> 8
+> 10
+> Renyi Entropy (alpha=2)
+
+↑  
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 1
+> 2
+> 3
+> 4
+> 5
+> 6
+> Renyi Entropy (alpha=inf)
+
+↑  
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> Zipf Deviation
+
+↓   
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 0.01
+> 0.02
+> 0.03
+> 0.04
+> 0.05
+> 0.06
+> 0.07 Vocab Utilization
+
+↑  
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Type-Token Ratio
+
+↑  
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 5
+> 10
+> 15
+> Tokenization Parity vs EN
+
+→1←  
+
+> SEEN UNSEEN Text Opt Text Subopt IPA Opt IPA Subopt
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> Tokenizer Fairness Gini
+
+↓ 
+
+> 0.3662 0.3713
+> 0.1782
+> 0.1528
+> Languages Metric values
+> Text Opt mean
+
+Text Opt 
+
+> IPA Opt mean
+
+IPA Opt  
+
+> Text Subopt mean IPA Subopt mean
+
+Figure 3: Per-language intrinsic tokenization metrics: Text vs. IPA . Solid lines show Text Opt and IPA Opt per language; dashed lines are means. Subopt variants shown as mean-only (per-language in Appendix K). Arrows: ↑
+
+= higher is better, ↓ = lower is better, → 1 ← = closer-to-1 is better; TFG is a single global tokenizer metric (not per-language), hence shown as bars. SEEN/UNSEEN mark languages included in vs. absent from tokenizer training data. Takeaway: IPA (Opt) shows consistently better tokenization quality than Text (Opt and Subopt) across metrics, with differences particularly pronounced for unseen languages. 
+
+Sensitivity to different configurations. Inde-pendent of representation, several configuration trends are stable across metrics: larger vocabular-ies generally improve compression and yield lower Zipf deviation (best ZipfD typically at 200k), while Rényi entropies show a trade-off for different or-ders ( H2 and H∞ strongest at small vocabularies (40k) but H1 tending to peak at the largest (200k)). Vocabulary usage metrics show a similar pattern: with VU highest at 40k and TTR at 200k vocab-ularies. Cross-lingual equity prefers smaller vo-cabularies under the balanced sampling strategies, but shifts this preference towards larger vocabu-laries under unbalanced mixtures. We provide a more detailed interpretation of these effects in Ap-pendix M. Finally, the optimal Text and IPA tok-enizers emerge under different configurations, as outlined in Section 4.5 and highlighted in Fig. 2. 
+
+5.1.1 Metric-level analysis IPA brings largest gains in compression and cross-lingual equity. Figure 5 shows that IPA’s largest metric improvements are in compression-related measures (ATL and CR) and cross-lingual equity (TFG), followed by consistent gains in token-frequency distribution (Rényi entropies across different orders). Compression gains indi-cate that IPA achieves more compact segmenta-tions (fewer tokens for comparable content), while improved equity indicates more uniform tokeniza-tion quality across languages. In contrast, improve-ments are smaller for vocabulary utilization (VU) and continued-word behavior (PCW). The smaller improvements in VU are likely a combined result of our very large vocabularies ( 200 k) and small test sets (WikiPron and FLORES+). With a large vo-cabulary, many tokens sit in a long tail that never appears in the evaluation sample. Smaller improve-ments in PCW compared to other compression met-rics suggest that while words are overall split into fewer tokens, the IPA tokenizers still rarely store entire words in their vocabularies. 
+
+5.1.2 Language- and script-level analysis Gains concentrate on non-Latin and unseen scripts. To characterize how different languages are impacted, we use two complementary sum-maries over intrinsic metrics: win rate (WR), the fraction of metrics where IPA outperforms Text for a given language/script, and the mean z-score el my lo he am th ja fi hi zh ko sr sw ar ur tr it fa ru fr es pl de en 0.00 0.25 0.50 0.75 1.00       
+
+> Win rate
+> IPA better (WR ≥0.5) Text better (WR <0.5) Mean z-score (¯ z)
+> −1.5
+> −1.0
+> −0.50.00.51.01.5
+> Mean z-score  (¯ z)
+
+(a) Per-language Laoo Grek Ethi Deva Thai Mymr Kana Hebr Hani Hira Hang Latn Arab Cyrl 0.00 0.25 0.50 0.75 1.00       
+
+> Win rate
+> IPA better (WR ≥0.5) Text better (WR <0.5) Mean z-score (¯ z)
+> −1.0
+> −0.50.00.51.0
+> Mean z-score  (¯ z)
+
+(b) Per-script 
+
+Figure 4: Ranking IPA impact on tokenization quality (a) per-language and (b) per-script. Bars show win rate (WR), the fraction of intrinsic metrics on which IPA Opt 
+
+outperforms Text Opt : WR ∈ [0 , 1] , with WR =1/0 in-dicating that IPA /Text wins on all metrics, respectively. 
+
+Red bars mark languages/scripts where IPA wins on a majority of metrics (WR >0.5), while blue bars mark those where Text wins (WR <0.5). Black dots show the 
+
+mean z-score ¯z (average standardized IPA–Text delta; 
+
+¯z> 0 favors IPA). Takeaway: The largest improvements concentrate on unseen scripts (GREK, ETHI, MYMR, HEBR) and on languages with more complex orthogra-phies (e.g., LO, TH, JA), while only a small set of mostly high-resource Latin languages (FR, ES, PL, DE, EN) and one Cyrillic language (RU) show lower overall quality. 
+
+(¯z), which summarizes the average standardized magnitude of IPA–Text differences (both described in more detail in Appendix N). The language-and script-level rankings (Fig. 4a, Fig. 4b) show that the largest improvements concentrate on non-Latin scripts, with the strongest gains on unseen scripts (GREK, ETHI, MYMR, HEBR). Languages in these scripts (e.g., EL, AM, MY, HE) achieve WR =1 , indicating that IPA improves all intrin-sic metrics compared to Text. Substantial gains also appear for complex orthographies and seg-mentation regimes (e.g., LO, TH, JA (WR =1 ), and ZH (WR =0 .9)), morphologically rich languages (e.g., FI (WR =0 .9) and TR (WR =0 .72 )), as well as low-resource languages (e.g., LO (WR =1 ) and SW (WR =0 .81 )). These results uncover a particu-lar fragility of Text tokenizers: when a language or script is underrepresented or completely unseen during tokenizer training, subword algorithms of-ten split words into individual characters or even bytes, leading to fragmented segmentation. In con-trast, IPA’s shared symbol space across scripts bet-ATL CR RE ∞    
+
+> RE 2
+> RE 1
+> WF TP TTR ZipfD VU PCW 0.00 0.25 0.50 0.75 1.00
+> Paired effect size  dz
+> TFG  010 20 30 40 50 %∆TFG
+> Compression Token frequency distribution Vocabulary utilization Cross-lingual equity
+
+Figure 5: Ranking IPA impact on tokenization quality per metric. Bars are grouped and color-coded by metric family (see Sec. 4.4). Left panel reports paired effect size dz across languages for 11 per-language metrics (dz > 0 favors IPA , dz < 0 favors Text ). TFG is shown separately (right panel) because it is a single global to-kenizer statistic rather than a per-language metric; we report its relative change (% ∆TFG Text Opt −IPA Opt ; > 0
+
+favors IPA ). Takeaway: IPA improves average intrinsic quality across all metrics, with the largest gains in com-pression (ATL, CR) and cross-lingual equity (TFG), suggesting better tokenization efficiency and more uni-form cross-lingual behavior. 
+
+ter preserves tokenization quality in these situa-tions. 
+
+Only a small set of high-resource Latin lan-guages shows mild degradation. A small sub-set of languages—EN, DE, FR, ES, PL, RU—shows WR <0.5 (Fig. 4a), meaning Text wins on a major-ity of intrinsic metrics for these cases. These lan-guages are predominantly high-resource and writ-ten in Latin script, which is best represented during tokenizer training, where Text tokenizers already perform well. 5 However, these degradations have relatively small magnitudes ( ¯z< 0) compared to the improvements across other languages. 
+
+5.2 Downstream task performance and efficiency IPA models match downstream accuracy while reducing inference cost. Figure 6 shows per-language accuracies for Text and IPA tokenizers un-der both Opt and Subopt configurations, across the three fine-tuning regimes described in Section 4.5. Overall, IPA models achieve mean accuracies com-parable to those of Text models on both datasets. On PAWS-X, performance varies modestly across fine-tuning settings: IPA slightly outperforms Text under multilingual fine-tuning, but trails it in the English-only regime. Notably, IPA models out-perform Text models on Greek (EL), the only lan-
+
+> 5
+
+One exception is Russian, which is written in Cyrillic script, but is still one of the better represented languages in our training data. ar 
+
+> de
+> en
+> es
+> fr
+> hi
+> ru
+> sw
+> th
+> tr
+> ur
+> zh
+> el
+> Language
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Accuracy
+
+Monolingual 
+
+> ar
+> de
+> en
+> es
+> fr
+> hi
+> ru
+> sw
+> th
+> tr
+> ur
+> zh
+> el
+> Language
+> Accuracy
+
+Multilingual 
+
+> ar
+> de
+> en
+> es
+> fr
+> hi
+> ru
+> sw
+> th
+> tr
+> ur
+> zh
+> el
+> Language
+> Accuracy
+
+English-only 
+
+> Text Opt IPA Opt Text Subopt IPA Subopt Text Opt mean IPA Opt mean Text Subopt mean IPA Subopt mean
+
+(a) XNLI. de 
+
+> en
+> es
+> fr
+> ja
+> ko
+> zh
+> Language
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Accuracy
+
+Monolingual 
+
+> de
+> en
+> es
+> fr
+> ja
+> ko
+> zh
+> Language
+> Accuracy
+
+Multilingual 
+
+> de
+> en
+> es
+> fr
+> ja
+> ko
+> zh
+> Language
+> Accuracy
+
+English-only 
+
+(b) PAWS-X. 
+
+Figure 6: Per-language fine-tuning results for (a) XNLI and (b) PAWS-X showing Text Opt , IPA Opt , Text Subopt ,and IPA Subopt models. We show results for three different fine-tuning strategies (monolingual, multilingual, and English-only). Takeaway: On average, IPA models are on-par with Text on both datasets, with some minor variation across fine-tuning strategies. −0.5 0.0 0.5 1.0 1.5 2.0 2.5 3.0 3.5 
+
+> ∆Compression Rate
+> −0.09
+> −0.06
+> −0.03 0.00 0.03 0.06
+> ∆ Accuracy
+> Overall
+> Languages
+> ar de el en es fr hi ru sw th tr ur zh
+
+(a) XNLI. −1.0 −0.5 0.0 0.5 1.0 1.5 2.0 2.5       
+
+> ∆Compression Rate
+> −0.100
+> −0.075
+> −0.050
+> −0.025 0.000 0.025
+> ∆ Accuracy
+> Overall
+> Languages
+> de en es fr ja ko zh
+
+(b) PAWS-X. 
+
+Figure 7: Accuracy–compression trade-off of IPA Opt 
+
+relative to Text Opt on (a) XNLI and (b) PAWS-X. Each point is a language with ∆Acc = Acc IPA Opt −
+
+Acc Text Opt versus ∆CR = CR IPA Opt − CR Text Opt ; the large star denotes the macro-average across languages. Points further right indicate better compression and points higher indicate better accuracy. Takeaway: IPA 
+
+models improve overall compression, resulting in re-duced inference cost. 
+
+guage in either benchmark absent from the tok-enizer training data. We also observe a small set of languages (TH, ZH), for which IPA models con-sistently lag slightly behind Text models; one pos-sible explanation is somewhat lower grapheme-to-phoneme quality for these languages, though a de-tailed per-language analysis is left for future work. Despite this near-parity in accuracy, the accuracy– compression trade-off in Fig. 7 shows that IPA im-proves overall compression on both benchmarks. In practice, this means fewer tokens per input and therefore lower inference cost. Consistent with the intrinsic results, the same set of high-resource Latin languages (EN, DE, FR, ES) + RU see mild compression regressions, which are outweighed by more substantial improvements on other languages, resulting in a favorable accuracy–efficiency trade-off: near-par downstream performance with re-duced token counts, translating to lower compute and latency at inference. 
+
+6 Conclusion 
+
+In this work, we show that using IPA as an input representation results in improved and more eq-uitable multilingual tokenization quality. Across 24 languages and 14 scripts, the optimal IPA to-kenizer consistently outperforms the optimal Text tokenizer on our suite of 10 intrinsic metrics, with largest gains in compression and cross-lingual eq-uity, and most pronounced improvements for non-Latin and unseen scripts. Models pretrained on IPA match text-based models on downstream per-formance (XNLI, PAWS-X), while lowering over-all inference cost due to improved compression. This establishes IPA as a promising direction for reducing tokenization-driven disparities in MLMs. 
+
+7 Limitations 
+
+Dependence on G2P quality. Our approach re-lies on grapheme-to-phoneme (G2P) tools to ob-tain IPA transcriptions at scale. In practice, G2P quality is not even across all languages, and rule-based or deterministic tools such as Epitran can-not handle pronunciation variation (e.g., British English vs. American English) or homographs, where identical spellings correspond to different pronunciations (e.g., live as a verb vs. adjective). As multilingual G2P systems improve and become more robust, IPA-based pipelines should become increasingly practical for large-scale pretraining. 
+
+Converting from IPA back to Text. Autoregres-sive models trained purely on IPA cannot directly generate standard orthographic text. IPA is a lossy encoding, and not always is there an unambiguous mapping back to the original writing system, mak-ing straightforward decoding a challenge. More-over, to the best of our knowledge, there cur-rently exist no publicly available automatic mul-tilingual phoneme-to-grapheme (P2G) conversion tools. Since many real-world uses of generative language models require fluent orthographic out-put, future work could focus on developing accu-rate P2G tools or finding ways to incorporate the IPA-to-text mapping mechanism directly into the model architecture. 
+
+Generalizability. While we cover a diverse set of languages and vary tokenization and data-sampling configurations to improve generalizabil-ity of our findings, our pretrained GPT-2 mod-els (240M parameters) are rather small by current standards. It therefore remains an open question whether the same trade-offs hold at larger scales. In addition, we evaluate downstream transfer on only two tasks and report a single run per model. Stronger evidence would come from broader down-stream evaluation and reporting average results over multiple runs to improve robustness. 
+
+Representation choices and scope of analysis. 
+
+In this work, we focus on IPA transcriptions and do not consider romanization as an alternative input representation. Romanization converts text from its original script into a Latin-script representation, offering similar benefits as IPA in terms of reduc-ing script variation and increasing cross-lingual consistency. In addition, our analysis primarily tar-gets the tokenization stage. While we do provide a set of downstream results, we do not provide a detailed per-language analysis. Future work could therefore compare orthographic text, IPA, and ro-manization more systematically across the stages of pre-training and fine-tuning, and analyze the effects of these different input representations on downstream performance more thoroughly. 
+
+8 Acknowledgements 
+
+This research was funded by the European Union (ERC, CulturAL, 101171968). Views and opin-ions expressed are however those of the author(s) only and do not necessarily reflect those of the Eu-ropean Union or the European Research Council. Neither the European Union nor the granting au-thority can be held responsible for them. 
+
+References                        
+
+> Orevaoghene Ahia, Sachin Kumar, Hila Gonen, Valentin Hofmann, Tomasz Limisiewicz, Yulia Tsvetkov, and Noah A Smith. 2024. Magnet: Im-proving the multilingual fairness of language mod-els with adaptive gradient-based tokenization. Ad-vances in Neural Information Processing Systems ,37:47790–47814. Orevaoghene Ahia, Sachin Kumar, Hila Gonen, Jungo Kasai, David R Mortensen, Noah A Smith, and Yulia Tsvetkov. 2023. Do all languages cost the same? tok-enization in the era of commercial language models.
+> arXiv preprint arXiv:2305.13707 .Mehdi Ali, Michael Fromm, Klaudia Thellmann, Richard Rutmann, Max Lübbering, Johannes Lev-eling, Katrin Klug, Jan Ebert, Niclas Doll, Jasper Buschhoff, and 1 others. 2024. Tokenizer choice for llm training: Negligible or crucial? In Find-ings of the Association for Computational Linguis-tics: NAACL 2024 , pages 3907–3924. Catherine Arnett and Benjamin Bergen. 2025. Why do language models perform worse for morphologi-cally complex languages? In Proceedings of the 31st International Conference on Computational Linguis-tics , pages 6607–6623. Catherine Arnett, Tyler A Chang, and Benjamin Bergen. 2024. A bit of a problem: Measurement disparities in dataset sizes across languages. In Proceedings of
+
+the 3rd Annual Meeting of the Special Interest Group on Under-resourced Languages @ LREC-COLING 2024 , pages 1–9. Lisa Beinborn and Yuval Pinter. 2023. Analyzing cog-nitive plausibility of subword tokenization. arXiv preprint arXiv:2310.13348 .Mathieu Bernard and Hadrien Titeux. 2021. Phonem-izer: Text to phones transcription for multiple lan-guages in python. Journal of Open Source Software ,6(68):3958. Steven Bird, Edward Loper, and Ewan Klein. 2009. 
+
+Natural Language Processing with Python . O’Reilly Media, Sebastopol, CA. Kaj Bostrom and Greg Durrett. 2020. Byte pair en-coding is suboptimal for language model pretraining. 
+
+arXiv preprint arXiv:2004.03720 .Iaroslav Chelombitko, Egor Safronov, and Aleksey Komissarov. 2024. Qtok: A comprehensive frame-work for evaluating multilingual tokenizer qual-ity in large language models. arXiv preprint arXiv:2410.12989 .Jonathan H Clark, Dan Garrette, Iulia Turc, and John Wieting. 2022. Canine: Pre-training an efficient tokenization-free encoder for language representa-tion. Transactions of the Association for Computa-tional Linguistics , 10:73–91. Alexis Conneau, Kartikay Khandelwal, Naman Goyal, Vishrav Chaudhary, Guillaume Wenzek, Francisco Guzmán, Edouard Grave, Myle Ott, Luke Zettle-moyer, and Veselin Stoyanov. 2020. Unsupervised cross-lingual representation learning at scale. In Pro-ceedings of the 58th annual meeting of the associa-tion for computational linguistics , pages 8440–8451. Alexis Conneau, Ruty Rinott, Guillaume Lample, Ad-ina Williams, Samuel Bowman, Holger Schwenk, and Veselin Stoyanov. 2018. XNLI: Evaluating cross-lingual sentence representations. In Proceed-ings of the 2018 Conference on Empirical Methods in Natural Language Processing , pages 2475–2485, Brussels, Belgium. Association for Computational Linguistics. Mathias Creutz and Krista Lagus. 2005. Unsupervised morpheme segmentation and morphology induction from text corpora using morfessor 1.0. Publications in Computer and Information Science, Report A 81, Helsinki University of Technology. Jacob Devlin. 2018. Multilingual BERT README. ht tps://github.com/google-research/bert/b lob/master/multilingual.md . Accessed: 2026-01-05. Miguel Domingo, Mercedes García-Martínez, Alexan-dre Helle, Francisco Casacuberta, and Manuel Her-ranz. 2019. How much does tokenization affect neu-ral machine translation? In International Confer-ence on Computational Linguistics and Intelligent Text Processing , pages 545–554. Springer. Darius Feher, Ivan Vulić, and Benjamin Minixhofer. 2025. Retrofitting large language models with dy-namic tokenization. In Proceedings of the 63rd An-nual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 29866– 29883. Negar Foroutan, Clara Meister, Debjit Paul, Joel Niklaus, Sina Ahmadi, Antoine Bosselut, and Rico Sennrich. 2025. Parity-aware byte-pair encod-ing: Improving cross-lingual fairness in tokenization. 
+
+arXiv preprint arXiv:2508.04796 .Robert C Gale, Alexandra C Salem, Gerasimos Fer-gadiotis, and Steven Bedrick. 2023. Mixed ortho-graphic/phonemic language modeling: Beyond or-thographically restricted transformers (bort). In Pro-ceedings of the 8th Workshop on Representation Learning for NLP (RepL4NLP 2023) , pages 212– 225. Juan Luis Gastaldi, John Terilla, Luca Malagutti, Brian DuSell, Tim Vieira, and Ryan Cotterell. 2024. The foundations of tokenization: Statistical and computa-tional concerns. arXiv preprint arXiv:2407.11606 .Zébulon Goriely, Richard Diehl Martinez, Andrew Caines, Paula Buttery, and Lisa Beinborn. 2024. From babble to words: Pre-training language mod-els on continuous streams of phonemes. In The 2nd BabyLM Challenge at the 28th Conference on Com-putational Natural Language Learning , pages 37– 53. Matthew Honnibal, Ines Montani, Sofie Van Lan-deghem, and Adriane Boyd. 2020. spacy: Industrial-strength natural language processing in python. Soft-ware. Jue Hou, Anisia Katinskaia, Anh-Duc Vu, and Roman Yangarber. 2023. Effects of sub-word segmenta-tion on performance of transformer language models. 
+
+arXiv preprint arXiv:2305.05480 .International Phonetic Association. 1999. Handbook of the International Phonetic Association: A Guide to the Use of the International Phonetic Alphabet .Cambridge University Press, Cambridge. Julie Kallini, Dan Jurafsky, Christopher Potts, and Mar-tijn Bartelds. 2025. False Friends are not foes: Inves-tigating vocabulary overlap in multilingual language models. In Findings of the Association for Compu-tational Linguistics: EMNLP 2025 , pages 21138– 21154, Suzhou, China. Association for Computa-tional Linguistics. Julie Kallini, Shikhar Murty, Christopher D Manning, Christopher Potts, and Róbert Csordás. 2024. Mrt5: Dynamic token merging for efficient byte-level lan-guage models. arXiv preprint arXiv:2410.20771 .Philipp Koehn, Hieu Hoang, Alexandra Birch, Chris Callison-Burch, Marcello Federico, Nicola Bertoldi, Brooke Cowan, Wade Shen, Christine Moran, Richard Zens, and 1 others. 2007. Moses: Open source toolkit for statistical machine translation. In 
+
+Proceedings of the 45th annual meeting of the asso-ciation for computational linguistics companion vol-ume proceedings of the demo and poster sessions ,pages 177–180. Association for Computational Lin-guistics. Taku Kudo. 2018. Subword regularization: Improving neural network translation models with multiple sub-word candidates. arXiv preprint arXiv:1804.10959 .Taku Kudo and John Richardson. 2018. Sentence-piece: A simple and language independent subword tokenizer and detokenizer for neural text processing. 
+
+arXiv preprint arXiv:1808.06226 .Alexandre Lacoste, Alexandra Luccioni, Victor Schmidt, and Thomas Dandres. 2019. Quantifying the carbon emissions of machine learning. arXiv preprint arXiv:1910.09700 .Jackson L Lee, Lucas FE Ashby, M Elizabeth Garza, Yeonju Lee-Sikka, Sean Miller, Alan Wong, Arya D McCarthy, and Kyle Gorman. 2020. Massively mul-tilingual pronunciation modeling with wikipron. In 
+
+Proceedings of the Twelfth Language Resources and Evaluation Conference , pages 4223–4228. Colin Leong and Daniel Whitenack. 2022. Phone-ing it in: Towards flexible multi-modal language model training by phonetic representations of data. In Pro-ceedings of the 60th Annual Meeting of the Associa-tion for Computational Linguistics (Volume 1: Long Papers) , pages 5306–5315. Vladimir I Levenshtein and 1 others. 1966. Binary codes capable of correcting deletions, insertions, and reversals. In Soviet physics doklady , volume 10, pages 707–710. Soviet Union. Mike Lewis, Yinhan Liu, Naman Goyal, Marjan Ghazvininejad, Abdelrahman Mohamed, Omer Levy, Veselin Stoyanov, and Luke Zettlemoyer. 2020. Bart: Denoising sequence-to-sequence pre-training for natural language generation, translation, and comprehension. In Proceedings of the 58th annual meeting of the association for computational linguistics , pages 7871–7880. Tomasz Limisiewicz, Terra Blevins, Hila Gonen, Orevaoghene Ahia, and Luke Zettlemoyer. 2024. MYTE: Morphology-driven byte encoding for bet-ter and fairer multilingual language modeling. In 
+
+Proceedings of the 62nd Annual Meeting of the As-sociation for Computational Linguistics (Volume 1: Long Papers) , pages 15059–15076, Bangkok, Thai-land. Association for Computational Linguistics. Jonas F. Lotz, António V. Lopes, Stephan Peitz, Hendra Setiawan, and Leonardo Emili. 2025. Beyond text compression: Evaluating tokenizers across scales. In Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 32155–32173, Vienna, Aus-tria. Association for Computational Linguistics. Jessica M Lundin, Ada Zhang, Nihal Karim, Hamza Louzan, Victor Wei, David Adelani, and Cody Carroll. 2025. The token tax: Systematic bias in multilingual tokenization. arXiv preprint arXiv:2509.05486 .Chihaya Matsuhira, Marc A Kastner, Takahiro Ko-mamizu, Takatsugu Hirayama, Keisuke Doman, Ya-sutomo Kawanishi, and Ichiro Ide. 2023. Ipa-clip: Integrating phonetic priors into vision and language pretraining. arXiv preprint arXiv:2303.03144 .Clara Meister. 2025. Tokeval: A tokenizer analysis suite. Software. Sabrina J Mielke, Zaid Alyafeai, Elizabeth Salesky, Colin Raffel, Manan Dey, Matthias Gallé, Arun Raja, Chenglei Si, Wilson Y Lee, Benoît Sagot, and 1 oth-ers. 2021. Between words and characters: A brief history of open-vocabulary modeling and tokeniza-tion in nlp. arXiv preprint arXiv:2112.10508 .David R Mortensen, Siddharth Dalmia, and Patrick Lit-tell. 2018. Epitran: Precision g2p for many lan-guages. In Proceedings of the Eleventh International Conference on Language Resources and Evaluation (LREC 2018) .David R Mortensen, Patrick Littell, Akash Bharadwaj, Kartik Goyal, Chris Dyer, and Lori Levin. 2016. Pan-phon: A resource for mapping ipa segments to artic-ulatory feature vectors. In Proceedings of COLING 2016, the 26th international conference on compu-tational linguistics: Technical papers , pages 3475– 3484. Hoang H Nguyen, Khyati Mahajan, Vikas Yadav, Julian Salazar, Philip S Yu, Masoud Hashemi, and Rishabh Maheshwary. 2024. Prompting with phonemes: En-hancing llms’ multilinguality for non-latin script lan-guages. arXiv preprint arXiv:2411.02398 .Thuat Nguyen, Chien Van Nguyen, Viet Dac Lai, Hieu Man, Nghia Trung Ngo, Franck Dernon-court, Ryan A Rossi, and Thien Huu Nguyen. 2023. Culturax: A cleaned, enormous, and multilingual dataset for large language models in 167 languages. 
+
+arXiv preprint arXiv:2309.09400 .Joakim Nivre, Marie-Catherine De Marneffe, Filip Ginter, Jan Hajič, Christopher D Manning, Sampo Pyysalo, Sebastian Schuster, Francis Tyers, and Daniel Zeman. 2020. Universal dependencies v2: An evergrowing multilingual treebank collection. 
+
+arXiv preprint arXiv:2004.10643 .Marta R. NLLB Team, Costa-jussà, James Cross, Onur Çelebi, Maha Elbayad, Kenneth Heafield, Kevin Hef-fernan, Elahe Kalbassi, Janice Lam, Daniel Licht, Jean Maillard, Anna Sun, Skyler Wang, Guillaume Wenzek, Al Youngblood, Bapi Akula, Loic Bar-rault, Gabriel Mejia Gonzalez, Prangthip Hansanti, John Hoffman, and 3 others. 2024. Scaling neu-ral machine translation to 200 languages. Nature ,630(8018):841–846. Abraham Toluwase Owodunni, Orevaoghene Ahia, and Sachin Kumar. 2025. Flexitokens: Flexible tokeniza-tion for evolving language models. arXiv preprint arXiv:2507.12720 .Artidoro Pagnoni, Ram Pasunuru, Pedro Rodriguez, John Nguyen, Benjamin Muller, Margaret Li, Chunt-ing Zhou, Lili Yu, Jason Weston, Luke Zettle-moyer, and 1 others. 2024. Byte latent transformer: Patches scale better than tokens. arXiv preprint arXiv:2412.09871 .Aleksandar Petrov, Emanuele La Malfa, Philip Torr, and Adel Bibi. 2023. Language model tokenizers introduce unfairness between languages. Advances in neural information processing systems , 36:36963– 36990. Shengju Qian, Yi Zhu, Wenbo Li, Mu Li, and Jiaya Jia. 2022. What makes for good tokenizers in vision transformer? IEEE Transactions on Pattern Analy-sis and Machine Intelligence , 45(11):13011–13023. Libo Qin, Qiguang Chen, Yuhang Zhou, Zhi Chen, Yinghui Li, Lizi Liao, Min Li, Wanxiang Che, and Philip S Yu. 2025. A survey of multilingual large language models. Patterns , 6(1). Alec Radford, Karthik Narasimhan, Tim Salimans, and Ilya Sutskever. 2018. Improving language under-standing by generative pre-training. Ms, OpenAI. Alec Radford, Jeff Wu, Rewon Child, David Luan, Dario Amodei, and Ilya Sutskever. 2019. Language models are unsupervised multitask learners. Ms, OpenAI. Bharath Raj, Garvit Suri, Vikrant Dewangan, and Raghav Sonavane. 2024. When every token counts: Optimal segmentation for low-resource language models. arXiv preprint arXiv:2412.06926 .Nived Rajaraman, Jiantao Jiao, and Kannan Ramchan-dran. 2024. Toward a theory of tokenization in llms. 
+
+arXiv preprint arXiv:2404.08335 .Phillip Rust, Jonas Pfeiffer, Ivan Vulić, Sebastian Ruder, and Iryna Gurevych. 2020. How good is your tokenizer? on the monolingual performance of multilingual language models. arXiv preprint arXiv:2012.15613 .Mike Schuster and Kaisuke Nakajima. 2012. Japanese and korean voice search. In 2012 IEEE international conference on acoustics, speech and signal process-ing (ICASSP) , pages 5149–5152. IEEE. Rico Sennrich, Barry Haddow, and Alexandra Birch. 2016. Neural machine translation of rare words with subword units. In Proceedings of the 54th An-nual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 1715– 1725, Berlin, Germany. Association for Computa-tional Linguistics. Kevin Slagle. 2024. Spacebyte: Towards deleting tokenization from large language modeling. Ad-vances in Neural Information Processing Systems ,37:124925–124950. Jimin Sohn and David R Mortensen. 2025. Cross-lingual ipa contrastive learning for zero-shot ner. 
+
+arXiv preprint arXiv:2503.07214 .Pedro Javier Ortiz Suárez, Laurent Romary, and Benoît Sagot. 2020. A monolingual approach to contextu-alized word embeddings for mid-resource languages. 
+
+arXiv preprint arXiv:2006.06202 .Pedro Javier Ortiz Suárez, Benoît Sagot, and Laurent Romary. 2019. Asynchronous pipeline for process-ing huge corpora on medium to low resource infras-tructures. In 7th Workshop on the Challenges in the Management of Large Corpora (CMLC-7) . Leibniz-Institut für Deutsche Sprache. Yi Tay, Vinh Q Tran, Sebastian Ruder, Jai Gupta, Hyung Won Chung, Dara Bahri, Zhen Qin, Si-mon Baumgartner, Cong Yu, and Donald Metzler. 2021. Charformer: Fast character transformers via gradient-based subword tokenization. arXiv preprint arXiv:2106.12672 .Linting Xue, Aditya Barua, Noah Constant, Rami Al-Rfou, Sharan Narang, Mihir Kale, Adam Roberts, and Colin Raffel. 2022. Byt5: Towards a token-free future with pre-trained byte-to-byte models. Trans-actions of the Association for Computational Lin-guistics , 10:291–306. Linting Xue, Noah Constant, Adam Roberts, Mihir Kale, Rami Al-Rfou, Aditya Siddhant, Aditya Barua, and Colin Raffel. 2021. mt5: A massively multilin-gual pre-trained text-to-text transformer. Preprint ,arXiv:2010.11934. Yinfei Yang, Yuan Zhang, Chris Tar, and Jason Baldridge. 2019. PAWS-X: A cross-lingual adversar-ial dataset for paraphrase identification. In Proceed-ings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th Interna-tional Joint Conference on Natural Language Pro-cessing (EMNLP-IJCNLP) , pages 3687–3692, Hong Kong, China. Association for Computational Lin-guistics. Lili Yu, Dániel Simig, Colin Flaherty, Armen Agha-janyan, Luke Zettlemoyer, and Mike Lewis. 2023. Megabyte: Predicting million-byte sequences with multiscale transformers. Advances in Neural Infor-mation Processing Systems , 36:78808–78823. Crystina Zhang, Jing Lu, Vinh Q. Tran, Tal Schuster, Donald Metzler, and Jimmy Lin. 2025. Tomato, tom-ahto, tomate: Do multilingual language models un-derstand based on subword-level semantic concepts? In Findings of the Association for Computational Linguistics: NAACL 2025 , pages 1821–1837, Al-buquerque, New Mexico. Association for Computa-tional Linguistics. Xin Zhang, Dong Zhang, Shimin Li, Yaqian Zhou, and Xipeng Qiu. 2023. Speechtokenizer: Unified speech tokenizer for speech large language models. arXiv preprint arXiv:2308.16692 .
+
+A International Phonetic Alphabet (IPA) 
+
+The International Phonetic Alphabet (IPA) is a system of phonetic notation developed and main-tained by the International Phonetic Association to provide a standardized, language-independent representation of the sounds of spoken language. Originally created in the late 19th century, the IPA has undergone multiple refinements over the years, with the most recent official chart standardized in 2020. 6
+
+The IPA uses a set of dedicated symbols 7 to represent speech sounds, distinguishing four main categories: consonants, vowels, diacritics, and suprasegmentals. Consonant and vowel symbols correspond to specific phonemes and are organized according to articulatory features such as place and manner of articulation for consonants, and tongue height and backness for vowels. Diacritics are used to modify base symbols to indicate finer phonetic details such as nasalization, aspiration, or devoic-ing. Suprasegmentals, such as stress, length, into-nation, and tone, are represented with additional symbols and markings to capture prosodic aspects of speech. Notably, there are two common modes of IPA transcriptions—broad and narrow—which differ in the level of phonetic detail. Broad transcriptions are phonemic , in that they only include contrastive sounds needed to distinguish meaning, while nar-row transcriptions are allophonic , encoding more fine-grained information about phonetic realiza-tion and variation. For example, a broad transcrip-tion might not differentiate between the sound cor-responding to the letter “l” in “leaf” and “pool” (/lif/ and /pul/), while a narrow transcription would ([li:f] and [pu:ɫ] )8, .9 For more information about IPA, one can consult the detailed handbook pro-vided by the International Phonetic Association  
+
+> 6https://www.internationalphoneticassociati on.org/content/full-ipa-chart
+> 7The exact number varies by source, depending on IPA variants and criteria for what counts as a single character, but typically ranges between 100 and 200 unique symbols.
+> 8It would also not differentiate vowel length (indicated by “:”), unless this feature is contrastive (i.e. changes word mean-ing) in the particular language.
+> 9Here we adopt the notation from the official IPA Hand-book of enclosing phonemes within forward slashes, i.e. “/…/”, and phones within square brackets, i.e. “[…]”
+
+(1999). 
+
+B Tokenization 
+
+Tokenization—the process of dividing a sequence of text 10 into smaller, discrete units (i.e. tokens )— has been an active area of research in recent years (Hou et al., 2023; Domingo et al., 2019; Rajaraman et al., 2024, inter alia ). It comes as the first com-ponent in the process of training an LLM, and has been shown to have a significant impact on model performance and generalization, especially in mul-tilingual settings (Chelombitko et al., 2024). Tokenization methods can be systematically classified along two axes: (1) the approach to deter-mining token boundaries— rule-based versus data-driven ; and (2) the granularity of the resulting tokens— word-level , subword-level , and character-or byte-level (Gastaldi et al., 2024). Rule-based tokenization relies on predefined, usually linguis-tically motivated heuristics, while data-driven ap-proaches learn token boundaries directly from data, typically optimizing for frequency, likelihood, or other corpus-derived statistics. Regarding granu-larity, in word-level tokenization, each token cor-responds to a complete word form. Subword-level tokenization segments text into units smaller than or equal to full words. Character- and byte-level methods treat each character or byte as a separate token, respectively. Table 2 categorizes some no-table tokenizers along these axes. Early NLP systems relied predominantly on rule-based, word-level tokenization. However, this approach encounters significant limitations such as rapid vocabulary growth, frequent out-of-vocabulary (OOV) issues, and necessity for language-specific hand-crafted rules that often re-quire linguistic expertise (Mielke et al., 2021). Data-driven, subword-level tokenizers emerged to address these issues, offering several key ad-vantages. They significantly reduce vocabulary size, improve generalization, and efficiently han-dle OOV terms by supporting open-vocabulary modeling (Gastaldi et al., 2024). However, sub-word tokenization is not without drawbacks. Most notably for our discussion, these methods might neglect meaningful linguistic structures (Bostrom and Durrett, 2020; Beinborn and Pinter, 2023) and often unfairly allocate vocabulary space, dispro-                
+
+> 10 While we focus on text tokenization here, the concept ap-plies more broadly to different types of sequential data e.g., audio stream in speech models (Zhang et al., 2023) or image pixels in computer vision models (Qian et al., 2022). Word-level Subword-level Character-/ byte-level
+> Moses *(Koehn et al., 2007) Morfessor †(Creutz and Lagus, 2005) Charformer (Tay et al., 2021) NLTK *(Bird et al., 2009) WordPiece †(Schuster and Nakajima, 2012) ByT5 (Xue et al., 2022) spaCy *(Honnibal et al., 2020) BPE †(Sennrich et al., 2016) CANINE (Clark et al., 2022) UnigramLM †(Kudo, 2018) MegaByte (Yu et al., 2023) SpaceByte (Slagle, 2024) BLT (Pagnoni et al., 2024) MrT5 (Kallini et al., 2024)
+
+Table 2: Representative tokenizers grouped by granularity. Asterisk symbol (*) marks rule-based tokenizers, and dagger symbol (†) data-driven methods. Character-/byte-level column names tokenizer-free models that operate on raw characters/bytes using different approaches. 
+
+portionately favoring high-resource languages in the training data (Qin et al., 2025; Mielke et al., 2021; Rust et al., 2020). Recently, fully character-and byte-level methods (also collectively known as “tokenization-free” methods) gained attention as alternatives. They entirely avoid vocabulary con-straints, providing universal coverage and script independence, alongside robustness to noise (Xue et al., 2022). Yet, these methods also face cer-tain limitations. Firstly, they significantly increase computational cost due to substantially longer in-put sequences (Kallini et al., 2024). Secondly, by operating on raw bytes, these models inevitably inherit a non-linguistically motivated Unicode 11 -based scheme. In this scheme, every Latin char-acter is encoded in a single byte, whereas charac-ters in many other scripts (e.g. Devanagari, Cyril-lic, Han) require two to four bytes per character. Consequently, a Hindi or Chinese sentence of the same length (in terms of characters) as an En-glish one is broken into far more byte‑tokens, in-flating sequence length and compute and giving those languages a systematic efficiency disadvan-tage (Mielke et al., 2021). Current research aims to resolve the challenges highlighted above; some no-table examples have been highlighted in Section 2. 
+
+C Data and languages 
+
+For convenience, we provide a mapping between all of the languages considered in this study and their ISO codes in Table 3. 
+
+C.1 Mapping of languages and scripts to their ISO codes C.2 Data sampling strategies 
+
+We visualize the resulting language distributions of the four different data sampling strategies in Fig. 8.                                                                            
+
+> 11 https://home.unicode.org/
+> Language ISO 639-1 Script ISO 15924
+> Arabic ar Arabic Arab Amharic am Ethiopic Ethi Burmese my Myanmar Mymr Chinese zh Han Hani English en Latin Latn Finnish fi Latin Latn French fr Latin Latn German de Latin Latn Greek †el Greek Grek Hebrew †he Hebrew Hebr Hindi hi Devanagari Deva Italian it Latin Latn Japanese *ja Japanese Jpan Korean ko Hangul Hang Lao lo Lao Laoo Persian fa Arabic Arab Polish pl Latin Latn Russian ru Cyrillic Cyrl Serbian *sr Latin/Cyrillic Latn/Cyrl Spanish es Latin Latn Swahili sw Latin Latn Thai th Thai Thai Turkish tr Latin Latn Urdu ur Arabic Arab
+
+Table 3: Languages used in this work. Each language is followed by its two-letter ISO 639-1 code, its script, and the script’s four-letter ISO 15924 code. Languages marked with an asterisk (*) use multiple scripts, while languages not supported by Epitran are marked with a dagger symbol (†). 
+
+C.3 WikiPron details 
+
+Table 4 shows WikiPron dataset details by lan-guage on the sample that we use in this work. 
+
+C.4 CulturaX post-processing 
+
+We apply a lightweight, line-level cleaning step to CulturaX before writing the sampled text to disk. We remove URLs matching http(s)://… 
+
+or www.… ; remove any remaining tag-like spans of the form <…> ; remove emoji characters; filter the text to retain only Unicode letters ( L), numbers ( N), punctuation ( P), and standard spaces ( Zs ), deleting byte-uniform semantic-uniform data-proportional data-smoothed                  
+
+> Language
+> ar de en fa fi fr hi it ja ko lo ru sr sw th tr ur zh
+
+Figure 8: Resulting distribution of languages in the training data using four different sampling strategies. Each square represents ≈ 0.3% of the training data. 
+
+all other characters; and finally normalize whites-pace by collapsing consecutive whitespace to a sin-gle space and stripping leading/trailing spaces. Af-ter this pipeline, we discard empty lines and keep non-empty cleaned lines for sampling. 
+
+D Epitran usage details 
+
+A typical usage involves instantiating an Epitran 
+
+object with a language–script code (e.g., 
+
+epitran.Epitran('eng-Latn') for English) and then calling its transliterate() method, which returns the IPA representation. Internally, Epitran relies on language‑specific mapping files and optional pre- and post-processing rules. An al-ternative utility is the Backoff class, which allows cascading multiple language–script mappings (for example, to handle mixed-script inputs by falling back from one transliterator to another). However, the Backoff class currently does not support the full range of text pre- and post-processing routines applied by the standard transliterate() , lead-ing us to adopt a different transliteration approach. In this section, we describe this approach, as well as other modifications that we made to this tool. 
+
+Bug fixes and mapping extensions. We cor-rected identified bugs in the Serbian mapping and added several missing mappings for Urdu, Arabic, Persian, Hindi, Finnish, and Turkish. These addi-tions were based on empirically observed charac-ter sequences occurring above 1% frequency in our training data and consulted via well-documented Wikipedia pages of the respective languages. The exact modifications we made per aforementioned language are accessible in our codebase. 
+
+Efficient processing for Chinese and Japanese. 
+
+While most languages were processed by apply-ing transliterate() once per full document, this approach proved inefficient for Chinese and Japanese due to their special treatment by Epitran under the hood, which resulted in a non-linear runtime increase with increased input length (see Figure 9). To address this, we split documents into smaller segments along Chinese/Japanese spe-cific punctuation, ensuring word boundaries were preserved. This chunking preserved performance while maintaining accuracy. In contrast, this seg-mentation approach results in a notable overhead for other languages (see Figure 10), so it was only applied to Chinese and Japanese. 
+
+Sequential mapping for multiple variants. For languages supported by multiple mapping files we employed a specific strategy: we applied the first mapping to the full text, then identified characters still untransliterated (i.e., non-IPA), and selectively applied subsequent mappings only to those resid-ual characters. This procedure ensured each script variant was handled thoroughly, while avoiding un-necessary repeated processing. 
+
+Post-conversion cleanup. After IPA conver-sion, any remaining characters not recognized or mapped by Epitran (primarily external script to-kens included in CulturaX data for the particular language, but also, at times, characters not sup-ported by Epitran) were removed. Across lan-guages, this accounted for an average of only 0.3% of tokens per language, a removal rate negligible in volume yet important for ensuring consistency and purity of the phonological representation space. 
+
+E G2P conversion quality 
+
+We estimated the quality of Epitran grapheme-to-phoneme transcriptions by comparing each pre-dicted IPA form against gold pronunciations from WikiPron using normalized Feature Error Rate (nFER). To motivate this choice, we first briefly relate nFER to the more standard Phoneme Error Seen Languages (18) Language ISO Original After Removal Scope Filtered                                                                                                                                    
+
+> Arabic ar 2 252 1 596 Broad No German de 47 779 42 914 Broad Yes English en 81 576 69 639 Broad Yes Persian fa 34 033 7 357 Narrow No Finnish fi 158 880 156 923 Broad No French fr 80 690 71 229 Broad Yes Hindi hi 24 640 15 867 Broad Yes Italian it 79 865 73 136 Broad Yes Japanese* ja 32 749 29 092 Narrow Yes Korean ko 22 072 21 383 Narrow Yes Lao lo 4 180 2 085 Narrow No Russian ru 411 651 395 845 Narrow No Serbian* sr 46 991 45 553 Broad Yes Swahili sw 110 106 Broad No Thai th 16 689 11 589 Broad No Turkish tr 7 266 6 933 Broad No Urdu ur 4 493 3 637 Broad No Chinese zh 158 873 126 804 Broad No
+> Total —1 214 798 1 081 688 Unseen Languages (6) Language ISO Original After Removal Scope Filtered
+> Amharic am 378 371 Broad No Greek el 14 825 14 825 Broad Yes Spanish es 99 043 98 787 Broad Yes Hebrew he 1 957 1 945 Broad No Burmese my 6 062 4 486 Broad Yes Polish pl 132 558 115 865 Broad No
+> Total —256 608 238 057
+
+Table 4: WikiPron details by language. “Original” represents the total number of words in the original dataset; “After Removal” shows the number of remaining words after deduplication. “Scope” and “Filtered” columns direct to the specific WikiPron file that was used per language (we always selected broad and filtered versions, unless unavailable). For languages marked with an asterisk (*), we include different scripts (Katakana and Hiragana for Japanese; Latin and Cyrillic for Serbian). 
+
+Rate (PER) and to Feature Error Rate (FER), from which nFER is derived. 
+
+Phoneme Error Rate (PER). Let w be a word, let ˆy = (ˆ y1, . . . , ˆym) denote its predicted IPA tran-scription, and let G(w) = {y(1) , . . . , y(K)} be the set of gold IPA variants in WikiPron. PER is the standard phone-level Levenshtein distance (Leven-shtein et al., 1966) between a prediction ˆy and a gold transcription y, normalized by the number of phones in the reference: PER (ˆ y, y) = ED phone (ˆ y, y)
+
+|y| , (1) where ED phone uses insertion, deletion, and substi-tution costs of 1. PER therefore treats all phone substitutions equally, regardless of whether the mismatched phones are phonetically very similar or very different. 
+
+Feature Error Rate (FER). FER replaces this binary substitution cost with a feature-based cost derived from PanPhon (Mortensen et al., 2016) articulatory feature vectors. Let ϕ(p) ∈{− 1, 0, +1 }F denote the feature vector for phone 
+
+p, where F is the number of articulatory features. The substitution cost between phones p and q is 
+
+csub (p, q ) = 1
+
+F
+
+> F
+
+∑ 
+
+> f=1
+
+|ϕf (p) − ϕf (q)|
+
+2 . (2) This assigns cost 0 to identical phones, smaller penalties when one feature value is unspecified, and larger penalties when phones differ on many specified features. Insertions and deletions are de-fined analogously from the feature vector of the in-serted or deleted phone, yielding a feature-based edit distance ED feat (ˆ y, y). FER is then FER (ˆ y, y) = ED feat (ˆ y, y)
+
+|y| . (3) 0 2000 4000 6000 8000 10000 
+
+> Input Length (characters)
+> 0
+> 50
+> 100
+> 150
+> 200
+> 250
+> 300
+> Time (seconds)
+
+(a) Chinese 0 2000 4000 6000 8000 10000  
+
+> Input Length (characters)
+> 0.0
+> 0.5
+> 1.0
+> 1.5
+> 2.0
+> 2.5
+> Time (seconds)
+
+(b) English 
+
+Figure 9: Runtime vs. Input length efficiency trade-off for (a) Chinese and (b) English. 0 1000 2000 3000 4000 5000 
+
+> Number of transliterate() calls
+> 0
+> 10
+> 20
+> 30
+> 40
+> 50
+> Total Time (seconds)
+
+(a) Chinese 0 1000 2000 3000 4000 5000  
+
+> Number of transliterate() calls
+> 0
+> 2
+> 4
+> 6
+> 8
+> 10
+> 12
+> Total Time (seconds)
+
+(b) English 
+
+Figure 10: Runtime vs. Number of transliterate() calls efficiency trade-off for (a) Chinese and (b) English. 
+
+Normalized Feature Error Rate (nFER). This metric uses the same feature-based edit distance as FER but normalizes by the length of the longer tran-scription: nFER (ˆ y, y) = ED feat (ˆ y, y)
+
+max (|ˆy|, |y|) . (4) This choice makes the score less sensitive to length mismatches between the predicted and gold tran-scriptions. It is particularly useful here because Epitran and WikiPron sometimes differ slightly in IPA conventions while remaining phonetically close; unlike PER, nFER gives lower penalty to such near-matches by measuring disagreement at the level of articulatory features. Because WikiPron may provide multiple accept-able pronunciations for a word, we score each pre-diction against all listed variants and retain the best match: nFER (w) = min 
+
+y∈G (w) nFER (ˆ y, y). (5) We then report the mean over all evaluated words per language: nFER avg = 1
+
+|W| 
+
+∑
+
+w∈W 
+
+nFER (w). (6) The results are shown in Table 5. 
+
+Many-to-one collision rates. As we noted in our Limitations section, the mapping between graphemes and phonemes can sometimes be am-biguous. On the one hand, a single orthographic string can be mapped to multiple valid strings in IPA (e.g., English homographs ”live” – as an adjec-tive vs. verb). On the other hand, different ortho-graphic strings can be mapped to the same string in IPA (e.g., English homophones ”rain” and ”reign”). We call these scenarios one-to-many and many-to-one collisions, respectively. However, in most languages, these phenomena are negligible, as we show in Table 6. While both collision scenarios are non-invertible without context, with the pres-ence of context these can be recovered and learned by the model. Therefore, this is not to be viewed as an inherent downside of IPA, nor a challenge that standard Text models avoid. 
+
+F Intrinsic tokenization metrics 
+
+F.1 Compression 
+
+Let Wℓ be the set of unique word types for language 
+
+ℓ, and let τ (·) be a tokenizer mapping an input string to a token sequence. Denote the number of produced tokens by nτ (x) = |τ (x)| and the char-acter length of a string by |x| (in the tokenizer’s input representation). Language nFER (%)                       
+
+> AM 4.00
+> AR 24 .83
+> DE 6.77
+> EN 6.18
+> ES 0.35
+> FA 19 .15
+> FI 0.88
+> FR 7.60
+> HI 5.22
+> IT 6.13
+> JA 1.33
+> KO 3.24
+> LO 22 .58
+> MY 9.85
+> PL 1.14
+> RU 5.08
+> SR 0.87
+> SW 5.60
+> TH 21 .76
+> TR 1.39
+> UR 16 .55
+> ZH 26 .49
+
+Table 5: Epitran G2P quality measured as average nor-malized Feature Error Rate (nFER, %) on a WikiPron sample of 2,000 words per language. Lower is better. 
+
+Word Fertility (WF). Average number of sub-word tokens per word (lower is better): WF ℓ = 1
+
+|Wℓ|
+
+∑
+
+> w∈Wℓ
+
+nτ (w). (7) 
+
+Proportion of Continued Words (PCW). Frac-tion of word types split into multiple tokens (lower is better): PCW ℓ = 1
+
+|Wℓ|
+
+∑
+
+> w∈Wℓ
+
+I[nτ (w) > 1] . (8) 
+
+Average Token Length (ATL). Average length of produced tokens, measured in characters of the tokenizer input representation ( Text or IPA ); higher indicates longer token segments. Let Tℓ =⊎ 
+
+> w∈Wℓ
+
+τ (w) be the multiset of all tokens produced for Wℓ, and let |t| be the character length of token t
+
+(excluding any boundary marker, e.g. leading “ _”). Then ATL is given as: ATL ℓ = 1
+
+|T ℓ|
+
+∑
+
+> t∈T ℓ
+
+|t|. (9) 
+
+Compression Rate (CR). Average number of 
+
+raw input characters per token at the sentence level (higher indicates stronger compression). For a sen-tence set Sℓ:CR ℓ = 1
+
+|Sℓ|
+
+∑
+
+> s∈Sℓ
+
+|s|
+
+nτ (s) . (10)                          
+
+> Lang. Collision rate (%)
+> AM 1.62 AR 2.67 DE 2.99 EL 13.68 EN 10.78 ES 5.39 FA 1.91 FI 0.50 FR 42.98 HE 3.44 HI 5.79 IT 0.75 JA 0.83 KO 1.43 LO 7.47 MY 6.36 PL 3.17 RU 12.01 SR 0.06 SW 0.00 TH 8.00 TR 0.97 UR 2.06 ZH 28.19
+
+Table 6: Empirical many-to-one collision rates (%) per language, estimated on WikiPron. Lower is better. 
+
+F.2 Token frequency distribution shape 
+
+Let c(v) be the count of token type v on evalu-ation data for language ℓ, with total token count 
+
+N = ∑ 
+
+> v
+
+c(v) and empirical probabilities p(v) = 
+
+c(v)/ N .
+
+Rényi Entropy (RE). Measures how evenly to-ken usage is distributed across the vocabulary: 
+
+Hα = 11 − α log ∑
+
+> v
+
+p(v)α. (11) We report α = 1 (Shannon entropy), α = 2 (colli-sion entropy), and α = ∞ (min-entropy). Higher values indicate a more uniform distribution. 
+
+Zipf Deviation (ZipfD). Following Lotz et al. (2025), we quantify how closely the empirical to-ken rank–frequency distribution follows a Zipfian power law by fitting a linear function to the log– log curve and reporting its mean absolute devia-tion. Concretely, let tokens be sorted by descend-ing frequency, with rank r ∈ { 1, . . . , R } and fre-quency fr. Define xr = log r and yr = log fr,and estimate parameters β0, β 1 via least squares for 
+
+f (x) = β0 + β1x. Zipf deviation is then ZipfD = 1
+
+R
+
+> R
+
+∑
+
+> r=1
+
+|β0 + β1xr − yr| . (12) Lower ZipfD indicates closer agreement with Zipf’s law. F.3 Vocabulary usage 
+
+Using the same notation above, let V be the learned tokenizer vocabulary with size |V |, and let U =
+
+{v ∈ V : c(v) > 0} be the set of observed token types. 
+
+Vocabulary Utilization (VU). Share of the learned vocabulary used at least once on evaluation data (higher is better): VU = |U ||V | . (13) 
+
+Type–Token Ratio (TTR). Distinct token types relative to the total number of produced tokens (higher indicates more diverse usage): TTR = |U |
+
+N . (14) 
+
+F.4 Cross-lingual equity 
+
+Let S∥ 
+
+> ℓ
+
+be a parallel sentence set paired with En-glish, containing pairs (s(i) 
+
+> en
+
+, s (i) 
+
+> ℓ
+
+).
+
+Tokenization Parity (TP) Following the discus-sion of Petrov et al. (2023), we compare tokeniza-tion length relative to English on parallel sen-tences: TP ℓ = 1
+
+|S∥ 
+
+> ℓ
+
+|
+
+∑
+
+> i
+
+nτ (s(i) 
+
+> ℓ
+
+)
+
+nτ (s(i) 
+
+> en
+
+) . (15) Values closer to 1 indicate more similar tokeniza-tion length relative to English. 
+
+Tokenization Fairness Gini (TFG). Following Meister (2025), we measure inequality in tokeniza-tion cost across languages using the (equal-weight) Gini coefficient. Let L = {1, . . . , n } be the set of languages. For each language ℓ ∈ L , define the token cost as 
+
+cℓ =
+
+∑ 
+
+> s∈Sℓ
+
+nτ (s)
+
+∑ 
+
+> s∈Sℓ
+
+|s|bytes 
+
+, (16) where nτ (s) is the number of tokens produced for sentence s and |s|bytes is its UTF-8 byte length. The mean cost is: 
+
+μ = 1
+
+n
+
+> n
+
+∑
+
+> ℓ=1
+
+cℓ . (17) TFG is then: TFG =
+
+∑ni=1 
+
+∑nj=1 |ci − cj |
+
+2n2μ . (18) Lower TFG indicates more equal byte-normalized token costs across languages. 
+
+G Tokenizer selection 
+
+Training autoregressive LMs from scratch for all tokenizer configurations is computationally pro-hibitive, so we use intrinsic evaluation to select a small set of tokenizers for GPT-2 pre-training. This appendix formalizes the ranking procedure and reports the full ranking heatmaps (Fig. 11). 
+
+Set-up. Let R ∈ { TEXT , IPA } denote the input representation, and let CR be the set of tokenizer configurations evaluated under R (here |C R| = 32 ). Each configuration c ∈ C R is defined by the tuple 
+
+c = ( algorithm , vocab size , sampling ) .
+
+Let L be the set of evaluation languages and let M
+
+be the set of intrinsic metrics. For each language 
+
+ℓ ∈ L , metric m ∈ M , and configuration c, we obtain a per-language score sm(c, ℓ ) (as defined in Section 4.4). 
+
+Macro-averaged metric scores. To obtain a sin-gle score per metric and configuration, we macro-average over languages: 
+
+¯sm(c) = 1
+
+|L| 
+
+∑
+
+> ℓ∈L
+
+sm(c, ℓ ) . (19) In order to make the resulting heatmaps easier to read, we convert all metrics to a consistent higher-is-better orientation by defining: 
+
+˜sm(c) = 
+
+
+
+¯sm(c) if ↑,
+
+−¯sm(c) if ↓,
+
+−| ¯sm(c) − 1| if → 1 ←,
+
+(20) with arrows designating whether the original met-ric interpretation is higher-is-better ( ↑), lower-is-better ( ↓) or closer-to-one-is-better ( → 1 ←). 
+
+Per-metric ranks and mean rank aggregation. 
+
+For each metric m and representation R, we rank configurations by their oriented macro score 
+
+˜sm(c):
+
+rm(c) = 1+ ∑
+
+> c′∈C R
+
+I[˜sm(c′) > ˜sm(c)] ; c ∈ C R,
+
+(21) where rm(c) = 1 denotes the best configuration for metric m (ties can be handled by average ranks; in practice ties are rare given continuous scores). We aggregate metric-wise ranks into a single scalar score by averaging across metrics: MR (c) = 1
+
+|M| 
+
+∑
+
+> m∈M
+
+rm(c) . (22) fertility cont words avg token len ttr renyi 1 renyi 2 renyi inf cr vocab util zipf dev tok parity tfg 
+
+Metric 
+
+> unb/bpe/200k unb smooth/bpe/200k unb/uni/200k unb smooth/uni/200k byte premium/bpe/200k uniform/bpe/200k unb/bpe/100k byte premium/uni/200k unb smooth/bpe/100k uniform/uni/200k uniform/bpe/100k byte premium/bpe/100k unb smooth/uni/100k unb/uni/100k uniform/uni/100k byte premium/uni/100k unb/bpe/80k byte premium/bpe/80k unb smooth/bpe/80k uniform/bpe/80k unb/uni/80k unb smooth/uni/80k byte premium/uni/80k uniform/bpe/40k uniform/uni/80k byte premium/bpe/40k unb smooth/bpe/40k unb/bpe/40k byte premium/uni/40k unb/uni/40k unb smooth/uni/40k uniform/uni/40k
+> Tokenizer
+> 0.00.20.40.60.81.0
+> Normalised performance (1 = best)
+
+(a) Text fertility cont words avg token len ttr renyi 1 renyi 2 renyi inf cr vocab util zipf dev tok parity tfg 
+
+Metric  
+
+> uniform/uni/200k byte premium/bpe/200k unb smooth/bpe/200k unb/bpe/200k uniform/bpe/200k unb/bpe/100k unb smooth/bpe/100k byte premium/bpe/100k unb/uni/200k uniform/bpe/100k unb smooth/uni/200k unb/bpe/80k byte premium/bpe/80k uniform/bpe/80k unb smooth/bpe/80k byte premium/uni/200k unb/uni/100k unb smooth/uni/100k uniform/bpe/40k byte premium/bpe/40k unb/bpe/40k unb smooth/bpe/40k unb/uni/80k uniform/uni/100k unb smooth/uni/80k uniform/uni/80k byte premium/uni/100k byte premium/uni/80k byte premium/uni/40k uniform/uni/40k unb/uni/40k unb smooth/uni/40k
+> Tokenizer
+> 0.00.20.40.60.81.0
+> Normalised performance (1 = best)
+
+(b) IPA 
+
+Figure 11: Tokenizer selection. We rank Text and IPA tokenizers to select the optimal settings for GPT-2 pre-training. Optimal setting for Text is [BPE, 200k, data-proportional] and for IPA it is [UnigramLM, 200k, byte-uniform], according to the mean rank across metrics and languages. 
+
+Lower MR (c) indicates a better overall intrinsic ranking. The full rank matrices {rm(c)} and mean-rank scores MR (c) are visualized in Fig. 11a ( Text )and Fig. 11b ( IPA ). 
+
+Selecting Opt and Subopt tokenizers. For each representation R, we select the intrinsically best to-kenizer as 
+
+c⋆R = arg min 
+
+c∈C R
+
+MR (c) . (23) We refer to the resulting tokenizers as Text Opt 
+
+and IPA Opt . In our experiments, Text Opt 
+
+corresponds to the configuration c⋆
+
+Text = (BPE, 200k, data-proportional) , whereas IPA Opt 
+
+corresponds to c⋆
+
+IPA = (UnigramLM, 200k, byte-uniform) . Because these optima arise un-der different hyperparameter settings, they differ along both representation and tokenizer configura-tion axes. To control for this, we also select cross-swapped “Subopt” tokenizers: a Text tokenizer trained with the IPA Opt configuration ( Text Sub-opt ) and an IPA tokenizer trained with the Text Opt configuration ( IPA Subopt ). We then pre-train four GPT-2 models in total: Text Opt, Text Subopt, IPA Opt, and IPA Subopt. 
+
+Larger vocabulary sizes. As the optimal tok-enizers for both Text and IPA are found on the largest vocabulary size we tested (200k), we con-sider an even larger vocabulary size of 300k. We find that IPA still outperforms Text on intrinsic met-rics with similar trends, though IPA tokenizer’s in-trinsic quality slightly degrades relative to its 200k version (while TFG improves, suggesting better cross-language balance). Text tokenizer quality is similar between 200k and 300k. However, the pre-viously found optimal settings for both input repre-sentations remain optimal even when considering WF ↓ PCW ↓ ATL ↑ TTR ↑ RE 1↑ RE 2↑ RE ∞↑ CR ↑ VU ↑ ZipfD ↓ TP → 1 ← TFG ↓                          
+
+> Text 4.89 0.92 2.02 0.13 8.81 6.37 3.99 2.26 0.02 0.29 3.30 0.36
+> IPA 3.18 0.90 2.72 0.16 9.14 6.06 3.70 2.98 0.02 0.16 1.72 0.17
+> Table 7: Intrinsic tokenization quality at 300k vocabulary size, macro-averaged across languages. Arrows indicate whether lower ( ↓), higher ( ↑) or closer-to-1 ( →1←) is better. Best values are boldfaced.
+
+the 300k vocabulary. We provide the results in Ta-ble 7. 
+
+H Experimental setup 
+
+H.1 Tokenizer training hyper-parameters 
+
+We provide tokenizer training hyper-parameters in Table 8. 
+
+H.2 GPT-2 training and fine-tuning hyper-parameters 
+
+We provide GPT-2 pre-training hyper-parameters in Table 9 and fine-tuning hyper-parameters in Ta-ble 10. 
+
+H.3 Computational footprint 
+
+All experiments were run on a single GPU on the Snellius cluster, using either an NVIDIA H100 GPU (for GPT-2 pre-training runs) or an NVIDIA A100 GPU (for all other experiments). The runs conducted on a single A100 GPU used 85.74 GPU-hours, corresponding to an estimated 21.43 kWh of electricity consumption and 5.61 kg CO2eq. The runs conducted on a single H100 GPU used 27.93 GPU-hours, corresponding to an estimated 19.55 kWh and 5.12 kg CO2eq. In total, our experiments used 113.67 GPU hours, 40.98 kWh of electricity, and produced 10.73 kg CO2eq. Estimations were conducted using the MachineLearning Impact cal-culator presented in Lacoste et al. (2019). 
+
+I General benefits of IPA as an input representation 
+
+In the introduction section, we have outlined sev-eral beneficial properties offered by the IPA. Here we show what implications those properties have in practice. 
+
+IPA improves cross-lingual sharing of character inventories. In Figure 12 we show the percent-age of shared characters across each pair of our 18 languages on the CulturaX sample we used for pre-training on the original text and on the converted IPA text. In Text heatmap, we see biggest sharing between languages that use the same script, but that percentage drops for language pairs with dif-ferent scripts. We see that languages with com-plex orthographies (Chinese, Japanese, and Ko-rean) have almost zero overlap with any other lan-guage. Other languages do show some percentage of overlap even though they differ in scripts, partly because many languages in our sample do con-tain inputs from other languages, most notably En-glish. However, the IPA heatmap reveals a much more evenly distributed and overall larger charac-ter overlap across languages. This is a direct conse-quence of IPA’s shared input representation for all of the languages. Overall, this increased sharing is beneficial for multilingual tokenizers, as cross-lingual token overlap has been shown to improve model performance (Zhang et al., 2025; Kallini et al., 2025). 
+
+IPA reduces storage overhead across languages on average. Figure 13 compares the average number of bytes needed to encode a single charac-ter per language for Text vs IPA, estimated from our pre-training CulturaX sample. Standard text rep-resentation shows notable disparities: languages with complex orthographies (Chinese, Japanese, Lao, and Thai) require much larger number ( > 2.5)of bytes-per-character (BPC), while languages us-ing Latin script are all very close to 1 byte-per-character. This difference is due to the position of different characters in the Unicode range. The symbols used by the IPA mostly use ASCII char-acters (1 BPC), together with a set of special IPA symbols (2 BPC). Some additional, but less fre-quent IPA markers require 3 BPC. This fact, to-gether with IPA’s shared language representation space, reduces the average BPC across our set of languages, requiring slightly larger numbers for Latin-script languages than Text, but much lower BPC for all other ones. In addition, the required storage memory is much more balanced across lan-guages. 
+
+J IPA for byte-level tokenization 
+
+The benefits of IPA as an input representation high-lighted in Appendix I also translate to byte-level Mode Parameter Value             
+
+> Text
+> model_type [bpe, unigram]
+> vocab_size [40 000, 80 000, 100 000, 200 000]
+> character_coverage 0.9995
+> split_by_unicode_script True
+> byte_fallback True
+> normalization_rule_name nmt_nfkc IPA
+> model_type [bpe, unigram]
+> vocab_size [40 000, 80 000, 100 000, 200 000]
+> character_coverage 1.0
+> split_by_unicode_script False
+> byte_fallback False
+> normalization_rule_name identity
+
+Table 8: Tokenizer training hyper-parameter settings used for Text and IPA representations. We show only the relevant parameters, for all others we used the default SentencePiece values for both modes. Values enclosed in square brackets signify that multiple configurations were considered. 
+
+Figure 12: Pairwise overlap of character inventories (%) between the 18 pre-training languages on the CulturaX 
+
+byte-uniform sample, computed on the original Text input (left) and its IPA transcription (right). Each cell reports the percentage of unique characters shared by a language pair (diagonal = 100%). In Text , overlap is largely confined to languages that share a script, with near-zero sharing for languages with distinct orthographies (e.g., ZH, JA, KO); in IPA , overlap becomes higher across languages and more uniform across scripts due to the shared phonemic symbol inventory. 
+
+tokenization-free approaches. In Table 11 we em-pirically show that, when considering individual bytes as tokens, working with IPA input still results in shorter average sequence lengths compared to using Text inputs. It also reduces the standard de-viation, making the sequence length distribution more stable across languages. Therefore, we be-lieve IPA has a potential to be applied on top of the existing byte-level methods to further increase cross-script robustness. 
+
+K Per-language results for suboptimal tokenizers 
+
+We provide a detailed per-language intrinsic evalu-ation of the suboptimal tokenizers in Fig. 14. 
+
+L Detailed per-script diagnostic 
+
+We provide a detailed per-script intrinsic evalua-tion for both the optimal (Fig. 15) and suboptimal tokenizers (Fig. 16). 
+
+M Interpretation of tokenizer configuration effects 
+
+Compression metrics improve with vocab size. 
+
+This is consistent across algorithms, sampling strategies, and modes (text/ipa). Consequently, vo-cab size of 200k performs best in terms of com-pression (WF, PCW, ATL, CR). This is expected, as larger vocabs will have more space for storing tokens, which means fewer tokens needed to repre-sent the same input. Hyperparameter Value               
+
+> Architecture (layers/heads/hidden) 12 / 12 / 768 Context length 2048 Vocabulary size 200k Training steps 10,000 Batch size (effective) 64 Learning rate 5×10 −4
+> Scheduler cosine Warmup ratio 0.03 Weight decay 0.1 Precision bfloat16 Attention implementation SDPA Random seed 42
+
+Table 9: GPT-2 pretraining hyperparameters, shared across all Text/IPA and Opt/Subopt conditions.                           
+
+> Hyperparameter XNLI PAWS-X
+> Number of labels 32Training steps 6128 3860 Batch size (effective) 256 256 Learning rate 1×10 −43×10 −5
+> Scheduler cosine cosine Warmup ratio 0.06 0.06 Weight decay 0.0 0.0 Max grad norm 1.0 1.0 Precision bfloat16 bfloat16 Model selection validation loss validation loss
+
+Table 10: Fine-tuning hyperparameters for XNLI and PAWS-X, shared across all Text/IPA and Opt/Subopt conditions within each task. 
+
+Renyi H2 and H∞ best at smallest vocab; H1
+
+best at 200k. This pattern is consistent with the different sensitivities of R’enyi orders: H1 (Shan-non entropy) reflects the full distribution and in-creases when the vocabulary grows to include many rare, low-probability types (e.g., longer to-kens approaching full words). In contrast, H2 and especially H∞ place increasing weight on the head of the distribution and thus tend to favor settings where probability mass is less concentrated in a small set of very frequent tokens—often achieved by smaller vocabularies that encourage greater sharing of subword units. Because the entropy scale depends strongly on vocabulary size, we treat these trends primarily as descriptive of configura-tion effects and focus comparisons on the Text vs. IPA axis under matched vocabulary sizes. One ex-ception is [IPA, UnigramLM, byte-uniform] ,where all three entropies are maximized at 200k; we leave a more detailed analysis of this case to future work. 
+
+Zipf Deviation decreases with vocabulary size. 
+
+Across all settings, Zipf Deviation (ZipfD) is low-est at the largest vocabulary (200k). In Fig. 2, 
+
+Figure 13: Average bytes-per-character (BPC) by lan-guage on the CulturaX byte-uniform sample, for the original Text input and its IPA transcription. Text ex-hibits large cross-lingual disparities, with higher BPC for languages whose scripts occupy higher Unicode ranges (e.g., ZH, JA, LO, TH), while Latin-script lan-guages cluster near 1 BPC. IPA concentrates most sym-bols in low-byte code points, reducing mean BPC and making storage cost more uniform across languages; the inset (top-right) summarizes the mean ± standard devi-ation across languages.                                                           
+
+> Lang. Text IPA
+> AM 220 198
+> AR 204 188
+> DE 151 186 EL 278 153
+> EN 128 161 ES 155 160 FA 218 146
+> FI 141 160 FR 158 169 HE 177 118
+> HI 328 219
+> IT 152 162 JA 162 155
+> KO 153 173 LO 351 207
+> MY 452 251
+> PL 144 174 RU 255 183
+> SR 231 141
+> SW 134 146 TH 354 218
+> TR 143 164 UR 225 246 ZH 118 167
+> mean ±std. 210 ±87 177 ±32
+
+Table 11: Average number of tokens per sentence on FLORES+ under byte-level tokenization for Text and IPA input. Boldface marks the lower value within each row (lower values are better). Macro-level mean ±std. are shown at the bottom. 
+
+ZipfD appears as higher-is-better because we in-vert and normalize metrics for readability; in the ar 
+
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 5
+> 10
+> 15
+> 20
+
+Word Fertility ↓ 
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+
+Continued Words ↓ 
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 1
+> 2
+> 3
+> 4
+
+Avg. Token Length ↑ 
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 1
+> 2
+> 3
+> 4
+> 5
+
+Compression Rate ↑ 
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 4
+> 6
+> 8
+> 10
+> 12
+
+Renyi Entropy (alpha=1) ↑ 
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 2
+> 4
+> 6
+> 8
+
+Renyi Entropy (alpha=2) ↑ 
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 1
+> 2
+> 3
+> 4
+> 5
+> 6
+
+Renyi Entropy (alpha=inf) ↑ 
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+
+Zipf Deviation ↓ 
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 0.01
+> 0.02
+> 0.03
+> 0.04
+> 0.05
+> 0.06
+> 0.07
+
+Vocab Utilization ↑ 
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+
+Type-Token Ratio ↑ 
+
+> SEEN UNSEEN
+> ar
+> de
+> en
+> fa
+> fi
+> fr
+> hi
+> it
+> ja
+> ko
+> lo
+> ru
+> sr
+> sw
+> th
+> tr
+> ur
+> zh
+> am
+> el
+> es
+> he
+> my
+> pl
+> 5
+> 10
+> 15
+
+Tokenization Parity vs EN →1← 
+
+> SEEN UNSEEN Text Subopt Text Opt IPA Subopt IPA Opt
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+
+Tokenizer Fairness Gini ↓ 
+
+> 0.3713 0.3662
+> 0.1528
+> 0.1782
+> Languages Metric values
+> Text Subopt mean
+
+Text Subopt 
+
+> IPA Subopt mean
+
+IPA Subopt  
+
+> Text Opt mean IPA Opt mean
+
+Figure 14: Detailed per-language performance of the suboptimal tokenizers. 
+
+original definition, lower ZipfD indicates that the empirical rank–frequency curve is closer to an ideal Zipfian trend. The observed monotonic im-provement with vocabulary size is intuitive: as vocabularies grow, token inventories increasingly contain longer units (often close to whole-word tokens), and the resulting token frequency distri-bution more closely mirrors the underlying word-frequency distribution, which is approximately Zipfian in natural language. At the same time, ZipfD is strongly affected by vocabulary granular-ity, so we interpret the vocabulary-size trend as a configuration effect and emphasize comparisons along the Text vs. IPA axis under matched vocabu-lary sizes. 
+
+Vocabulary utilization always best for 40k, while TTR always best for 200k. Although both metrics quantify vocabulary usage, they capture different aspects of the token distribution. VU measures the fraction of the learned vocabulary that is observed at least once on evaluation data; smaller vocabularies encourage heavier reuse of a limited set of subword units, making it more likely that most entries are encountered. In con-trast, TTR measures the number of distinct token types relative to the total number of produced to-kens; larger vocabularies introduce more specific (and often rarer) token types, increasing the diver-sity of observed types even if many are used only infrequently. 
+
+N Additional statistics: win-rate, paired effect size, and mean z-score 
+
+We summarize intrinsic differences between IPA and TEXT using (i) a per-language win-rate, (ii) a paired effect size dz per metric, and (iii) an over-all per-language score based on mean z-scored im-provements. All computations are paired on the intersection of languages (or scripts) available for both representations. We exclude TFG from per-language/script computations because it is a global metric. 
+
+Direction-corrected improvement. For metric 
+
+m and language/script i, let xIPA 
+
+m,i and xTEXT 
+
+m,i be the corresponding metric values. We convert each met-ric to an “IPA-better” improvement value ∆m,i :
+
+∆m,i =
+
+
+
+xIPA 
+
+m,i − xTEXT 
+
+m,i (↑)
+
+xTEXT 
+
+m,i − xIPA 
+
+m,i (↓)
+
+|xTEXT 
+
+m,i − 1| − | xIPA 
+
+m,i − 1| (→ 1 ←)
+
+(24) Here (↑) denotes metrics where larger values are better, (↓) denotes metrics where smaller values are better, and (→ 1 ←) denotes metrics where values closer to 1 are better. Thus, ∆m,i > 0
+
+means IPA is better than TEXT on metric m for item 
+
+i.Arab 
+
+> Cyrl
+> Deva
+> Hani
+> Hang
+> Hira
+> Kata
+> Laoo
+> Latn
+> Thai
+> Mymr
+> Ethi
+> Grek
+> Hebr
+> 5
+> 10
+> 15
+> 20
+
+Word Fertility ↓ 
+
+> SEEN UNSEEN
+> Arab
+> Cyrl
+> Deva
+> Hani
+> Hang
+> Hira
+> Kata
+> Laoo
+> Latn
+> Thai
+> Mymr
+> Ethi
+> Grek
+> Hebr
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+
+Continued Words ↓ 
+
+> SEEN UNSEEN
+> Arab
+> Cyrl
+> Deva
+> Hani
+> Hang
+> Hira
+> Kata
+> Laoo
+> Latn
+> Thai
+> Mymr
+> Ethi
+> Grek
+> Hebr
+> 1
+> 2
+> 3
+> 4
+
+Avg. Token Length ↑ 
+
+> SEEN UNSEEN
+> Arab
+> Cyrl
+> Deva
+> Hani
+> Hang
+> Hira
+> Kata
+> Laoo
+> Latn
+> Thai
+> Mymr
+> Ethi
+> Grek
+> Hebr
+> 1
+> 2
+> 3
+> 4
+> 5
+> 6
+
+Compression Rate ↑ 
+
+> SEEN UNSEEN
+> Arab
+> Cyrl
+> Deva
+> Hani
+> Hang
+> Hira
+> Kata
+> Laoo
+> Latn
+> Thai
+> Mymr
+> Ethi
+> Grek
+> Hebr
+> 4
+> 6
+> 8
+> 10
+> 12
+> 14
+
+Renyi Entropy (alpha=1) ↑ 
+
+> SEEN UNSEEN
+> Arab
+> Cyrl
+> Deva
+> Hani
+> Hang
+> Hira
+> Kata
+> Laoo
+> Latn
+> Thai
+> Mymr
+> Ethi
+> Grek
+> Hebr
+> 2
+> 4
+> 6
+> 8
+> 10
+
+Renyi Entropy (alpha=2) ↑ 
+
+> SEEN UNSEEN
+> Arab
+> Cyrl
+> Deva
+> Hani
+> Hang
+> Hira
+> Kata
+> Laoo
+> Latn
+> Thai
+> Mymr
+> Ethi
+> Grek
+> Hebr
+> 1
+> 2
+> 3
+> 4
+> 5
+> 6
+> 7
+
+Renyi Entropy (alpha=inf) ↑ 
+
+> SEEN UNSEEN
+> N/A (per-language only)
+
+Zipf Deviation ↓
+
+> Arab
+> Cyrl
+> Deva
+> Hani
+> Hang
+> Hira
+> Kata
+> Laoo
+> Latn
+> Thai
+> Mymr
+> Ethi
+> Grek
+> Hebr
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+
+Vocab Utilization ↑ 
+
+> SEEN UNSEEN
+> Arab
+> Cyrl
+> Deva
+> Hani
+> Hang
+> Hira
+> Kata
+> Laoo
+> Latn
+> Thai
+> Mymr
+> Ethi
+> Grek
+> Hebr
+> 0.00
+> 0.05
+> 0.10
+> 0.15
+> 0.20
+> 0.25
+
+Type-Token Ratio ↑ 
+
+> SEEN UNSEEN
+> N/A (per-language only)
+
+Tokenization Parity vs EN →1←
+
+> Text Opt Text Subopt IPA Opt IPA Subopt
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+
+Tokenizer Fairness Gini ↓  
+
+> 0.3662 0.3713
+> 0.1782 0.1528
+
+Scripts Metric values 
+
+> Text Opt mean
+
+Text Opt 
+
+> IPA Opt mean
+
+IPA Opt  
+
+> Text Subopt mean IPA Subopt mean
+
+Figure 15: Per-script intrinsic tokenization metrics: Text Opt vs. IPA Opt . Solid lines show Text Opt and IPA Opt 
+
+per language; dashed lines are means. Arrows: ↑ = higher is better, ↓ = lower is better, → 1 ← = closer-to-1 is better; TFG is a single global tokenizer metric (not per-language), hence shown as bars. Zipf Deviation and Tokenization Parity are per-language only, so they are omitted here. SEEN/UNSEEN mark languages included in vs. absent from tokenizer training data. Takeaway: IPA improves tokenization quality for non-Latin scripts, while maintaining the same quality on Latin script languages as Text tokenizers. Improvements are most drastic for scripts unseen during tokenizer training. 
+
+Win-rate (per language/script). Let Mi be the set of metrics available for item i. The win-rate is the fraction of metrics improved by IPA: WinRate (i) = 1
+
+|M i|
+
+∑
+
+m∈M i
+
+I[∆ m,i > 0] . (25) 
+
+Paired effect size dz (per metric). For each met-ric m, we compute the mean and standard devia-tion of ∆m,i across items i ∈ I m (the items with non-missing paired values): 
+
+¯∆m = 1
+
+|I m|
+
+∑
+
+i∈I m
+
+∆m,i ,sm = std ({∆m,i }i∈I m ) .
+
+(26) We then report Cohen’s paired standardized mean difference: 
+
+dz (m) = ¯∆m
+
+sm + ε . (27) where ε is a small constant for numerical stability. Positive dz indicates that IPA tends to outperform TEXT on metric m.
+
+Mean z-score (overall per language/script). To combine metrics with different scales, we z-score improvements within each metric across items: 
+
+zm,i = ∆m,i − μm
+
+σm
+
+, (28) where μm and σm are the mean and standard de-viation of ∆m,i over i ∈ I m (if σm = 0 , we set 
+
+zm,i = 0 ). The overall score for item i is the mean 
+
+z across its available metrics: MeanZ (i) = 1
+
+|M i|
+
+∑
+
+m∈M i
+
+zm,i . (29) Higher MeanZ (i) indicates that IPA improves more metrics, and by a larger margin, relative to TEXT. 
+
+O Sensitivity to noise injection 
+
+As an additional experiment, we test robustness of our IPA Opt tokenizer to noise injection and com-pare it to that of the Text Opt tokenizer. Specifi-cally, we test sensitivity to random character dele-tions with three different rates (5%, 10%, and 15%). We provide results in Table 12. Arab 
+
+> Cyrl
+> Deva
+> Hani
+> Hang
+> Hira
+> Kata
+> Laoo
+> Latn
+> Thai
+> Mymr
+> Ethi
+> Grek
+> Hebr
+> 5
+> 10
+> 15
+> 20
+
+Word Fertility ↓ 
+
+> SEEN UNSEEN
+> Arab
+> Cyrl
+> Deva
+> Hani
+> Hang
+> Hira
+> Kata
+> Laoo
+> Latn
+> Thai
+> Mymr
+> Ethi
+> Grek
+> Hebr
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+
+Continued Words ↓ 
+
+> SEEN UNSEEN
+> Arab
+> Cyrl
+> Deva
+> Hani
+> Hang
+> Hira
+> Kata
+> Laoo
+> Latn
+> Thai
+> Mymr
+> Ethi
+> Grek
+> Hebr
+> 1
+> 2
+> 3
+> 4
+
+Avg. Token Length ↑ 
+
+> SEEN UNSEEN
+> Arab
+> Cyrl
+> Deva
+> Hani
+> Hang
+> Hira
+> Kata
+> Laoo
+> Latn
+> Thai
+> Mymr
+> Ethi
+> Grek
+> Hebr
+> 1
+> 2
+> 3
+> 4
+> 5
+
+Compression Rate ↑ 
+
+> SEEN UNSEEN
+> Arab
+> Cyrl
+> Deva
+> Hani
+> Hang
+> Hira
+> Kata
+> Laoo
+> Latn
+> Thai
+> Mymr
+> Ethi
+> Grek
+> Hebr
+> 4
+> 6
+> 8
+> 10
+> 12
+
+Renyi Entropy (alpha=1) ↑ 
+
+> SEEN UNSEEN
+> Arab
+> Cyrl
+> Deva
+> Hani
+> Hang
+> Hira
+> Kata
+> Laoo
+> Latn
+> Thai
+> Mymr
+> Ethi
+> Grek
+> Hebr
+> 2
+> 4
+> 6
+> 8
+
+Renyi Entropy (alpha=2) ↑ 
+
+> SEEN UNSEEN
+> Arab
+> Cyrl
+> Deva
+> Hani
+> Hang
+> Hira
+> Kata
+> Laoo
+> Latn
+> Thai
+> Mymr
+> Ethi
+> Grek
+> Hebr
+> 1
+> 2
+> 3
+> 4
+> 5
+> 6
+
+Renyi Entropy (alpha=inf) ↑ 
+
+> SEEN UNSEEN
+
+N/A (per-language only) 
+
+Zipf Deviation ↓
+
+> Arab
+> Cyrl
+> Deva
+> Hani
+> Hang
+> Hira
+> Kata
+> Laoo
+> Latn
+> Thai
+> Mymr
+> Ethi
+> Grek
+> Hebr
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+
+Vocab Utilization ↑ 
+
+> SEEN UNSEEN
+> Arab
+> Cyrl
+> Deva
+> Hani
+> Hang
+> Hira
+> Kata
+> Laoo
+> Latn
+> Thai
+> Mymr
+> Ethi
+> Grek
+> Hebr
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+
+Type-Token Ratio ↑ 
+
+> SEEN UNSEEN
+
+N/A (per-language only) 
+
+Tokenization Parity vs EN →1←
+
+> Text Subopt Text Opt IPA Subopt IPA Opt
+
+0.0
+
+0.1
+
+0.2
+
+0.3
+
+0.4
+
+Tokenizer Fairness Gini ↓  
+
+> 0.3713 0.3662
+> 0.1528 0.1782
+
+Scripts Metric values 
+
+Text Subopt mean 
+
+Text Subopt 
+
+IPA Subopt mean 
+
+IPA Subopt 
+
+Text Opt mean IPA Opt mean Figure 16: Per-script intrinsic tokenization metrics: Text Subopt vs. IPA Subopt . Solid lines show Text Subopt and 
+
+IPA Subopt per language; dashed lines are means. Arrows: ↑ = higher is better, ↓ = lower is better, → 1 ← = closer-to-1 is better; TFG is a single global tokenizer metric (not per-language), hence shown as bars. Zipf Deviation and Tokenization Parity are per-language only, so they are omitted here. SEEN/UNSEEN mark languages included in vs. absent from tokenizer training data. 
+
+Mode Del. rate WF ↓ PCW ↓ ATL ↑ TTR ↑ RE 1↑ RE 2↑ RE ∞↑ CR ↑ VU ↑ ZipfD ↓ TP → 1 ←
+
+> Text Opt
+
+5% 5.89 0.90 1.99 0.13 9.39 6.70 4.17 2.47 0.04 0.24 2.67 10% 6.02 0.90 1.90 0.12 9.28 6.58 4.08 2.41 0.04 0.25 2.74 15% 6.15 0.90 1.83 0.12 9.16 6.46 3.99 2.35 0.03 0.26 2.82 
+
+> IPA Opt
+
+5% 2.84 0.90 2.85 0.17 10.20 7.75 4.97 3.52 0.04 0.19 1.42 10% 2.85 0.91 2.66 0.16 10.08 7.63 4.88 3.46 0.04 0.20 1.47 15% 2.83 0.91 2.52 0.16 9.95 7.50 4.79 3.39 0.03 0.21 1.53 
+
+Table 12: Sensitivity to noise injection (random character deletions) of Text Opt and IPA Opt tokenizers.

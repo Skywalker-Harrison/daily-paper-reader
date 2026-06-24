@@ -6,95 +6,69 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-15 ~ 2026-06-24
-- 运行时间：2026-06-24 02:57:20 UTC
+- 最新运行日期：2026-06-24
+- 运行时间：2026-06-24 19:42:25 UTC
 - 运行状态：成功
-- 本次总论文数：25
-- 精读区：8
-- 速读区：17
+- 本次总论文数：15
+- 精读区：6
+- 速读区：9
 
 ### 今日简报（AI）
-今日推荐了25篇论文，精读重点在圣经希伯来语平行检测和自然语言引导的通用语音合成。最值得关注的是高分论文MiqraBERT和Bagpiper-TTS，分别聚焦古语言处理和语音合成前沿。若想快速入门，可先速读多说话人音频场景生成和跨语言锚定的相关研究。
-- 详情：[/20260615-20260624/README](/20260615-20260624/README)
+今日推荐15篇论文，精读聚焦于持续自回归音频生成与跨模态对齐提升低资源语音识别，速读涵盖图文推理、多语言分词及航空语音合成等方向。
+
+最值得关注AudioCALM的连续自回归模型统一音频生成能力，以及Audio-Image Alignment通过预训练对齐阶段显著改善低资源ASR。
+
+建议普通读者优先精读这两篇高分之作，以掌握音频生成与多模态对齐的前沿技术脉络。
+- 详情：[/202606/24/README](/202606/24/README)
 
 ### 精读区论文标签
-1. [MiqraBERT: Regression-Based Sentence-BERT Finetuning for Biblical Hebrew Parallel Detection](/20260615-20260624/2606.19638v1-miqrabert-regression-based-sentence-bert-finetuning-for-biblical-hebrew-parallel-detection)  
-   标签：评分：9.0/10、query:lowres-bible
-   evidence：使用Sentence-BERT微调进行圣经希伯来语平行句检测，属于圣经文本的NLP处理
-2. [Bagpiper-TTS: Natural Language Guided Universal Speech Synthesis](/20260615-20260624/2606.22811v1-bagpiper-tts-natural-language-guided-universal-speech-synthesis)  
+1. [AudioCALM: Continuous Autoregressive Language Modeling for Universal Audio Generation](/202606/24/2606.23080v1-audiocalm-continuous-autoregressive-language-modeling-for-universal-audio-generation)  
    标签：评分：9.0/10、query:speech-tech
-   evidence：自然语言引导的通用语音合成
-3. [Koshur Pixel: a large-scale synthetic ocr dataset for kashmiri](/20260615-20260624/2606.23144v1-koshur-pixel-a-large-scale-synthetic-ocr-dataset-for-kashmiri)  
+   evidence：将自回归下一个标记预测扩展到连续音频潜在空间的统一音频生成框架
+2. [Audio--Image Alignment as a Continued-Pretraining Stage Improves Low-Resource ASR](/202606/24/2606.24080v1-audio--image-alignment-as-a-continued-pretraining-stage-improves-low-resource-asr)  
+   标签：评分：9.0/10、query:speech-tech
+   evidence：利用音频-图像对齐的低资源语音识别
+3. [Data Scale, Not Latency, Shapes Cross-Lingual Encoder Transfer in Streaming ASR](/202606/24/2606.24169v1-data-scale-not-latency-shapes-cross-lingual-encoder-transfer-in-streaming-asr)  
+   标签：评分：9.0/10、query:speech-tech
+   evidence：研究流式语音识别中跨语言编码器迁移对多种语言的影响
+4. [UniTranslator: A Unified Multi-modal Framework for End-to-end In-Image Machine Translation](/202606/24/2606.24333v1-unitranslator-a-unified-multi-modal-framework-for-end-to-end-in-image-machine-translation)  
    标签：评分：9.0/10、query:mtg-bench
-   evidence：克什米尔语合成OCR数据集，涉及波斯-阿拉伯语脚本渲染
-4. [ReNikud: Audio-Supervised Hebrew Grapheme-to-Phoneme Conversion](/20260615-20260624/2606.20179v1-renikud-audio-supervised-hebrew-grapheme-to-phoneme-conversion)  
-   标签：评分：8.0/10、query:low-res-tts
-   evidence：希伯来语G2P转换用于低资源TTS
-5. [OpenWER: Improving Cross-Lingual ASR Evaluation and Enabling Token-Based Accuracy Metrics](/20260615-20260624/2606.21237v1-openwer-improving-cross-lingual-asr-evaluation-and-enabling-token-based-accuracy-metrics)  
+   evidence：UniTranslator实现图像内文本翻译与渲染，直接涉及非拉丁文字在图像生成中的文本渲染
+5. [OpenWER: Improving Cross-Lingual ASR Evaluation and Enabling Token-Based Accuracy Metrics](/202606/24/2606.21237v1-openwer-improving-cross-lingual-asr-evaluation-and-enabling-token-based-accuracy-metrics)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：OpenWER通过语言特定规范化提升跨语言ASR评估，针对低资源语言
-6. [Synthetic Audio Generation Framework for Air Traffic Control Speech Recognition](/20260615-20260624/2606.21340v1-synthetic-audio-generation-framework-for-air-traffic-control-speech-recognition)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：利用TTS和语音转换合成数据以提升低资源口音ASR性能
-7. [ISCSLP 2026 CoT-TTS Challenge: Chain-of-Thought Reasoning for Context-Aware Text-to-Speech](/20260615-20260624/2606.21933v1-iscslp-2026-cot-tts-challenge-chain-of-thought-reasoning-for-context-aware-text-to-speech)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：具有推理能力的上下文感知TTS挑战赛
-8. [From Speech to Text Corpora: Evaluating ASR-Based Data Acquisition for Low-Resource Fongbe and Hausa](/20260615-20260624/2606.22274v1-from-speech-to-text-corpora-evaluating-asr-based-data-acquisition-for-low-resource-fongbe-and-hausa)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：基于ASR的低资源丰贝与豪萨语文本获取
+   evidence：改进跨语言语音识别评估，覆盖52种语言
+6. [Cross-Lingual Exploration for Parametric Knowledge](/202606/24/2606.24579v1-cross-lingual-exploration-for-parametric-knowledge)  
+   标签：评分：8.0/10、query:cross-lang
+   evidence：跨语言探索策略提升参数化知识迁移，在17种语言上评估
 
 ### 速读区论文标签
-1. [Reference-Driven Multi-Speaker Audio Scene Generation from In-the-Wild Priors](/20260615-20260624/2606.19325v1-reference-driven-multi-speaker-audio-scene-generation-from-in-the-wild-priors)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：基于文本到音频基础模型的多说话人音频场景生成
-2. [Code-Switching Reveals Language Anchoring in Multilingual LLMs](/20260615-20260624/2606.19668v1-code-switching-reveals-language-anchoring-in-multilingual-llms)  
+1. [FlowRAG: Synergizing Explicit Reasoning via Frequency-Aware Multi-Granularity Graph Flow](/202606/24/2606.17856v1-flowrag-synergizing-explicit-reasoning-via-frequency-aware-multi-granularity-graph-flow)  
+   标签：评分：7.0/10、query:fie-rag
+   evidence：基于图的RAG，具有显式推理能力，适用于多跳查询
+2. [Phonemes to the Rescue: Multilingual Tokenization Based on International Phonetic Alphabet](/202606/24/2606.20993v1-phonemes-to-the-rescue-multilingual-tokenization-based-on-international-phonetic-alphabet)  
    标签：评分：7.0/10、query:cross-lang
-   evidence：研究代码切换中的语言锚定，揭示多语言LLM中的翻译偏置
-3. [FlowEdit: Associative Memory for Lifelong Pronunciation Adaptation in Flow-Matching TTS](/20260615-20260624/2606.20518v1-flowedit-associative-memory-for-lifelong-pronunciation-adaptation-in-flow-matching-tts)  
+   evidence：提出基于国际音标的多语言分词以减少跨语言差异，与翻译和跨语言任务相关
+3. [Synthetic Audio Generation Framework for Air Traffic Control Speech Recognition](/202606/24/2606.21340v1-synthetic-audio-generation-framework-for-air-traffic-control-speech-recognition)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：流匹配TTS的终身发音适应
-4. [Speaker Identity in Non-Verbal Vocalizations: Conditional Distillation and Mixture of Experts Approach](/20260615-20260624/2606.21215v1-speaker-identity-in-non-verbal-vocalizations-conditional-distillation-and-mixture-of-experts-approach)  
+   evidence：利用TTS和语音转换的合成音频生成用于低资源ASR
+4. [CAAD: Contrastive Audio-Aware Distillation for Efficient Speech Language Models](/202606/24/2606.23052v1-caad-contrastive-audio-aware-distillation-for-efficient-speech-language-models)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：TTS和VC中非语言发声的说话人验证
-5. [Streaming T5-based Text-to-Speech Synthesis with Limited Lookahead](/20260615-20260624/2606.21882v1-streaming-t5-based-text-to-speech-synthesis-with-limited-lookahead)  
+   evidence：语音语言模型的蒸馏框架，增强多语言语音合成能力
+5. [On the Effect of Segmentation Width and Cluster Size on Speech Resynthesis and Continuation in Generative Spoken Language Models](/202606/24/2606.23285v1-on-the-effect-of-segmentation-width-and-cluster-size-on-speech-resynthesis-and-continuation-in-generative-spoken-language-models)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：有限前瞻的流式文本转语音实现低延迟合成
-6. [AugCodec: A Low-Bitrate Disentangled Neural Speech Codec via Data Augmentation](/20260615-20260624/2606.21893v1-augcodec-a-low-bitrate-disentangled-neural-speech-codec-via-data-augmentation)  
+   evidence：使用离散表示的GSLM中的语音合成与延续
+6. [ParaPairAudioBench: Paralinguistic Pairwise Audio Benchmark for LALM-as-a-Judge](/202606/24/2606.24648v1-parapairaudiobench-paralinguistic-pairwise-audio-benchmark-for-lalm-as-a-judge)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：解耦神经语音编解码器，适用于多语言语音合成
-7. [Evaluating Large Language Models for Hausa and Fongbe Machine Translation: Benchmarks, Failures, and Metric Reliability](/20260615-20260624/2606.22269v1-evaluating-large-language-models-for-hausa-and-fongbe-machine-translation-benchmarks-failures-and-metric-reliability)  
-   标签：评分：7.0/10、query:cross-lang
-   evidence：评估大模型在低资源语言机器翻译中的性能与度量可靠性
-8. [L-Proto: Language-Aware Episodic Prototypical Training for Multilingual Speaker Verification](/20260615-20260624/2606.17416v1-l-proto-language-aware-episodic-prototypical-training-for-multilingual-speaker-verification)  
+   evidence：包含语速等副语言维度的成对基准，可用于语音合成评估
+7. [One-Step Token-to-Waveform Generation with MeanFlow in Latent Space](/202606/24/2606.18072v1-one-step-token-to-waveform-generation-with-meanflow-in-latent-space)  
+   标签：评分：6.0/10、query:qwen-tts
+   evidence：使用MeanFlow在潜在空间中一步生成Token到波形
+8. [Light-weight Pronunciation Assessment via Discrete Speech Token Surprisal](/202606/24/2606.19910v2-light-weight-pronunciation-assessment-via-discrete-speech-token-surprisal)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：多语言说话者验证与语言感知训练
-9. [One-Step Token-to-Waveform Generation with MeanFlow in Latent Space](/20260615-20260624/2606.18072v1-one-step-token-to-waveform-generation-with-meanflow-in-latent-space)  
+   evidence：使用语音令牌进行发音评估，可适用于多语言ASR
+9. [A Fusion-Aware Two-Stage Framework for Mispronunciation Detection and Diagnosis in Low-Resource Modern Standard Arabic](/202606/24/2606.24086v1-a-fusion-aware-two-stage-framework-for-mispronunciation-detection-and-diagnosis-in-low-resource-modern-standard-arabic)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：语音合成中的Token到波形生成
-10. [Next-Turn: Duration-Aware Streaming Endpoint Detection via Time-to-Next-Speech-Onset Prediction](/20260615-20260624/2606.18094v1-next-turn-duration-aware-streaming-endpoint-detection-via-time-to-next-speech-onset-prediction)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：流式语音系统中的端点检测
-11. [Light-weight Pronunciation Assessment via Discrete Speech Token Surprisal](/20260615-20260624/2606.19910v1-light-weight-pronunciation-assessment-via-discrete-speech-token-surprisal)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：轻量级发音评估，仅使用母语语音资源，适用于低资源语言
-12. [MixProLAP: Mixture-Induced Uncertainty Modeling for Probabilistic Language-Audio Pretraining](/20260615-20260624/2606.20418v1-mixprolap-mixture-induced-uncertainty-modeling-for-probabilistic-language-audio-pretraining)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：概率性音频-语言预训练建模多对多歧义
-13. [Phonemes to the Rescue: Multilingual Tokenization Based on International Phonetic Alphabet](/20260615-20260624/2606.20993v1-phonemes-to-the-rescue-multilingual-tokenization-based-on-international-phonetic-alphabet)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：基于国际音标的多语言分词；与语音合成/识别相关
-14. [CORTIS: Text-Only Adaptation of Spoken Language Models for Task-Oriented Voice Agents](/20260615-20260624/2606.21453v1-cortis-text-only-adaptation-of-spoken-language-models-for-task-oriented-voice-agents)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：口语语言模型的文本适配用于语音代理，与多语言语音处理相关
-15. [Interleaved Speech Language Models Latently Work In Text](/20260615-20260624/2606.22473v1-interleaved-speech-language-models-latently-work-in-text)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：交错语音文本语言模型分析
-16. [Predicate Importance Estimation and Decoupled Rationale-Score Distillation for Entity Alignment](/20260615-20260624/2606.22992v1-predicate-importance-estimation-and-decoupled-rationale-score-distillation-for-entity-alignment)  
-   标签：评分：6.0/10、query:fie-rag
-   evidence：面向知识图谱RAG系统的实体对齐方法
-17. [CAAD: Contrastive Audio-Aware Distillation for Efficient Speech Language Models](/20260615-20260624/2606.23052v1-caad-contrastive-audio-aware-distillation-for-efficient-speech-language-models)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：对比性音频感知蒸馏用于语音语言模型
+   evidence：低资源阿拉伯语语音处理，与多语言语音技术相关
 
 
 <div class="dpr-home-promo-card">

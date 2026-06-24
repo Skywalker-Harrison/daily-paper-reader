@@ -1,0 +1,467 @@
+Title: UniTranslator: A Unified Multi-modal Framework for End-to-end In-Image Machine Translation
+
+URL Source: https://arxiv.org/pdf/2606.24333v1
+
+Published Time: Wed, 24 Jun 2026 00:58:10 GMT
+
+Number of Pages: 25
+
+Markdown Content:
+# UniTranslator: A Unified Multi-modal Framework for End-to-end In-Image Machine Translation 
+
+Jiahao Lyu 1,2,5, Pei Fu 2*, Zhenhang Li 4, Shaojie Zhang 2, Jiahui Yang 2, Yu Zhou 3†, Can Ma 1, Zhenbo Luo 2, and Jian Luan 2 
+
+> 1
+
+Institute of Information Engineering, Chinese Academy of Science, China  
+
+> 2
+
+MiLM Plus, Xiaomi Inc, China  
+
+> 3
+
+VCIP & TMCC & DISSec, College of Computer Science & College of Cryptology and Cyber Science, Nankai University, China  
+
+> 4
+
+Binghamton University, USA  
+
+> 5
+
+School of Cyber Security, University of Chinese Academy of Science, China 
+
+Abstract. In-Image Machine Translation (IIMT) aims to translate scene text in an image and render the translated text back into the original re-gions while preserving the overall visual appearance. Recent unified mul-timodal models provide a promising solution by combining visual-text understanding and image generation within a single framework. However, directly adapting such models to IIMT remains challenging. In particu-lar, they often suffer from understanding-generation conflicts, where the translation inferred during understanding is inconsistent with the text supervision used in generation, and spatial position misalignment, where the rendered text does not accurately match the target text regions. To address these issues, we present UniTranslator, a unified multimodal framework for IIMT that tightly couples translation understanding and text editing. Specifically, we introduce an Understand-Generation Align-ment Module (UGAM) to bridge the representation gap between un-derstanding and generation, encouraging semantic consistency between translated content prediction and text rendering. We further propose a Spatial Mask Decoder (SMD) with pixel-level supervision over text re-gions to improve spatial grounding, geometric alignment, and layout con-trollability during generation. Extensive experiments on multiple bench-marks demonstrate that UniTranslator achieves state-of-the-art perfor-mance across diverse language directions and complex real-world layouts. Moreover, our results reveal a strong mutual reinforcement effect between translation understanding and image generation, highlighting the advan-tage of unified translation multimodal learning. Code is available here. 
+
+Keywords: In-Image Machine Translation · Unified Generation and Understanding Model · Multi-modal Learning 
+
+## 1 Introduction 
+
+In-Image Machine Translation (IIMT) aims to translate scene text in an image into a target language and write the translated content back into the original 
+
+Work done when Jiahao Lyu was an intern at Xiaomi. *Project Leader. 
+
+†Corresponding Author. 
+
+> arXiv:2606.24333v1 [cs.CV] 23 Jun 2026
+
+2 J.Lyu et al. Editing Model    
+
+> Prompt: Replace all texts with
+> "Hot Pot & Barbecue."
+> Ground Truth Prediction
+> Relative position mismatch
+> (b) Understanding & Generation Conflicts
+> (c) Spatial Position Misalignment
+> (a) IIMT Performances
+> Prompt:
+> Translate all
+> Chinese texts
+> into English
+> Understanding Generation
+> Text Condition Ground Truth
+> Hot Pot & Barbecue
+> (Translation Results)
+> EN →DE
+> SSIM
+> DE →EN
+> SSIM
+> FR →EN
+> BLEU
+> DE →EN
+> BLEU
+> FR →EN
+> SSIM
+> RO →EN
+> SSIM
+> GPT -Image -1
+> Nano -Banana
+> Qwen -Image
+> OCR+MT+T2I
+> Tranlatotron -V
+> UniTranslator
+
+Fig. 1: (a) Performance comparison of unified multimodal models and specialized image-to-image translation models on the Translatotron-V(ision) benchmark. (b) Illus-tration of the semantic conflict between the understanding and generation objectives in unified multimodal models for the IIMT task, which could cause the generated out-put to deviate from the target translation semantics. (c) Illustration of the positional inaccuracy issue in existing image editing models for text editing, where the edited text is often placed at an incorrect relative position. 
+
+text regions while preserving the surrounding visual appearance. As a funda-mental capability for multilingual visual communication, IIMT supports a broad range of applications, including travel assistance, augmented reality, and cross-border e-commerce, where translated text must be both semantically accurate and visually coherent with the scene. Most existing systems follow a cascaded OCR–MT–Editing pipeline [7, 20, 31, 52], which is often efficient but prone to error accumulation across stages. Recent progress in unified multimodal models (UMMs) introduces a novel paradigm for IIMT. By integrating visual-text un-derstanding and image generation within a single pre-trained framework, UMMs offer the potential to handle diverse languages, open-domain scenes, and complex layouts in a more generalizable manner than task-specific pipelines. Moreover, the strong performance of proprietary systems such as GPT-Image-1 [1] suggests that this paradigm has a high capability ceiling for image-level text translation and editing. However, as shown in Fig. 1(a), existing UMMs adapted to IIMT, such as Nano-Banana [9] and Qwen-Image [47], still deliver unsatisfactory per-formance, even on relatively constrained benchmarks. This gap indicates that effectively unlocking the IIMT capability of pre-trained UMMs remains a mean-ingful and unresolved research problem. A central obstacle lies in the mismatch between translation understanding and text generation. As illustrated in Fig. 1(b), the understanding branch first reads the source text and predicts a translation, which is then used to guide generation. However, a source expression can admit multiple valid translations. The translation predicted by the understanding branch may therefore be seman-tically correct but still differ from the exact target string shown in the ground truth image. In the example of Fig. 1(b), the model can produce a valid English translation such as “ Hot Pot & Barbecue ”. At the same time, the edited target Unitranslator 3
+
+image corresponds to a different rendering. As a result, the model receives in-consistent training signals: the understanding branch is encouraged to produce a valid translation, whereas the generation branch must reproduce a specific visual text instance. This discrepancy creates an understanding-generation conflict that hinders unified optimization for IIMT. Beyond semantic consistency, IIMT also requires precise spatial control over where translated text is written back. As shown in Fig. 1(c), even when the target text content is largely correct, a generic unified image editing model can still place it in the wrong region or with an incorrect local arrangement. In the illustrated example, the model generates “ Hot Pot Barbecue ”, but fails to align it with the position and layout of the ground-truth text region. This reveals a key limitation of generic UMMs: they lack explicit supervision for fine-grained correspondence between source text regions and edited text placement. Diffusion models inherently favor global coherence during the denoising process, they are prone to altering the original background textures and compromising the rigid spatial placement of text regions. Consequently, they struggle with the spatial position misalignment that is critical in IIMT, where semantic correctness and geometric fidelity are both required. To address these challenges, we propose UniTranslator , a unified multi-modal model for in-image machine translation that integrates translation un-derstanding and visual text editing within a single framework. The core of Uni-Translator is an Understand-Generation Alignment Module (UGAM) ,which explicitly bridges the understanding and generation branches by aligning the translation-related representations used by the two modules. Rather than optimizing the two stages under disconnected objectives, UGAM encourages the model to maintain semantic consistency between translation understanding and visual text rendering, thereby alleviating the understanding-generation conflict at the representation level. To further improve spatial precision, UniTranslator incorporates a Spatial Mask Decoder (SMD) that introduces pixel-level su-pervision over text editing regions. SMD injects explicit spatial cues into the generation process, enabling more accurate localization, geometric alignment, and layout-preserving text replacement. Together, UGAM and SMD address the two key bottlenecks of unified multimodal IIMT, namely semantic inconsis-tency between understanding and generation, and spatial position misalignment during text rendering. Extensive experiments on multiple in-image translation benchmarks show that UniTranslator achieves state-of-the-art performance and generalizes effectively across diverse language directions and complex real-world scenes. In addition, we observe a clear mutual reinforcement effect between un-derstanding and generation during training, indicating that accurate translation comprehension and faithful visual text editing can be learned synergistically within a unified multimodal framework. Our main contributions are summarized as follows: 
+
+– We present UniTranslator, a unified multimodal model for in-image machine translation that integrates translation understanding and visual text editing within a single framework. 4 J.Lyu et al. 
+
+– We propose an Understand-Generation Alignment Module to mitigate the semantic conflict between understanding and generation, and a Spatial Mask Decoder to improve spatial accuracy in visual text editing through pixel-level supervision. 
+
+– UniTranslator achieves state-of-the-art results on multiple in-image transla-tion benchmarks, with strong generalization across diverse languages and com-plex real-world scenes. We further find that translation understanding and image generation reinforce each other during unified training. 
+
+## 2 Related Works 
+
+2.1 In-Image Machine Translation 
+
+Research on multimodal translation has mainly focused on text image trans-lation (TIT), where the goal is to translate text appearing in an image into target-language text [8,18,19,21,29,32,44,54–56]. In contrast, in-image machine translation (IIMT) requires translating scene text and writing the translated content back into the image while preserving the original visual appearance, lay-out, and surrounding context. Existing IIMT methods can be broadly divided into cascaded systems and end-to-end models. Cascaded approaches, such as AnyTrans [27] and VisTrans [40], decompose the task into multiple stages, in-cluding text detection, recognition, translation, and image editing. End-to-end methods instead directly model the full translation-and-editing process using synthetic supervision [16, 37] or subtitle-based data construction [24, 38, 39]. De-spite recent progress, existing methods still struggle to generalize across diverse languages, complex layouts, and real-world scenes. This motivates a more unified framework with stronger cross-lingual and cross-scenario generalization. Unified multimodal models (UMMs), which integrate visual understanding and image generation within a single pre-trained architecture, provide a promising basis for this goal. 
+
+2.2 Unified Multi-modal Models 
+
+Recent unified multimodal models (UMMs) aim to integrate visual understand-ing and image generation within a single framework, making them a natural foundation for IIMT. Existing UMMs can be broadly categorized into diffusion-based, auto-regressive, and hybrid architectures [15, 53]. Diffusion-based UMMs couple language and vision representations during denoising-based generation. Representative examples include Dual Diffusion, UniDisc [33], FUDOKI [42], Muddit [30], and MMaDA [51]. Auto-regressive models represent images as dis-crete token sequences and perform multimodal generation in a next-token pre-diction manner, including TokLIP [23], Harmon [48], Chameleon [34], Emu3 [43], OmniGen [49], UniWorld [22], and ILLUME [14]. Hybrid methods, such as Show-o [50] and BAGEL [10], combine symbolic reasoning with continuous image gen-eration to better balance controllability and visual fidelity. Despite this progress, Unitranslator 5𝑰 𝒔𝒓𝒄       
+
+> Translate all
+> Chinese
+> texts into
+> English.
+> 𝑷 (𝒔 ,𝒕 )
+> Qwen2.5VL -3B
+> 𝑬 𝑽𝑳
+> LM Head
+> UGAM
+> MMDiT  × N
+> SMD
+> 𝒙 𝒕
+> 𝑻 𝒑𝒓𝒆𝒅
+> 𝑳 𝒎𝒂𝒔𝒌
+> Text Encoder
+> 𝑴 𝒈𝒕
+> 𝑳 𝒈𝒆𝒏
+> E
+> 𝑬 𝒖𝒏𝒅
+> ∗
+> 𝑰 𝒕𝒈𝒕
+> 𝑳 𝒖𝒏𝒅
+> HOT POT BBQ
+> 𝑻 𝒈𝒕
+> 𝑬 𝑽
+> 𝑬 𝒕𝒆𝒙𝒕
+> 𝑬 𝒄
+> 𝑬 𝑳
+> ෡𝑬 𝒖𝒏𝒅
+> (b) Understand -Generation Alignment Module (UGAM)
+> (c) Spatial Mask Decoder (SMD)
+> 𝑬 𝒖𝒏𝒅
+> 𝑬 𝑽𝑳
+> 𝑬 𝒄
+> Cross
+> Attention
+> MLP
+> Q
+> K, V
+> Cross
+> Attention
+> N × Deconv
+> Layers
+> Q
+> K, V
+> 𝑴 𝒑𝒓𝒆𝒅 𝑬 𝑽
+> 𝑬 𝒖𝒏𝒅
+> Hot Pot &
+> Barbecue
+> E
+> Inference EEmbedding Training Frozen Trainable (a) Overview of UniTranslator
+
+Fig. 2: Overview of UniTranslator, a unified multimodal framework for in-image ma-chine translation. It introduces UGAM for understand-generation alignment and SMD for spatially grounded text editing. 
+
+existing UMMs still fall short on IIMT, which requires tight coordination be-tween text understanding and image editing, especially for content preservation and style-consistent text rendering. Our work addresses this gap by introducing explicit mechanisms for understand-generation alignment and spatially grounded text editing within a unified multimodal framework. 
+
+## 3 Methods 
+
+3.1 Formulation 
+
+Given a source image Isrc containing text in a source language s and a target language t, the goal of in-image machine translation (IIMT) is to produce both the translated target text Ttgt and a translated image Itgt , where the source text is replaced by its target-language translation while the non-text visual content and overall layout are preserved. We formulate IIMT as a joint understanding-and-generation problem under a unified multimodal model fθ . Specifically, the model takes as input the source image Isrc together with an instruction prompt 
+
+P (s, t ), “Translate all texts from s to t.” Conditioned on both the image and the instruction, the model jointly predicts the translated text sequence and the edited target image: 
+
+( ˆTtgt , ˆItgt ) = fθ (Isrc , s, t ). (1) Here, ˆTtgt denotes the predicted target-language text sequence, and ˆItgt denotes the translated image with the source text rewritten in the target language. Al-though implemented as a single end-to-end model, UniTranslator couples trans-lation understanding and visual text editing through shared multimodal repre-sentations, enabling semantic prediction and image generation to be optimized jointly within one unified framework. 
+
+3.2 Overview of UniTranslator 
+
+As shown in Fig. 2, UniTranslator is a unified multimodal model for in-image machine translation. Given a source image Isrc and a translation instruction 6 J.Lyu et al. 
+
+prompt P (s, t ), the model first encodes the visual-textual input with a multi-modal backbone to obtain shared multimodal representations, which are then used by three task-specific branches. The understanding branch predicts the translated text sequence ˆTtgt through autoregressive decoding. The generation branch synthesizes the translated image ˆItgt conditioned on the source image and aligned multimodal representations. The mask branch predicts a text-region mask ˆM to provide explicit spatial supervision for localized text rendering. To address the two key challenges in unified multimodal IIMT, UniTranslator introduces two dedicated modules. First, an Understand-Generation Align-ment Module (UGAM) bridges the understanding and generation branches by aligning the translation-related representations used for text prediction and image generation, thereby reducing semantic inconsistency between the two stages. Second, a Spatial Mask Decoder (SMD) provides pixel-level super-vision over text regions, improving spatial grounding and layout-preserving text editing. These components are jointly optimized within a unified framework. The overall training objective is defined as 
+
+Ltotal = λund Lund + λgen Lgen + λmask Lmask , (2) where Lund , Lgen , and Lmask denote the text prediction loss, the image generation loss, and the mask prediction loss, respectively. 
+
+3.3 Understand-Generation Alignment Module 
+
+To address the Understanding and Generation Conflicts, we introduce the Un-derstand Generation Alignment Module (UGAM) . In unified multimodal IIMT, the understanding branch is optimized for autoregressive text prediction, whereas the generation branch requires a continuous conditioning representa-tion for visual writeback, leading to a mismatch between the two objectives. As shown in Fig. 2(b), UGAM takes the understanding representation Eund as query and the multimodal representation EV L as key and value, and applies cross-attention followed by an MLP to produce an aligned condition embedding 
+
+Ec:
+
+Ec = M LP (CrossAttn (Eund , EV L, E V L )) . (3) The resulting aligned embedding Ec serves as a soft, generation-compatible con-dition. Instead of rigidly dictating what exact words to render, Ec tells the gen-eration branch (MMDiT) how the semantic translation aligns with the visual space, thereby mitigating the semantic-to-visual penalty clash. Concurrently, the understanding branch is trained with the standard autoregressive loss to maintain translation accuracy: 
+
+Lund = − 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+log pθ
+
+ Tgt ,i | Tgt ,<i , E V L 
+
+, (4) where Tgt denotes the ground-truth translated text and N is the number of target tokens. Ultimately, UGAM transforms Eund from a purely semantic representa-Unitranslator 7
+
+tion into a robust, multi-modal bridge, ensuring semantic consistency without collapsing under strict pixel-level generative supervision. 
+
+3.4 Spatial Mask Decoder 
+
+Although UGAM improves semantic consistency between translation under-standing and image generation, in-image machine translation further requires accurate spatial placement of translated text. To address this issue, we intro-duce a Spatial Mask Decoder (SMD) to predict the target text-region mask. Specifically, SMD takes the visual representation EV as key and value and the understanding representation Eund as query. A cross-attention module first in-jects translation-aware semantics into spatial visual features, and the fused rep-resentation is then decoded to produce the target mask: 
+
+ˆMpred = Deconv (CrossAttn (( Eund , E V , E V ))) . (5) We supervise the predicted mask ˆM pred with the ground-truth text-region mask 
+
+Mgt using a combination of binary cross-entropy and Dice loss: 
+
+Lmask = λbce LBCE ( ˆMpred , M gt ) + λdice LDice ( ˆMpred , M gt ). (6) By introducing explicit pixel-level supervision on text regions, SMD improves spatial grounding and enables more accurate preservation of text position and layout during visual writeback. 
+
+3.5 Conditional Image Generation 
+
+Given the aligned condition produced by UGAM, UniTranslator employs a diffu-sion transformer to synthesize the translated image. Specifically, the generation branch takes the noised latent xt at diffusion step t, together with the aligned multimodal condition Ec and the text condition Etext , and predicts the corre-sponding denoising target: 
+
+Lgen = E(x0,E c,E text )∼D , t, ϵ 
+
+h
+
+∥vθ (xt, t, E c, E text ) − vt∥22
+
+i
+
+, (7) where x0 is the latent representation of the ground-truth translated image Itgt ,and vt is the diffusion training target at step t. In our framework, Ec provides the aligned semantic condition transferred from the understanding branch through UGAM, while Etext is obtained from the instruction text encoder, as shown in Fig. 2(a). Conditioning image generation on both signals allows the model to preserve the original visual content while rendering translated text that is semantically consistent with the predicted translation. 
+
+3.6 Multi-Stage Training 
+
+We adopt a two-stage training strategy to progressively adapt the unified mul-timodal model to in-image machine translation. 8 J.Lyu et al. 
+
+Table 1: Results on German ↔English image translation (De ↔En) on the Translatotron-V benchmark. Best are in bold and underline, respectively. De →En En →De Model BLEU ↑ Structure-BLEU ↑ SSIM ↑ BLEU ↑ Structure-BLEU ↑ SSIM ↑                                                                                    
+
+> Properiety Models
+> GPT-Image-1 [1] 20.75 16.01 0.7369 19.61 17.44 0.7528 Nano-Banana [9] 10.16 10.41 0.7474 9.95 9.71 0.7488
+> Open-source Models
+> GLM-Image [25] 0.40 0.40 0.6194 0.19 0.00 0.6038 Qwen-Image [47] 0.23 0.23 0.7858 0.21 0.21 0.7862 LongCat-Image [35] 0.22 0.22 0.7552 0.09 0.11 0.6925 Janus [6] 0.00 0.00 0.7202 0.00 0.00 0.7152 Bagel [10] 0.18 0.18 0.7218 0.07 0.00 0.7063 Uniworld [22] 0.25 0.24 0.7905 0.20 0.20 0.7874
+> Specialist Model
+> OCR+MT+T2I 15.37 14.87 0.7785 13.22 12.57 0.7550 TIT+T2I 14.80 14.73 0.7812 12.92 12.74 0.7620 PEIT+T2I [56] 10.91 10.78 0.7740 8.77 8.01 0.7594 Pixel-level Transformer 0.15 0.15 0.7538 1.11 1.22 0.7616 Translatotron-V [16] 15.39 15.26 0.7832 13.23 12.92 0.7629 UniTranslator (Ours) 25.03 24.86 0.8184 13.41 13.36 0.7887
+
+Stage 1: Module Warm-up. In the first stage, we freeze the main pretrained backbones and optimize only the newly introduced task-specific modules, in-cluding UGAM and SMD. The multimodal backbone provides the visual and multimodal representations used by the understanding, alignment, and mask branches, while the diffusion generator remains fixed. This stage allows the model to establish a stable interface between translation understanding and image gen-eration without disrupting the pretrained priors of the backbone and generator. 
+
+Stage 2: Joint Fine-tuning. In the second stage, we then jointly fine-tune the understanding and generation pathways, including LoRA adapters in Qwen2.5-VL, UGAM, SMD, and the attention projection layers in MMDiT. This stage improves end-to-end instruction following, translation robustness, and image generation fidelity under realistic inference conditions. During training, UGAM uses the ground-truth translation Tgt as the text condition. During inference, UniTranslator instead uses the autoregressively predicted translation Tpred . The second stage therefore also serves to reduce the distribution gap between teacher-forced supervision and autoregressive decoding, improving robustness at test time. 
+
+## 4 Experiment 
+
+4.1 Settings 
+
+We train UniTranslator in two stages using AdamW with a weight decay of 
+
+1 × 10 −4 and bf16 mixed precision. Gradient checkpointing and gradient accu-mulation with 8 steps are enabled throughout training. In the first stage, we Unitranslator 9
+
+Table 2: Quantitative results on French/Romanian →English image translation (Fr/Ro →En) on the Translatotron-V benchmark. Best are in bold and underline, respectively. Fr →En Ro →En Model BLEU ↑ Structure-BLEU ↑ SSIM ↑ BLEU ↑ Structure-BLEU ↑ SSIM ↑                                                                                        
+
+> Properiety Models
+> GPT-Image-1 [1] 27.38 23.05 0.7081 24.50 23.14 0.7386 Nano-Banana [9] 12.70 12.91 0.7495 9.30 8.73 0.7635
+> Open-source Models
+> GLM-Image [25] 0.20 0.00 0.6181 0.25 0.00 0.6278 Qwen-Image [47] 0.20 0.20 0.7767 0.22 0.22 0.7908 LongCat-Image [35] 0.06 0.06 0.7451 0.06 0.07 0.7361 Janus [6] 0.00 0.00 0.7080 0.00 0.00 0.7194 Bagel [10] 0.13 0.00 0.7239 0.10 0.00 0.7273 Uniworld [22] 0.13 0.13 0.7778 0.16 0.15 0.7906
+> Specialist Model
+> OCR+MT+T2I 21.60 21.58 0.7738 18.34 18.61 0.7752 TIT+T2I 21.87 21.78 0.7801 18.39 18.30 0.7764 PEIT+T2I [56] 18.51 18.55 0.7741 14.54 14.90 0.7704 Pixel-level Transformer 2.08 2.61 0.7753 1.58 2.11 0.7696 Translatotron-V [16] 22.20 22.17 0.7811 18.44 18.73 0.7780 UniTranslator 27.77 27.14 0.8060 18.45 18.29 0.8045
+
+freeze the pretrained Qwen2.5VL and diffusion backbone and optimize only the lightweight UGAM that connects the understanding and generation components. We use a constant learning rate of 1 × 10 −4 and train on 256 × 256 images with a per-device batch size of 32. In the second stage, we jointly fine-tune the trainable modules in Qwen2.5-VL with LoRA rank set to 64. We use a cosine learning-rate schedule with a peak learning rate of 1×10 −5 and 100 warm-up steps, and set the per-device batch size to 8. Stage 1 and Stage 2 are trained for 70 and 30 epochs, respectively. To balance the optimization objectives at a comparable scale, we set the loss weights to λund = 0 .1, λgen = 1 , and λmask = 0 .1. Following common practice [46], we set λbce = 1 and λdice = 1 . All experiments are conducted on NVIDIA H800 GPUs. 
+
+4.2 Benchmarks Translatotron-V(ision) [16] is a synthetic IIMT benchmark with relatively simple backgrounds and oriented text. It covers four languages (German, English, French, and Romanian) and is built from three public MT corpora: IWSLT14 German–English [4], IWSLT17 French–English [3], and IWSLT14 Romanian– English [3]. Following the official splits, the test sets contain 3,527, 4,927, and 1,008 image–translation pairs for German →English, French →English, and Ro-manian → English, respectively. All images are of size 512 × 512 . We use Easy-OCR to extract translated text from generated images, and report BLEU [26], structure-BLEU [16], and SSIM [45] for evaluation. 
+
+https://github.com/JaidedAI/EasyOCR 10 J.Lyu et al. 
+
+Table 3: Experimental results of different systems. Metrics include translation quality (BLEU, COMET(%)) and visual effect (FID). ↑/↓ indicates higher/lower is better. Best and second-best are in bold and underline, respectively.                                                                                              
+
+> Systems Translation Quality (BLEU ↑/COMET ↑)Visual Effect (FID ↓)
+> De-En En-De De-En En-De Valid Test Valid Test Valid Test Valid Test VQGAN [12] 0.7 / 24.2 0.6 / 24.4 0.6 / 17.9 0.8 / 20.2 25.5 21.3 27.2 20.7 VAR [36] 0.1 / 22.5 0.1 / 22.2 0.3 / 18.3 0.2 / 17.7 21.2 15.7 20.1 14.1 MaskGIT [5] 0.2 / 23.7 0.2 / 24.0 0.1 / 18.9 0.2 / 18.5 21.5 20.9 22.2 18.8 TIT-Render [41] 13.8 / 53.1 12.1 / 49.6 14.0 / 46.3 10.2 / 43.9 137.4 133.2 121.7 119.0 PEIT-Render [56] 10.5 / 50.4 8.6 / 47.0 12.3 / 41.1 7.9 / 35.6 149.9 140.1 125.3 119.7 McTIT-Render [18] 14.2 / 53.5 11.7 / 47.3 13.5 / 43.3 10.5 / 42.8 141.2 137.5 124.9 117.5 Translatotron-V [16] 2.7 / 30.1 1.6 / 24.8 2.1 / 26.5 1.9 / 24.6 22.4 10.1 23.2 17.5 DebackX [39] 14.9 / 51.2 12.8 / 50.0 14.6 / 42.2 11.1 / 40.0 20.4 9.0 19.5 8.7
+> UniTranslator 16.3 /59.9 14.7 /59.8 13.1 / 45.0 13.0 /45.5 18.6 8.9 19.2 12.5
+
+IIMT30k [39] is a more realistic benchmark for instance-level IIMT, where synthetic text is rendered onto real-world photographs. Built on Multi30k [11], it uses real images as backgrounds and image captions as textual content, re-sulting in cluttered scenes with diverse textures and illumination. The dataset includes German and English. Following the official splits, the validation and test sets contain 864 and 2,740 samples, respectively. All images are resized and cropped to 48 × 512 while preserving the full text region and surrounding con-text. We evaluate translation quality using EasyOCR followed by BLEU and COMET [28], and report FID for image quality. 
+
+PRIM [38] is a multilingual IIMT benchmark designed for practical scenar-ios with diverse backgrounds, fonts, placements, and translation directions. It provides a large-scale synthetic training set, MTedIIMT, constructed by pairing multilingual parallel text with real-world TED imagery and rendering text using TRDG. PRIM contains 7M training samples and 3K test samples. We follow the official protocol and report BLEU, COMET, and FID for evaluation. 
+
+4.3 Results and Discussion Translatotron-V(ision). We first evaluate UniTranslator on Translatotron-V(ision), which contains four subtasks: De →En, En →De, Fr →En, and Ro →En. As shown in Tabs. 1 and 2, existing open-source unified multimodal models perform poorly in the zero-shot setting, while strong closed-source models such as GPT-Image-1 already show competitive translation performance, indicating the potential of unified multimodal models for IIMT. However, these models still lag behind specialist systems in visual faithfulness and editing precision, as reflected by lower SSIM and a larger gap between BLEU and structure-BLEU. In contrast, UniTranslator achieves the strongest overall results across all four subtasks, substantially improving BLEU and structure-BLEU while maintaining 
+
+https://github.com/mseitzer/pytorch-fid https://github.com/Belval/TextRecognitionDataGenerator Unitranslator 11 
+
+Table 4: Experimental results on PRIM. Metrics include translation quality (BLEU, COMET(%)) and visual effect (FID), and “Avg.” represents the average across all translation directions. ↑ or ↓ indicates that higher or lower values are better. The best and second-best performances are in bold and underline, respectively.                                                          
+
+> Systems BLEU ↑/COMET ↑FID ↓
+> En-De En-Fr En-Cs En-Ru En-Ro Avg. Avg.
+> Cascade Models
+> PARSeq-mTransformer-Render [2] 9.5 / 41.7 13.8 / 46.9 7.7 / 43.9 5.5 / 48.1 12.8 / 53.5 9.9 / 46.8 103.8 PEIT-Render [56] 10.4 / 45.1 14.0 / 48.1 7.9 /46.2 5.3 / 47.7 14.2 / 52.9 10.4 / 48.0 101.4
+> End-to-end Models
+> TranslatotronV [16] 1.7 / 34.3 1.9 / 30.2 1.1 / 30.5 0.9 / 32.0 1.3 / 33.9 1.4 / 32.2 69.1 VisTrans [38] 12.6 / 44.4 17.0 / 49.4 5.9 / 41.8 7.2 / 49.4 13.9 / 50.2 11.3 / 47.0 28.8 UniTranslator 13.1 /48.7 21.6 /58.5 7.4 / 43.3 8.4 /50.2 13.5 / 52.8 12.8 /50.7 22.9
+
+Table 5: Ablation of UGAM and SMD in UniTranslator on Translatotron-V (De →En). Structured-BLEU and SSIM are reported, where higher is better. Method UGAM SMD Structured-BLEU ↑ SSIM ↑
+
+Baseline × × 9.00 0.8081 # 1 ✓ × 14.28 0.8036 # 2 × ✓ 16.02 0.8138 UniTranslator ✓ ✓ 24.86 0.8184 
+
+competitive or better SSIM, showing that it preserves both translation accuracy and spatially faithful text rendering. 
+
+IIMT30k. On the more realistic IIMT30k benchmark, UniTranslator achieves the best overall performance on both translation quality and visual quality (Tab. 3). It obtains the highest BLEU and COMET scores in both De →En and En →De, and also achieves the lowest FID by a clear margin. The especially large gain in FID suggests that UniTranslator is better suited to realistic scene editing, where cluttered backgrounds and complex textures make faithful visual generation more critical. 
+
+PRIM. On PRIM, a large-scale multilingual benchmark with more diverse scenes and translation directions, UniTranslator achieves the best average per-formance among end-to-end models, with the strongest overall BLEU/COMET and the lowest FID (Tab. 4). Although it does not always achieve the best trans-lation score on every individual direction, likely due to the limited support of current foundation models for some lower-resource languages, it provides the best overall balance between translation quality and visual realism. The partic-ularly large FID gain further shows the advantage of UniTranslator in practical multilingual scenarios that are closer to real-world image editing. 
+
+4.4 Ablations 
+
+We conduct ablation studies to examine the contributions of the two main com-ponents in UniTranslator, namely UGAM and SMD, as well as the proposed two-stage training strategy. 12 J.Lyu et al.                   
+
+> Table 6: Ablation of the two-stage training strategy on Translatotron-V (De →En). ∆
+> denotes the change relative to the full model. Higher BLEU and SSIM are better. Settings Stage 1 Stage 2 BLEU ↑SSIM ↑
+> Ours ✓✓25.03 0.8184
+> # 1 ✓12.53 ( ∆-12.50) 0.7782 ( ∆-0.0402) # 2 ✓15.08 ( ∆-9.95) 0.8148 ( ∆-0.0036)
+
+Module Ablations. As shown in Tab. 5, removing both UGAM and SMD leads to a clear performance drop, indicating that naïve joint training is insufficient for reliable in-image translation. Enabling UGAM alone mainly improves translation quality, showing that consistent writeback supervision is critical for stabilizing the understanding branch and providing effective text conditions for generation. In contrast, enabling SMD alone improves both structure-aware translation qual-ity and image fidelity, confirming that explicit spatial supervision helps localize text regions and suppress imprecise edits. Combining the two yields the best performance by a large margin, demonstrating that UGAM and SMD play com-plementary roles: UGAM improves semantic consistency, while SMD strengthens spatial accuracy. 
+
+Stage Ablations. Tab. 6 validates the necessity of the two-stage training paradigm. Using only Stage 1 results in poor performance, suggesting that alignment warm-up alone is insufficient for robust end-to-end generation. Using only Stage 2 performs better, especially in SSIM, but still falls far behind the full model in BLEU, indicating that direct joint fine-tuning cannot fully establish a stable understanding-to-generation interface. The full two-stage training achieves the best overall results, showing that Stage 1 is important for learning a reliable cross-modal conditioning bridge, while Stage 2 is necessary for end-to-end adap-tation under realistic inference conditions. 
+
+4.5 Synergy Between Generation and Understanding 
+
+Tab. 7 studies the bidirectional interaction between understanding and genera-tion in UniTranslator. Unlike conventional multi-task learning, where one branch mainly acts as auxiliary supervision, our goal is to examine whether the two ca-pabilities provide mutual benefits under joint optimization. For understanding improves generation (U →G), adding the understanding loss Lund to genera-tion training consistently improves Structure-BLEU and SSIM, indicating that language-side supervision provides stronger semantic conditions for text render-ing and visual consistency. For the reverse direction generation improves un-derstanding (G →U), jointly optimizing with the generation loss Lgen improves both BLEU and COMET, suggesting that the generation objective also enhances translation understanding by encouraging visually grounded and context-faithful representations. Overall, Tab. 7 shows that understanding and generation in UniTranslator form a bidirectionally reinforcing loop, supporting our key design choice that IIMT should be modeled as a unified understanding-and-generation problem rather than a loosely coupled pipeline. Unitranslator 13                        
+
+> Table 7: Empirical experiments on the mutual synergy between generation and un-derstanding. For the generation task, metrics A and B correspond to Structure-BLEU and SSIM, respectively; for the understanding task, metrics A and B report BLEU and COMET (%). All experiments are conducted on the Translatotron-V dataset.
+> Performance Metrics Hypothesis Setup Training Loss Metric A ↑Metric B ↑
+> U improves G (Eval on Generation) Baseline Lgen 16.57 0.8142 Full Model Lgen +Lund 25.03 0.8184
+> G improves U (Eval on Understanding) Baseline Lund 25.70 80.84 Full Model Lund +Lgen 34.71 84.61
+> Fig. 3: Qualitative results of zero-shot inference on the AnyTrans [27] dataset. The first row presents Chinese-to-English translation, while the second row presents English-to-German translation.
+
+## 5 Visualization & Discussion 
+
+Fig. 4 presents qualitative comparisons on the Translatotron-V benchmark across four subsets from top to bottom. From left to right, we show the source im-age, target image, the previous state-of-the-art Translatotron-V, GPT-Image-1, and our UniTranslator. Overall, UniTranslator achieves a strong balance between translation correctness, layout preservation, and source-faithful visual rendering. Compared with Translatotron-V, it more consistently preserves the background color and overall visual appearance of the source image, while avoiding notice-able background shifts in many cases. Compared with GPT-Image-1, it better maintains spatial consistency, with translated text more accurately aligned to the original position and layout. We further observe that UniTranslator remains robust on images with clut-tered backgrounds and diverse text layouts, and this advantage also transfers to zero-shot evaluation on the AnyTrans dataset in Fig. 3. At the same time, we note that highly challenging cases are still not fully solved. In particular, under highly stylized typography, such as eroded graffiti or neon glowing cur-sive text, the model may fail to faithfully preserve fine-grained font attributes, and under extremely complex backgrounds it may still introduce unintended vi-sual changes. Additional qualitative comparisons, limitation analysis, and failure cases are provided in the appendix. 14 J.Lyu et al. Source Image  Target Image  Translatotron -V GPT -Image -1
+
+> DE  → EN  EN  → DE  FR  → EN  RO  → EN
+
+UniTranslator                  
+
+> (193, 175, 191) (193, 175, 191) (215, 193, 205) (208, 186, 205) (191, 172, 189)
+> (214, 201, 185) (214, 201, 185) (213, 203, 192) (219, 204, 188) (211, 198, 181)
+> (255, 255, 255) (255, 255, 255) (253, 253, 251) (255, 255, 255) (255, 255, 255)
+> (178, 233, 142) (178, 233, 142) (184, 238, 140) (169, 219, 121) (176, 232, 139)
+
+Fig. 4: Qualitative comparison on the Translatotron-V benchmark. The RGB values shown below each image correspond to the background color, providing a direct com-parison of the predicted background colors produced by different models. 
+
+## 6 Conclusion 
+
+We presented UniTranslator, a unified multi-modal framework for in-image ma-chine translation that jointly optimizes translation understanding and image generation. To resolve the semantic conflict between language-level equivalence and pixel-level supervision, we introduced an Understand-Generation Alignment Module, a two-stage training pipeline for progressive alignment, and a mask-supervised refinement head for spatially precise text editing. Extensive exper-iments show that these components are all effective and complementary, and that the proposed training strategy is critical for robust performance. UniTrans-lator achieves state-of-the-art results on multiple benchmarks with improved cross-language and cross-scene generalization, while our analysis further reveals a consistent mutual benefit between understanding and generation. These results suggest that unified optimization is a promising direction for visually grounded text translation and editing. 
+
+## Acknowledgement 
+
+Supported by the National Natural Science Foundation of China (Grant NO 62376266 and 62406318). Unitranslator 15 
+
+## References 
+
+1. AI, Z.: Introducing our latest image generation model in the API. https://openai. com/index/image-generation-api/ (2025), accessed: 2025-04-23 2, 8, 9 2. Bautista, D., Atienza, R.: Scene text recognition with permuted autoregressive se-quence models. In: European conference on computer vision. pp. 178–196. Springer (2022) 11, 22 3. Cettolo, M., Federico, M., Bentivogli, L., Niehues, J., Stüker, S., Sudoh, K., Yoshino, K., Federmann, C.: Overview of the iwslt 2017 evaluation campaign. In: Proceedings of the 14th International Conference on Spoken Language Translation. pp. 2–14 (2017) 9 4. Cettolo, M., Niehues, J., Stüker, S., Bentivogli, L., Federico, M.: Report on the 11th iwslt evaluation campaign. In: Proceedings of the 11th International Workshop on Spoken Language Translation: Evaluation Campaign. pp. 2–17 (2014) 9 5. Chang, H., Zhang, H., Jiang, L., Liu, C., Freeman, W.T.: Maskgit: Masked gener-ative image transformer (2022) 10, 21 6. Chen, X., Wu, Z., Liu, X., Pan, Z., Liu, W., Xie, Z., Yu, X., Ruan, C.: Janus-pro: Unified multimodal understanding and generation with data and model scaling. arXiv preprint arXiv:2501.17811 (2025) 8, 9 7. Chen, Z., Zhao, F., Shu, Y., Liu, Y., Yu, L., Zhou, Y.: Styletextgen: Style-conditioned multilingual scene text generation. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 7643–7653 (2026) 2 8. Chen, Z., Yin, F., Zhang, X.Y., Yang, Q., Liu, C.L.: Cross-lingual text image recognition via multi-task sequence to sequence learning. In: 2020 25th Interna-tional Conference on Pattern Recognition (ICPR). pp. 3122–3129. IEEE (2021) 49. Comanici, G., Bieber, E., Schaekermann, M., Pasupat, I., Sachdeva, N., Dhillon, I., Blistein, M., Ram, O., Zhang, D., Rosen, E., et al.: Gemini 2.5: Pushing the frontier with advanced reasoning, multimodality, long context, and next generation agentic capabilities. arXiv preprint arXiv:2507.06261 (2025) 2, 8, 9 10. Deng, C., Zhu, D., Li, K., Gou, C., Li, F., Wang, Z., Zhong, S., Yu, W., Nie, X., Song, Z., et al.: Emerging properties in unified multimodal pretraining. arXiv preprint arXiv:2505.14683 (2025) 4, 8, 9 11. Elliott, D., Frank, S., Sima’an, K., Specia, L.: Multi30k: Multilingual english-german image descriptions. In: ACL (2016) 10 12. Esser, P., Rombach, R., Ommer, B.: Taming transformers for high-resolution image synthesis. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR). pp. 12873–12883 (June 2021) 10 13. Esser, P., Rombach, R., Ommer, B.: Taming transformers for high-resolution image synthesis. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 12873–12883 (2021) 21 14. Huang, R., Wang, C., Yang, J., Lu, G., Yuan, Y., Han, J., Hou, L., Zhang, W., Hong, L., Zhao, H., et al.: Illume+: Illuminating unified mllm with dual visual tokenization and diffusion refinement. arXiv preprint arXiv:2504.01934 (2025) 4 15. Jin, Y., Li, J., Gu, T., Liu, Y., Zhao, B., Lai, J., Gan, Z., Wang, Y., Wang, C., Tan, X., et al.: Efficient multimodal large language models: A survey. Visual Intelligence 
+
+3(1), 27 (2025) 4 16. Lan, Z., Niu, L., Meng, F., Zhou, J., Zhang, M., Su, J.: Translatotron-v (ison): An end-to-end model for in-image machine translation. In: Findings of the Association for Computational Linguistics ACL 2024. pp. 5472–5485 (2024) 4, 8, 9, 10, 11, 21, 23 16 J.Lyu et al. 17. Lan, Z., Niu, L., Meng, F., Zhou, J., Zhang, M., Su, J.: Translatotron-v(ison): An end-to-end model for in-image machine translation (2024), https://arxiv.org/ abs/2407.02894 21 18. Lan, Z., Yu, J., Li, X., Zhang, W., Luan, J., Wang, B., Huang, D., Su, J.: Ex-ploring better text image translation with multimodal codebook. arXiv preprint arXiv:2305.17415 (2023) 4, 10, 22 19. Li, G., Zhang, C., Liang, Y., Shen, H., Zhang, Y., Lyu, P., Wang, W., Wan, X., Zeng, G., Hu, H., et al.: Mmtit-bench: A multilingual and multi-scenario bench-mark with cognition-perception-reasoning guided text-image machine translation. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 16593–16602 (2026) 4 20. Li, Z., Shu, Y., Zeng, W., Yang, D., Zhou, Y.: First creating backgrounds then rendering texts: A new paradigm for visual text blending. arXiv preprint arXiv:2410.10168 (2024) 2 21. Liang, Y., Zhang, Y., Ma, C., Zhang, Z., Zhao, Y., Xiang, L., Zong, C., Zhou, Y.: Document image machine translation with dynamic multi-pre-trained models assembling. In: Proceedings of the 2024 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (Volume 1: Long Papers). pp. 7084–7095 (2024) 4 22. Lin, B., Li, Z., Cheng, X., Niu, Y., Ye, Y., He, X., Yuan, S., Yu, W., Wang, S., Ge, Y., et al.: Uniworld: High-resolution semantic encoders for unified visual understanding and generation. arXiv preprint arXiv:2506.03147 (2025) 4, 8, 9 23. Lin, H., Wang, T., Ge, Y., Ge, Y., Lu, Z., Wei, Y., Zhang, Q., Sun, Z., Shan, Y.: Toklip: Marry visual tokens to clip for multimodal comprehension and generation. arXiv preprint arXiv:2505.05422 (2025) 4 24. Lyu, J., Fu, P., Li, Z., Zeng, W., Zhang, S., Yang, J., Ma, C., Zhou, Y., Luo, Z., Luan, J.: Imtbench: A multi-scenario cross-modal collaborative evaluation bench-mark for in-image machine translation. arXiv preprint arXiv:2603.10495 (2026) 425. OpenAI: GLM-Image: Auto-regressive for Dense-knowledge and High-fidelity Im-age Generation. https://z.ai/blog/glm-image/ (2026), accessed: 2026-01-04 8, 926. Papineni, K., Roukos, S., Ward, T., Zhu, W.J.: Bleu: a method for automatic evaluation of machine translation. In: Proceedings of the 40th annual meeting of the Association for Computational Linguistics. pp. 311–318 (2002) 9 27. Qian, Z., Zhang, P., Yang, B., Fan, K., Ma, Y., Wong, D., Sun, X., Ji, R.: Any-trans: Translate anytext in the image with large scale models. In: Findings of the Association for Computational Linguistics: EMNLP 2024. pp. 2432–2444 (2024) 4, 13, 23 28. Rei, R., Stewart, C., Farinha, A.C., Lavie, A.: COMET: A neural framework for MT evaluation. In: Webber, B., Cohn, T., He, Y., Liu, Y. (eds.) Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP). pp. 2685–2702. Association for Computational Linguistics, Online (Nov 2020). https: //doi.org/10.18653/v1/2020.emnlp- main.213 , https://aclanthology.org/ 2020.emnlp-main.213 10 29. Salesky, E., Koehn, P., Post, M.: Benchmarking visually-situated translation of text in natural images. In: Proceedings of the Ninth Conference on Machine Translation. pp. 1167–1182 (2024) 4 30. Shi, Q., Bai, J., Zhao, Z., Chai, W., Yu, K., Wu, J., Song, S., Tong, Y., Li, X., Li, X., et al.: Muddit: Liberating generation beyond text-to-image with a unified discrete diffusion model. arXiv preprint arXiv:2505.23606 (2025) 4 Unitranslator 17 31. Shu, Y., Zeng, W., Zhao, F., Chen, Z., Li, Z., Yang, X., Zhou, Y., Rota, P., Bai, X., Jin, L., et al.: Visual text processing: A comprehensive review and unified evaluation. arXiv preprint arXiv:2504.21682 (2025) 2 32. Su, T., Liu, S., Zhou, S.: Rtnet: An end-to-end method for handwritten text image translation. In: International Conference on Document Analysis and Recognition. pp. 99–113. Springer (2021) 4 33. Swerdlow, A., Prabhudesai, M., Gandhi, S., Pathak, D., Fragkiadaki, K.: Unified multimodal discrete diffusion. arXiv preprint arXiv:2503.20853 (2025) 4 34. Team, C.: Chameleon: Mixed-modal early-fusion foundation models. arXiv preprint arXiv:2405.09818 (2024) 4 35. Team, M.L., Ma, H., Tan, H., Huang, J., Wu, J., He, J.Y., Gao, L., Xiao, S., Wei, X., Ma, X., Cai, X., Guan, Y., Hu, J.: Longcat-image technical report (2025), 
+
+https://arxiv.org/abs/2512.07584 8, 9 36. Tian, K., Jiang, Y., Yuan, Z., Peng, B., Wang, L.: Visual autoregressive modeling: Scalable image generation via next-scale prediction (2024) 10, 21 37. Tian, Y., Li, X., Liu, Z., Guo, Y., Wang, B.: In-image neural machine translation with segmented pixel sequence-to-sequence model. In: Findings of the Association for Computational Linguistics: EMNLP 2023. pp. 15046–15057 (2023) 4 38. Tian, Y., Liu, Z., Liu, Z., Feng, C., Li, X., Huang, H., Guo, Y.: Prim: Towards prac-tical in-image multilingual machine translation. arXiv preprint arXiv:2509.05146 (2025) 4, 10, 11, 22, 25 39. Tian, Y., Liu, Z., Liu, Z., Guo, Y.: Exploring in-image machine translation with real-world background. arXiv preprint arXiv:2505.15282 (2025) 4, 10, 22, 24 40. Vaidya, S., Sharma, A.K., Gatti, P., Mishra, A.: Show me the world in my lan-guage: Establishing the first baseline for scene-text to scene-text translation. In: International Conference on Pattern Recognition. pp. 312–328. Springer (2024) 4 41. Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A.N., Kaiser, L., Polosukhin, I.: Attention is all you need (2023) 10 42. Wang, J., Lai, Y., Li, A., Zhang, S., Sun, J., Kang, N., Wu, C., Li, Z., Luo, P.: Fudoki: Discrete flow-based unified understanding and generation via kinetic-optimal velocities. arXiv preprint arXiv:2505.20147 (2025) 4 43. Wang, X., Zhang, X., Luo, Z., Sun, Q., Cui, Y., Wang, J., Zhang, F., Wang, Y., Li, Z., Yu, Q., et al.: Emu3: Next-token prediction is all you need. arXiv preprint arXiv:2409.18869 (2024) 4 44. Wang, X., Pan, J., Liu, Y., Zhao, X., Lyu, C., Wu, M., Biemann, C., Wang, L., Xu, L., Luo, W., et al.: Rethinking multilingual vision-language translation: Dataset, evaluation, and adaptation. arXiv preprint arXiv:2506.11820 (2025) 4 45. Wang, Z., Bovik, A.C., Sheikh, H.R., Simoncelli, E.P.: Image quality assessment: from error visibility to structural similarity. IEEE transactions on image processing 
+
+13 (4), 600–612 (2004) 9 46. Wang, Z., Guan, T., Fu, P., Duan, C., Jiang, Q., Guo, Z., Guo, S., Luo, J., Shen, W., Yang, X.: Marten: Visual question answering with mask generation for multi-modal document understanding. In: Proceedings of the Computer Vision and Pattern Recognition Conference. pp. 14460–14471 (2025) 9 47. Wu, C., Li, J., Zhou, J., Lin, J., Gao, K., Yan, K., Yin, S.m., Bai, S., Xu, X., Chen, Y., et al.: Qwen-image technical report. arXiv preprint arXiv:2508.02324 (2025) 2, 8, 9 48. Wu, S., Zhang, W., Xu, L., Jin, S., Wu, Z., Tao, Q., Liu, W., Li, W., Loy, C.C.: Harmonizing visual representations for unified multimodal understanding and gen-eration. arXiv preprint arXiv:2503.21979 (2025) 4 18 J.Lyu et al. 49. Xiao, S., Wang, Y., Zhou, J., Yuan, H., Xing, X., Yan, R., Li, C., Wang, S., Huang, T., Liu, Z.: Omnigen: Unified image generation. In: Proceedings of the Computer Vision and Pattern Recognition Conference. pp. 13294–13304 (2025) 4 50. Xie, J., Mao, W., Bai, Z., Zhang, D.J., Wang, W., Lin, K.Q., Gu, Y., Chen, Z., Yang, Z., Shou, M.Z.: Show-o: One single transformer to unify multimodal under-standing and generation. arXiv preprint arXiv:2408.12528 (2024) 4 51. Yang, L., Tian, Y., Li, B., Zhang, X., Shen, K., Tong, Y., Wang, M.: Mmada: Mul-timodal large diffusion language models. arXiv preprint arXiv:2505.15809 (2025) 452. Zeng, W., Shu, Y., Li, Z., Yang, D., Zhou, Y.: Textctrl: Diffusion-based scene text editing with prior guidance control. Advances in Neural Information Processing Systems 37 , 138569–138594 (2024) 2 53. Zhang, X., Guo, J., Zhao, S., Fu, M., Duan, L., Hu, J., Chng, Y.X., Wang, G.H., Chen, Q.G., Xu, Z., Luo, W., Zhang, K.: Unified multimodal understanding and generation models: Advances, challenges, and opportunities. arXiv preprint arXiv:2505.02567 (2025) 4 54. Zhang, Z., Zhang, Y., Liang, Y., Ma, C., Xiang, L., Zhao, Y., Zhou, Y., Zong, C.: Reading when translating: Multi-modal document image machine translation with reading flow prediction. IEEE Transactions on Audio, Speech and Language Processing (2025) 4 55. Zhang, Z., Zhang, Y., Liang, Y., Ma, C., Xiang, L., Zhao, Y., Zhou, Y., Zong, C.: Understand layout and translate text: Unified feature-conductive end-to-end document image translation. IEEE Transactions on Pattern Analysis and Machine Intelligence (2025) 4 56. Zhu, S., Li, S., Lei, Y., Xiong, D.: Peit: bridging the modality gap with pre-trained models for end-to-end image translation. In: Proceedings of the 61st Annual Meet-ing of the Association for Computational Linguistics (Volume 1: Long Papers). pp. 13433–13447 (2023) 4, 8, 9, 10, 11, 21, 22 Unitranslator 19 
+
+The appendix includes the following aspects: 
+
+– A: Inference Efficiency and Task Generalization. 
+
+– B: Additional Failure Case Analysis. 
+
+– C: Details of Compared methods. 
+
+– D: Details of the Structure-BLEU. 
+
+– E: More Visualization 
+
+## A Inference Efficiency and Task Generalization 
+
+We further evaluate UniTranslator in terms of inference efficiency and general-ization to related localized editing tasks. 
+
+Inference efficiency. Table 8 compares the test-time latency and peak GPU memory usage of different methods under the same hardware setting, image resolution, and batch size. The cascaded OCR+MT+T2I pipeline is the most efficient, while Translatotron-V has the highest latency. UniTranslator reduces latency substantially compared with Translatotron-V (9.51 vs. 17.25 sec/img), showing that our unified framework remains practically efficient. At the same time, UniTranslator requires substantially higher GPU memory (50G), mainly due to the large multimodal backbone and generation module, which we leave for future optimization. 
+
+Task generalization. To verify that UGAM and SMD are not limited to IIMT, we conduct a proof-of-concept experiment on TextEditBench, a scene text editing benchmark that also requires instruction understanding, localized modification, and background preservation. As shown in Table 9, both UGAM and SMD con-sistently improve the baseline across all image fidelity metrics, and their combi-nation achieves the best overall performance. This suggests that the proposed de-sign addresses general challenges in unified understanding-and-generation tasks beyond IIMT.          
+
+> Table 8: Inference efficiency comparison. Method GPU Mem. Sec./Img. ↓
+> OCR+MT+T2I (Cascaded) 1.8G 3.22 Translatotron-V (E2E) 3.4G 17.25 UniTranslator 50G 9.51
+
+## B Additional Failure Case Analysis 
+
+We provide additional qualitative analysis of the failure cases discussed in the rebuttal. Although UniTranslator performs well in translation correctness, lay-20 J.Lyu et al. (a)  Eroded graffiti  (b)  3D embossed fonts  (c ) Neon glowing cursive 
+
+Fig. 5: Failure cases on highly stylized typography. UniTranslator can usually localize the target region and generate semantically correct translated content, but may fail to fully preserve fine-grained font attributes such as stroke erosion, glow intensity, or cursive deformation. Source Image  Seedream  5.0  Wan 2.7  UniTranslator 
+
+Fig. 6: Failure cases on images with complicated backgrounds. While UniTranslator generally preserves the overall scene structure and text layout, it may still introduce unintended changes in background texture, color, or local appearance in difficult cases. 
+
+out preservation, and source-faithful rendering, challenging cases remain under highly stylized typography and complex backgrounds. As shown in Fig. 5, UniTranslator can usually localize the target text region and generate semantically correct translated content even for difficult styles such as eroded graffiti and neon glowing cursive fonts. However, it may fail to fully preserve fine-grained font attributes, such as stroke erosion, glow intensity, or cursive deformation. Fig. 6 further shows that, although the model generally preserves the overall scene structure, it may still introduce unintended edits out-side the target text region in cluttered real-world scenes, including background texture changes, color deviations, or local appearance inconsistency. These obser-vations highlight the need for better fine-grained style preservation and stronger background fidelity in future work. 
+
+## C Details of Compared methods. 
+
+OCR+MT+T2I follows a three-stage pipeline consisting of an OCR model, a machine translation (MT) model, and a text-to-image (T2I) model. For the OCR stage, we adopt a ViT-B encoder and a Transformer decoder following prior work. The decoder uses the Transformer-Base configuration. For the MT stage, we use a standard Transformer-Base model. The T2I stage includes a Transformer-based text encoder, a ResNet-based image encoder, an image decoder, and an image tokenizer. Both the text encoder and the image decoder use Transformer-Unitranslator 21                         
+
+> Table 9: Generalization results on TextEditBench. Method SSIM ↑LPIPS ↓PSNR ↑MSE ↓
+> Baseline 0.8709 0.0864 20.69 1034 + UGAM 0.8928 0.0695 23.08 816 + SMD 0.8920 0.0697 23.11 815 UniTranslator 0.8937 0.0683 23.17 796
+
+Base settings, while the image encoder adopts a ResNet-50 backbone. The image tokenizer is configured identically to that used in our method. For fairness, the teacher model in our framework uses the same T2I architecture, except that the hidden size is reduced from 512 to 384. 
+
+TIT+T2I is constructed by cascading a text-in-image translation (TIT) model with the same T2I model described above. The TIT model consists of an image encoder, a source-text decoder, and a target-text decoder. The image encoder uses a ViT-B architecture, and both text decoders follow the Transformer-Base configuration. 
+
+PEIT+T2I [56] replaces the TIT model in TIT+T2I with PEIT. To ensure a fair comparison, we reimplement PEIT within our training and evaluation framework, scale the model to match our parameter budget, and do not use additional external data in its multi-stage training. 
+
+Pixel-level Transformer This model the same structure as Translatotron-V [16] but removes the image tokenizer and directly predicts pixel values. It is trained using multi-task learning as well, with the IIMT task being optimized with a mean squared error loss due to the pixel values being of floating-point type. 
+
+Translatotron-V [17]. An end-to-end in-image machine translation model that directly generates the target image from the source image. Specifically, it intro-duces a target text decoder to alleviate the language alignment burden and an image tokenizer to convert pixels into shorter discrete visual tokens, enabling the model to generate RGB images in an end-to-end manner. 
+
+VQGAN [13]. A codebook-based image generation system that tokenizes images into discrete visual tokens and generates target images with an autoregressive Transformer decoder. In our experiments, we train the visual tokenizer on all source and target images, and then train the autoregressive decoder for each translation direction separately. 
+
+VAR [36]. An autoregressive image generation model built upon vector-quantized visual representations, which improves generation efficiency by adopting a next-scale prediction paradigm. We use it as an image-to-image generation baseline for translating source images directly into target images. 
+
+MaskGIT [5]. A mask-based image generation system that employs a bidirec-tional Transformer to predict masked visual tokens and iteratively refine the generated image at inference time. In our experiments, we adapt it as an image-to-image generation baseline for the in-image translation task. 22 J.Lyu et al. 
+
+Algorithm 1 Structure-BLEU                                                    
+
+> Require: Generated image ˆt, reference image t
+> 1: R ← OCR (t){Set of reference texts and bounding boxes} 2: H ← OCR (ˆ t){Set of generated texts and bounding boxes} 3: M ← {} {Set of matched text pairs} 4: for each h∈ H do
+> 5: m←None 6: s←0
+> 7: for each r∈ R do
+> 8: ˆs←IOU (h, r )
+> 9: if ˆs > s then
+> 10: s←ˆs
+> 11: m←(h, r )
+> 12: end if
+> 13: end for
+> 14: if s≥0.5then
+> 15: M ← M ∪ { m}
+> 16: end if
+> 17: end for
+> 18: return BLEU( M)
+
+TIT-Render denotes the TIT+T2I pipeline. 
+
+PEIT-Render [56]. A pipeline system that combines the pre-trained end-to-end text-image translation model PEIT with a text rendering module. The PEIT model is first used to generate the target-language text, and then the translated text is rendered into the image to obtain the final output. 
+
+MeTIT-Render [18] A pipeline system that combines the end-to-end text-image translation model MeTIT with a text rendering module. The MeTIT model predicts the translated text from the source image, after which a rendering module inserts the translated text back into the image. 
+
+DebackX [39]. An end-to-end in-image machine translation model that explic-itly decomposes the source image into background and text-image regions, trans-lates the text-image component, and then fuses the translated text-image with the background to form the final target image. We use the original implementa-tion as a strong end-to-end baseline. 
+
+ParSeq-mTransformer-Render [2]. A cascade baseline consisting of the state-of-the-art OCR model PARSeq, a multilingual machine translation model mTrans-former, and a text rendering module. The OCR model first recognizes the source text in the image, the MT model translates the recognized text, and the render-ing module writes the translated text back into the image. 
+
+VisTrans [38]. An end-to-end in-image machine translation model designed for practical scenarios, which processes visual text and background information sep-arately to improve both translation quality and visual fidelity. We adopt it as a recent strong end-to-end baseline for comparison. Unitranslator 23  
+
+> Fig. 7: Qualitative comparison on the AnyTrans benchmark [27] in zero-shot settings.
+
+## D Details of the Structure-BLEU. 
+
+Structure-BLEU (S-BLEU) is proposed by Translatotron-V [16], aiming to evalu-ate text location information for IIMT. S-BLEU extends the conventional BLEU metric by incorporating spatial structure information. Instead of directly com-paring text sequences, S-BLEU first extracts text instances and their bounding boxes from both generated and reference images using OCR. Each generated text is matched with the reference text that has the highest IoU, and pairs with IoU above a predefined threshold are retained. The BLEU score is then computed over the matched text pairs. This design enables S-BLEU to evaluate not only textual similarity but also structural alignment between generated and reference images. Algorithm 1 is the detailed implementation. 
+
+## E More Visualization. 
+
+Fig. 7 presents qualitative comparisons on the AnyTrans benchmark under zero-shot settings. The examples mainly consist of real-world scene texts. According to qualitative results, the UniTranslator generates translations that are both semantically accurate and visually well-aligned with the original scene. In par-ticular, it preserves the background texture, color tone, and typography style of the source image while replacing the original text with fluent target-language translations, demonstrating its strong generalization ability for real-world scene text translation without additional task-specific training. Fig. 8 shows qualitative comparisons on the IIMT30k benchmark for IIMT. Beyond ensuring high translation quality and accurate text editing in German ↔
+
+English scenarios, UniTranslator also demonstrates strong font preservation abil-ity across different styles. Specifically, it not only generates semantically faithful and fluent translations but also maintains the original typographic attributes of the source text, such as font shape, stroke thickness, and overall visual style. 24 J.Lyu et al.  
+
+> Fig. 8: Qualitative comparison on the IIMT30k benchmark [39]. Images with red bor-ders denote the source images, images with yellow borders correspond to the ground-truth targets provided in the original dataset, and images with green borders represent the outputs generated by our UniTranslator.
+
+These results indicate that UniTranslator better balances translation correct-ness, layout alignment, and font-aware visual rendering in image-guided machine translation. Fig. 9 presents qualitative results on the PRIM benchmark, where the task requires translating embedded English texts in product images into different tar-get languages according to the given prompt. Compared with the ground-truth images rendered by a generic T2I tool in the original dataset, UniTranslator better preserves the visual characteristics of the original text, including font identity, color, stroke style, and overall typographic appearance, while seam-lessly integrating the translated content into the image. This indicates that our method is more faithful to the source text style rather than generating a re-rendered typography that may deviate from the original design. Meanwhile, we observe some limitations in low-resource language settings, where UniTranslator occasionally produces missing words or inaccurate character rendering. We leave Unitranslator 25 Prompt: Translate all English texts with Czech. 
+
+Prompt: Translate all English texts with German. 
+
+Prompt: Translate all English texts with French. 
+
+Fig. 9: Qualitative comparison on the PRIM benchmark [38]. Red-bordered images denote the source images, green-bordered images represent the outputs generated by our UniTranslator, and yellow-bordered images correspond to the ground-truth targets provided in the dataset. The two ground-truth images are produced by first translating the source text using GPT-4 and Google Translate, respectively, and then rendering the translated text with a text-to-image (T2I) tool. And images with green borders represent the outputs generated by our UniTranslator. 
+
+these issues for future work and aim to further improve translation completeness and fine-grained glyph generation quality in subsequent iterations.
