@@ -6,83 +6,86 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-25
-- 运行时间：2026-06-25 20:02:28 UTC
+- 最新运行日期：2026-06-26
+- 运行时间：2026-06-26 20:03:05 UTC
 - 运行状态：成功
-- 本次总论文数：21
-- 精读区：9
+- 本次总论文数：22
+- 精读区：10
 - 速读区：12
 
 ### 今日简报（AI）
-今日21篇论文聚焦跨语言知识探索与文化叙事重建，两篇9.0高分精读揭示LLM跨语言表示中的深层差异。最值得关注跨语言知识探索与文化叙事重构方向，这两篇精读提供了模型表征与文化差异的新视角。建议普通读者重点关注跨语言模型的鲁棒性与文化适应性，以应对多语言场景下的偏见与失真。
-- 详情：[/202606/25/README](/202606/25/README)
+今日精选10篇精读与12篇速读，聚焦跨语言推理对齐与低资源语音合成突破。两篇9分精读分别提出软令牌对齐实现跨语言推理，以及利用LoRA微调VoxCPM2填补低资源语种（高棉语、韩语）语音合成质量差距；速读中多目标奖励优化的Flow-Matching TTS和语义锚定路由对齐方法值得关注。普通读者可关注跨语言及低资源技术如何降低应用门槛，后续可留意这些方法在更多语种和任务上的扩展。
+- 详情：[/202606/26/README](/202606/26/README)
 
 ### 精读区论文标签
-1. [Cross-Lingual Exploration for Parametric Knowledge](/202606/25/2606.24579v1-cross-lingual-exploration-for-parametric-knowledge)  
+1. [Soft Token Alignment for Cross-Lingual Reasoning](/202606/26/2606.26466v1-soft-token-alignment-for-cross-lingual-reasoning)  
    标签：评分：9.0/10、query:cross-lang
-   evidence：研究跨语言提示策略以提升知识迁移，与跨语言翻译和大模型对不可译词处理相关
-2. [Same Lesson, Different Story: Cross-Lingual Reconstruction of Cultural Narratives in Large Language Models](/202606/25/2606.24610v1-same-lesson-different-story-cross-lingual-reconstruction-of-cultural-narratives-in-large-language-models)  
+   evidence：软令牌对齐实现跨语言语义一致性
+2. [Closing the Quality Gap in Low-Resource Text-to-Speech: LoRA Fine-Tuning of VoxCPM2 for Khmer and Korean](/202606/26/2606.26618v1-closing-the-quality-gap-in-low-resource-text-to-speech-lora-fine-tuning-of-voxcpm2-for-khmer-and-korean)  
+   标签：评分：9.0/10、query:low-res-tts
+   evidence：通过LoRA微调VoxCPM2提升高棉语和韩语的低资源TTS质量
+3. [Multilingual Reasoning Cascades Need More Context](/202606/26/2606.27306v1-multilingual-reasoning-cascades-need-more-context)  
    标签：评分：9.0/10、query:cross-lang
-   evidence：跨语言评估LLM在文化谚语上的翻译；涉及不可译词和翻译偏差
-3. [CrossAccent-TTS: Cross-Lingual Accent-Intensity Controllable Text-to-Speech via Disentangled Speaker and Accent Representations](/202606/25/2606.25403v1-crossaccent-tts-cross-lingual-accent-intensity-controllable-text-to-speech-via-disentangled-speaker-and-accent-representations)  
-   标签：评分：9.0/10、query:speech-tech
-   evidence：跨语言语音合成，可控制口音强度
-4. [Dziri Voicebot: An End-to-End Low-Resource Speech-to-Speech Conversational System for Algerian Dialect](/202606/25/2606.26003v1-dziri-voicebot-an-end-to-end-low-resource-speech-to-speech-conversational-system-for-algerian-dialect)  
-   标签：评分：9.0/10、query:speech-tech
-   evidence：用于阿尔及利亚方言的端到端低资源语音到语音对话系统
-5. [IndicContextEval: A Benchmark for Evaluating Context Utilisation in Audio Large Language Models Across 8 Indic Languages](/202606/25/2606.19157v2-indiccontexteval-a-benchmark-for-evaluating-context-utilisation-in-audio-large-language-models-across-8-indic-languages)  
+   evidence：上下文感知翻译级联解决字面翻译倾向
+4. [Synthetic Audio Generation Framework for Air Traffic Control Speech Recognition](/202606/26/2606.21340v1-synthetic-audio-generation-framework-for-air-traffic-control-speech-recognition)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：面向8种印度语言的多语言语音识别基准
-6. [Interleaved Speech Language Models Latently Work In Text](/202606/25/2606.22473v1-interleaved-speech-language-models-latently-work-in-text)  
+   evidence：利用TTS和语音转换生成合成音频用于ASR
+5. [Scaling Audio Models Efficiently: A Joint Study of Compute Constraints and Optimization Behavior](/202606/26/2606.22790v1-scaling-audio-models-efficiently-a-joint-study-of-compute-constraints-and-optimization-behavior)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：分析交错语音语言模型，与多语言语音合成模型相关
-7. [Acoustic Landmark Detector based on Conformer and HuBERT](/202606/25/2606.23228v1-acoustic-landmark-detector-based-on-conformer-and-hubert)  
+   evidence：针对ASR和SER的计算优化研究
+6. [Same Lesson, Different Story: Cross-Lingual Reconstruction of Cultural Narratives in Large Language Models](/202606/26/2606.24610v1-same-lesson-different-story-cross-lingual-reconstruction-of-cultural-narratives-in-large-language-models)  
+   标签：评分：8.0/10、query:cross-lang
+   evidence：使用谚语的跨语言语义迁移评估
+7. [Sarashina2.2-TTS: Tackling Kanji Polyphony in Japanese Speech Generation via Data Scaling and Targeted Data Synthesis](/202606/26/2606.25369v1-sarashina22-tts-tackling-kanji-polyphony-in-japanese-speech-generation-via-data-scaling-and-targeted-data-synthesis)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：自动声学地标检测用于语音分析，与自动语音识别相关
-8. [STEB: A Speech-to-Speech Translation Expressiveness Benchmark for Evaluating Beyond Translation Fidelity](/202606/25/2606.25529v1-steb-a-speech-to-speech-translation-expressiveness-benchmark-for-evaluating-beyond-translation-fidelity)  
+   evidence：面向日语的LLM-TTS系统，解决非拉丁文字（汉字）多音问题
+8. [Does Translation-Enhanced Speech Encoder Pre-training Affect Speech LLMs?](/202606/26/2606.25444v1-does-translation-enhanced-speech-encoder-pre-training-affect-speech-llms)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：语音到语音翻译的表达性基准
-9. [Joint Residual Reweighting for Classifier Free Guidance in Flow-Matching Zero-Shot TTS](/202606/25/2606.25672v1-joint-residual-reweighting-for-classifier-free-guidance-in-flow-matching-zero-shot-tts)  
+   evidence：翻译增强的语音编码器预训练用于跨语言语音大模型
+9. [Neural Speaker Diarization via Multilingual Training: Evaluation on Low-Resource Nepali-Hindi Speech](/202606/26/2606.26144v1-neural-speaker-diarization-via-multilingual-training-evaluation-on-low-resource-nepali-hindi-speech)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：通过联合残差加权改进零样本语音合成中的无分类器引导
+   evidence：通过多语言训练的低资源说话人日记化，直接匹配低资源语音技术需求
+10. [VoiceTTA: Enhancing Zero-Shot Text-to-Speech via Reinforcement Learning-Based Test-Time Adaptation](/202606/26/2606.26534v1-voicetta-enhancing-zero-shot-text-to-speech-via-reinforcement-learning-based-test-time-adaptation)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：基于强化学习的测试时自适应零样本TTS，提升跨方言的语音模仿
 
 ### 速读区论文标签
-1. [Only Ask What You Don't Know: Grounded Delta Planning for Efficient Multi-step RAG](/202606/25/2606.22681v1-only-ask-what-you-dont-know-grounded-delta-planning-for-efficient-multi-step-rag)  
-   标签：评分：7.0/10、query:fie-rag
-   evidence：基于规划的信息差RAG框架提升多步问答效率和准确性
-2. [Error-Aware TF-IDF Retrieval-Augmented Generation for ASR Error Correction](/202606/25/2606.24915v1-error-aware-tf-idf-retrieval-augmented-generation-for-asr-error-correction)  
+1. [FlowTTS-GRPO: Online Reinforcement Learning with Multi-Objective Reward Optimization for Flow-Matching Based Text-to-Speech](/202606/26/2606.23190v1-flowtts-grpo-online-reinforcement-learning-with-multi-objective-reward-optimization-for-flow-matching-based-text-to-speech)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：在低资源语言中利用RAG进行ASR错误纠正
-3. [Evaluating Japanese Dialect Robustness Across Speech and Text-based Large Language Models](/202606/25/2606.25436v1-evaluating-japanese-dialect-robustness-across-speech-and-text-based-large-language-models)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：评估 LLM 和 SLM 在日语方言上的鲁棒性
-4. [Does Translation-Enhanced Speech Encoder Pre-training Affect Speech LLMs?](/202606/25/2606.25444v1-does-translation-enhanced-speech-encoder-pre-training-affect-speech-llms)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：通过翻译增强的多语言语音编码器预训练对语音大模型的影响
-5. [Interpreting Content and Speaker Characteristics in Factorised Self-Supervised Subspaces](/202606/25/2606.19974v1-interpreting-content-and-speaker-characteristics-in-factorised-self-supervised-subspaces)  
+   evidence：基于流匹配的TTS在线强化学习优化，与语音合成技术相关
+2. [Cross-Lingual Exploration for Parametric Knowledge](/202606/26/2606.24579v1-cross-lingual-exploration-for-parametric-knowledge)  
+   标签：评分：7.0/10、query:cross-lang
+   evidence：跨语言探索参数知识
+3. [SARA: Unlocking Multilingual Knowledge in Mixture-of-Experts via Semantically Anchored Routing Alignment](/202606/26/2606.25821v1-sara-unlocking-multilingual-knowledge-in-mixture-of-experts-via-semantically-anchored-routing-alignment)  
+   标签：评分：7.0/10、query:cross-lang
+   evidence：跨语言路由对齐，提升低资源语言性能
+4. [MixProLAP: Mixture-Induced Uncertainty Modeling for Probabilistic Language-Audio Pretraining](/202606/26/2606.20418v1-mixprolap-mixture-induced-uncertainty-modeling-for-probabilistic-language-audio-pretraining)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：分析分解的自监督语音子空间中内容与说话人特征，与语音表示学习相关
-6. [When Does Streaming Tool Use Help? Characterizing Tool-Intent Stabilization in Streaming Retrieval-Augmented Generation](/202606/25/2606.20113v1-when-does-streaming-tool-use-help-characterizing-tool-intent-stabilization-in-streaming-retrieval-augmented-generation)  
+   evidence：概率性音频-语言预训练处理多对多对应，有助于语音理解
+5. [CORTIS: Text-Only Adaptation of Spoken Language Models for Task-Oriented Voice Agents](/202606/26/2606.21453v1-cortis-text-only-adaptation-of-spoken-language-models-for-task-oriented-voice-agents)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：口语语言模型的文本仅适配用于任务导向语音代理，减少对配对语音数据的需求
+6. [Scaling Performance and Low-Resource Annotation with Many-Shot In-Context Learning for Named Entity Recognition](/202606/26/2606.21890v1-scaling-performance-and-low-resource-annotation-with-many-shot-in-context-learning-for-named-entity-recognition)  
    标签：评分：6.0/10、query:fie-rag
-   evidence：流式RAG中工具意图稳定化特征以改进检索时机
-7. [BAFIS: Dataset + Framework to assess occupational Bias and Human Preference in modern Text-to-image Models](/202606/25/2606.20241v1-bafis-dataset--framework-to-assess-occupational-bias-and-human-preference-in-modern-text-to-image-models)  
-   标签：评分：6.0/10、query:mtg-bench
-   evidence：文本到图像模型偏见评估
-8. [Phonemes to the Rescue: Multilingual Tokenization Based on International Phonetic Alphabet](/202606/25/2606.20993v1-phonemes-to-the-rescue-multilingual-tokenization-based-on-international-phonetic-alphabet)  
+   evidence：针对NER的多样本情境学习，与少样本RAG相关
+7. [VieSpeaker: A Large-Scale Vietnamese Speaker Recognition Dataset Beyond Visual Dependency](/202606/26/2606.24066v1-viespeaker-a-large-scale-vietnamese-speaker-recognition-dataset-beyond-visual-dependency)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：使用国际音标的多语言分词提高表征平衡；有利于多语言语音和NLP
-9. [Evaluating Large Language Models for Hausa and Fongbe Machine Translation: Benchmarks, Failures, and Metric Reliability](/202606/25/2606.22269v1-evaluating-large-language-models-for-hausa-and-fongbe-machine-translation-benchmarks-failures-and-metric-reliability)  
-   标签：评分：6.0/10、query:cross-lang
-   evidence：评估LLM在低资源语言（豪萨语和丰贝语）上的翻译质量，提供基准和指标可靠性分析，与跨语言翻译研究相关
-10. [KaLM-Reranker-V1: Fast but Not Late Interaction for Compressed Document Reranking](/202606/25/2606.22807v1-kalm-reranker-v1-fast-but-not-late-interaction-for-compressed-document-reranking)  
+   evidence：低资源越南语说话人识别数据集
+8. [Autoencoder based optimized SSL representations: Complexity Minimization and improved Dysarthric ASR](/202606/26/2606.24088v1-autoencoder-based-optimized-ssl-representations-complexity-minimization-and-improved-dysarthric-asr)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：使用SSL-AE瓶颈化的构音障碍自动语音识别
+9. [Adaptive Oscillatory Inductive Bias for Modeling Sharp Prosodic Dynamics in Diffusion-Based TTS](/202606/26/2606.25424v1-adaptive-oscillatory-inductive-bias-for-modeling-sharp-prosodic-dynamics-in-diffusion-based-tts)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：基于扩散的语音合成，关注韵律动态建模
+10. [STEB: A Speech-to-Speech Translation Expressiveness Benchmark for Evaluating Beyond Translation Fidelity](/202606/26/2606.25529v1-steb-a-speech-to-speech-translation-expressiveness-benchmark-for-evaluating-beyond-translation-fidelity)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：语音到语音翻译表达力基准
+11. [SFL-MTSC: Leveraging Semantic Frame-Level Multi-Task Self-Consistency for Robust Multi-Intent Spoken Language Understanding](/202606/26/2606.25552v1-sfl-mtsc-leveraging-semantic-frame-level-multi-task-self-consistency-for-robust-multi-intent-spoken-language-understanding)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：语义框架级自一致性用于多意图口语理解
+12. [KARLA: Knowledge-base Augmented Retrieval for Language Models](/202606/26/2606.26807v1-karla-knowledge-base-augmented-retrieval-for-language-models)  
    标签：评分：6.0/10、query:fie-rag
-   evidence：解耦的查询-段落重排序器提高RAG效率和相关性
-11. [A Fusion-Aware Two-Stage Framework for Mispronunciation Detection and Diagnosis in Low-Resource Modern Standard Arabic](/202606/25/2606.24086v1-a-fusion-aware-two-stage-framework-for-mispronunciation-detection-and-diagnosis-in-low-resource-modern-standard-arabic)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：低资源阿拉伯语发音错误检测
-12. [Sarashina2.2-TTS: Tackling Kanji Polyphony in Japanese Speech Generation via Data Scaling and Targeted Data Synthesis](/202606/25/2606.25369v1-sarashina22-tts-tackling-kanji-polyphony-in-japanese-speech-generation-via-data-scaling-and-targeted-data-synthesis)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：针对日语汉字多音字的日语中心大模型文本转语音系统，涉及多语言语音合成
+   evidence：知识库增强检索用于大语言模型事实依据
 
 
 <div class="dpr-home-promo-card">
