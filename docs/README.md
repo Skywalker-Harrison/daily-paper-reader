@@ -6,73 +6,65 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-27
-- 运行时间：2026-06-27 19:37:04 UTC
+- 最新运行日期：2026-06-28
+- 运行时间：2026-06-28 20:00:24 UTC
 - 运行状态：成功
-- 本次总论文数：17
-- 精读区：6
-- 速读区：11
+- 本次总论文数：15
+- 精读区：3
+- 速读区：12
 
 ### 今日简报（AI）
-今日精读6篇论文，聚焦语音翻译表达力与低资源语音合成两大突破。  
-最值得关注：STEB语音翻译表达力基准（9.0分）和VoxCPM2低资源TTS微调（9.0分），前者填补翻译忠实度之外的评估空白，后者大幅缩小韩语、高棉语合成质量差距。  
-普通读者可优先浏览这两篇，了解语音技术如何从“翻得准”迈向“说得像”，以及如何低成本赋能小语种。
-- 详情：[/202606/27/README](/202606/27/README)
+今日聚焦语音编码预训练与翻译增强技术，精读ZONOS2 Technical Report和翻译增强预训练对语音LLM的影响。最值得关注的方向是ZONOS2的端到端编码方案，以及翻译增强预训练是否真的能提升语音模型理解能力。建议普通读者重点关注多说话人场景理解（MSU-Bench）和TTS中的语音清晰度控制（Lombard效应合成），这些方向更贴近实际应用。
+- 详情：[/202606/28/README](/202606/28/README)
 
 ### 精读区论文标签
-1. [STEB: A Speech-to-Speech Translation Expressiveness Benchmark for Evaluating Beyond Translation Fidelity](/202606/27/2606.25529v1-steb-a-speech-to-speech-translation-expressiveness-benchmark-for-evaluating-beyond-translation-fidelity)  
+1. [ZONOS2 Technical Report](/202606/28/2606.24320v1-zonos2-technical-report)  
    标签：评分：9.0/10、query:speech-tech
-   evidence：语音到语音翻译的表现力基准
-2. [Closing the Quality Gap in Low-Resource Text-to-Speech: LoRA Fine-Tuning of VoxCPM2 for Khmer and Korean](/202606/27/2606.26618v1-closing-the-quality-gap-in-low-resource-text-to-speech-lora-fine-tuning-of-voxcpm2-for-khmer-and-korean)  
-   标签：评分：9.0/10、query:low-res-tts
-   evidence：使用LoRA微调VoxCPM2模型，提升高棉语和韩语的低资源语音合成质量
-3. [ZONOS2 Technical Report](/202606/27/2606.24320v1-zonos2-technical-report)  
+   evidence：具有MoE架构和大规模训练的最先进多语言TTS模型
+2. [Does Translation-Enhanced Speech Encoder Pre-training Affect Speech LLMs?](/202606/28/2606.25444v1-does-translation-enhanced-speech-encoder-pre-training-affect-speech-llms)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：具有MoE骨干、大规模训练和新基准的最先进TTS模型
-4. [ParaPairAudioBench: Paralinguistic Pairwise Audio Benchmark for LALM-as-a-Judge](/202606/27/2606.24648v1-parapairaudiobench-paralinguistic-pairwise-audio-benchmark-for-lalm-as-a-judge)  
+   evidence：翻译增强的语音编码器预训练，用于语音大模型的跨语言对齐
+3. [Probing in the Wild: A Case Study of Self-Supervised Speech Representations on Mandarin Sub-dialects with Unsupervised Articulatory Analysis](/202606/28/2606.25459v1-probing-in-the-wild-a-case-study-of-self-supervised-speech-representations-on-mandarin-sub-dialects-with-unsupervised-articulatory-analysis)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：面向LALM评判的副语言成对音频基准
-5. [CN-NewsTTS Bench: a target-level automatic benchmark for raw-input Chinese news TTS pronunciation](/202606/27/2606.24714v1-cn-newstts-bench-a-target-level-automatic-benchmark-for-raw-input-chinese-news-tts-pronunciation)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：中文新闻TTS发音基准测试
-6. [KARLA: Knowledge-base Augmented Retrieval for Language Models](/202606/27/2606.26807v1-karla-knowledge-base-augmented-retrieval-for-language-models)  
-   标签：评分：8.0/10、query:fie-rag
-   evidence：利用检索增强生成提升LLM事实知识准确性
+   evidence：普通话次方言的自监督语音表示与无监督发音分析
 
 ### 速读区论文标签
-1. [Speaker Identity in Non-Verbal Vocalizations: Conditional Distillation and Mixture of Experts Approach](/202606/27/2606.21215v1-speaker-identity-in-non-verbal-vocalizations-conditional-distillation-and-mixture-of-experts-approach)  
+1. [BranchShine: Compact Raw-Audio-to-IPA Transcription with a RoPE E-Branchformer Encoder](/202606/28/2606.22824v1-branchshine-compact-raw-audio-to-ipa-transcription-with-a-rope-e-branchformer-encoder)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：针对TTS和语音转换中的非语言发声进行说话人身份验证
-2. [Synthetic Audio Generation Framework for Air Traffic Control Speech Recognition](/202606/27/2606.21340v1-synthetic-audio-generation-framework-for-air-traffic-control-speech-recognition)  
+   evidence：多语言IPA转录模型
+2. [MSU-Bench: Towards Speaker-Centric Understanding in Conversational Multi-Speaker Scenarios](/202606/28/2606.22868v1-msu-bench-towards-speaker-centric-understanding-in-conversational-multi-speaker-scenarios)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：用于空中交通管制ASR的合成音频生成框架，包括口音转换
-3. [CAT-Translate: Building Compact Open-Source Models for Japanese-English Translation](/202606/27/2606.21413v1-cat-translate-building-compact-open-source-models-for-japanese-english-translation)  
-   标签：评分：7.0/10、query:cross-lang
-   evidence：面向日英双向翻译的紧凑型模型
-4. [Synthesizing the Lombard Effect: Multi-Level Control of Speech Clarity and Vocal Effort in TTS](/202606/27/2606.23176v1-synthesizing-the-lombard-effect-multi-level-control-of-speech-clarity-and-vocal-effort-in-tts)  
+   evidence：多说话人对话理解基准，适用于评估多语言语音系统
+3. [Synthesizing the Lombard Effect: Multi-Level Control of Speech Clarity and Vocal Effort in TTS](/202606/28/2606.23176v1-synthesizing-the-lombard-effect-multi-level-control-of-speech-clarity-and-vocal-effort-in-tts)  
    标签：评分：7.0/10、query:qwen-tts
-   evidence：可控TTS，多层次语音清晰度和发声力度
-5. [Does Translation-Enhanced Speech Encoder Pre-training Affect Speech LLMs?](/202606/27/2606.25444v1-does-translation-enhanced-speech-encoder-pre-training-affect-speech-llms)  
+   evidence：多层级控制语音清晰度和发声努力的可控TTS
+4. [FlowTTS-GRPO: Online Reinforcement Learning with Multi-Objective Reward Optimization for Flow-Matching Based Text-to-Speech](/202606/28/2606.23190v1-flowtts-grpo-online-reinforcement-learning-with-multi-objective-reward-optimization-for-flow-matching-based-text-to-speech)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：语音翻译预训练用于多语言语音大模型
-6. [Temporal Validity in Retrieval Memory: Eliminating Stale-Fact Errors for AI Agents over Evolving Knowledge](/202606/27/2606.26511v1-temporal-validity-in-retrieval-memory-eliminating-stale-fact-errors-for-ai-agents-over-evolving-knowledge)  
-   标签：评分：7.0/10、query:fie-rag
-   evidence：用于时间事实有效性的RAG方法，与叙实性推理相关
-7. [Phonemes to the Rescue: Multilingual Tokenization Based on International Phonetic Alphabet](/202606/27/2606.20993v1-phonemes-to-the-rescue-multilingual-tokenization-based-on-international-phonetic-alphabet)  
-   标签：评分：6.0/10、query:low-res-tts
-   evidence：使用IPA进行多语言分词，利好低资源脚本
-8. [Integrating Facial Generation into Full-Duplex Spoken Dialogue Systems](/202606/27/2606.21970v1-integrating-facial-generation-into-full-duplex-spoken-dialogue-systems)  
+   evidence：基于流匹配的文本转语音在线强化学习方法
+5. [ParaPairAudioBench: Paralinguistic Pairwise Audio Benchmark for LALM-as-a-Judge](/202606/28/2606.24648v1-parapairaudiobench-paralinguistic-pairwise-audio-benchmark-for-lalm-as-a-judge)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：面向语音评估的副语言学配对音频基准，涵盖速率和风格等维度
+6. [Adaptive Oscillatory Inductive Bias for Modeling Sharp Prosodic Dynamics in Diffusion-Based TTS](/202606/28/2606.25424v1-adaptive-oscillatory-inductive-bias-for-modeling-sharp-prosodic-dynamics-in-diffusion-based-tts)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：自适应振荡偏置用于扩散文本转语音中的韵律建模
+7. [Fully Differentiable Neural Forced Alignment via Soft Dynamic Programming](/202606/28/2606.25460v1-fully-differentiable-neural-forced-alignment-via-soft-dynamic-programming)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：全微分神经强制对齐，提升多语言ASR鲁棒性
+8. [RedVox: Safety and Fairness Gaps in Speech Models Across Languages](/202606/28/2606.26968v1-redvox-safety-and-fairness-gaps-in-speech-models-across-languages)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：多语言语音模型的安全性与公平性基准
+9. [Bridging Self-Supervised Learning and Speech Enhancement: A Wav2Vec2-Conditioned Framework](/202606/28/2606.22591v1-bridging-self-supervised-learning-and-speech-enhancement-a-wav2vec2-conditioned-framework)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：全双工语音对话结合面部生成
-9. [Only Ask What You Don't Know: Grounded Delta Planning for Efficient Multi-step RAG](/202606/27/2606.22681v1-only-ask-what-you-dont-know-grounded-delta-planning-for-efficient-multi-step-rag)  
-   标签：评分：6.0/10、query:fie-rag
-   evidence：检索增强生成用于多跳推理
-10. [Beyond U-Net: A Latent-Representation-Aligned Skip-Free Backbone for Flow-Matching Speech Enhancement](/202606/27/2606.24745v1-beyond-u-net-a-latent-representation-aligned-skip-free-backbone-for-flow-matching-speech-enhancement)  
+   evidence：基于扩散模型的语音增强，以wav2vec 2.0特征为条件
+10. [From Sounds to Scenes: A Benchmark for Evaluating Context-Aware Auditory Scene Understanding in Large Audio Language Models](/202606/28/2606.25391v1-from-sounds-to-scenes-a-benchmark-for-evaluating-context-aware-auditory-scene-understanding-in-large-audio-language-models)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：流匹配语音增强方法可迁移至多语言语音合成
-11. [Adaptive Oscillatory Inductive Bias for Modeling Sharp Prosodic Dynamics in Diffusion-Based TTS](/202606/27/2606.25424v1-adaptive-oscillatory-inductive-bias-for-modeling-sharp-prosodic-dynamics-in-diffusion-based-tts)  
+   evidence：上下文感知听觉场景理解基准，包含语音，与多语言语音技术相关
+11. [STEB: A Speech-to-Speech Translation Expressiveness Benchmark for Evaluating Beyond Translation Fidelity](/202606/28/2606.25529v1-steb-a-speech-to-speech-translation-expressiveness-benchmark-for-evaluating-beyond-translation-fidelity)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：改进扩散式TTS中的韵律动态建模
+   evidence：语音到语音翻译表达力基准
+12. [One Model, Many Latencies: Universal Speech Enhancement for Diverse Real-Time Applications](/202606/28/2606.25621v1-one-model-many-latencies-universal-speech-enhancement-for-diverse-real-time-applications)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：通用语音增强模型，支持多种实时应用的延迟控制
 
 
 <div class="dpr-home-promo-card">
