@@ -6,65 +6,76 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-28
-- 运行时间：2026-06-28 20:00:24 UTC
+- 最新运行日期：2026-06-29
+- 运行时间：2026-06-29 19:45:51 UTC
 - 运行状态：成功
-- 本次总论文数：15
-- 精读区：3
-- 速读区：12
+- 本次总论文数：18
+- 精读区：2
+- 速读区：16
 
 ### 今日简报（AI）
-今日聚焦语音编码预训练与翻译增强技术，精读ZONOS2 Technical Report和翻译增强预训练对语音LLM的影响。最值得关注的方向是ZONOS2的端到端编码方案，以及翻译增强预训练是否真的能提升语音模型理解能力。建议普通读者重点关注多说话人场景理解（MSU-Bench）和TTS中的语音清晰度控制（Lombard效应合成），这些方向更贴近实际应用。
-- 详情：[/202606/28/README](/202606/28/README)
+1) 今日聚焦18篇语音研究，精读用户心智模型与语音强调泛化两大方向，速读涵盖音频模型缩放、多说话人理解及强化学习文本转语音。  
+2) 最值得关注：翻译场景中人机协作的用户心智模型测量，以及语音强调模型在跨语言、跨情绪下的泛化能力测试。  
+3) 建议先阅读两篇精读以理解人机交互盲点与模型鲁棒性，再跟进速读中计算约束优化和说话人中心分析的实践指导。
+- 详情：[/202606/29/README](/202606/29/README)
 
 ### 精读区论文标签
-1. [ZONOS2 Technical Report](/202606/28/2606.24320v1-zonos2-technical-report)  
-   标签：评分：9.0/10、query:speech-tech
-   evidence：具有MoE架构和大规模训练的最先进多语言TTS模型
-2. [Does Translation-Enhanced Speech Encoder Pre-training Affect Speech LLMs?](/202606/28/2606.25444v1-does-translation-enhanced-speech-encoder-pre-training-affect-speech-llms)  
+1. [Measuring User's Mental Models of Speech Translation in Human-AI Collaboration](/202606/29/2606.24644v1-measuring-users-mental-models-of-speech-translation-in-human-ai-collaboration)  
+   标签：评分：8.0/10、query:cross-lang
+   evidence：研究用户对语音翻译系统的心理模型，使用跨语言问答
+2. [Do Speech Emphasis Models Generalize across Languages and Emotions?](/202606/29/2606.27717v1-do-speech-emphasis-models-generalize-across-languages-and-emotions)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：翻译增强的语音编码器预训练，用于语音大模型的跨语言对齐
-3. [Probing in the Wild: A Case Study of Self-Supervised Speech Representations on Mandarin Sub-dialects with Unsupervised Articulatory Analysis](/202606/28/2606.25459v1-probing-in-the-wild-a-case-study-of-self-supervised-speech-representations-on-mandarin-sub-dialects-with-unsupervised-articulatory-analysis)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：普通话次方言的自监督语音表示与无监督发音分析
+   evidence：多语言语音强调检测及跨语言评估
 
 ### 速读区论文标签
-1. [BranchShine: Compact Raw-Audio-to-IPA Transcription with a RoPE E-Branchformer Encoder](/202606/28/2606.22824v1-branchshine-compact-raw-audio-to-ipa-transcription-with-a-rope-e-branchformer-encoder)  
+1. [Scaling Audio Models Efficiently: A Joint Study of Compute Constraints and Optimization Behavior](/202606/29/2606.22790v1-scaling-audio-models-efficiently-a-joint-study-of-compute-constraints-and-optimization-behavior)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：多语言IPA转录模型
-2. [MSU-Bench: Towards Speaker-Centric Understanding in Conversational Multi-Speaker Scenarios](/202606/28/2606.22868v1-msu-bench-towards-speaker-centric-understanding-in-conversational-multi-speaker-scenarios)  
+   evidence：ASR和SER的计算分配研究
+2. [MSU-Bench: Towards Speaker-Centric Understanding in Conversational Multi-Speaker Scenarios](/202606/29/2606.22868v1-msu-bench-towards-speaker-centric-understanding-in-conversational-multi-speaker-scenarios)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：多说话人对话理解基准，适用于评估多语言语音系统
-3. [Synthesizing the Lombard Effect: Multi-Level Control of Speech Clarity and Vocal Effort in TTS](/202606/28/2606.23176v1-synthesizing-the-lombard-effect-multi-level-control-of-speech-clarity-and-vocal-effort-in-tts)  
-   标签：评分：7.0/10、query:qwen-tts
-   evidence：多层级控制语音清晰度和发声努力的可控TTS
-4. [FlowTTS-GRPO: Online Reinforcement Learning with Multi-Objective Reward Optimization for Flow-Matching Based Text-to-Speech](/202606/28/2606.23190v1-flowtts-grpo-online-reinforcement-learning-with-multi-objective-reward-optimization-for-flow-matching-based-text-to-speech)  
+   evidence：多说话人对话语音理解基准
+3. [FlowTTS-GRPO: Online Reinforcement Learning with Multi-Objective Reward Optimization for Flow-Matching Based Text-to-Speech](/202606/29/2606.23190v1-flowtts-grpo-online-reinforcement-learning-with-multi-objective-reward-optimization-for-flow-matching-based-text-to-speech)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：基于流匹配的文本转语音在线强化学习方法
-5. [ParaPairAudioBench: Paralinguistic Pairwise Audio Benchmark for LALM-as-a-Judge](/202606/28/2606.24648v1-parapairaudiobench-paralinguistic-pairwise-audio-benchmark-for-lalm-as-a-judge)  
+   evidence：流匹配TTS的强化学习微调
+4. [Comparative Reasoning: Making an Audio Language Model Better at Comparing Emotions](/202606/29/2606.24082v1-comparative-reasoning-making-an-audio-language-model-better-at-comparing-emotions)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：面向语音评估的副语言学配对音频基准，涵盖速率和风格等维度
-6. [Adaptive Oscillatory Inductive Bias for Modeling Sharp Prosodic Dynamics in Diffusion-Based TTS](/202606/28/2606.25424v1-adaptive-oscillatory-inductive-bias-for-modeling-sharp-prosodic-dynamics-in-diffusion-based-tts)  
+   evidence：音频语言模型进行语音情绪比较推理
+5. [ZONOS2 Technical Report](/202606/29/2606.24320v2-zonos2-technical-report)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：自适应振荡偏置用于扩散文本转语音中的韵律建模
-7. [Fully Differentiable Neural Forced Alignment via Soft Dynamic Programming](/202606/28/2606.25460v1-fully-differentiable-neural-forced-alignment-via-soft-dynamic-programming)  
+   evidence：TTS模型及ZTTS1-Eval基准
+6. [ParaPairAudioBench: Paralinguistic Pairwise Audio Benchmark for LALM-as-a-Judge](/202606/29/2606.24648v1-parapairaudiobench-paralinguistic-pairwise-audio-benchmark-for-lalm-as-a-judge)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：全微分神经强制对齐，提升多语言ASR鲁棒性
-8. [RedVox: Safety and Fairness Gaps in Speech Models Across Languages](/202606/28/2606.26968v1-redvox-safety-and-fairness-gaps-in-speech-models-across-languages)  
+   evidence：用于评估生成语音评测模型的副语言音频基准
+7. [STEB: A Speech-to-Speech Translation Expressiveness Benchmark for Evaluating Beyond Translation Fidelity](/202606/29/2606.25529v1-steb-a-speech-to-speech-translation-expressiveness-benchmark-for-evaluating-beyond-translation-fidelity)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：多语言语音模型的安全性与公平性基准
-9. [Bridging Self-Supervised Learning and Speech Enhancement: A Wav2Vec2-Conditioned Framework](/202606/28/2606.22591v1-bridging-self-supervised-learning-and-speech-enhancement-a-wav2vec2-conditioned-framework)  
+   evidence：语音到语音翻译表达性基准，评估保真度之外的维度
+8. [SFL-MTSC: Leveraging Semantic Frame-Level Multi-Task Self-Consistency for Robust Multi-Intent Spoken Language Understanding](/202606/29/2606.25552v1-sfl-mtsc-leveraging-semantic-frame-level-multi-task-self-consistency-for-robust-multi-intent-spoken-language-understanding)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：多意图口语理解中的自一致性方法
+9. [RedVox: Safety and Fairness Gaps in Speech Models Across Languages](/202606/29/2606.26968v1-redvox-safety-and-fairness-gaps-in-speech-models-across-languages)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：跨5种语言的多语言语音安全与公平基准
+10. [SHIFT: Gate-Modulated Activation Steering for Knowledge Conflict Mitigation in Retrieval-Augmented Generation](/202606/29/2606.27786v1-shift-gate-modulated-activation-steering-for-knowledge-conflict-mitigation-in-retrieval-augmented-generation)  
+   标签：评分：7.0/10、query:fie-rag
+   evidence：缓解检索上下文与参数知识之间冲突的RAG框架
+11. [From Sounds to Scenes: A Benchmark for Evaluating Context-Aware Auditory Scene Understanding in Large Audio Language Models](/202606/29/2606.25391v1-from-sounds-to-scenes-a-benchmark-for-evaluating-context-aware-auditory-scene-understanding-in-large-audio-language-models)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：基于扩散模型的语音增强，以wav2vec 2.0特征为条件
-10. [From Sounds to Scenes: A Benchmark for Evaluating Context-Aware Auditory Scene Understanding in Large Audio Language Models](/202606/28/2606.25391v1-from-sounds-to-scenes-a-benchmark-for-evaluating-context-aware-auditory-scene-understanding-in-large-audio-language-models)  
+   evidence：评估大型音频语言模型中上下文感知听觉场景理解的基准
+12. [Adaptive Oscillatory Inductive Bias for Modeling Sharp Prosodic Dynamics in Diffusion-Based TTS](/202606/29/2606.25424v1-adaptive-oscillatory-inductive-bias-for-modeling-sharp-prosodic-dynamics-in-diffusion-based-tts)  
+   标签：评分：6.0/10、query:qwen-tts
+   evidence：自适应振荡非线性实现可控TTS调制
+13. [Retrieval-Grounded Multilingual LLM Assistance for Island Smallholder Farmers](/202606/29/2606.25647v1-retrieval-grounded-multilingual-llm-assistance-for-island-smallholder-farmers)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：上下文感知听觉场景理解基准，包含语音，与多语言语音技术相关
-11. [STEB: A Speech-to-Speech Translation Expressiveness Benchmark for Evaluating Beyond Translation Fidelity](/202606/28/2606.25529v1-steb-a-speech-to-speech-translation-expressiveness-benchmark-for-evaluating-beyond-translation-fidelity)  
+   evidence：检索增强的多语言LLM助手，处理方言和低资源语言
+14. [AnySimLite: A Lightweight Few-Shot Similarity Encoder for On-Device Speech-Adjacent Classification](/202606/29/2606.26452v1-anysimlite-a-lightweight-few-shot-similarity-encoder-for-on-device-speech-adjacent-classification)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：语音到语音翻译表达力基准
-12. [One Model, Many Latencies: Universal Speech Enhancement for Diverse Real-Time Applications](/202606/28/2606.25621v1-one-model-many-latencies-universal-speech-enhancement-for-diverse-real-time-applications)  
+   evidence：少样本相似度编码器用于语音相邻分类任务
+15. [HybridCodec: Modeling Discrete and Continuous Representations for Efficient Speech Language Models](/202606/29/2606.27627v1-hybridcodec-modeling-discrete-and-continuous-representations-for-efficient-speech-language-models)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：通用语音增强模型，支持多种实时应用的延迟控制
+   evidence：语音编解码器用于语音语言模型，支持高效多语言语音合成
+16. [HPRO: Hierarchical Progressive Reward Optimization via Preference Extraction for Emotional Text-to-Speech](/202606/29/2606.28249v1-hpro-hierarchical-progressive-reward-optimization-via-preference-extraction-for-emotional-text-to-speech)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：情感TTS偏好优化
 
 
 <div class="dpr-home-promo-card">

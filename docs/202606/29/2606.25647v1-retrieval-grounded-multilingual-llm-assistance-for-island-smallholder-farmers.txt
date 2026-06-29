@@ -1,0 +1,207 @@
+Title: Retrieval-Grounded Multilingual LLM Assistance for Island Smallholder Farmers
+
+URL Source: https://arxiv.org/pdf/2606.25647v1
+
+Published Time: Thu, 25 Jun 2026 00:49:14 GMT
+
+Number of Pages: 13
+
+Markdown Content:
+# Retrieval-Grounded Multilingual LLM Assistance for Island Smallholder Farmers 
+
+Nikolaos D. Tantaroudas ∗1, Ilias Karachalios 2, and Andrew J. McCracken 31Institute of Communications and Computer Systems (ICCS), Iroon Polytechneiou 9, 15773 Zografou, Athens, Greece 
+
+> 2
+
+National Technical University of Athens, Zografou, 15772 Athens, Greece 
+
+> 3
+
+DASKALOS-APPS, 183 Rue de l’Abbé Griffon, 01960 Péronnas, France 
+
+Abstract 
+
+Smallholder farming communities in remote and depopulating areas have limited access to agricultural advisory services, and their locally specific agronomic knowledge, often ex-pressed in regional dialect, is poorly represented in the global corpora on which modern Large Language Models (LLMs) are trained. A general-purpose chatbot consequently answers ques-tions about such a place fluently but unreliably, with no grounding in authoritative local data that a farmer can trust. This paper presents a conversational AI assistant, “Falco eleono-rae”, embedded within a bilingual (Greek-primary, English-secondary) e-market platform that serves the farmers and cooperatives of a defined island area of interest. The assistant is engineered as a thin Backend-for-Frontend (BFF) proxy in front of a geospatially-aware agronomic agent rather than as a self-hosted model. Answer generation and tool selection are delegated to a managed upstream service built on OpenAI GPT-5-family models, while a single bounded task, producing a short textual description of an uploaded field photograph, is handled directly by a vision-capable model (Anthropic Claude Sonnet 4.5) so that only text ever reaches the agent, and voice input is transcribed by a managed streaming speech-to-text service hosted in an EU region. The assistant is grounded not through a self-hosted vector database but through tool-augmented retrieval, in which a Model Context Protocol (MCP) tool queries a curated, read-only, bilingual data interface exposing local crops, a seasonal calendar, traditional practices, a dialect glossary, products, agritourism experiences, cooper-atives, and training content, and every query is wrapped in a geospatial Well-Known Text envelope that anchors the agent to the area of interest. We detail the conversational interface together with its multilingual, voice, and image modalities, its progressive-web-application and accessibility design for low-bandwidth field use, and its security and data-protection posture, and we argue that for a small and resource-constrained rural deployment a man-aged and grounded multilingual assistant of this kind is both more attainable and more trustworthy than a bespoke self-hosted model. 
+
+Keywords: Large Language Models, Agricultural Knowledge and Innovation Systems, Retrieval-Augmented Generation, Tool-Augmented Retrieval, Model Context Protocol, Conversational Agents, GeoAI, Multilingual NLP, Digital Agriculture, Rural Development 
+
+# 1 Introduction: The Challenge 
+
+Kythera and its smaller neighbour Antikythera are remote islands at the southern edge of the Aegean. Like many European island and mountain regions, they combine a depopulating and ageing agricultural workforce, a fragmented set of small producers, seasonal agritourism, and a 
+
+> ∗
+
+Corresponding author: nikolaos.tantaroudas@iccs.gr 
+
+1
+
+> arXiv:2606.25647v1 [cs.CE] 24 Jun 2026
+
+body of locally specific agronomic and cultural knowledge, including a distinctive regional di-alect, that is largely absent from mainstream digital resources. The institutional channel that would ordinarily carry agronomic knowledge to such producers, the Agricultural Knowledge and Innovation System (AKIS), is, in thinly populated regions, correspondingly thin, with advisory capacity that is scarce, expensive to deliver in person, and difficult to sustain [Kountios et al., 2024]. The 2023–2027 Common Agricultural Policy explicitly elevates AKIS and the digitali-sation of advisory services as a cross-cutting objective, precisely because this gap is structural rather than incidental. Large Language Models (LLMs) are an obvious candidate technology for narrowing this gap, and recent work has begun to assess their use in agricultural extension [Tzachor et al., 2023, High et al., 2026]. An LLM can render scientific guidance in plain language, answer follow-up questions, operate in the user’s own language, and be always available. Yet a naive deployment of a general-purpose chatbot is poorly matched to the island smallholder setting for several reasons. The most fundamental is place-agnostic knowledge and the attendant risk of hallucination, since a general LLM has at best sparse and possibly outdated knowledge of an island’s specific crop varieties, harvest windows, traditional practices, local producers, and dialect terms, so that when asked a local question it tends to answer fluently but unreliably, with no grounding in authoritative local data that the farmer can trust [Tzachor et al., 2023]. Language is a second concern, because the community is Greek-speaking, with Greek as the primary language of interaction and English a secondary one for visitors and external partners, so advisory tooling must be Greek-first. Digital literacy and access form a third, as many prospective users have limited digital experience and intermittent connectivity, which requires an interface that tolerates poor networks, is usable on a phone in the field, and supports modalities, voice in particular, that lower the barrier for users uncomfortable with typing. Finally, trust and governance are paramount, because for an EU-funded public-interest service handling the personal data of a small, identifiable community, data residency, privacy, and the avoidance of credential or content leakage are first-order requirements rather than optional hardening. This paper describes how such an assistant addresses these constraints. It is embedded in a bilingual platform that is delivered for, and grounded in the local knowledge of, the island of Kythera, combining an e-market for local products and agritourism experiences with a training and certification system, a knowledge repository, and an analytics layer, built for the Kythera pilot under the European PoliRURAL Plus initiative [PoliRURAL Plus Consortium, 2024]. Our focus is the AI assistant itself, “Falco eleonorae” (after the Eleonora’s falcon that breeds on the islands), the user-facing front end to a geospatially-aware agronomic agent operated within the PoliRURAL Plus ecosystem and known as “Jackdaw”. Rather than train or self-host a model, the assistant is deliberately architected as a thin Backend-for-Frontend (BFF) proxy in front of a managed agent, and grounds that agent in local knowledge through a structured data interface. The paper describes an implemented and deployed LLM-assistance architecture for a rural pilot in which no model is self-hosted, with the answer and tool-selection LLMs running upstream as a managed service and the platform calling a frontier model directly only for a single bounded multimodal task (Section 3). It then gives a concrete account of tool-augmented retrieval as an alternative to classic vector-store retrieval-augmented generation (RAG) for grounding an agent in small, curated, frequently-changing local knowledge, realised through a Model Context Protocol (MCP) tool over a read-only bilingual data API and wrapped in a geospatial area-of-interest envelope (Section 4). It finally describes the conversational interface and its multilingual, voice, and image modalities, designed for low digital literacy and poor connectivity, together with the system’s security and data-protection design (Sections 5–6). 22 Background and Related Work 
+
+2.1 Large language models 
+
+Modern conversational LLMs descend from the Transformer architecture [Vaswani et al., 2017], whose self-attention mechanism replaced recurrence and enabled the large-scale, parallelisable pre-training of decoder-only language models. Scaling such models with autoregressive pre-training yielded strong few-shot “in-context” learning [Brown et al., 2020], and aligning them to follow instructions via reinforcement learning from human feedback (RLHF) produced the assistant-style behaviour now familiar from production systems [Ouyang et al., 2022]. A comple-mentary alignment approach, Constitutional AI, derives harmlessness from AI feedback against an explicit written set of principles rather than solely from human preference labels [Bai et al., 2022]. The two model families relevant to this work, OpenAI’s GPT-5 family and Anthropic’s Claude, are the products of this lineage; their exact parameter counts are not publicly disclosed by their vendors. These models are treated here as managed capabilities described by their public model and system cards [OpenAI, 2025, Anthropic, 2025]. 
+
+2.2 Grounding LLMs: retrieval and tool use 
+
+Because a parametric language model’s knowledge is fixed at training time and prone to con-fabulation, grounding it in an external knowledge source is essential for factual, domain-specific assistance. The canonical mechanism is retrieval-augmented generation (RAG) [Lewis et al., 2020], which couples a parametric generator with a non-parametric retriever, typically dense passage retrieval over an embedded document corpus [Karpukhin et al., 2020]. RAG excels when the knowledge base is a large, relatively static text collection. An alternative, increasingly favoured for structured or rapidly-changing data, is tool-augmented retrieval, in which the model interleaves reasoning with calls to external tools or APIs and incorporates their results into its an-swer; the ReAct paradigm formalised this reasoning-and-acting loop [Yao et al., 2023]. The Model Context Protocol (MCP) standardises how such tools are exposed to an LLM application over a JSON-RPC interface, decoupling the tool provider from the model host [Anthropic and Model Context Protocol Contributors, 2025]. A related strand of work has the model emit executable queries against structured data directly, rather than retrieving unstructured passages [Hontan et al., 2026], which is precisely the regime in which the grounding tool described here operates. As we argue in Section 4, the assistant uses tool-augmented retrieval over a curated structured API, not vector-store RAG, and we motivate that choice by the nature of the knowledge being grounded. 
+
+2.3 AI for agricultural extension 
+
+Tzachor et al. [Tzachor et al., 2023] assessed GPT-based models for agricultural extension, find-ing genuine promise in simplifying scientific guidance and personalising location-specific advice, but stressing the necessity of human experts in the loop and of guarding against confidently wrong, context-free output, exactly the failure mode that grounding is meant to prevent. High et al. [High et al., 2026] analysed a deployed farmer-facing chatbot across several countries and found that, while such tools improve access and personalisation through multimodal interfaces, their effectiveness depends on embedding them within trusted social infrastructure and aligning them with participatory extension principles rather than one-way information delivery. These findings directly inform our design, namely to ground the model in curated local data, keep the content under the editorial control of the local pilot organisation, and prioritise accessible multi-modal interaction. The present authors have previously built and validated integrated AI service platforms that compose managed AI capabilities behind a thin, security-conscious application layer, spanning immersive accessibility and communication [Tantaroudas et al., 2026a], person-alised career guidance [Tantaroudas et al., 2026b], and AI-driven cybersecurity [Tantaroudas 3et al., 2026c]; the current work applies the same engineering philosophy to rural agricultural knowledge. 
+
+# 3 System Architecture 
+
+3.1 A four-layer, no-self-hosted-model design 
+
+The assistant is organised into four layers (Figure 1). The platform itself (layer 1) is a Django application that acts as a Backend-for-Frontend that renders the chat interface, manages the user session and conversation history, performs two bounded multimodal pre-processing tasks (image description and speech-to-text), and proxies the conversational turn to the upstream agent. It runs no chat LLM of its own. Layers 2–4 are external services operated within the PoliRURAL Plus ecosystem: a BFF/agent gateway ( jackdaw.online ); the agent backend itself ( prp-api ), a service that hosts the LLMs, performs tool selection, and orchestrates the multi-step reasoning loop; and a catalogue/tool server ( prp-raven ) that exposes domain tools over MCP. Crucially, one of those MCP tools, contributed by the platform team, reaches back into the platform’s own read-only data API to retrieve area-specific knowledge (Section 4).                      
+
+> Layer 1 – e-market platform (Django BFF; no chat LLM)
+> Chat UI (PWA) •session + history •im-age description •voice-to-text •SSE proxy
+> Layer 2 – jackdaw.online (agent gateway / BFF)
+> SSE chat endpoint; injects the user’s upstream session
+> Layer 3 – prp-api (agent backend; owns the LLMs) Answer LLM: OpenAI gpt-5-nano
+> •Tool selector: OpenAI gpt-5-mini
+> multi-step reasoning loop; WKT (SRID 4326) geo-envelope on every request
+> Layer 4 – prp-raven
+> MCP tool server: the
+> kythera tool (9 sub-tools)
+> Anthropic Claude Sonnet 4.5
+> image description (called
+> directly by the platform)
+> Amazon Transcribe (EU)
+> streaming voice-to-text
+> Platform /api/v1/
+> read-only bilin-gual local data
+> chat turn (SSE)
+> image
+> voice
+> MCP tool calls
+> HTTP+key
+> grounding data
+
+Figure 1: The four-layer architecture. The platform (layer 1) hosts no chat LLM; it proxies the conversational turn to the upstream PoliRURAL Plus agent (layers 2–3), which runs the OpenAI GPT-5-family models and orchestrates tool use, and grounds answers via an MCP tool (layer 4) that queries the platform’s own read-only local data API. The platform calls Anthropic Claude Sonnet 4.5 directly only for image description, and Amazon Transcribe for voice. 
+
+3.2 The model stack 
+
+Table 1 enumerates the models and where each runs. Three points are worth emphasising for accuracy. First, the conversational “brain” (answer generation and tool selection) is not hosted by the platform; it is the upstream agent’s responsibility, and the upstream service owns the 4associated billing and rate limits. Second, the only frontier model the platform invokes directly is Anthropic Claude Sonnet 4.5, used for a single, bounded task, converting an uploaded field photograph into a short factual textual description that is then prepended to the user’s next text turn. Third, voice input is transcribed by a managed streaming service (Amazon Transcribe) pinned to an EU region, and no self-hosted speech model is run. Table 1: The model stack. “Where” indicates which party runs the model. Parameter counts for all listed proprietary models are undisclosed by their vendors.              
+
+> Model / service Role Where it runs
+> OpenAI gpt-5-nano Primary chat /answer-text generation Upstream (prp-api ); not hosted by the platform OpenAI gpt-5-mini Tool selection / routing in the agent loop Upstream ( prp-api )Anthropic Claude Son-net 4.5 Image description (photo →
+> short text note) Platform-side, in-process, via the vendor SDK Amazon Transcribe (streaming) Voice-to-text for the chat mi-crophone Platform-side / AWS, EU re-gion
+
+3.3 Why a thin proxy? 
+
+The decision not to self-host a model is a deliberate fit to the pilot’s constraints. A small island pilot has neither the inference budget nor the operational staff to run and maintain a frontier model; a managed upstream agent already provides the geospatial agronomic tools (land cover, climatology, terrain, demography) that a GeoAI assistant needs; and concentrating the platform’s own direct model use in a single, well-scoped task keeps the attack surface, the cost surface, and the data-egress surface small and auditable. The cost of this choice is a hard dependency on external services, which we treat candidly as a limitation (Section 7.3). 
+
+3.4 The geospatial envelope 
+
+The upstream agent is a GeoAI system: it expects every request to carry a Well-Known Text (WKT) geometry (SRID 4326) describing the area of interest, and rejects requests without one. The platform proxy therefore attaches a geometry to every turn. When the user has not selected a map area, the platform supplies a default polygon corresponding to the Kythera/Antikythera bounding box, ensuring that even a non-geospatial question (“which olive varieties grow here?”) is answered in the correct geographic context rather than for an arbitrary location. Spatially-aware tools (Section 4) use this envelope to restrict and rank results to the relevant area. 
+
+# 4 Grounding the Model in Local Knowledge 
+
+4.1 Tool-augmented retrieval, not a vector store 
+
+A central design question for any knowledge assistant is how the model is grounded. The default answer in much current practice is vector-store RAG [Lewis et al., 2020, Karpukhin et al., 2020], which embeds a document corpus, retrieves the nearest passages to the query, and conditions generation on them. The platform deliberately does not do this. There is no embedding pipeline and no vector database in it. Instead, grounding is realised as tool-augmented retrieval [Yao et al., 2023] over a curated, structured, read-only data interface, mediated by MCP [Anthropic and Model Context Protocol Contributors, 2025]. The motivation is the nature of the knowledge to be grounded. The island’s authoritative knowledge is not a large static text corpus; it is a comparatively small, curated, frequently-5edited, and inherently structured body of records, namely crops and their seasons, traditional practices, dialect glossary entries, local products, agritourism experiences, cooperatives, and training lessons, maintained by the pilot’s editors. For knowledge of this shape, exact structured queries (the seasonal-calendar entries for a given month) are more faithful and more current than approximate nearest-neighbour search over embeddings [Hontan et al., 2026], and they inherit, for free, the editorial controls that already govern the records, so that drafts are excluded, hidden prices are not revealed, and a content edit is reflected on the very next query with no re-indexing. The agent’s general agronomic reasoning is still supplied by the upstream LLM; what the structured tool guarantees is that, when the question is local, the answer is anchored in the pilot’s own authoritative data. 
+
+4.2 The local data API and MCP tool 
+
+The platform exposes a read-only, bilingual JSON data API (Table 2). A dedicated MCP tool, the kythera tool, contributed by the platform team to the upstream catalogue server, presents this API to the agent as a family of nine callable sub-tools (knowledge search, crop information, seasonal calendar, glossary lookup, product search, experience search, cooperative search, training-module listing, and lesson-content retrieval). When the upstream tool-selector model judges a turn to be locally scoped, it invokes the appropriate sub-tool; the tool calls the platform’s data API over HTTP with a shared secret key; and the structured result is returned into the agent’s reasoning loop. Two of the sub-tools (experiences and cooperatives) are spatially aware, parsing the WKT envelope, restricting results to that bounding box, and ordering them by proximity to its centroid. Table 2: The read-only bilingual local data API surfaced to the agent through the kythera MCP tool. Every endpoint returns Greek or English content (Greek fallback) and enforces editorial gating (drafts and inactive records excluded; hidden prices suppressed).             
+
+> Endpoint Local knowledge exposed
+> knowledge/search published knowledge articles, traditional practices, FAQs
+> knowledge/seasonal-calendar seasonal calendar entries by month (optionally by crop)
+> crops/{type} crop record plus related practices and articles
+> glossary/lookup glossary entries, including regional dialect terms
+> products/search local catalogue products (public)
+> experiences/search agritourism experiences (spatially aware)
+> cooperatives/search cooperative directory (spatially aware)
+> training/modules ,
+> .../lessons/{slug}
+> training-module listings and full lesson content
+
+4.3 Tool selection and query formation 
+
+A natural question is how the agent decides which tool to call and how it obtains the search terms that the tool needs. The mechanism is two LLM-driven steps rather than an explicit keyword-extraction pipeline. First, tool selection is performed by semantic routing : a dedicated tool-selector model (OpenAI gpt-5-mini , run at minimal reasoning effort) is presented with the user’s natural-language message together with the catalogue of available tools, each described only by a name and a short natural-language description, and it selects the one or two tools whose descriptions best match the intent of the question. There is no separate stage that first extracts keywords and then looks them up; the routing is by meaning, which is why the quality of each tool’s description is decisive. A tool is chosen for a question about harvesting olives because its description advertises crop and seasonal-calendar knowledge, not because the token “olive” 6was matched against an index. The locally-scoped system prompt assembled by the platform (Section 4.4) steers this routing by naming the local kythera sub-tools and instructing the agent to prefer them over its generic dataset searches for any local question, while capping the number of tool calls at two per turn to bound latency and cost. Second, once a tool is chosen, the agent populates that tool’s typed parameters from the question, and it is at this point that the search terms, the “keywords”, are actually formed. For a free-text sub-tool such as search_kythera_knowledge(query, lang, limit) the model writes the salient terms of the question into the query argument; for a structured sub-tool such as get_seasonal_calendar(month, crop_type, lang) it fills the discrete filters, for example a month and a crop, inferred from the question; and the response language is taken from the active interface language carried in the system prompt. The geospatial parameters are not produced by the model at all but injected automatically from the active map area-of-interest as the Well-Known Text envelope of Section 3.4. The chosen tool then calls the read-only data API, which performs the actual matching, substring matching on the free-text query and exact matching on the structured filters, and returns the records that match. Those records, rather than the model’s parametric memory, are what the answer model then uses to compose its reply, surfacing any source link the tool returned. This division of labour, semantic routing to choose a tool and parameter synthesis to query it, is an instance of the tool-augmented retrieval pattern of Yao et al. [2023], and the use of a language model to emit an executable structured query rather than to retrieve unstructured passages mirrors recent work on natural-language querying of structured data [Hontan et al., 2026]. 
+
+4.4 Anatomy of a grounded turn 
+
+Figure 2 traces a single grounded turn. The browser sends the user’s message to the platform proxy, which assembles a request comprising a freshly-built, locally-scoped system prompt (en-coding the user’s profile and language, and instructing the agent to prefer the local kythera tools over generic dataset searches), the recent conversation history, and the WKT geo-envelope. The proxy opens a streaming connection to the upstream gateway. Upstream, the tool-selector model chooses tools; the kythera MCP tool calls back into the platform’s data API; the answer model composes a reply grounded in the returned records; and the gateway streams the result back as Server-Sent Events (SSE), which the proxy relays verbatim to the browser. The assistant turn, and a cross-turn thread identifier that lets the upstream agent retain conversational state, are persisted by the platform. 
+
+# 5 The Conversational Interface 
+
+The interface is where the design constraints of Section 1 are met in practice. It is a single-page chat experience embedded in the platform (Figure 3), built as a progressive web application so that it installs to a phone’s home screen and degrades gracefully on poor connections. 
+
+Bilingual, Greek-primary interaction. The entire interface is bilingual, with Greek as the primary language and English secondary; the active language also selects the speech-recognition language and a per-language clause in the system prompt, so that a Greek query is transcribed as Greek and answered in Greek. This is a direct response to the language constraint of Section 1 and to the AKIS literature’s emphasis on meeting farmers in their own language [High et al., 2026]. 
+
+Streaming responses. Answers are delivered over Server-Sent Events and rendered progres-sively, so the user sees the assistant “typing” rather than waiting for a complete reply, which 7Browser Platform proxy Gateway Agent (LLMs) Local API 
+
+> 1. message
+> 2. prompt + history + WKT
+> 3. forward
+> 4. tool call
+> 5. records
+> 6. grounded answer (SSE)
+> 7. relay
+> 8. stream + persist
+
+Figure 2: Sequence of a single grounded conversational turn. Tool selection and answer generation occur upstream (steps 3–6); the platform proxy contributes the locally-scoped system prompt and geo-envelope (step 2) and the local grounding data (steps 4–5), and relays the streamed answer (steps 7–8). 
+
+Figure 3: The “Falco eleonorae” conversational assistant. The interface is Greek-primary, with an English toggle, a streamed-response area, a conversation-history sidebar, and microphone and image-attachment affordances beside the text box. (User account identifiers have been redacted.) 8matters when a tool-using turn takes appreciable time. Markdown in the answer is sanitised before rendering. 
+
+Voice input. A microphone control records a short utterance in the browser and submits it to an endpoint that streams it to the managed speech-to-text service; the returned transcript is inserted as an ordinary text turn (Figure 4). Voice lowers the barrier for users uncomfortable with typing or with on-screen Greek keyboards, a population the digital-literacy constraint makes central. 
+
+Image input. A user can attach a field photograph, for example of a leaf, a pest, or a soil condition. The platform passes the image to Claude Sonnet 4.5, which returns a short factual description; this description is folded into the user’s next text turn as context, so that the upstream agent, which is itself text-only, can reason about the photograph. 
+
+Conversation history. Each user’s conversations are retained and listed, and cross-turn con-tinuity is preserved by passing an upstream thread identifier, so the agent retains context across turns within a conversation. 
+
+Figure 4: A grounded exchange in the assistant: a Greek-language question about local crops and olive-harvest timing, answered with content anchored in the local data API via the kythera 
+
+MCP tool. (User account identifiers have been redacted.) 
+
+# 6 Implementation, Security and Data Protection 
+
+Proxy and streaming. The assistant is implemented as a dedicated application within the platform. The streaming view holds an upstream connection open and relays SSE frames; the deployment’s request timeout is set deliberately longer than the upstream read budget so that a worker is not killed mid-stream before the assistant turn is persisted. Errors that occur after streaming has begun are surfaced to the client as in-band SSE error events rather than as HTTP error codes. 9Rate limiting. The multimodal endpoints (voice transcription, image description) and the session-establishment endpoint are rate-limited per user, and the read-only data API is rate-limited per client, to bound cost and abuse. 
+
+Data protection. Several measures address the trust-and-governance constraint. Speech tran-scription is pinned to an EU region, so audio and transcripts remain within the EU. The data API authenticates callers with a constant-time key comparison and fails closed in production. Editorial gating, with drafts and inactive records excluded and hidden prices suppressed, is en-forced server-side, so the assistant cannot surface unpublished content or hidden prices. Chat content is included in the platform’s account-deletion data-erasure routine. Inline scripts run un-der a content-security policy, and answer markdown and tool-supplied option text are sanitised to prevent injection from model or tool output. 
+
+# 7 Discussion 
+
+7.1 Applications for the pilot community 
+
+The assistant supports a range of concrete tasks for the pilot community. These include seasonal guidance (“when do we harvest the olives?”) grounded in the local seasonal calendar; crop guidance on local varieties and practices; discovery of local products, agritourism experiences, and cooperatives, filterable to a map area; lookup of dialect and agronomic glossary terms; retrieval of training-lesson content; lightweight image-assisted observation of a crop condition; and voice-first interaction for users who prefer speaking to typing. In each case the value over a generic chatbot is the same, in that the answer is anchored in the island’s own curated, editorially-controlled data, in the user’s language, and within the correct geographic context. 
+
+7.2 Relation to prior work 
+
+Our grounding strategy is a concrete instance of tool-augmented retrieval [Yao et al., 2023] over MCP [Anthropic and Model Context Protocol Contributors, 2025], chosen over vector-store RAG [Lewis et al., 2020] for the reasons set out in Section 4, since the knowledge is small, struc-tured, curated, and frequently edited, a regime in which exact queries over a live API dominate approximate retrieval over a re-indexed embedding store. The design also operationalises the cautions of the agricultural-extension literature, with Tzachor et al.’s insistence on grounding and human oversight [Tzachor et al., 2023] and High et al.’s finding that such tools work only when embedded in trusted, locally-controlled infrastructure [High et al., 2026] reflected, respec-tively, in the structured grounding and in keeping all local content under the pilot organisation’s editorial control. 
+
+7.3 Limitations and fragility 
+
+We are explicit about the system’s boundaries. (i) No formal evaluation yet. This paper reports the system as built; we have not conducted a controlled user study, and the quantitative validation of answer quality, grounding faithfulness, latency, and user satisfaction with the pilot cohort is the principal item of future work. Informal integration testing against the live upstream service indicated that simple queries return in roughly fifteen to twenty seconds and multi-tool queries in roughly one minute, but these are anecdotal observations rather than measured results. 
+
+(ii) Dependence on external services. The conversational brain is upstream, so if it is unavailable, or the user has no valid upstream session, the assistant cannot answer, with no local fallback model. (iii) Upstream maturity. During integration, several of the upstream agent’s general geospatial services (for example climatology for the island coordinates) were observed to be unreliable, and the platform’s own kythera MCP tool depends on an upstream 10 deployment step to become live, so end-to-end grounding may not be fully active in production at all times. (iv) Stopgap authentication. Establishing the upstream session by re-using the user’s credentials, rather than a registered OAuth2 flow, is a deliberate but fragile interim measure that depends on the upstream login process and should be replaced by a registered client. (v) Single bounded vision use. Image understanding is limited to short descriptions folded into text; it is not a diagnostic system, and should not be presented to farmers as one. 
+
+# 8 Conclusions and Future Work 
+
+We have described a conversational AI assistant embedded in a bilingual e-market platform, an LLM-powered, geospatially-grounded agronomic assistant for the smallholder farmers of Kythera and Antikythera. The assistant addresses the island-AKIS knowledge gap with three deliberate design choices: a thin Backend-for-Frontend architecture that hosts no model of its own and concentrates direct frontier-model use in a single bounded task; tool-augmented retrieval over a curated, read-only, bilingual data API, rather than vector-store RAG, as the grounding mech-anism for small, structured, frequently-edited local knowledge; and a geospatial area-of-interest envelope that anchors every answer to the island. The interface is engineered for the realities of the pilot, being Greek-primary, multimodal (text, voice, image), streamed, and delivered as a progressive web app for poor connectivity, and the implementation is conservative about cost, data residency, and content governance. The clear next step is a structured field evaluation with the pilot cohort, measuring grounding faithfulness, answer quality in Greek, latency, and user-reported usefulness, and feeding the results back into the system prompt, tool descriptions, and interface. Further work includes replacing the stopgap authentication with a registered OAuth2 client, hardening the dependence on upstream services, and expanding the curated local knowledge that the grounding tools expose. We offer the design as a transferable pattern for other remote and resource-constrained rural communities for whom a managed, grounded, multilingual assistant is more attainable, and more trustworthy, than a bespoke self-hosted model. 
+
+# Acknowledgements 
+
+The authors thank the PoliRURAL Plus consortium for the Jackdaw agent infrastructure and the Kythera pilot partners for curating the local knowledge that grounds the assistant. 
+
+# Funding 
+
+This work was supported by the European Union’s Horizon Europe research and innovation programme through the PoliRURAL Plus project (grant agreement No. 101136910) via its DE-VELOP cascade-funding open call. Views and opinions expressed are those of the authors only and do not necessarily reflect those of the European Union nor the granting authority. 
+
+# Data and Software Availability 
+
+The platform is deployed as a progressive web application, and the conversational assistant de-scribed here is available within its training section. The source code, the curated local data interface, and access to a demonstration instance are maintained by the project team and avail-able on reasonable request, subject to the platform’s data-protection obligations to the pilot community. 11 References 
+
+Georgios Kountios, Spyridon Kanakaris, Christina Moulogianni, and Thomas Bournaris. Strengthening AKIS for sustainable agricultural features: Insights and innovations from the European Union: A literature review. Sustainability , 16(16):7068, 2024. doi:10.3390/su16167068. Asaf Tzachor, Medha Devare, Catherine Richards, Pieter Pypers, Aniruddha Ghosh, Jawoo Koo, Sukhwinder Johal, and Brian King. Large language models and agricultural extension services. 
+
+Nature Food , 4:941–948, 2023. doi:10.1038/s43016-023-00867-x. Chris High, Namita Singh, and Gusztáv Nemes. Artificial intelligence for agricultural extension: Supporting transformative learning among smallholder farmers. Journal of Development Policy and Practice , 2026. doi:10.1177/24551333251345224. PoliRURAL Plus Consortium. PoliRURAL Plus: Building capacity for foresight-driven rural innovation (horizon europe). https://poliruralplus.eu/ , 2024. Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. In Advances in Neural Infor-mation Processing Systems (NeurIPS) , volume 30, 2017. doi:10.48550/arXiv.1706.03762. Tom B. Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, et al. Language models are few-shot learners. Advances in Neural Information Processing Systems (NeurIPS) , 33, 2020. doi:10.48550/arXiv.2005.14165. Long Ouyang, Jeffrey Wu, Xu Jiang, Diogo Almeida, Carroll L. Wainwright, Pamela Mishkin, et al. Training language models to follow instructions with human feedback. Advances in Neural Information Processing Systems (NeurIPS) , 35, 2022. doi:10.48550/arXiv.2203.02155. Yuntao Bai, Saurav Kadavath, Sandipan Kundu, Amanda Askell, Jackson Kernion, et al. Constitutional AI: Harmlessness from AI feedback. arXiv preprint arXiv:2212.08073 , 2022. doi:10.48550/arXiv.2212.08073. OpenAI. GPT-5 system card. Technical report, OpenAI, August 2025. URL https://cdn. openai.com/gpt-5-system-card.pdf .Anthropic. System card: Claude Sonnet 4.5. Technical report, Anthropic, September 2025. URL 
+
+https://www.anthropic.com/claude-sonnet-4-5-system-card .Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim Rocktäschel, Sebastian Riedel, and Douwe Kiela. Retrieval-augmented generation for knowledge-intensive NLP tasks. Advances in Neural Information Processing Systems (NeurIPS) , 33, 2020. doi:10.48550/arXiv.2005.11401. Vladimir Karpukhin, Barlas Oğuz, Sewon Min, Patrick Lewis, Ledell Wu, Sergey Edunov, Danqi Chen, and Wen-tau Yih. Dense passage retrieval for open-domain question answering. In 
+
+Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP) , 2020. doi:10.48550/arXiv.2004.04906. Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, and Yuan Cao. ReAct: Synergizing reasoning and acting in language models. In International Conference on Learning Representations (ICLR) , 2023. doi:10.48550/arXiv.2210.03629. Anthropic and Model Context Protocol Contributors. Model context protocol specification (re-vision 2025-11-25). https://modelcontextprotocol.io/specification/2025-11-25 , 2025. 12 Valentin-Micu Hontan, Andrei-Alexandru Bunea, Nikolaos Dimitrios Tantaroudas, and Dan-Matei Popovici. Querying structured data through natural language using language models. arXiv preprint arXiv:2604.03057, 2026. URL https://arxiv.org/abs/2604.03057 .Nikolaos D. Tantaroudas, Andrew J. McCracken, Ilias Karachalios, and Evangelos Papatheou. INTERACT: AI-powered extended reality platform for inclusive communication with real-time sign language translation and sentiment analysis. Open Research Europe , 6:71, 2026a. doi:10.12688/openreseurope.23201.1. [version 1; awaiting peer review]. Nikolaos D. Tantaroudas, Andrew J. McCracken, Ilias Karachalios, Evangelos Papatheou, and Vasileios Pastrikakis. XR-CareerAssist: An immersive platform for personalised career guid-ance leveraging extended reality and multimodal AI. arXiv preprint arXiv:2604.06901, 2026b. URL https://arxiv.org/abs/2604.06901 .Nikolaos D. Tantaroudas, Ilias Karachalios, and Andrew McCracken. SentinelSphere: AI-driven cybersecurity platform combining threat detection with security awareness. In Proceedings of the 21st International Conference on Cyber Warfare and Security (ICCWS 2026) , volume 21, pages 476–485, 2026c. doi:10.34190/iccws.21.1.4465. 13
