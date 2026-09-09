@@ -1,0 +1,577 @@
+Title: Phrase-Localized Language-Contrastive Guidance: Training-Free Localized Accent Control for Code-Switching Text-to-Speech
+
+URL Source: https://arxiv.org/pdf/2609.01016v1
+
+Published Time: Wed, 02 Sep 2026 01:08:07 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+# Phrase-Localized Language-Contrastive Guidance: Training-Free Localized Accent Control for Code-Switching Text-to-Speech 
+
+Che Hyun Lee 1 Sangkwon Park 1 Donghun Kang 1 Dongwook Lee 2
+
+Youngho Cho 2 Heeseung Kim 3† Sungroh Yoon 1,2,4 †1Department of Electrical and Computer Engineering, Seoul National University 
+
+> 2
+
+Interdisciplinary Program in Artificial Intelligence, Seoul National University 
+
+> 3
+
+Department of Artificial Intelligence, University of Seoul 
+
+> 4
+
+AIIS, ASRI, INMC, and ISRC, Seoul National University 
+
+Abstract 
+
+Current speech synthesis struggles with code-switching, which mixes a foreign language phrase into a primary language utterance, caus-ing the phrase to be spoken with the pri-mary language’s accent rather than its native one. We propose Phrase-Localized Language-Contrastive Guidance (LCG), a training-free in-ference framework that restores a native accent to code-switched phrases in cross-lingual text-to-speech. LCG replaces the single language guidance applied across the whole utterance with a separate guidance for each region, so each part is guided by its own language. To choose where to apply this localized guidance, we propose a self-attention probing technique that finds the phrase boundaries without ex-ternal alignments. Together, these components generate speech in which each region carries the accent of its own language, requiring no fine-tuning or auxiliary models. Across diverse language pairs, LCG robustly increases the na-tiveness of the code-switched phrase while sup-pressing accent leakage, and preserving overall speaker identity and naturalness. *
+
+1 Introduction 
+
+The emergence of zero-shot multilingual text-to-speech (TTS) foundation models has enabled high-fidelity cross-lingual voice cloning without task-specific fine-tuning (Anastassiou et al., 2024; Casanova et al., 2024; Du et al., 2024; Wang et al., 2025; Zhang et al., 2023b; Zhu et al., 2026). Trained on massive multilingual datasets, these models successfully transfer a speaker’s identity to unseen languages. However, despite the remarkable capacity, they still suffer from severe cross-lingual accent leakage resulting in an unnatural foreign accent when the language of the reference voice prompt does not match the target text. 
+
+> †Corresponding authors.
+> *https://saga1214.github.io/PhraseLocalizedLCG/
+
+This leakage becomes acute in intra-utterance code-switching (CS) (Sitaram et al., 2020), where a primary language ( matrix carrier ) and a foreign insertion ( embedded phrase ) mix within a single sentence (Myers-Scotton, 1993). A robust CS TTS system must maintain carrier fluency and speaker consistency while pronouncing the foreign phrase with a native accent (Cao et al., 2020; Qiang et al., 2021). This is inherently challenging because the speaker’s voice profile locks the model into a pri-mary language, making it difficult to shift pronun-ciation styles for just a specific, localized segment. This accent bottleneck stems from two intercon-nected issues. First, zero-shot voice cloning inher-ently entangles speaker identity with the prompt’s native language habits, making it difficult to sep-arate voice characteristics from foreign pronun-ciation. Second, while Classifier-Free Guidance (CFG) (Ho and Salimans, 2021) is widely adopted to improve text adherence and audio quality, it heav-ily amplifies this reference voice bias globally. Be-cause standard CFG applies a uniform scale across the entire sequence, it cannot apply stronger or weaker guidance to specific segments (Shen et al., 2024). Instead, as in Fig. 1, it overrides local lan-guage transitions, aggressively flattening the em-bedded phrase’s accent into the matrix carrier. Notably, this accent leakage persists even in massive multilingual models like OmniVoice (Zhu et al., 2026), a discrete diffusion language model (DLM)-based TTS model that supports over 600 languages. To resolve this bottleneck, we intro-duce a training-free, inference-time localized guid-ance framework. Unlike prior methods that apply CFG only to predetermined, selected tokens (Zheng and Maleki, 2026), our framework operates on frame-level span masks dynamically derived from internal self-attention probing to achieve precise acoustic control. Building on this, we propose 
+
+Phrase-Localized Language-Contrastive Guid-ance (LCG) . LCG transposes contrastive steer-arXiv:2609.01016v1 [cs.CL] 1 Sep 2026 Vanilla CFG (Baseline)    
+
+> Cross -lingual Accent Leakage
+> Phrase -Localized Language -Contrastive Guidance (LCG)
+> Localized Accent Controls (Ours)
+> Global guidance flattens the embedded
+> phrase toward the matrix accent.
+> Localized guidance enforces phrase -foreignness
+> while preserving matrix speaker identity.
+> Matrix Carrier Matrix Carrier Matrix Carrier Matrix Carrier Embedded
+> Phrase
+> Embedded
+> Phrase
+
+Figure 1: Conceptual illustration of cross-lingual accent leakage and localized control. (Left) The unguided 
+
+Baseline flattens the foreign embedded phrase into the matrix carrier language accent, causing mispronunciation and acoustic distortion around the embedded segment. (Right) Our proposed LCG framework applies localized guidance over the self-derived phrase boundaries, enforcing authentic native pronunciation while preserving the surrounding matrix carrier quality and speaker identity. 
+
+ing onto localized audio sequences by swapping language tags over the refined boundaries. This localized control integrates seamlessly with the bi-directional denoising process of discrete diffu-sion models, which naturally absorbs minor mask spillovers while keeping the matrix carrier and speaker identity intact. In summary, our main contributions are three-fold: (1) we formalize the Phrase-Localized LCG 
+
+framework, which mathematically decouples the language-steering scale from global guidance to enable independent accent control, (2) we intro-duce a training- and module-free phrase localiza-tion method via internal attention probing , show-ing that an expanded recall masking strategy aligns naturally with DLMs to absorb minor boundary errors while keeping the carrier clean, and (3) we construct and open-source a balanced, 1,200-utterance synthetic code-switching benchmark corpus spanning 12 directions across 5 languages to facilitate reproducible research. Extensive eval-uations show that LCG robustly enforces native accents across all directions, maximizing foreign accent clarity while preserving global naturalness. 
+
+2 Related Works 
+
+Multilingual and Code-Switching Speech Syn-thesis. Recently, multilingual foundation models clone speaker identities remarkably well across un-seen single-language tracks (Chen et al., 2025c; Casanova et al., 2024; Du et al., 2024; Fan et al., 2026; Peng et al., 2024; Wang et al., 2025; Zhang et al., 2023b; Zhu et al., 2026). However, they fre-quently struggle when multiple languages mix dy-namically within a single sentence (Sitaram et al., 2020). Traditional code-switching TTS (CS TTS) approaches address this by baking capabilities di-rectly into model weights via bilingual posteri-orgrams (Cao et al., 2020), cross-lingual embed-dings (Qiang et al., 2021), multi-stage synthetic fine-tuning (Xu et al., 2024), or specialized diffu-sion architectures (Cho et al., 2022; Kim, 2024; Chen et al., 2024, 2025b,a; Yang et al., 2024; Pamisetty and Shree, 2026). More recently, con-temporary large-scale frameworks such as X-Voice (Xu et al., 2026) attempt to alleviate accent leak-age via dual-level language injection architectures; however, these methods rely on massive multilin-gual corpus fine-tuning and, as explicitly acknowl-edged in Xu et al. (2026), still struggle to optimize intra-sentential code-switching constructs. Con-versely, our framework is entirely inference-only and training-free, evaluated on a balanced 1,200-utterance corpus that specifically targets dense multi-word phrasal insertions rather than the un-managed or single-word alternations dominant in prior zero-shot benchmarks (Lyu et al., 2010; Paik et al., 2026; Xie et al., 2026; Ugan et al., 2025). 
+
+Inference-Time Control and Spatial CFG. 
+
+Classifier-Free Guidance (CFG) (Ho and Sali-mans, 2021) is the standard test-time knob for diffusion-based speech generation (Ju et al., 2024; Le et al., 2023; Liu et al., 2023), and has recently been extended to discrete language model decod-ing (Sanchez et al., 2023; Zheng and Maleki, 2026). Crucially, however, standard speech-side frame-works apply the guidance scalar uniformly across ∅ [target_audio ]∅    
+
+> I love 매콤한 김치 …[target_audio ]<|ko|>
+
+(a)  Internal Attention Probing  (b)  Mask Refinement  (c)  Phrase -Localized Language 
+
+Contrastive Guidance                 
+
+> I love 매콤한 김치 …[target_audio ]<| en |>
+> I
+> love
+> 매콤한
+> 김치
+> …
+> Text Tokens
+> Target Audio Frames
+> Self -Attention @Layer 8, 12
+> Ilove …매콤한 김치
+> Ilove …매콤한 김치
+> Predicted audio span masks
+> for each language tag V
+> Margin Dilation (k=4)
+> <|ko|>
+> 𝒎 𝒑𝒉𝒓
+> <| en |>
+> 𝒎 𝒔𝒓𝒄
+> OR Gate
+> True Phrase Span
+> Final Mask
+> 𝒎
+> Margin Dilation (False Positive)
+> Ilove …매콤한 김치
+> 𝑐 𝑠𝑟𝑐
+> 𝑢
+> 𝑐 𝑠𝑟𝑐
+> 𝑐 𝑝ℎ𝑟
+> 𝑢
+> 𝑐 𝑝ℎ𝑟
+> 𝑐 𝑠𝑟𝑐
+> ㅡ
+> ㅡ
+
++
+
+[× 𝛾] 
+
+[× 𝜆] 
+
+ሚ𝑙 𝐿𝐶𝐺 
+
+> 𝒎 -Gated
+> Localized Steering
+> Standard Global CFG
+> 𝒎 𝑿𝑼
+
+Figure 2: Overall architecture of the proposed training-free localized guidance framework. An intra-utterance code-switching script mixing an English matrix carrier (“I love”) with an embedded Korean phrase (“ 매콤한
+
+김치”, meaning “spicy kimchi”) illustrates the pipeline. (a) Internal Attention Probing: Audio-to-text frame alignments are extracted from decoder layers ( L8, L 12 ) under language-conditioned source ( msrc ) and foreign phrase (mphr ) prefixes to derive the raw phrase mask m. (b) Mask Refinement: Resolves alignment shifts via a dual-tag mask union ( msrc ∨ mphr ) followed by a symmetric margin dilation ( k = 4 ) to maximize boundary recall. (c) Phrase-Localized Language-Contrastive Guidance: Synthesizes the final logits ˜lLCG by utilizing m as a localized gating switch, decoupling the independent language-steering scale ( λ) from the global text guidance scale ( γ). 
+
+the entire sequence, lacking the spatial resolution to manage localized phonetic shifts. While contem-porary scaling efforts like X-Voice (Xu et al., 2026) introduce decoupled CFG paths, their optimization operates globally across the temporal generation axis (timesteps) via decay schedules, failing to iso-late localized structural boundaries. While region-conditioned steering is widely utilized in text-to-image spatial masks (Liu et al., 2022; Shen et al., 2024; Brooks et al., 2023; Zhang et al., 2023a), no prior work brings a localized, frame-level spatial guidance paradigm into discrete non-autoregressive speech LMs (Wang et al., 2025; Zhu et al., 2026). Our proposed Phrase-Localized LCG framework fills this gap with zero training cost, deriving track-ing masks dynamically from internal self-attention paths while executing contrastive cross-lingual tag swaps natively at runtime. 
+
+Attention Probing and Sequence Alignment. 
+
+Attention in TTS traditionally serves to align text tokens with acoustic frames, evolving from soft matrices (Wang et al., 2017; Shen et al., 2018) to hard monotonic searches (Kim et al., 2020, 2021) and forced-alignment pipelines (McAuliffe et al., 2017). Concurrently, attention probing in language modeling remains a passive, post-hoc diagnostic tool. Our work departs from this setup by closing the loop between probing and dynamic sequence conditioning. Instead of relying on external tools, we dynamically extract implicit alignments from the DLM’s internal self-attention layers during the forward pass to establish a localized phrase mask. Crucially, the iterative, bi-directional denoising pro-cess of discrete diffusion samplers naturally acts as a buffer that absorbs minor boundary mask er-rors, ensuring rigorous phrase-foreignness without inducing acoustic or identity discontinuities. 
+
+3 Method 
+
+Our training-free inference framework controls cross-lingual accents by guiding the logits of a pre-trained discrete diffusion language model (DLM). As illustrated in the macro pipeline in Fig. 2, the op-erational layout is split into three sequential stages: (a) frame-level mask extraction via self-attention probing (Sec. 3.2), (b) asymmetric boundary ex-pansion to optimize recall (Sec. 3.3), and (c) lo-calized scale adjustment via independent language-contrastive steering (Sec. 3.4). 
+
+3.1 Problem Statement & Preliminaries 
+
+OmniVoice (Zhu et al., 2026) is a discrete DLM-based text-to-speech (TTS) framework capable of synthesizing over 600 languages. Operating over an audio codec vocabulary, it iteratively unmasks an acoustic sequence over T = 32 steps. At each generation step, the model input is configured as the concatenation of control and data streams: 
+
+[lang_tag ]
+
+| {z }
+
+> 1 token
+
+[transcript ]
+
+| {z }
+
+> text tokens
+
+[ref_audio ]
+
+| {z }
+
+> voice prompt
+
+[target_audio ]
+
+| {z }
+
+> partially masked
+
+(1) where auxiliary control tokens and sequence de-limiters are omitted for brevity (Zhu et al., 2026). Based on this prefix, the model predicts vocabulary logits for the masked regions. To maximize speech naturalness and text adherence, OmniVoice utilizes Classifier-Free Guidance (CFG) (Ho and Salimans, 2021) via a two-pass conditional and unconditional inference step. Standard CFG at scale γ combines these logits as: 
+
+˜l = csrc + γ (csrc − u), (2) where csrc represents the primary language-conditioned logit and u denotes the unconditional logit where the prefix tokens are entirely dropped. However, pretrained cross-lingual frameworks inherently suffer from cross-lingual accent leakage during intra-utterance code-switching (CS) setups comprising a matrix carrier (primary language) and a foreign embedded phrase . When conditioned on a single global language tag, the standard guid-ance scale γ in Eq. 2 uniformly biases every acous-tic frame toward csrc , aggressively flattening the em-bedded phrase’s accent into the matrix carrier and collapsing localized phrase-foreignness. To circum-vent this limitation without fine-tuning, we intro-duce a third, parallel phrase language-conditioned logit (cphr ) that swaps the input language tag to match the embedded phrase, enabling independent accent steering. The full algebraic integration of 
+
+cphr is detailed in Sec. 3.4. 
+
+3.2 Phrase Localization via Self-Attention 
+
+To apply localized foreignness control, we dy-namically extract a per-frame binary mask m ∈{0, 1}Nframes over the target acoustic sequence dur-ing the forward pass, bypassing the need for auxil-iary alignment models (Fig. 2(a)). Specifically, for each generated acoustic frame a, we monitor the self-attention weights within the decoder layers and isolate the text token index receiving the maximum weight via an argmax operation. If this argmax to-ken falls within the character span of the embedded phrase, we set m[a] = 1 ; otherwise, m[a] = 0 .To determine the optimal layers for this track-ing, we analyze a typologically distinct pilot set comprising Korean ( KSS ) (Park, 2018) and English (LJSpeech ) (Ito and Johnson, 2017) utterances, which mitigates script-specific bias and isolates domain-agnostic alignment traits. As illustrated in Fig. 3, our empirical layer-wise probing reveals two critical network properties: alignment track-ing spikes sharply and exclusively within the mid-decoder layers (Fig. 3(a)), and a multi-layer ensem-ble of {L8, L 12 } combined with head-wise max-pooling consistently maximizes the worst-case boundary recall across both domains (Fig. 3(b)). 0 4 8 12 16 20 24 27                
+
+> Attention layer index
+> 0.0 0.1 0.2 0.3 0.4 0.5
+> Phrase recall
+> layer 8 layer 12
+> (a) Single-layer probe
+> LJSpeech (en) KSS (ko)
+> 0.40 0.42 0.44 0.46 0.48
+> Phrase recall
+> {8,9} max {7,8,9,12} max {8,12} mean {8,9,12,13} max {7,8,12} max {8,12,13} max {8,9,12} max {8,12} max
+> Layer ensemble + head reduction #8 #7 #6 #5 #4 #3 #2 #1
+> (b) Multi-layer ensemble probe
+> en ko min(en, ko)
+
+Figure 3: Attention probe exploration on the KSS 
+
+and LJSpeech pilot sets. (a) Single-layer probe: Re-call across 28 decoder layers, showing sharp, language-agnostic alignment tracking spikes at L8 and L12 . (b) Multi-layer ensemble: Comparison of top configura-tions and head reductions. The Rank-1 setup ( {L8, L 12 }
+
+max, highlighted in yellow) maximizes worst-case boundary recall, denoted by the rightmost joint min-imum ( min( en , ko ), green diamond). 
+
+Asymmetric Alignment Error Tolerance. The selection of our attention configuration is governed by a stark precision-recall asymmetry inherent to localized steering. A false negative (recall loss) is catastrophic: any missed frame within the embed-ded phrase region defaults to the matrix accent, trig-gering an irreversible phrase-foreignness collapse. Conversely, a false positive (precision loss) is be-nign, as accidental steering over the matrix carrier region is easily overridden by the dominant textual context of the surrounding matrix carrier language tokens. Furthermore, since self-attention patterns dynamically shift across generation timesteps, any transient alignment errors are naturally smoothed out and corrected over the course of the iterative denoising process. This asymmetric operational tolerance justifies prioritizing inclusive boundary coverage over tight precision, directly motivating the explicit mask refinement strategies in Sec. 3.3. 
+
+3.3 Mask Refinement 
+
+While the raw argmax mask msrc , obtained by ap-plying primary language-conditioning to the mask 
+
+m from Sec. 3.2, is highly precise near the center of the embedded phrase, it tends to be conservative at the boundaries. Based on the asymmetric alignment error tolerance (Sec. 3.2), we introduce two zero-overhead refinement strategies to aggressively max-imize mask recall (Fig. 2(b)): we sequence these operations by first computing a dual-tag union and subsequently applying a margin dilation. 
+
+Dual-Tag Mask Union. During inference, our framework computes self-attention tensors for multiple conditional logits at once. The standard matrix-conditioned logit yields the mask msrc us-ing the original matrix carrier tag, whereas the phrase language-conditioned logit substitutes it with the embedded phrase tag to compute an alter-native mask mphr via the same argmax procedure in Sec. 3.2. Because switching the global language token slightly shifts the self-attention alignment tracks at the boundaries, we merge these comple-mentary profiles via an elementwise logical union: 
+
+mXU = msrc ∨ mphr . (3) This union effectively captures boundary frames missed by either individual tag path. Since both attention tensors are already computed during the parallel conditional forward logits, this refinement introduces no additional computational overhead. 
+
+Margin Dilation. To account for residual bound-ary frames after union, we subsequently apply a symmetric graded dilation to the union mask. For 
+
+s = 1 , . . . , k we expand the current mask to its ±s-frame neighborhood, so that the successive radii accumulate into a single max-filter of triangular radius: 
+
+m[a] = max 
+
+> |δ|≤ rk
+
+mXU [a + δ],rk =
+
+> k
+
+X
+
+> s=1
+
+s = k(k + 1) 2 .
+
+(4) Empirically, k = 4 , an effective ±10 -frame win-dow, maximizes boundary coverage, denoted as 
+
+M4+XU . As in Fig. 2(b), the over-expanded false pos-itive zones resulting from this dilation inevitably spill over into the surrounding matrix carrier region. However, these transient boundary errors are safely insulated and naturally neutralized within the diffu-sion model’s iterative denoising buffer, preserving global matrix carrier naturalness while unlocking unconstrained local foreignness. 
+
+3.4 Language-Contrastive Guidance 
+
+Given the refined binary frame mask m, we intro-duce a position-wise guidance formulation to guide the logit at each denoising step. We first consider an intuitive baseline framework, termed Swap , which assigns the phrase-conditioned logit cphr inside the masked acoustic regions ( m[a] = 1 ) and defaults to the matrix-conditioned logit csrc outside them (m[a] = 0 ). Incorporating this routing into the standard CFG layout yields: 
+
+˜lswap = ˜ c + γ (˜ c − u), (5) where ˜c = (1 −m) csrc +m c phr . Being conceptually straightforward, Swap introduces native phonetics to offer accent improvements. However, its capacity to inject a distinct foreign accent remains inherently constrained. Because the global acoustic and textual context is dominated by the matrix carrier, a more flexible control mecha-nism is required to amplify the language-specific guidance within the localized embedded phrase re-gion. To rectify this architectural limitation, we algebraically decompose Eq. 5 by expanding ˜c:
+
+˜lswap = [ csrc + γ(csrc − u) ] 
+
+| {z } 
+
+> Baseline (Standard Global CFG)
+
++ m (1 + γ)
+
+| {z }
+
+> Implicit scale
+
+(cphr − csrc ). (6) Eq. 6 reveals that Swap is mathematically equiva-lent to maintaining the standard matrix-language CFG globally, while injecting a localized correc-tive vector pointing in the direction of (cphr − csrc ),which represents the direct cross-lingual contrast between the two language conditions. Crucially, however, Swap rigidly couples the magnitude of this contrastive injection to the global text guidance scale via the fixed coefficient (1 + γ).To break this rigid coupling and enable cus-tomizable accent enforcement over the target acoustic segments, we propose Phrase-Localized Language-Contrastive Guidance (LCG) . We sub-stitute the coupled implicit scale with an indepen-dent control parameter λ:
+
+˜lLCG = [ csrc + γ (csrc − u) ] + m λ (cphr − csrc ).
+
+(7) As in Fig. 2(c), LCG mathematically decouples the language-steering force from the global text guid-ance scale γ. By routing the contrastive direction 
+
+(cphr − csrc ) through an m-gated localized steering Linguistic Accuracy & Accent Pronunciation Acoustic Quality & Speaker Consistency                                                                                                                                                                                                                   
+
+> MER ↓LA e↑LID e↑UTMOS ↑SIM ↑SIM m↔e↑
+> Language Pair base ours base ours base ours base ours base ours base ours EN →JA 0.623 0.403 0.000 0.580 0.043 0.900 4.450 4.060 0.960 0.941 0.895 0.890 JA →EN 0.312 0.233 0.816 0.906 0.664 0.807 3.270 3.280 0.977 0.973 0.977 0.977 EN →KO 0.337 0.111 0.494 0.887 0.585 0.993 4.370 3.710 0.949 0.926 0.842 0.833 KO →EN 0.385 0.371 0.592 0.718 0.355 0.486 3.290 3.340 0.976 0.975 0.974 0.972 DE →JA 0.746 0.460 0.011 0.485 0.073 0.632 3.570 3.520 0.975 0.970 0.979 0.975 JA →DE 0.742 0.655 0.333 0.644 0.423 0.712 3.070 2.990 0.974 0.972 0.980 0.982 DE →KO 0.525 0.320 0.029 0.578 0.073 0.721 3.530 3.400 0.979 0.977 0.983 0.980 KO →DE 0.555 0.499 0.182 0.350 0.188 0.390 3.210 3.160 0.975 0.975 0.976 0.975 FR →JA 0.747 0.607 0.005 0.130 0.026 0.191 2.960 2.890 0.985 0.982 0.988 0.986 JA →FR 0.683 0.644 0.203 0.468 0.378 0.687 3.060 3.050 0.972 0.974 0.980 0.981 FR →KO 0.534 0.460 0.111 0.409 0.140 0.473 2.890 2.830 0.984 0.983 0.987 0.987 KO →FR 0.576 0.572 0.022 0.064 0.017 0.063 3.260 3.190 0.975 0.976 0.973 0.975
+> 12-dir Overall 0.564 0.445 0.233 0.518 0.247 0.588 3.411 3.285 0.973 0.969 0.961 0.959
+> ∆(Ours −Base) −0.119 +0 .285 +0 .341 −0.126 −0.004 −0.002
+
+Table 1: Comprehensive Headline Comparison. Performance of the vanilla unguided baseline ( base ) versus our final configuration ( M4+XU , λ = 7 ) across all twelve code-switching directions. The final block summarizes the macro-average performance across the entire 12-direction evaluation corpus. 
+
+switch, LCG directly scales the phonetic steering intensity over the masked frames. Adjusting λ un-locks a significantly stronger, independent guiding effect compared to the coupled Swap framework, driving the gated frames toward the authentic native pronunciation of the embedded phrase language without destabilizing the global matrix carrier. 
+
+4 Experimental Setup 
+
+4.1 Datasets & Evaluation Corpora 
+
+To benchmark CS TTS, we construct a bal-anced, 1,200-utterance synthetic CS evalua-tion corpus generated via a pipeline utilizing 
+
+gpt-5.5-2026-04-23 with xhigh reasoning effort. The corpus spans five languages (English, Ger-man, French, Japanese, Korean) perfectly balanced across twelve directional tasks (six Latin ↔ JK language pairs evaluated bi-directionally, 100 utter-ances each). Each utterance contains 3–5 dense, technical, or literary embedded phrases (mean 
+
+∼3.6, ∼6 words, ∼35 characters) spanning 18 do-mains and 6 distinct stylistic registers. To ensure speaker continuity and isolate accent leakage from identity artifacts, each directional task is synthe-sized using a single fixed, high-fidelity monolin-gual matrix carrier reference voice prompt system-atically selected from standard speech repositories. 
+
+4.2 Comparison Systems 
+
+We evaluate our framework along three architec-tural axes that map to our proposed mechanics: 
+
+(i) Guidance Strength. We evaluate the impact of the contrastive scaling factor λ in Eq. 7. Fixing the global text guidance scale at its default value (γ = 2 .0), we sweep λ ∈ { 0, 3, 5, 7, 9, 11 , 13 } to track localized accent amplification, where λ = 0 
+
+corresponds to the unguided Baseline (no localized accent control), while λ = 3 matches the coupled 
+
+Swap baseline (Eq. 6). 
+
+(ii) Mask Refinement. Holding guidance at 
+
+λ = 7 , we evaluate the spatial precision-recall grid by sweeping combinations of morphological margin expansion k ∈ { 0, 2, 4} (effective radii 
+
+rk ∈ { 0, 3, 10 }) and the dual-tag logical union 
+
+∈ { off , on } (Sec. 3.3). 
+
+(iii) Mask Source. We benchmark our run-time, module-free Probed Attention Mask (with 
+
+M4+XU refinement) against an offline, oracle 
+
+ForcedAligner-derived Mask extracted via an auxiliary Qwen3-ForcedAligner-0.6B (Shi et al., 2026). 
+
+4.3 Evaluation Metrics 
+
+Acoustic segments are indexed via Qwen3-ForcedAligner strictly for region-aware evaluation, where subscripts m and e denote the segmented matrix carrier and embedded phrase regions, re-spectively. 
+
+Objective Metrics. We track alignment and speaker naturalness using: (1) Mixed Error Rate 0.0 0.2 0.4 0.6 0.8 1.0        
+
+> Score
+> Swap
+> (a) Localized accent generation
+> MER
+> LA e
+> LID e
+> 0(no_CS) 357911 13
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> LID e
+> (b) Core quality trade-off (Pareto knee)
+> LID e(foreign-lang. control)
+> UTMOS (naturalness)
+> 12345
+> UTMOS
+
+Figure 4: Localized guidance parameter sweep on the M4+XU configuration. Panel (a) captures the satura-tion effect of the native pronunciation metrics beyond 
+
+λ = 7 . Panel (b) details the trade-off between foreign accent enforcement ( LID e) and global speech natural-ness ( UTMOS ), maximizing their Pareto envelope at 
+
+λ = 7 .
+
+(MER m, MER e, MER ) (Lyu et al., 2010; Ugan et al., 2025) via Whisper-large-v3 (Radford et al., 2023) with language-forced decoding, computed as Word Error Rate (WER) for Latin scripts and Character Error Rate (CER) for Japanese and Korean embedded phrases; (2) Language Accuracy ( LA e) and Identification Confidence (LID e) over isolated embedded audio clips, where 
+
+LA e tracks the ratio of segments where Whis-per correctly transcribes the target embedded phrase language script during unconstrained de-coding, while LID e measures Whisper’s language posterior probability; (3) Speaker Similarity via 
+
+WavLM-base-plus-sv (Chen et al., 2022), eval-uating reference-to-output similarity ( SIM ) and intra-utterance matrix-to-embedded consistency (SIM m↔e); and (4) Predicted utterance naturalness via UTMOS (Saeki et al., 2022). 
+
+Subjective Metrics. To validate actual hu-man perceptual performance, we conduct crowd-sourced listening tests tracking two distinct axes: (1) Global Quality MOS over complete utter-ances to verify overall acoustic naturalness, and (2) Phrase Nativeness AB Preference over iso-lated segments to evaluate the perceived authentic-                                 
+
+> Metric base gt (Oracle) M4+XU (Ours)
+> MER ↓0.564 0.472 0.445
+> MER m(Matrix) ↓0.539 0.525 0.505
+> MER e(Embed.) ↓0.548 0.365 0.329
+> LA e↑0.233 0.459 0.518
+> LID e↑0.247 0.526 0.588
+> UTMOS ↑3.411 3.333 3.285 SIM ↑0.973 0.972 0.969
+
+Table 2: Mask Source and Boundary Recall Analysis. 
+
+Comparative evaluation at λ = 7 between the unguided baseline ( base ), the precision-anchored offline forced-alignment oracle ( gt ), and our method ( M4+XU ). Metrics represent the macro-average over all twelve directional language pairs. 
+
+ity of the target foreign accent. The comprehensive crowdsourcing setup, step-by-step filtering proto-cols, task instructions, and deep methodological rationales are detailed in Appendix A. 
+
+5 Results 
+
+We evaluate our framework across four dimensions: macro headline performance (Sec. 5.1), spatial masking boundaries (Sec. 5.2), localized steering scaling regimes (Sec. 5.3), and human perceptual preferences (Sec. 5.4). 
+
+5.1 Headline Comparison 
+
+Table 1 details performance across all twelve cross-lingual tasks. Averaged globally ( 12-dir Over-all ), our proposed LCG (λ = 7 ) dramatically re-duces the Mixed Error Rate ( MER ) from 0.564 
+
+to 0.445 while more than doubling the embedded phrase language accuracy ( LA e = 0 .233 → 0.518 )and boosting identification confidence ( LID e =0.247 → 0.588 ). Crucially, this localized for-eign accent injection incurs negligible degrada-tion to global speaker identity preservation ( SIM )and intra-utterance speaker consistency ( SIM m↔e). Per-direction, the cross-lingual steering force is most pronounced in English-matrix configurations (EN → JA/KO), effectively countering the Base-line ’s tendency to forcefully assimilate foreign in-serts into the dominant matrix accent. 
+
+5.2 Spatial Localization: Mask Source and Refinement 
+
+We justify our spatial localization design by ana-lyzing mask alternatives (Table 2) and refinement configurations (Table 3) at a fixed scale of λ = 7 .
+
+Mask Source Paradox. As in Table 2, our dy-namic LCG (λ = 7 ) outperforms the precision-Setup MER ↓ LA e ↑ LID e ↑ UTMOS ↑                                         
+
+> no_CS (Baseline) 0.564 0.233 0.247 3.411
+> k= 0 (base )0.455 0.499 0.568 3.325
+> k= 0 +XU 0.452 0.493 0.570 3.329
+> k= 2 0.455 0.514 0.587 3.305
+> k= 2 +XU 0.447 0.517 0.582 3.304
+> k= 4 0.450 0.509 0.584 3.288
+> k= 4+ XU (Ours) 0.445 0.518 0.588 3.285
+
+Table 3: Mask Refinement Ablation Study. Perfor-mance comparison across varying margin expansion widths ( k ∈ { 0, 2, 4}) and the integration of the dual-tag logical union ( XU ) at a fixed guidance scale of λ = 7 .Metrics represent the macro-average over all twelve di-rectional language pairs. 
+
+heavy offline forced-alignment oracle ( gt ), achiev-ing lower linguistic errors ( MER = 0.445 vs. 
+
+0.472 ) and superior script capture ( LA e = 0 .518 
+
+vs. 0.459 ). This paradox confirms our asymmet-ric error tolerance hypothesis (Sec. 3.2). While offline forced-alignment truncates boundaries to maximize precision, it sacrifices transitional frame recall at code-switching junctions, triggering local-ized pronunciation collapse. Our refined attention mask achieves the optimal boundary recall balance without external model overhead. 
+
+Refinement Ablation. Table 3 tracks the spa-tial optimization trajectory. Progressing from a raw argmax mask ( k = 0 ) to our dilated setup (k = 4 + XU ) minimizes linguistic tracking errors (MER = 0 .455 → 0.445 ). Integrating the dual-tag logical union ( XU ) acts as a zero-overhead bound-ary stabilizer that accommodates text-alignment track shifts across parallel tag conditions, cement-ing M4+XU as our optimal configuration. Notably, performance is largely insensitive to the exact ra-dius: widening rk from 3 to 10 moves MER by only 0.002 and LID e by 0.006 , which directly sup-ports our claim that the iterative denoising process absorbs over-dilation rather than propagating it into the matrix carrier. 
+
+5.3 Localized Guidance Intensity ( λ-Sweep) 
+
+We analyze the impact of the contrastive scaling factor by sweeping λ ∈ { 0, 3, 5, 7, 9, 11 , 13 } on the M4+XU gating foundation (Fig. 4). As mapped in (a), foreign accent metrics ( LA e, LID e) show a dis-tinct logarithmic saturation trend, rising sharply up to λ = 7 before flattening. Conversely, (b) reveals that predicted speech naturalness ( UTMOS ) under-goes linear degradation as λ escalates, with a sharp                  
+
+> Metric / System Overall
+> Global Quality MOS (5-point)
+> Base ( λ= 0 )4.007 ±0.110
+> Swap ( λ= 3 )3.967 ±0.092
+> LCG (Ours, λ= 7 )3.931 ±0.092
+> Phrase Nativeness AB Pref. (Ours vs. Base)
+> Ours wins 292 (59.8%)
+> Base wins 95 (19.5%) Tie 101 (20.7%)
+
+Table 4: Human perceptual evaluation results for global speech quality (5-point MOS ↑) and local phrase nativeness preference (AB Test ↑). The preference rate reported in the text excludes ties. 
+
+drop-off past λ = 7 . Notably, setting λ = 3 math-ematically replicates the coupled Swap baseline, confirming that decoupled scaling is mandatory for unconstrained steering. The functional optimiza-tion knee sits cleanly at λ = 7 , maximizing foreign accent enforcement while preserving global acous-tic naturalness within acceptable thresholds, which is further validated as highly manageable through our informal listening tests. 
+
+5.4 Human Perceptual Evaluation 
+
+We conduct two human listening tests via Amazon Mechanical Turk over JA → EN and KO → EN directions to verify our automated proxies with verified native English validators (Table 4), where detailed results are shown in Appendix A. 
+
+Phrase Nativeness Preference. In blind forced-choice preference tests on isolated embedded acoustic segments, native speakers overwhelmingly favored our framework over the unguided Baseline 
+
+(λ = 0 ), yielding a decisive overall preference rate of 75.5% across 488 ratings ( 75.7% for JA → EN and 75.2% for KO → EN). This confirms that inde-pendent language-contrastive scaling successfully delivers authentic native pronunciation to natives. 
+
+Global Quality MOS. Complete utterance eval-uations on a 5-point scale demonstrate a highly stable human naturalness profile ( 3.931 ± 0.092 
+
+for Ours vs. 4.007 ± 0.110 for Baseline), with a numerically small drop (< 0.08), with overlapping 95% CIs. This crucial perceptual gate clarifies that while data-driven MOS estimators (UTMOS) pe-nalize code-switched acoustic transitions as out-of-distribution (OOD) anomalies, human ears perceive the contextual flow as natural, verifying that LCG 
+
+safely bypasses accent leakage without global qual-ity degradation. 6 Conclusion 
+
+In this paper, we introduced a training- and module-free inference framework to mitigate cross-lingual accent leakage in phrase-level code-switching. By extracting dynamic masks from self-attention lay-ers and introducing Phrase-Localized Language-Contrastive Guidance (LCG), our method suc-cessfully decouples localized accent control from global text guidance without any model retraining. Objective and human evaluations on a balanced 1,200-utterance 12-direction benchmark confirm that LCG robustly enforces native accents. Cru-cially, our expanded masking aligns naturally with the iterative denoising process of discrete diffusion models to absorb minor boundary errors, offering a light, zero-training-cost, and scalable alternative for controllable cross-lingual speech synthesis. 
+
+Acknowledgments 
+
+This work was supported by the National Research Foundation of Korea (NRF) grant funded by the Korea government (MSIT) [No. 2022R1A3B1077720], the BK21 FOUR program of the Education and Research Program for Fu-ture ICT Pioneers, Seoul National University in 2024, Institute of Information & Communications Technology Planning & Evaluation (IITP) grant funded by the Korea government (MSIT) [NO. RS-2021-II211343, Artificial Intelligence Graduate School Program (Seoul National University), NO. RS-2022-II220959], Samsung Electronics Co., Ltd. (IO231120-07949-01 and Mobile eXperience(MX) Business), and NVIDIA Academic Grant Program. 
+
+Limitations 
+
+While our framework enables training-free, inference-time accent control for code-switching TTS, several limitations remain. First, because our primary objective centers on precise diagnostic evaluation rather than large-scale dataset scaling, our evaluation corpus is relatively constrained in absolute volume, comprising 1,200 utterances. Furthermore, while this benchmark cov-ers major high-resource language pairs, its typo-logical and linguistic coverage is not exhaustive; consequently, the cross-lingual phonological trans-fer behavior of LCG within deeply low-resource or structurally divergent language families remains an open question. Second, the proposed framework is tightly cou-pled with discrete diffusion language model (DLM) backbones. While logit-level contrastive steering could empirically be applied to autoregressive (AR) speech generation models, whether such localized interventions would generalize robustly or con-versely exacerbate autoregressive error accumula-tion remains unverified, thereby bounding the im-mediate extensibility of our method to alternative model paradigms. Its inputs are also constrained: LCG requires the character span of the embedded phrase, which is often derivable automatically from Unicode script boundaries or a language identifier for same-script mixing, but must otherwise be sup-plied. Finally, our evaluation relies on synthetically au-thored code-switching scripts paired with monolin-gual reference voices. Although we implemented a two-stage pipeline to produce diverse topics and realistic stylistic registers, these synthetic text struc-tures may still deviate from organic real-world be-haviors. Appendix E partially addresses this by applying LCG to human-authored code-switching transcripts, where the same ordering holds as on our synthetic benchmark. The gains carry over to the single-word insertions that dominate natural code-switching, albeit with a narrower margin and noisier phrase-level measurements over such short segments. We therefore expect the method to re-main effective on real-world inputs, while its stabil-ity across the full diversity of spontaneous conver-sational code-switching may vary. Relatedly, such speech is often accented toward the matrix lan-guage, so native-like rendering can be viewed as a design target rather than a universal ideal; in our framework the degree of nativeness remains a per-application choice, as λ is continuous and λ = 0 
+
+recovers the baseline. 
+
+Ethical Considerations 
+
+While Phrase-Localized LCG significantly en-hances localized accent control for code-switching speech synthesis, we acknowledge the potential ethical implications regarding voice misuse and cultural representation. The capacity for precise, training-free foreign accent steering could theoret-ically be exploited by malicious actors to create highly deceptive multi-lingual deepfakes. Addition-ally, aggressive scaling of the contrastive vector ( λ)can inadvertently generate over-exaggerated pho-netic patterns or stereotypical accent caricatures that risk causing cultural insensitivity. References 
+
+Philip Anastassiou, Jiawei Chen, Jitong Chen, Yuanzhe Chen, Zhuo Chen, Ziyi Chen, Jian Cong, Lelai Deng, Chuang Ding, Lu Gao, Mingqing Gong, Peisong Huang, Qingqing Huang, Zhiying Huang, Yuanyuan Huo, Dongya Jia, Chumin Li, Feiya Li, Hui Li, and 27 others. 2024. Seed-tts: A family of high-quality versatile speech generation models. Preprint ,arXiv:2406.02430. Tim Brooks, Aleksander Holynski, and Alexei A. Efros. 2023. Instructpix2pix: Learning to follow image edit-ing instructions. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recog-nition (CVPR) , pages 18392–18402. Yuewen Cao, Songxiang Liu, Xixin Wu, Shiyin Kang, Peng Liu, Zhiyong Wu, Xunying Liu, Dan Su, Dong Yu, and Helen Meng. 2020. Code-switched speech synthesis using bilingual phonetic posteriorgram with only monolingual corpora. In ICASSP 2020 - 2020 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pages 7619–7623. Edresson Casanova, Kelly Davis, Eren Gölge, Görkem Göknar, Iulian Gulea, Logan Hart, Aya Aljafari, Joshua Meyer, Reuben Morais, Samuel Olayemi, and Julian Weber. 2024. XTTS: a Massively Multilingual Zero-Shot Text-to-Speech Model. In Interspeech 2024 , pages 4978–4982. Ke Chen, Zhihua Huang, Liang He, and Yonghong Yan. 2025a. Unitdiff: A unit-diffusion model for code-switching speech synthesis. IEEE Signal Processing Letters , 32:1051–1055. Ke Chen, Zhihua Huang, Liang He, and Yonghong Yan. 2025b. Zcs-cdiff: A zero-shot code-switching tts system with conformer-based diffusion model. In 
+
+ICASSP 2025 - 2025 IEEE International Confer-ence on Acoustics, Speech and Signal Processing (ICASSP) , pages 1–5. Ke Chen, Zhihua Huang, Kexin Lu, and Yonghong Yan. 2024. Cosdiff: Code-switching tts model based on a multi-task ddim. In 2024 IEEE International Confer-ence on Multimedia and Expo (ICME) , pages 1–6. Sanyuan Chen, Chengyi Wang, Zhengyang Chen, Yu Wu, Shujie Liu, Zhuo Chen, Jinyu Li, Naoyuki Kanda, Takuya Yoshioka, Xiong Xiao, Jian Wu, Long Zhou, Shuo Ren, Yanmin Qian, Yao Qian, Jian Wu, Michael Zeng, Xiangzhan Yu, and Furu Wei. 2022. Wavlm: Large-scale self-supervised pre-training for full stack speech processing. IEEE J. Sel. Top. Signal Process. , 16(6):1505–1518. Sanyuan Chen, Chengyi Wang, Yu Wu, Ziqiang Zhang, Long Zhou, Shujie Liu, Zhuo Chen, Yanqing Liu, Huaming Wang, Jinyu Li, Lei He, Sheng Zhao, and Furu Wei. 2025c. Neural codec language models are zero-shot text to speech synthesizers. IEEE Trans-actions on Audio, Speech and Language Processing ,33:705–718. Hyunjae Cho, Wonbin Jung, Junhyeok Lee, and Sang Hoon Woo. 2022. SANE-TTS: Stable And Natural End-to-End Multilingual Text-to-Speech. In 
+
+Interspeech 2022 , pages 1–5. Zhihao Du, Yuxuan Wang, Qian Chen, Xian Shi, Xiang Lv, Tianyu Zhao, Zhifu Gao, Yexin Yang, Changfeng Gao, Hui Wang, and 1 others. 2024. Cosyvoice 2: Scalable streaming speech synthesis with large lan-guage models. arXiv preprint arXiv:2412.10117 .Xiaoyu Fan, Huizhi Xie, Wei Zou, and Yunzhang Chen. 2026. Llada-tts: Unifying speech synthesis and zero-shot editing via masked diffusion modeling. Preprint ,arXiv:2603.26364. Yitian Gong, Botian Jiang, Yiwei Zhao, Yucheng Yuan, Kuangwei Chen, Yaozhou Jiang, Cheng Chang, Dong Hong, Mingshu Chen, Ruixiao Li, Yiyang Zhang, Yang Gao, Hanfu Chen, Ke Chen, Songlin Wang, Xiaogui Yang, Yuqian Zhang, Kexin Huang, ZhengYuan Lin, and 7 others. 2026. Moss-tts techni-cal report. Preprint , arXiv:2603.18090. Jonathan Ho and Tim Salimans. 2021. Classifier-free diffusion guidance. In NeurIPS 2021 Workshop on Deep Generative Models and Downstream Applica-tions .Keith Ito and Linda Johnson. 2017. The lj speech dataset. https://keithito.com/ LJ-Speech-Dataset/ .Zeqian Ju, Yuancheng Wang, Kai Shen, Xu Tan, De-tai Xin, Dongchao Yang, Eric Liu, Yichong Leng, Kaitao Song, Siliang Tang, Zhizheng Wu, Tao Qin, Xiangyang Li, Wei Ye, Shikun Zhang, Jiang Bian, Lei He, Jinyu Li, and sheng zhao. 2024. Naturalspeech 3: Zero-shot speech synthesis with factorized codec and diffusion models. In Forty-first International Conference on Machine Learning .Changhwan Kim. 2024. ClariTTS: Feature-ratio Nor-malization and Duration Stabilization for Code-mixed Multi-speaker Speech Synthesis. In Inter-speech 2024 , pages 3400–3404. Jaehyeon Kim, Sungwon Kim, Jungil Kong, and Sun-groh Yoon. 2020. Glow-tts: A generative flow for text-to-speech via monotonic alignment search. In 
+
+Advances in Neural Information Processing Systems ,volume 33, pages 8067–8077. Curran Associates, Inc. Jaehyeon Kim, Jungil Kong, and Juhee Son. 2021. Conditional variational autoencoder with adversarial learning for end-to-end text-to-speech. In Proceed-ings of the 38th International Conference on Machine Learning , volume 139 of Proceedings of Machine Learning Research , pages 5530–5540. PMLR. Goro Kobayashi, Tatsuki Kuribayashi, Sho Yokoi, and Kentaro Inui. 2020. Attention is not only a weight: Analyzing transformers with vector norms. In 
+
+Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP) ,pages 7057–7075, Online. Association for Computa-tional Linguistics. Matthew Le, Apoorv Vyas, Bowen Shi, Brian Karrer, Leda Sari, Rashel Moritz, Mary Williamson, Vimal Manohar, Yossi Adi, Jay Mahadeokar, and Wei-Ning Hsu. 2023. Voicebox: Text-guided multilingual uni-versal speech generation at scale. In Thirty-seventh Conference on Neural Information Processing Sys-tems .Haohe Liu, Zehua Chen, Yi Yuan, Xinhao Mei, Xubo Liu, Danilo Mandic, Wenwu Wang, and Mark D Plumbley. 2023. AudioLDM: Text-to-audio genera-tion with latent diffusion models. In Proceedings of the 40th International Conference on Machine Learn-ing , volume 202 of Proceedings of Machine Learning Research , pages 21450–21474. PMLR. Nan Liu, Shuang Li, Yilun Du, Antonio Torralba, and Joshua B Tenenbaum. 2022. Compositional visual generation with composable diffusion models. In 
+
+Computer Vision–ECCV 2022: 17th European Con-ference, Tel Aviv, Israel, October 23–27, 2022, Pro-ceedings, Part XVII , pages 423–439. Springer. Dau-Cheng Lyu, Tien-Ping Tan, Eng Siong Chng, and Haizhou Li. 2010. SEAME: a Mandarin-English code-switching speech corpus in south-east asia. In 
+
+Interspeech 2010 , pages 1986–1989. Michael McAuliffe, Michaela Socolof, Sarah Mihuc, Michael Wagner, and Morgan Sonderegger. 2017. Montreal Forced Aligner: Trainable Text-Speech Alignment Using Kaldi. In Interspeech 2017 , pages 498–502. Carol Myers-Scotton. 1993. Duelling Languages: Grammatical Structure in Codeswitching . Oxford University Press. Frederico S. Oliveira, Edresson Casanova, Arnaldo Can-dido Junior, Anderson S. Soares, and Arlindo R. Galvão Filho. 2023. Cml-tts: A multilingual dataset for speech synthesis in low-resource languages. In 
+
+Text, Speech, and Dialogue , pages 188–199, Cham. Springer Nature Switzerland. Gio Paik, Yongbeom Kim, Soungmin Lee, Sangmin Ahn, and Chan Woo Kim. 2026. HiKE: Hierarchi-cal evaluation framework for Korean-English code-switching speech recognition. In Findings of the Association for Computational Linguistics: EACL 2026 , pages 673–681, Rabat, Morocco. Association for Computational Linguistics. Giridhar Pamisetty and Atul Shree. 2026. Ipacue-tts: Integrating prosody and articulatory cues in condi-tional flow matching for multilingual zero-shot tts. In ICASSP 2026 - 2026 IEEE International Confer-ence on Acoustics, Speech and Signal Processing (ICASSP) , pages 18642–18646. Kyubyong Park. 2018. KSS Dataset: Korean Single Speaker Speech Dataset. https: //www.kaggle.com/datasets/bryanpark/ korean-single-speaker-speech-dataset .Kyubyong Park and Thomas Mulc. 2019. CSS10: A Collection of Single Speaker Speech Datasets for 10 Languages. In Interspeech 2019 , pages 1566–1570. Puyuan Peng, Po-Yao Huang, Shang-Wen Li, Abdelrah-man Mohamed, and David Harwath. 2024. Voice-Craft: Zero-shot speech editing and text-to-speech in the wild. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Vol-ume 1: Long Papers) , pages 12442–12462, Bangkok, Thailand. Association for Computational Linguistics. Chunyu Qiang, Jianhua Tao, Ruibo Fu, Zhengqi Wen, Jiangyan Yi, Tao Wang, and Shiming Wang. 2021. Text enhancement for paragraph processing in end-to-end code-switching tts. In 2021 12th International Symposium on Chinese Spoken Language Processing (ISCSLP) , pages 1–5. Alec Radford, Jong Wook Kim, Tao Xu, Greg Brock-man, Christine Mcleavey, and Ilya Sutskever. 2023. Robust speech recognition via large-scale weak su-pervision. In Proceedings of the 40th International Conference on Machine Learning , volume 202 of 
+
+Proceedings of Machine Learning Research , pages 28492–28518. PMLR. Takaaki Saeki, Detai Xin, Wataru Nakata, Tomoki Koriyama, Shinnosuke Takamichi, and Hiroshi Saruwatari. 2022. UTMOS: UTokyo-SaruLab Sys-tem for VoiceMOS Challenge 2022. In Interspeech 2022 , pages 4521–4525. Guillaume Sanchez, Honglu Fan, Alexander Spangher, Elad Levi, Pawan Sasanka Ammanamanchi, and Stella Biderman. 2023. Stay on topic with classifier-free guidance. Preprint , arXiv:2306.17806. Dazhong Shen, Guanglu Song, Zeyue Xue, Fu-Yun Wang, and Yu Liu. 2024. Rethinking the Spatial Inconsistency in Classifier-Free Diffusion Guidance . In 2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 9370–9379, Los Alamitos, CA, USA. IEEE Computer Society. Jonathan Shen, Ruoming Pang, Ron J. Weiss, Mike Schuster, Navdeep Jaitly, Zongheng Yang, Zhifeng Chen, Yu Zhang, Yuxuan Wang, Rj Skerrv-Ryan, Rif A. Saurous, Yannis Agiomvrgiannakis, and Yonghui Wu. 2018. Natural tts synthesis by con-ditioning wavenet on mel spectrogram predictions. In 2018 IEEE International Conference on Acous-tics, Speech and Signal Processing (ICASSP) , pages 4779–4783. Xian Shi, Xiong Wang, Zhifang Guo, Yongqi Wang, Pei Zhang, Xinyu Zhang, Zishan Guo, Hongkun Hao, Yu Xi, Baosong Yang, Jin Xu, Jingren Zhou, and Jun-yang Lin. 2026. Qwen3-asr technical report. arXiv preprint arXiv:2601.21337 .Sunayana Sitaram, Khyathi Raghavi Chandu, Sai Kr-ishna Rallabandi, and Alan W Black. 2020. A survey of code-switched speech and language processing. 
+
+Preprint , arXiv:1904.00784. Enes Yavuz Ugan, Ngoc-Quan Pham, Leonard Bärmann, and Alex Waibel. 2025. Pier: A novel metric for eval-uating what matters in code-switching. In ICASSP 2025-2025 IEEE International Conference on Acous-tics, Speech and Signal Processing (ICASSP) , pages 1–5. IEEE. Yuancheng Wang, Haoyue Zhan, Liwei Liu, Ruihong Zeng, Haotian Guo, Jiachen Zheng, Qiang Zhang, Xueyao Zhang, Shunsi Zhang, and Zhizheng Wu. 2025. MaskGCT: Zero-shot text-to-speech with masked generative codec transformer. In The Thir-teenth International Conference on Learning Repre-sentations .Yuxuan Wang, R.J. Skerry-Ryan, Daisy Stanton, Yonghui Wu, Ron J. Weiss, Navdeep Jaitly, Zongheng Yang, Ying Xiao, Zhifeng Chen, Samy Bengio, Quoc Le, Yannis Agiomyrgiannakis, Rob Clark, and Rif A. Saurous. 2017. Tacotron: Towards End-to-End Speech Synthesis. In Interspeech 2017 , pages 4006– 4010. Peng Xie, Xingyuan Liu, Yequan Bie, Tsz Wai Chan, Yangqiu Song, Yang Wang, Hao Chen, and Kani Chen. 2026. Switchlingua: The first large-scale mul-tilingual and multi-ethnic code-switching dataset. In 
+
+The Thirty-ninth Annual Conference on Neural In-formation Processing Systems Datasets and Bench-marks Track .Jing Xu, Daxin Tan, Jiaqi Wang, and Xiao Chen. 2024. Enhancing code-switched text-to-speech synthesis capability in large language models with only mono-lingual corpora. 2025 IEEE Automatic Speech Recog-nition and Understanding Workshop (ASRU) , pages 1–8. Rixi Xu, Qingyu Liu, Haitao Li, Yushen Chen, Zhikang Niu, Yunting Yang, Jian Zhao, Ke Li, Berrak Sis-man, Qinyuan Cheng, Xipeng Qiu, Kai Yu, and Xie Chen. 2026. X-voice: Enabling everyone to speak 30 languages via zero-shot cross-lingual voice cloning. 
+
+arXiv preprint arXiv:2605.05611 .Huai-Zhe Yang, Chia-Ping Chen, Shan-Yun He, and Cheng-Ruei Li. 2024. Bilingual and Code-switching TTS Enhanced with Denoising Diffusion Model and GAN. In Interspeech 2024 , pages 4938–4942. Lvmin Zhang, Anyi Rao, and Maneesh Agrawala. 2023a. Adding conditional control to text-to-image diffusion models. In Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) , pages 3836–3847. Ziqiang Zhang, Long Zhou, Chengyi Wang, Sanyuan Chen, Yu Wu, Shujie Liu, Zhuo Chen, Yanqing Liu, Huaming Wang, Jinyu Li, Lei He, Sheng Zhao, and Furu Wei. 2023b. Speak foreign languages with your own voice: Cross-lingual neural codec language mod-eling. arXiv. John Zheng and Farhad Maleki. 2026. Selective classifier-free guidance for zero-shot text-to-speech. 
+
+Preprint , arXiv:2509.19668. Han Zhu, Lingxuan Ye, Wei Kang, Zengwei Yao, Liyong Guo, Fangjun Kuang, Zhifeng Han, Weiji Zhuang, Long Lin, and Daniel Povey. 2026. Om-nivoice: Towards omnilingual zero-shot text-to-speech with diffusion language models. arXiv preprint arXiv:2604.00688 .A Additional Details on Human Evaluation 
+
+A.1 Crowdsourcing Setup and Evaluation Protocols 
+
+All human perceptual annotations were crowd-sourced via the Amazon Mechanical Turk (AMT) platform, strictly localized to native English-proficient geographic regions. Individual tasks were purposefully structured to minimize rater fa-tigue, utilizing a single-stage validation filter exe-cuted at the individual HIT level: any submission containing an incorrect answer on the embedded quality-check item was systematically discarded from our final post-filtered analysis. Given that the AMT workforce predominantly consists of na-tive English speakers, our human evaluation was selectively conducted on English-inclusive code-switched utterances. The complete worker-facing instructions for both tasks are shown in Fig. 5. 
+
+Global Quality MOS Protocol. Raters were di-rected to listen to all four audio samples associated with a given code-switched text prompt (represent-ing Baseline, Swap, LCG, and a low-quality an-chor) and rate each file on a 5-point scale ( Excellent / Good / Fair / Poor / Bad ). The judgment criteria mandated prioritizing overall speech naturalness, prosodic continuity, and the absence of processing anomalies. A total of N = 275 valid full-utterance HITs across 199 unique native English workers were secured after filtering. 
+
+Phrase Nativeness AB Protocol. To strictly iso-late phonetic accent steering from token generation failures, the comparison pairs were curated exclu-sively from the oracle subset where all candidate configurations achieved perfect language accuracy (LA e = 1 ). Workers were presented with a target English text phrase and two short isolated audio segments (A and B) both intended to express that phrase. Raters answered the forced-choice ques-tion: “Which clip sounds more like a native En-glish speaker?” utilizing three response options (Clip A / Clip B / Tie ). Instructions clarified that both segments share identical lexical text, isolating the judgment to accent authenticity rather than con-tent. We secure 122 valid HITs from 101 unique workers, translating to 488 total pair-level prefer-ence ratings. 
+
+Worker Compensation and Research Disclosure. 
+
+The introductory dashboard explicitly disclosed to all participants that the audio assets were syn-thetic samples generated for a cross-lingual code-switching text-to-speech research study, and that the collected annotations would be utilized strictly to evaluate perceptual quality and accent native-ness. Each assignment was compensated at a rate of $0.10–$0.20 per HIT based on task complexity, where an expected completion time is 30–120 sec-onds per task. Participation in any HIT was entirely voluntary, and no demographic attributes or person-ally identifiable information (PII) were collected at any stage of the study. 
+
+A.2 Methodological Rationale for the Two-Track Design 
+
+Evaluating code-switching (CS) speech synthesis via a single global naturalness metric often con-flates distinct perceptual dimensions. To resolve this, we implement the decoupled, two-track sub-jective evaluation protocol detailed above, driven by two primary methodological requirements: 
+
+(i) Quality MOS supplements an unreliable au-tomatic proxy. Automatic naturalness estima-tors such as UTMOS (Saeki et al., 2022) are trained predominantly on monolingual, single-language speech distributions. Consequently, they tend to treat the dense, localized acoustic and pho-netic transitions characteristic of intra-utterance code-switching as out-of-distribution (OOD) ar-tifacts, frequently penalizing well-rendered for-eign phrases as synthesis anomalies. Conducting a complete-utterance MOS with native listeners al-lows us to cross-verify that scaling up our localized accent control vector ( λ = 7 ) does not inadver-tently compromise global prosodic flow, transition smoothness, or carrier speaker identity. 
+
+(ii) AB Test on the LA e = 1 subset isolates the perceptual signal of accent control. An abso-lute category rating (MOS) on isolated phrase seg-ments inherently conflates two orthogonal axes: 
+
+generation stability (i.e., whether the system suc-cessfully synthesized intelligible speech tokens) and phonetic nativeness (i.e., whether the realized pronunciation sounds authentic to native ears). By pre-screening our evaluation set to an oracle sub-set where all comparison systems achieve perfect language accuracy ( LA e = 1 ), we effectively elimi-nate the generation success variance. Forced-choice AB testing over this cleansed distribution then probes exclusively the residual accent-nativeness Direction System Configuration Valid HITs ( N ) Quality MOS 95% CI                                            
+
+> JA →EN (Raters = 111) Vanilla CFG ( λ= 0 )136 3.787 ±0.162 Swap Baseline ( λ= 3 )136 3.728 ±0.130 LCG (Ours, λ= 7 )136 3.757 ±0.142 KO →EN (Raters = 116) Vanilla CFG ( λ= 0 )139 4.223 ±0.140 Swap Baseline ( λ= 3 )139 4.201 ±0.119 LCG (Ours, λ= 7 )139 4.101 ±0.112 Overall (Raters = 199) Vanilla CFG ( λ= 0 )275 4.007 ±0.110 Swap Baseline ( λ= 3 )275 3.967 ±0.092 LCG (Ours, λ= 7 )275 3.931 ±0.092
+
+Table 5: Detailed Quality MOS results per language direction after quality-check item filtering. All three code-switching execution patterns are statistically indistinguishable due to overlapping 95% confidence intervals, demonstrating that LCG preserves global carrier naturalness.                          
+
+> Direction Total Pairs ( N)Ours Wins Vanilla Wins Tie Ours Pref. Rate (excl. Tie)
+> JA →EN 237 134 43 60 75.7%
+> KO →EN 251 158 52 41 75.2%
+> Overall 488 292 95 101 75.5%
+
+Table 6: Detailed Phrase Nativeness AB Test results evaluated over the oracle LA e = 1 phrase subset. Our proposed localized guidance framework is preferred over the unguided baseline by a substantial margin across all language configurations ( p < 0.001 ). 
+
+preference, isolating the precise phonetic steering force that LCG is engineered to modulate. 
+
+A.3 Quality MOS Test: Per-Direction Analysis 
+
+The comprehensive per-direction results for full-utterance naturalness are detailed in Table 5. Cru-cially, a directional breakdown confirms that across both the JA → EN and KO → EN tasks, the global speech naturalness scores of our proposed configu-ration ( M4+XU , λ = 7 ) remain statistically indistin-guishable from both the unguided baseline ( λ = 0 )and the coupled Swap ( λ = 3). The overlap-ping 95% confidence intervals across all evaluation branches empirically validate our spatial isolation thesis: restricting the language-contrastive steering force to dynamically probed attention boundaries successfully insulates the unswitched matrix re-gions from acoustic degradation. 
+
+A.4 Phrase Nativeness AB Test: Per-Direction Analysis 
+
+Table 6 outlines the directional performance pro-files for localized phrase nativeness. The empirical results demonstrate that regardless of the source matrix language direction, our framework is over-whelmingly preferred by native validators for ren-dering more authentic and native-like phrasal pro-nunciations. Specifically, our configuration secures a decisive preference rate of 75.7% in the JA →
+
+EN track and 75.2% in the KO → EN track, culmi-nating in a robust 75.5% overall preference margin. This language-agnostic consistency is highly sta-tistically significant ( z = 10 .01 against a chance performance of 50%, p < 0.001 ), proving that LCG successfully overrides host-language accent assimilation across structurally distinct typological environments. 
+
+B Implementation Details 
+
+Our framework is built on the public 0.81 B-parameter k2-fsa/OmniVoice discrete DLM back-bone (28 decoder layers, 8-codebook codec) (Zhu et al., 2026). Sampling executes over T = 32 it-erative denoising steps under a default CFG scale of γ = 2 . Our core LCG configuration operates at 
+
+λ = 7 with M4+XU refinement, selected as the opti-mal operational knee that balances aggressive local-ized language steering and global acoustic/speaker stability. All other parameters mirror the baseline OmniVoice environment. 
+
+C Runtime Cost of Attention Extraction 
+
+LCG operates by reading an internal signal, the de-coder’s self-attention weights, during the forward pass. This imposes one practical constraint at de-ployment: fused attention kernels such as FlashAt-tention and SDPA never materialize the full atten-tion matrix and therefore do not return attention Condition Backend RTF ↓ Time (s) vs. SDPA Baseline SDPA 0.024 0.89 1.00 ×            
+
+> Baseline eager 0.038 1.43 1.61 ×
+> LCG ( λ=7 )eager 0.053 2.01 2.26 ×
+> Table 7: Synthesis cost by attention backend, over 50 ut-terances of ∼38 s audio. “Time” is the mean wall-clock synthesis time per utterance, excluding model load and I/O; “vs. SDPA” is its ratio to the SDPA baseline, com-puted from unrounded measurements. LCG requires the eager backend because it consumes attention weights.
+
+weights. Recovering them requires either recomput-ing attention outside the fused kernel or falling back to an eager implementation, and our mask extrac-tion takes the latter route. All guidance conditions compared in this paper are run on the same eager backend, so the reported contrasts are backend-fair. We note that the OmniVoice reference implementa-tion runs on SDPA rather than FlashAttention, so we benchmark against SDPA. To quantify the deployment cost, we time 
+
+50 benchmark utterances ( 25 JA → EN and 25 
+
+KO → EN; the identical utterances across all con-ditions, mean duration 37 .7 s) on a single NVIDIA B200 GPU in bfloat16, using the decoding config-uration of the main experiments ( T = 32 steps, 
+
+γ = 2 , and λ = 7 with M4+XU for LCG). Two warmup utterances per condition are excluded from the timing. We report the real-time factor (RTF), the wall-clock synthesis time divided by the duration of the generated audio, together with the absolute synthesis time per utterance. Table 7 summarizes the results. The total 2.26 × overhead decomposes into 
+
+1.61 × from the eager backend and 1.40 × from the third guidance branch. The latter sits below the 1.5× FLOPs that one additional branch would imply, indicating that mask extraction itself intro-duces minimal computational burden. In absolute terms LCG still synthesizes about 19 × faster than real time, costing +1 .1 s per ∼38 s utterance. The eager cost is also reducible in principle: only 2 of the 28 decoder layers are probed, so fused kernels could be retained for the remaining 26 .
+
+D Robustness to the Attention Weighting 
+
+LCG derives its phrase mask from where each acoustic frame attends within the transcript, so its correctness rests on attention being a faithful alignment signal. A line of work on model inter-pretability cautions against reading attention this                   
+
+> Phrase recall ↑
+> Weighting en ko worst Rank-1 raw α(ours) 0.407 0.467 0.407 {8,12 }, max
+> α∥WOv∥0.408 0.469 0.408 {8,12 }, max
+> Table 8: Phrase-mask recall under raw versus value-norm-weighted attention, on the English (LJSpeech) and Korean (KSS) pilot sets. “worst” is the worst-case recall across the two domains, the criterion used for configuration selection; “Rank-1” is the configuration that criterion selects among the twelve re-scored com-parators.
+
+way: raw attention weights can overstate a token’s contribution when the corresponding value vectors are small in norm (Kobayashi et al., 2020), and attention sinks can further concentrate weight on positions that carry little content. Three properties of our setup limit this concern. (i) We use attention as a text-to-audio alignment 
+
+signal, following its classical role in TTS and ASR alignment, rather than as a general measure of to-ken attribution. (ii) The argmax is restricted to transcript token columns, so typical sink positions such as sequence-initial control tokens are excluded by construction. (iii) The layer/head configuration was not chosen a priori but selected empirically by recall against forced-alignment ground truth, as shown in Sec. 3.2. Rather than rest on these properties alone, we test the concern directly. We re-scored twelve layer/head configurations from our sweep, includ-ing the top-ranked one, under the value-norm weighting α · ∥ WOv∥ of Kobayashi et al. (2020), computed per head before any head or layer pool-ing. Scoring follows the Fig. 3 setup: KSS and LJSpeech pilot sets, N = 100 utterances each, with masks scored against forced-alignment ground truth. Two observations follow from Table 8. First, the selection is unchanged: {L8, L 12 } with head-max pooling remains rank-1 in worst-case recall across this comparator set under both weightings. Second, recall at our operating point is nearly identical un-der the two weightings, so raw attention costs no recall in this setting, and the residual difference is far smaller than the boundary tolerance that the margin dilation already provides. Regime Condition MER ↓ MER e ↓ LA e ↑ (95% CI) LID e ↑ UTMOS ↑ SIM ↑                                                                          
+
+> Long-phrasal ( ≥4-word) Baseline ( λ=0 )0.492 0.284 0.196 ±0.074 0.158 3.84 0.970 Swap ( λ=3 )0.477 0.257 0.290 ±0.085 0.217 3.87 0.969 LCG ( λ=7 , ours) 0.433 0.232 0.358 ±0.090 0.311 3.87 0.969 Single-word Baseline ( λ=0 )0.201 0.898 0.217 ±0.079 0.140 3.76 0.969 Swap ( λ=3 )0.197 0.980 0.302 ±0.089 0.198 3.77 0.968 LCG ( λ=7 , ours) 0.203 0.943 0.363 ±0.093 0.225 3.76 0.969 All ( N= 200 )Baseline ( λ=0 )0.346 0.591 0.206 ±0.054 0.149 3.80 0.970 Swap ( λ=3 )0.337 0.618 0.296 ±0.061 0.208 3.82 0.969 LCG ( λ=7 , ours) 0.318 0.587 0.360 ±0.065 0.268 3.81 0.969
+
+Table 9: Evaluation on human-authored Korean–English code-switching transcripts, 100 utterances per stratum. The ordering Baseline < Swap < LCG holds on both embedded-phrase nativeness metrics ( LA e and LID e) in both strata, while UTMOS and speaker similarity remain flat. One single-word candidate was dropped during sampling: its baseline rendition drives the ASR into a repetition loop ( MER e = 48 against a one-word reference), which alone would raise that stratum’s baseline MER e by ≈ 0.47 . The exclusion is conservative, since it improves the baseline, and it affects only MER e.
+
+E Evaluation on Human-Authored Code-Switching Text 
+
+Our evaluation in the main experiments uses a syn-thetic benchmark: a mixed-language text corpus, with the speech under evaluation always synthe-sized by the systems being compared. We chose synthetic text because it lets us control the fac-tors that matter for diagnosing a model’s code-switching behavior: dense multi-word phrasal in-sertions, balanced coverage of all twelve directions, controlled phrase density and position, and a fixed reference voice per direction. To verify that the effect is not an artifact of that choice and that it carries over to real-world inputs, we repeat the evaluation on human-authored code-switching tran-scripts. We use Korean–English mixed-speech tran-scripts of real conversations †, from which we sam-ple two strata of 100 utterances: long-phrasal 
+
+(≥ 4-word English insertions, matching our bench-mark’s dense-insertion regime) and single-word 
+
+(the regime that dominates natural code-switching). Only the transcripts are used; no recorded audio en-ters the pipeline. All other settings match the main paper: the same backbone, the ko → en reference voice, γ = 2 , M4+XU , and λ ∈ { 0, 3, 7}, all scored with the identical evaluation pipeline. The trend replicates on real-world text (Table 9): the ordering is identical (Baseline < Swap <
+
+LCG) on both embedded-phrase nativeness met-rics ( LA e and LID e) in both strata, with LCG                   
+
+> †We used datasets ( 한영혼합인식데이터, Korean– English mixed-speech recognition data) from The Open AI Dataset Project (AI-Hub, S. Korea). All data information can be accessed through ‘AI-Hub (www.aihub.or.kr)’. System (12-direction overall) MER ↓LA e↑LID e↑
+> MOSS-TTS-v1.5 (8B) 0.584 0.280 0.302 OmniVoice baseline (0.81B) 0.564 0.233 0.247 + LCG ( λ=7 , ours) 0.445 0.518 0.588
+
+Table 10: System-level reference comparison on the full 1,200 -utterance benchmark. Note that this result is a cross-backbone reference point, not a mechanism-isolating comparison. 
+
+raising embedded-phrase language accuracy over the baseline by +0 .154 overall, while UTMOS stays flat and speaker similarity is unchanged. The gain is largest in the long-phrasal regime, con-sistent with our claim that dense multi-word in-sertions are where accent leakage is most severe. The single-word regime, which occurs most of-ten in natural code-switching, remains noisier: its sub-second segments make language identification unreliable and MER e unstable, but LCG still im-proves embedded-phrase accuracy there, if by a smaller margin. 
+
+F Reference Comparison with an External System 
+
+To compare the effect of our training-free, inference-time guidance against an external TTS system, we additionally evaluate MOSS-TTS-v1.5 (8B) (Gong et al., 2026), a recently released model that documents code-switching as a supported ca-pability and covers all five of our languages. We synthesize all 1,200 benchmark utterances with the official checkpoint, using zero-shot cloning from the same per-direction reference voices, the matrix language passed as its single utterance-level lan-Category Name (with Link) License           
+
+> Model OmniVoice (Zhu et al., 2026) Apache-2.0 Whisper-large-v3 (Radford et al., 2023) Apache-2.0 WavLM-base-plus-sv (Chen et al., 2022) CC BY-SA 3.0 UTMOS (Saeki et al., 2022) MIT Qwen3-ForcedAligner-0.6B (Shi et al., 2026) Apache-2.0 MOSS-TTS-v1.5 (Gong et al., 2026) Apache-2.0 Dataset LJSpeech (Ito and Johnson, 2017) Public Domain KSS Dataset (Park, 2018) CC BY-NC-SA 4.0 CML-TTS (Oliveira et al., 2023) CC BY 4.0 CSS10 (Park and Mulc, 2019) Apache-2.0
+
+Table 11: Software licenses and hyperlinked references of the models and datasets utilized in this work. 
+
+guage parameter (the same conditioning granularity as our unguided baseline), and the model-card de-fault decoding settings. Scoring uses our identical evaluation pipeline. Despite being roughly 10 × larger and labeled with code-switching as a capability, MOSS-TTS lands near our unguided baseline on embedded-phrase nativeness ( LA e 0.280 vs. 0.233 ; LID e
+
+0.302 vs. 0.247 ), suggesting that global utterance-level language conditioning does not by itself re-solve accent leakage regardless of model scale. Its performance is also highly uneven across direc-tions: LA e reaches 0.59 to 0.88 on the four English– Japanese/Korean directions, approaching our λ = 7 
+
+configuration on EN → KO ( 0.884 vs. 0.887 ), but stays below 0.21 on the eight directions involving German or French, at or below the level of our unguided baseline. LCG, by contrast, raises native-ness consistently across all twelve directions on the same backbone. As the two systems differ in back-bone and training data, we read this as a reference point rather than a controlled comparison. 
+
+G Licenses 
+
+Table 11 outlines the licensing specifications for datasets and models leveraged in this work. The Korean–English mixed-speech transcripts used in Appendix E are additionally used under a research-use agreement; we therefore report aggregate re-sults only. Every other asset is publicly accessi-ble for research purposes and was utilized strictly within academic boundaries. Furthermore, each component dataset was rigorously curated for re-search applications and contains no personally iden-tifiable information (PII) or offensive content. 
+
+H Usage of AI Assistant 
+
+This paper is written with the help of AI assistant, Gemini, ChatGPT, and Claude. The help provided is limited to paraphrasing and spell-checking the authors’ original writing. Figure 5: Worker-facing instructions for the two human evaluation tasks. (Top) Phrase Nativeness AB test :raters compare two isolated segments of the same English phrase and choose which sounds more native, with an explicit instruction to judge pronunciation rather than content. (Bottom) Global Quality MOS test : raters hear four full-utterance renditions of the same code-switched prompt and score each on a 5-point scale, with three labeled reference clips provided to anchor the scale. Each task embeds its own quality check: a pair containing one clearly non-English clip in the AB test, and a deliberately corrupted rendition among the four versions in the MOS test.

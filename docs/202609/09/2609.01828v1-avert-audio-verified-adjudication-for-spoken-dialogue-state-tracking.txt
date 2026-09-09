@@ -1,0 +1,403 @@
+Title: AVERT: Audio-Verified Adjudication for Spoken Dialogue State Tracking
+
+URL Source: https://arxiv.org/pdf/2609.01828v1
+
+Published Time: Thu, 03 Sep 2026 00:12:38 GMT
+
+Number of Pages: 11
+
+Markdown Content:
+# AVERT: Audio-Verified Adjudication for Spoken Dialogue State Tracking 
+
+Chunggi Lee 
+
+Harvard University Cambridge, Massachusetts, USA 
+
+chunggi_lee@g.harvard.edu 
+
+Hanspeter Pfister 
+
+Harvard University Cambridge, Massachusetts, USA 
+
+pfister@g.harvard.edu 
+
+Abstract 
+
+Spoken dialogue state tracking recovers slot-value pairs from speech, where ASR errors con-centrate in entity values and persist across turns, making it both a generation and an editing prob-lem. A strong per-turn text editor corrects much of this but, operating on the transcript alone, leaves three recoverable errors: a value pre-dicted inconsistently across turns, an omitted slot, and a value the audio does not support. We present AVERT, which scores each candi-date value by combining cross-turn agreement with a trained audio-conditioned verifier and resolves the three error types with three opera-tors, vote, add, and swap, each restricted to the slots where its error is common. On Spoken-WOZ, a base speech-LLM reaches 33.04 JGA, a text editor 38.34, and AVERT 40.13, without retraining either. This is in the range of a 1B end-to-end system that consumes the full spo-ken history (39.32), though AVERT uses two 1B decoders rather than one. The audio veri-fier contributes a statistically significant gain, and restricting each operator to a selected slot subset matters: removing it lets unrestricted voting overwrite correct categorical values and fall below the editor. 
+
+1 Introduction 
+
+Dialogue state tracking (DST) predicts a dialogue state, a set of slot-value pairs, from the dialogue history (Budzianowski et al., 2018; Wu et al., 2019; Heck et al., 2020). Spoken DST must recover the same state from speech (Si et al., 2023), which is harder because slot values must be inferred from noisy acoustic evidence. Most errors fall on en-tity values such as names, locations, and numbers, which ASR frequently mistranscribes or drops. In a deployed voice assistant, these turn directly into wrong actions. The state also accumulates across turns, so an early error persists and degrades later predictions. Spoken DST is therefore two prob-lems at once: recovering the state from speech, and correcting the errors that build up. Our pipeline has two existing components: a base spoken-DST model ( R) that maps the current-turn audio and the text history to an ASR transcript and a first-pass state, and a per-turn text editor ( E)(Tian et al., 2021; Li et al., 2023; Lee et al., 2024) that revises that state from the cumulative transcript alone, without the audio. A strong E already cor-rects much of the accumulated error. However, working from the transcript alone, E leaves three recoverable errors: a value predicted inconsistently across turns, an omitted slot, and a value the audio does not support, such as a mistranscribed name. Two signals can address these. The first is cross-turn agreement, aggregated over the editor’s and the base model’s past predictions, which overrides a one-off inconsistent value (Wang et al., 2023). But agreement has two blind spots. It cannot recover an omitted slot, since there is nothing to aggregate. And it cannot fix a value that the predictions agree on but the audio rejects. For those cases we need a signal that consults the audio directly, which we supply with a trained audio-conditioned verifier. Existing systems do not couple cross-turn agree-ment with a value-level audio check. End-to-end speech-LLM systems take the audio as input (El Ghazal et al., 2026; Vendrame et al., 2025), but they never use it to verify individual candidate val-ues. Correction and cascade systems work from the transcript alone (Lee et al., 2024; Tian et al., 2021; Im et al., 2025) and have no access to the audio. In neither case does the audio adjudicate among competing candidates. Rather than retrain the base model to change how it consumes audio, we keep it fixed and train a separate verifier that operates over the editor’s already-formed candidate values. We propose AVERT (Audio-VERified adjudica-Tion). AVERT trains an auxiliary verifier σ that takes the turn audio, a slot, and a candidate value, and estimates whether the audio supports that value. For each candidate, σ weights a cross-turn agree-arXiv:2609.01828v1 [cs.CL] 1 Sep 2026 ment count into a single score. A lexical attestation gate α then decides when a value may be inserted or substituted. It is a simple substring check against the cumulative ASR transcript. Three operators act on these scores. Vote selects the highest-scoring value. Add recovers an omitted slot when an at-tested, confident value exists. Swap replaces an unattested value with an attested alternative. We restrict each operator to the slots where its error is common, so every correction is tied to a specific slot and audio condition. On SpokenWOZ (Si et al., 2023), the base spoken-DST model R reaches 33.04 JGA, the text-only editor E 38.34, and AVERT 40.13, a 1.79 -point gain with no retraining of R or E. This is in the range of the strongest comparable 1B configura-tion of El Ghazal et al. (2026) (39.32), which feeds the entire spoken conversation to the LLM, though AVERT uses two 1B decoders rather than one. The difference is where audio enters: AVERT keeps the history as text and uses audio only in a lightweight per-turn verifier over candidate values, so its audio context does not grow with dialogue length and its gain over the editor rises from +0 .6% on turns 1–5 to +19 .4% on turns 31+ (§5). We make two contributions. First, we introduce a value-level adjudication mechanism combining cross-turn agreement, a trained audio verifier, and lexical attestation. Without retraining R or E, it lifts a strong 1B editor by 1.79 JGA into the range of 1B systems that read the full spoken history, at roughly twice the decoder parameters. Two con-trols show that simply merging R’s predictions into 
+
+E does not produce this gain (§5). Second, restrict-ing each operator to a selected slot subset matters: voting over all slots overwrites correct categorical and boolean values (114 to 675 changes), dropping JGA by up to 3.6 points, below the editor. 
+
+2 Related Work 
+
+2.1 Spoken Dialogue State Tracking 
+
+Spoken DST predates the current speech-LLM line. The early Dialog State Tracking Challenges (Williams et al., 2013; Henderson et al., 2014a,b) tracked state over ASR N -best lists with confidence scores, and DSTC11 revisited the setting with a speech-aware task-oriented dialogue track (Soltau et al., 2023). These systems consumed ASR output rather than audio, so the acoustic signal was avail-able only through recognizer confidence, never as evidence for a specific slot value. Si et al. (2023) released SpokenWOZ and showed that text DST methods transfer poorly to spoken data, a gap that has since been studied through targeted analysis (Druart et al., 2023). A recent line of work ad-dresses it with end-to-end speech-LLM models that take the audio as input. Sedláˇ cek et al. (2025) align WavLM-large (Chen et al., 2022) with a small con-nector and an OLMo-1B or Gemma-2-9B decoder. El Ghazal et al. (2026) feed the full or compressed spoken history to the LLM. Vendrame et al. (2025) train jointly on spoken and out-of-domain textual DST data, and Gulzar et al. (2025) transform writ-ten DST data into a spoken style, both for better generalization. On the data side, Lee et al. (2023) synthesize audio from written DST corpora with TTS and study how far such synthetic speech can substitute for real recordings when training audio-based DST models. These approaches address the scarcity of spoken DST data by enlarging or con-verting the training set, whereas AVERT leaves the training data and the base model untouched and adjudicates the entity values a text editor has al-ready produced. Sun et al. (2025) instead ground slot-value prediction in the audio, but do so inside a trained pointer-generator that produces the state, so the audio is internal to the model and cannot be inspected per value. We adopt the WavLM-plus-OLMo backbone of Sedláˇ cek et al. (2025) as our base spoken-DST model and keep it fixed. Unlike all of the above, AVERT does not use audio to gen-erate the dialogue state at all: it trains a separate verifier that scores already-formed entity values against the turn audio. 
+
+2.2 Self-Correction and Candidate Re-ranking 
+
+A separate line of work revises predictions after a first pass. In text DST, amendable generation (Tian et al., 2021), revisable state prediction (Li et al., 2023), structural state correction (Su et al., 2023), and self-correction with small models (Lee et al., 2024) all edit an initial state, but operate on the text alone. Self-consistency (Wang et al., 2023) selects an answer by majority vote over mul-tiple samples. We aggregate analogously across past turns and prediction sources, but instead of relying on agreement frequency alone we weight each vote by a trained audio verifier. Closest to our mechanism, ClozeGER (Hu et al., 2024) re-formulates ASR error correction as a cloze test in which a multimodal model chooses among N-best candidates conditioned on the source speech, and LLM   
+
+> Stage 1: ASR alignment
+> Connector
+> Speech Encoder
+> Connector
+> Speech Encoder
+> Input Speech Input Speech
+> ASR transcript
+> Dialogue history
+> ASR transcript + first-pass state
+> Stage 2: Joint ASR + DST
+> Text Editor (E)
+> Base Model (R)
+> Corrected State
+> Attn. Pool
+> Slot & Value Emb.
+> MLP
+> Stage 3: AVERT
+> LoRA LLM
+> Score
+> Vote / Add / Swap
+> LoRA LLM
+> Final State At + first-pass state
+> trained frozen
+
+Figure 1: Component view of the pipeline, with trained and frozen modules marked. The base spoken-DST model R is trained in two stages: the speech encoder and connector are first aligned for ASR with the LLM frozen, then the connector and LoRA adapters are fine-tuned for joint ASR and DST with the encoder frozen. At inference R takes the current-turn audio and the dialogue history as text, and emits an ASR transcript together with a first-pass state. The text editor E is a separately LoRA-tuned decoder that maps the cumula-tive transcript At and the first-pass state to a corrected state, and never receives the audio. The verifier σ is the only module AVERT adds: it reuses R’s frozen encoder and connector, and trains an attention pool, the slot and value embeddings, and an MLP that scores a candidate value against the turn audio. The three operators use these scores to edit the corrected state into the final state. 
+
+DeRAGEC (Im et al., 2025) denoises named-entity candidates before any state is formed. Both op-erate at the transcript level and produce text. In particular, ClozeGER chooses among ASR N-best hypotheses to emit a corrected transcript before any state is built, so its audio conditioning targets words, whereas AVERT conditions on the queried slot and re-ranks slot values already placed in the structured state, over the editor’s outputs and with-out retraining the base, so each correction is tied to a specific slot and audio condition. 
+
+3 Method 
+
+Figure 1 shows which modules are trained and which are frozen, and Figure 2 walks through the full pipeline on a running example: the base model 
+
+R produces a first-pass state, the editor E revises it, and AVERT adjudicates the candidate values. 
+
+3.1 Task and Notation 
+
+A dialogue d is a sequence of turns. In spoken DST the input at turn t is the audio rather than the tran-script, and the goal is to predict the cumulative state 
+
+Bt, a set of slot-value pairs (s, v ) over a schema of slots S (Si et al., 2023). We evaluate with joint goal accuracy (JGA), the fraction of turns whose predicted state matches the gold state exactly, with no missing or extra pair. Following Sedláˇ cek et al. (2025), named-entity slots are matched by normal-ized Levenshtein similarity at a threshold of 0.90 
+
+and all other slots by string equality. Following prior work (Sedláˇ cek et al., 2025; El Ghazal et al., 2026) we use causal per-turn evaluation: each turn is predicted from the model’s own previous out-puts, so errors propagate. We write ˆv(d, t, s ) for the value predicted for slot s at turn t of dialogue 
+
+d.
+
+3.2 Base Model and Editor Base spoken-DST model. Figure 1 shows the com-ponents and which parts of each are trained. We build on the speech-LLM design for spoken DST (Sedláˇ cek et al., 2025; El Ghazal et al., 2026) and keep this backbone rather than a stronger encoder, so the reported differences reflect AVERT rather than a change of base architecture. The base model 
+
+R maps the user’s speech to a structured output at every turn and has three parts: a WavLM-large encoder (Chen et al., 2022) that encodes the turn au-dio into frame-level representations, a lightweight connector projecting these into the LLM embed-ding space, and an OLMo-2-1B (Team OLMo et al., 2025) adapted with LoRA (Hu et al., 2022). R is trained in two stages. First the encoder and connec-tor are trained for ASR with the LLM frozen, then the connector and LoRA adapters are fine-tuned on SpokenWOZ for joint ASR and DST with the encoder frozen. Conditioned on the current-turn au-dio and the dialogue history as text, R emits at each turn a JSON object with the ASR transcript and a first-pass state. We write At = a1 ⊕ · · · ⊕ at for the cumulative transcript, where aj is the transcript 
+
+R produces at turn j.
+
+Text editor. On top of R, a per-turn text ed-itor E revises the first-pass state. E is a sepa-rate OLMo-2-1B (Team OLMo et al., 2025) with LoRA (Hu et al., 2022), fine-tuned once on Spo-kenWOZ to map At and the first-pass state to a cor-rected state. We use R and E as the two prediction sources for AVERT. The editor baseline applies E
+
+alone, ˜vbase (d, t, s ) = ˆ vE (d, t, s ), which AVERT refines. Because it conditions on the full cumu-lative transcript At, E resolves most text-evident errors, which is why it already improves substan-tially over R. The errors it cannot resolve from text Current-turn Audio              
+
+> Text Editor E
+> User says:
+> "a train from cambridge to
+> leicester , under james thornton ."
+> ASR hears:
+> "a train from cambridge to
+> lester , under jay thornton ."
+> "train-departure": "cambridge", "train-destination": "lester",
+> "profile-name": "jay thornton"
+> Initial State
+> Base Spoken DST (Model R)
+> Audio + text history
+> Editor reviews and edits state
+> "train-departure": "cambridge",
+> "train-destination": "lester",
+> "profile-name": "jay thornton"
+> Edited State
+> AVERT Adjudication
+> Candidate scoring + Slot-restricted operators
+> "train-departure": "cambridge",
+> "train-destination": "leicester",
+> "profile-name": "james thornton"
+> Final State
+> Editor cannot fix them from text alone AVERT restores both (Vote + Swap) R corrupts two proper nouns
+
+Figure 2: Overview of AVERT. The base spoken-DST model R emits a transcript and a first-pass state, the text editor E revises it, and AVERT adjudicates candidate values across turns with three slot-restricted operators. Here ASR corrupts two proper nouns ( leicester to lester , james to jay ), which the editor cannot fix from the transcript alone. AVERT restores both: VOTE recovers the cross-turn consensus leicester , and SWAP replaces the unattested 
+
+jay thornton with an attested alternative, james thornton .
+
+alone are precisely the three AVERT targets. 
+
+3.3 Audio as a Verifier, not a Generator 
+
+A central design choice in AVERT is to use the au-dio to verify candidate values rather than to regen-erate the state. Once R has produced the transcript 
+
+At and a first-pass state, deciding which slots to keep and how to reconcile their values across turns is largely a structural operation over text, which a text editor handles well. The distinctive con-tribution of the audio lies elsewhere, at the level of individual entity values, where it can confirm or reject a specific candidate that the transcript may have corrupted. Verifying whether a proposed value is supported by the audio is a narrower and more reliable use of the signal than generating the entire state from it. We therefore keep the editor text-only and train a separate audio verifier that scores its outputs at the value level, adjudicating among already-formed candidate values rather than producing them from scratch. 
+
+3.4 Candidate Collection and Scoring 
+
+Figure 3 walks through this scoring and the oper-ator selection on the running example. For slot s
+
+at turn t of dialogue d, AVERT scores each can-didate value using evidence aggregated across the two sources and all past turns. We gather the can-didates ˆvx(j) for x ∈ { E, R } and j ≤ t, writing 
+
+ˆvx(j) = ∅ when x does not predict s at j, and let 
+
+V be the set of distinct non-empty values among them. A value that several sources or turns pre-dict appears in V once, but every one of its occur-rences is counted in the score below. Each candi-date v ∈ V receives an agreement score that counts the (source, turn) pairs predicting it, and a trained audio-conditioned confidence σ(j, v ) ∈ [0 , 1] that estimates whether the audio of turn j supports v
+
+(§3.5): 
+
+A(v) = X
+
+> j≤t
+
+X
+
+> x∈{ E,R }
+
+σ(j, v ) 1[v = ˆ vx(j)] . (1) The candidate score is this audio-weighted agree-ment directly, 
+
+p(v) = A(v). (2) We additionally define a lexical attestation indicator 
+
+α(v) = 1[first -token( v) ∈ At], a substring check against the cumulative ASR transcript. We use first-token attestation because ASR often corrupts multi-token entity values only partially, so a full-string match would reject many recoverable values. Unlike σ, α does not consult the audio: it is a transcript-level signal. Since α acts only as a gate for A DD and S WAP (§3.6) and not as a ranking score, an attested candidate is selected only when it has sufficient support under p(v). Ties are rare for the same reason: p(v) weights each occurrence by σ rather than counting occurrences uniformly, so candidates with equal raw frequency can still be separated. 
+
+3.5 Audio-Conditioned Verifier 
+
+To verify a value against the audio, AVERT trains a classifier σ(j, v ) ∈ [0 , 1] that estimates whether Candidate Collection                       
+
+> From Rand E
+> across turns
+> Slot: train-destination
+> leicester
+> lester
+> leister
+> x 4
+> x 1
+> x 1
+> Audio-weighted Scoring
+> leicester
+> lester
+> leister
+> 𝑝 𝑣 =
+> ෍𝑗,𝑥 𝜎 𝑗, 𝑣 ·𝟙 [v = v̂ ₓ(j)]
+> high
+> low
+> low
+> Operation Selection
+> Vote: slot present
+> → choose highest 𝑝(𝑣)
+> Add: slot missing
+> → add if 𝑝 𝑣 ∗> 𝜏 & 𝛼(𝑣 ∗) = 1
+> Swap: unsupported value →
+> replace with highest 𝑝 𝑣 among 𝛼 𝑣 = 1
+> Audio
+> Audio Verifier
+
+𝝈 
+
+> Final Value
+> train-destination:
+> leicester
+> Selected by Vote via audio-weighted agreement
+> Attestation Gate
+> 𝜶
+
+Figure 3: AVERT adjudication for the running example. Candidate values for the target slot are collected from 
+
+R and E across turns and scored by audio-weighted agreement using the trained verifier σ. Because the slot is already present, AVERT applies V OTE and selects the highest-scoring candidate, leicester . The attestation signal 
+
+α(v) constrains only A DD and S WAP . Counts such as x4 are the number of (source, turn) predictions supporting that value. A repeated value is stored once in V but each occurrence is counted. 
+
+the audio of turn j supports value v for slot s. It is conditioned on three inputs, the audio, the value, and the slot. The slot is necessary because the same utterance can support different values depending on the queried slot. As the feature extractor we reuse 
+
+R’s frozen speech encoder and connector. The turn-j audio yields frame embeddings {hi}, which a single learned-query attention pool compresses into an audio vector uj ,
+
+uj = X
+
+> i
+
+aihi, ai = exp( q⊤hi)
+
+P 
+
+> i′
+
+exp( q⊤hi′ ) , (3) where q is a learned query. The value v is tok-enized with R’s tokenizer and mean-pooled into 
+
+ev, and the slot maps through an embedding table to es. A three-layer MLP with GELU activations (Hendrycks and Gimpel, 2016) and dropout maps the concatenation to the support score, 
+
+σ(j, v ) = sigmoid MLP([ uj ; es; ev ]) . (4) We train σ on SpokenWOZ by sampling K=8 can-didate values per (turn, slot) from the editor E, la-beling each positive if it matches the gold value and negative otherwise. As the samples are negative-skewed, we use focal binary cross-entropy (Lin et al., 2017). Only the attention pool, the embed-ding tables, and the MLP are trained, so σ is the single trained component AVERT introduces be-yond the existing R and E. At inference, σ scores candidates from both E and R, which share the SpokenWOZ value space, so it transfers across sources without source-specific training. 
+
+3.6 Operators 
+
+Let vE be the editor’s value for slot s at the current turn, v⋆ = arg max v∈V p(v) the highest-scoring candidate, and ˆv the current value, initialized to 
+
+vE . AVERT applies three operators in sequence, each enabled only on a slot subset selected on the development set. For each operator we include a slot only when enabling it corrects more errors than it introduces on the development set. The subsets are fixed before any test evaluation and listed in Appendix A. 
+
+Vote. If the slot is present ( vE̸ = ∅), replace it with the consensus value, ˆv ← v⋆, resolving values predicted inconsistently across turns. 
+
+Add. If the slot is omitted ( vE = ∅), insert v⋆
+
+when it is attested and confident, α(v⋆) = 1 and 
+
+p(v⋆) > τ , setting ˆv ← v⋆.
+
+Swap. If the current value is present but unattested ( ˆv̸ = ∅ and α(ˆ v) = 0), replace it with the highest-scoring attested alternative, ˆv ←
+
+arg max v∈V : α(v)=1 p(v), when one exists. AVERT adds no trained parameters beyond σ.The add threshold τ is tuned on the development set and its value is given in §3.7. 
+
+3.7 Implementation Details 
+
+The verifier σ is a three-layer MLP with GELU activations (Hendrycks and Gimpel, 2016) over the pooled turn-j frame representations, the slot embedding, and the mean-pooled candidate-value embedding, using dropout 0.1 and hidden size 512 ,trained with focal loss (Lin et al., 2017) ( γ = 2 .0). The add threshold is τ = 0 .3, tuned on the devel-opment set. Stage 1 training uses four NVIDIA A100 GPUs, while Stage 2 fine-tuning and verifier training use one. 
+
+4 Experiments 
+
+4.1 Setup 
+
+We evaluate on the SpokenWOZ test set (Si et al., 2023) under strictly causal per-turn evaluation, re-porting JGA with fuzzy matching on named-entity slots (Sedláˇ cek et al., 2025). The base model R
+
+is trained in two stages: Stage 1 aligns a WavLM-large encoder (Chen et al., 2022) and a connec-tor into a frozen OLMo-2-1B (Team OLMo et al., 2025) for ASR on roughly 4,600 hours (Spoken-WOZ, Loquacious (Parcollet et al., 2025), and Fisher (Cieri et al., 2004)), and Stage 2 adds a rank-16 LoRA adapter (Hu et al., 2022) and fine-tunes on SpokenWOZ for joint DST and ASR. The editor E is a separate rank-16 LoRA-tuned OLMo-2-1B trained on (R prediction, gold state) pairs, and the verifier σ is trained on K=8 candidate values per (turn, slot) sampled from E with focal binary cross-entropy. Remaining configuration is in §3.7. 
+
+Inference cost. On a single A100 with batch size 1, R takes 2,558 ms per turn at 11.76 GB peak mem-ory, E takes 1,534 ms at 5.52 GB, and the verifier takes 56 ms at 6.23 GB, which includes the frozen encoder and connector it reuses from R. The full pipeline runs in 4,148 ms per turn, and peak mem-ory stays near 11.8 GB because the stages run se-quentially rather than concurrently. The verifier is about 2% of the base model’s latency, since it runs a small MLP over representations the encoder has already produced. 
+
+4.2 Main Results 
+
+Table 1 compares AVERT against published causal baselines among 1B-class systems. Our pipeline improves from a 33.04 first pass by R to 38.34 af-ter the editor E, and AVERT raises this to 40.13 (+1 .79 over the editor), without retraining R or 
+
+E. El Ghazal et al. (2026) reach 39.32 by feed-ing the entire spoken conversation to the LLM, at an audio-context cost that grows with dialogue length. AVERT reaches 40.13 with two 1B de-coders against their one, so the two are not matched in capacity, but it keeps the dialogue history as text and leaves the audio context constant in turn count. Even without the verifier it reaches 39.74                  
+
+> Model JGA
+> 1B-class:
+> SPACE+WavLM (Si et al., 2023) 25.65 Whisper+T5 (Druart et al., 2023) 24.10 UBAR+GenWOZ (Gulzar et al., 2025) 25.90 Sedláˇ cek et al. (2025) (1B) 34.66 El Ghazal et al. (2026), comp. (1B) 36.49 El Ghazal et al. (2026), full (1B) 39.32
+> Ours:
+> Base R(first pass) 33.04 Editor E38.34
+> E+ AVERT 40.13
+> Larger backbones (9B, not matched):
+> Sedláˇ cek et al. (2025) (9B) 42.17 El Ghazal et al. (2026), comp. (9B) 43.16 El Ghazal et al. (2026), full (9B) 45.52
+
+Table 1: JGA (%) on SpokenWOZ test, strictly causal. Among 1B-class systems E+AVERT is highest without retraining the base. AVERT is a pipeline of a 1B base R
+
+and a 1B editor E with a small verifier (roughly twice the decoder parameters of a single-model 1B system), compared here to single-model 1B-class systems.                  
+
+> Variant JGA (w/o fuzzy) JGA (w/ fuzzy) Base R(first pass) 31.73 33.04 Editor E36.12 38.34
+> E+ AVERT 37.66 40.13
+> ∆(AVERT −E)+1 .54 +1 .79
+
+Table 2: The gain over the editor holds under both ex-act (w/o fuzzy) and fuzzy (w/ fuzzy, Levenshtein 0.90) matching, so it is not driven by the matching tolerance. Fuzzy is the metric comparable to the baselines in Ta-ble 1. 
+
+(Table 3), and the verifier adds a further significant 0.40 points. Because AVERT’s add and swap operators edit values directly, we also report exact matching (Ta-ble 2). The gain over the editor holds under both metrics, reaching +1 .54 under exact and +1 .79 
+
+under fuzzy, so AVERT recovers exactly correct values rather than fuzzy-close ones. Fuzzy is the metric comparable to the baselines in Table 1. The lower block of Table 1 lists 9B-backbone systems for context. These score higher than AVERT but use roughly an order of magnitude more decoder parameters, so we scope our claim to the 1B regime and do not treat them as comparison points. 
+
+4.3 Ablation 
+
+Table 3 ablates AVERT along two axes: remov-ing each scoring signal from the full model, and enabling the three operators cumulatively on E. Variant JGA ∆                      
+
+> Ebaseline (no AVERT) 38.34 —AVERT (full) 40.13 +1 .79
+> Signal ablations (vs. full AVERT):
+> without σ(uniform agreement) 39.74 −0.40
+> σwith audio zeroed 39.80 −0.33
+> without αgate (no in-audio) 38.95 −1.18
+> Operators (cumulative, vs. editor):
+> + Vote 39.42 +1 .07
+> + Vote + Add 39.97 +1 .62
+> + Vote + Add + Swap 40.13 +1 .79
+
+Table 3: AVERT ablation on SpokenWOZ test. Signal-ablation ∆ is relative to full AVERT (40.13); cumulative operator ∆ is relative to the editor E (38.34) with all signals active. Operator 95% CIs from a paired dialogue-level bootstrap are [+0 .71 , +1 .46] , [+1 .17 , +2 .11] , and 
+
+[+1 .28 , +2 .32] .
+
+Audio verifier. Removing σ from the score, leav-ing uniform-weighted agreement, drops AVERT from 40.13 to 39.74. A paired bootstrap ( B =1000 , dialogue resampling) puts this gain at +0 .40 
+
+(95% CI [+0 .08 , +0 .71] , p = 0 .016 ). The same test inside the vote operator alone gives +0 .34 
+
+(p = 0 .024 ), so the verifier’s contribution is con-centrated in vote. To check that σ relies on the audio rather than on the slot and value alone, we zero the pooled audio representation while keep-ing the other two inputs unchanged: JGA falls to 39.80, only 0.06 above the no-σ configuration, so the audio input accounts for most of the verifier’s gain. 
+
+Attestation gate. The attestation indicator α en-ters AVERT only as a gate on the add and swap operators, where it is load-bearing: removing the in-audio constraint drops JGA to 38.95, a 1.18-point loss ( p < 10 −4). 
+
+Operators. All scoring signals are active throughout this cascade, and operators are enabled cumulatively on top of the editor. Vote alone reaches 39.42, adding add brings it to 39.97, and swap reaches 40.13. The marginal contribution of swap over vote and add is +0 .16 (95% CI 
+
+[+0 .02 , +0 .36] , p = 0 .014 ), small but significant. Vote is the principal operator, reflecting that the dominant recoverable error in a strong per-turn edi-tor is cross-turn inconsistency rather than omission. 
+
+4.4 Effect of Slot Restriction 
+
+Each operator is enabled only on a slot subset se-lected on the development set. To test whether                 
+
+> Variant JGA added swapped cat/bool chg. AVERT 40.13 1,851 2,501 114 B1 38.14 3,011 114 34 B2 36.53 3,016 7,359 675
+
+Table 4: Removing slot restriction (B1, B2) underper-forms AVERT at every threshold. Thresholds for B1 and B2 are selected on the development set. Unrestricted cross-turn voting (B2) overwrites correct categorical and boolean values (114 → 675 changes), the principal cause of its drop. Edit counts are not comparable across rows, since each operator’s firing condition depends on which operators precede it.                      
+
+> Defect type EAVERT ∆
+> Omission 9,181 7,693 −16 .2%
+> Inconsistency 7,109 5,916 −16 .8%
+> Hallucination 5,834 6,197 +6 .2%
+> Other wrong value 2,415 2,984 +23 .6%
+> Total 24,539 22,790 −7.1%
+> of which attested 5,148 3,738 −27 .4%
+
+Table 5: Slot-level error counts before and after AVERT (test, causal). The four types partition all wrong slots. Attested errors are those whose reference value appears in the cumulative self-ASR transcript, under a stricter substring criterion than the α gate of §3.6; AVERT re-pairs 1,435 of the 5,148 attested errors (27.9%) and introduces 25. 
+
+this restriction matters, we remove it. B1 applies 
+
+σ-only add and swap to all slots with a single global threshold and no editor-anchored vote, and B2 further adds an unrestricted cross-turn vote over all slots. At dev-selected thresholds, B1 reaches 38.14 ( −1.99 , p < 10 −4) and B2 36.53 (−3.60 , p < 10 −4), neither robustly above the ed-itor. The swap counts are not comparable across rows. SWAP fires only on present but unattested values, so without an editor-anchored vote the cur-rent value stays the editor’s own, which is usually attested. ADD depends only on the threshold. B2’s failure is visible in the edit counters (Table 4). Un-restricted voting overwrites correct categorical and boolean values, raising such changes from 114 to 675 and swaps from 2,501 to 7,359, since a boolean slot like parking has no useful cross-turn entity sig-nal. The operators thus work best when restricted to their selected slots rather than applied globally. Generating the state from an empty start with σ
+
+alone reaches only 35.61, confirming that anchor-ing on the editor is essential. 5 Analysis 
+
+Which defects does AVERT fix? We classify slot-level errors by automatic predicates over the editor output, gold state, and candidate history (Ta-ble 5). Omission and inconsistency both fall by about 16%, at the cost of a 6.2% rise in hallucina-tions and a 23.6% rise in other wrong values from ADD ’s insertions; the net effect is the 1.79-point gain of Table 3. Of the editor’s 24,539 wrong slots, only 21.0% are attested in the cumulative transcript, and AVERT repairs 27.9% of that ceiling while in-troducing 25 new attested errors. The remaining 79.0% would need stronger phonetic or generative grounding. Both fractions depend on the ASR er-ror profile of SpokenWOZ and on what a 1B editor leaves behind. 
+
+Value errors or slot-presence errors? AVERT’s operators act on candidate values, but A DD changes which slots are present at all, so we separate the two. Of the 2,506 slot-level errors AVERT corrects, 57.5% are wrong values and 42.5% are missing or spurious slots. Slot-presence recall rises from 89.66 to 91.22 and precision falls from 94.51 to 93.82, for an F1 of 92.50 against the editor’s 92.02. The precision loss is the same effect as the hallu-cination increase in Table 5: A DD inserts slots the editor had left out, and not all of them are correct. 
+
+Does the second decoder explain the gain? 
+
+AVERT draws candidates from both R and E, so we first test whether merging the two is enough. A naive union that adds every R-only slot to E
+
+reaches 37.34, and a cross-turn consistency filter that adds an R-only slot only when R predicts the same value earlier reaches 37.93. Both fall be-low E’s 38.34. The union restores false-positive slots that E had removed, and the filter suppresses one-off noise but cannot correct a value R predicts consistently wrong. All three configurations use the same two decoders, so the difference comes from how the predictions are adjudicated rather than from having them. 
+
+Gains by slot type and within vote. AVERT improves all three slot categories, with the largest absolute gain on numeric ( +2 .51 ), then categori-cal ( +1 .61 ) and proper-noun ( +1 .54 ). The proper-noun gain is smaller because that category has the lowest base accuracy and largest candidate space, where attestation is hardest. Within vote, uniform-weighted agreement gives +0 .73 and weighting by 
+
+σ adds a further +0 .34 , so the verifier accounts for about a third of vote’s gain and a fifth of the total improvement, neither hidden nor overstated. The verifier also settles ties: among the 7,760 
+
+VOTE decisions with at least two distinct candi-dates, 331 (4.3% ) tie on raw frequency, and the audio-weighted score separates every one of them. 
+
+Gains grow with dialogue length. AVERT’s relative improvement rises monotonically with turn position, from +0 .6% on turns 1–5 to +19 .4% 
+
+on turns 31+, as the cross-turn evidence accumu-lates. Long dialogues, where the editor is weak-est (11.92% accuracy at turn 31+), benefit most, and this is also where the full-spoken-history alter-native is most expensive, so AVERT’s advantage compounds. 
+
+Qualitative cases. Table 6 shows one trace per operator. Vote restores cambridge against an iso-lated melbourne drift backed by 32 of 34 past turns. Add recovers an omitted slot when the verifier proposes a multi-source-supported, attested value (σ=0 .72 for anatolia ). Swap replaces the unat-tested misspelling jay thornton with the attested 
+
+james thornton from earlier turns. 
+
+6 Conclusion 
+
+We presented AVERT, a value-level adjudication mechanism for spoken dialogue state tracking that combines cross-turn agreement with a trained audio-conditioned verifier and repairs three recov-erable editor errors with three slot-restricted opera-tors. On SpokenWOZ under strictly causal evalua-tion, it raises a 1B text editor from 38.34 to 40.13 JGA without retraining R or E. Because audio en-ters only through a per-turn verifier, the language-model context does not grow with dialogue length, so AVERT is cheapest on the long dialogues where reading the full spoken history is most expensive. Slot restriction is also essential: unrestricted vot-ing overwrites correct categorical values and falls below the editor. 
+
+Limitations 
+
+Scale. We test only the 1B backbone and do not run 9B or larger backbones. We expect the editor delta to transfer, since neither the editor nor the verifier depends on backbone size in any obvious way, but this remains a hypothesis. 
+
+Lexical attestation. The attestation gate uses a literal first-token match against the cumulative tran-script. A consistently mistranscribed value can therefore fail to be attested even when phonetically Operator Slot (gold) ASR transcript (excerpt) V Signals fired AVERT VOTE train-destination (cambridge) Earlier turns repeatedly mention cambridge . Current turn is a thank-you with no destination cue. cambridge, melbourne cambridge agreed in 32 of 34 past turns cambridge ADD restaurant-name (anatolia) “...moderate price range in the center. the anatolia, please.” (omitted) σ=0 .72 on anatolia; multi-source agree;   
+
+> α=1
+> anatolia SWAP profile-name (james thornton) “james thornton.” / “okay, james thornton...” jay thornton (not in At)
+> α(jay thornton )=0 ;james thornton attested earlier james thornton
+
+Table 6: Qualitative traces from the SpokenWOZ test set, one per operator. 
+
+close to the audio. A soft phonetic attestation, for example via articulatory-feature similarity as in Im et al. (2025), is left to future work. 
+
+Attestation rate. Only 21.0% of the editor’s er-rors have their reference value attested in the cu-mulative ASR transcript. The remaining 79.0% are not reachable by this literal-attestation design and may require stronger phonetic or generative audio grounding. This bounds the available headroom for AVERT’s current add and swap operators. 
+
+Training data. Our base model uses the Spoken-WOZ training split together with Loquacious (Par-collet et al., 2025) and Fisher (Cieri et al., 2004) for ASR pre-training. SpokenWOZ and Loquacious are open, but Fisher requires an LDC license to reproduce the ASR pre-training stage. 
+
+Slot selection and schema transfer. The per-operator slot subsets and the add threshold are tuned on the SpokenWOZ development set and fixed before test evaluation. The procedure trans-fers to any schema with labeled development data, but we do not evaluate zero-shot transfer, and the gains may depend on the SpokenWOZ slot inven-tory. Selecting subsets without target-domain la-bels is left to future work. 
+
+Differential error exposure. AVERT recovers a value only when it appears somewhere in the cumu-lative transcript. Values that ASR mistranscribes consistently, which is more likely for uncommon names and for underrepresented accents, therefore fall outside what attestation can reach. We do not measure how the 79.0% unattested share is dis-tributed across speakers. 
+
+References 
+
+Paweł Budzianowski, Tsung-Hsien Wen, Bo-Hsiang Tseng, Iñigo Casanueva, Stefan Ultes, Osman Ra-madan, and Milica Gaši´ c. 2018. MultiWOZ: A large-scale multi-domain wizard-of-oz dataset for task-oriented dialogue modelling. In Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing .Sanyuan Chen, Chengyi Wang, Zhengyang Chen, Yu Wu, Shujie Liu, Zhuo Chen, Jinyu Li, Naoyuki Kanda, Takuya Yoshioka, Xiong Xiao, and 1 oth-ers. 2022. WavLM: Large-scale self-supervised pre-training for full stack speech processing. IEEE Journal of Selected Topics in Signal Processing ,16(6):1505–1518. Christopher Cieri, David Miller, and Kevin Walker. 2004. The Fisher corpus: a resource for the next generations of speech-to-text. In Proceedings of the Fourth International Conference on Language Re-sources and Evaluation (LREC’04) , Lisbon, Portugal. European Language Resources Association (ELRA). Lucas Druart, Valentin Vielzeuf, and Yannick Estève. 2023. Is one brick enough to break the wall of spoken dialogue state tracking? arXiv preprint arXiv:2311.04923 .Nizar El Ghazal, Antoine Caubrière, and Valentin Vielzeuf. 2026. The speech-LLM takes it all: A truly fully end-to-end spoken dialog state tracking approach. In Proceedings of the Fifteenth Language Resources and Evaluation Conference , pages 2629– 2637, Palma de Mallorca, Spain. ELRA Language Resource Association. Haris Gulzar, Monikka Roslianna Busto, Akiko Masaki, Takeharu Eda, and Ryo Masumura. 2025. Leveraging LLMs for written to spoken style data transformation to enhance spoken dialog state tracking. In Proc. Interspeech 2025 , pages 1743–1747. Michael Heck, Carel van Niekerk, Nurul Lubis, Chris-tian Geishauser, Hsien-Chin Lin, Marco Moresi, and Milica Gaši´ c. 2020. TripPy: A triple copy strategy for value independent neural dialog state tracking. In Proceedings of the 21th Annual Meeting of the Special Interest Group on Discourse and Dialogue ,pages 35–44. Matthew Henderson, Blaise Thomson, and Jason D Williams. 2014a. The second dialog state tracking challenge. In Proceedings of the 15th annual meet-ing of the special interest group on discourse and dialogue (SIGDIAL) , pages 263–272. Matthew Henderson, Blaise Thomson, and Jason D Williams. 2014b. The third dialog state tracking chal-lenge. In 2014 IEEE Spoken Language Technology Workshop (SLT) , pages 324–329. IEEE. Dan Hendrycks and Kevin Gimpel. 2016. Gaus-sian error linear units (GELUs). arXiv preprint arXiv:1606.08415 .Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. 2022. LoRA: Low-rank adaptation of large language models. In International Conference on Learning Representations (ICLR) .Yuchen Hu, Chen Chen, Chengwei Qin, Qiushi Zhu, Eng Siong Chng, and Ruizhe Li. 2024. Listen again and choose the right answer: A new paradigm for automatic speech recognition with large language models. In Findings of the Association for Computa-tional Linguistics: ACL 2024 , pages 666–679. Solee Im, Wonjun Lee, Jinmyeong An, Yunsu Kim, Jungseul Ok, and Gary Geunbae Lee. 2025. De-RAGEC: Denoising named entity candidates with synthetic rationale for ASR error correction. In Find-ings of the Association for Computational Linguistics: ACL 2025 , pages 15181–15193. Chia-Hsuan Lee, Hao Cheng, and Mari Ostendorf. 2024. CorrectionLM: Self-corrections with SLM for dia-logue state tracking. Preprint , arXiv:2410.18209. Jihyun Lee, Yejin Jeon, Wonjun Lee, Yunsu Kim, and Gary Geunbae Lee. 2023. Exploring the viability of synthetic audio data for audio-based dialogue state tracking. In 2023 IEEE Automatic Speech Recog-nition and Understanding Workshop (ASRU) , pages 1–8. IEEE. Qianyu Li, Wensheng Zhang, Mengxing Huang, Siling Feng, and Yuanyuan Wu. 2023. Rsp-dst: Revisable state prediction for dialogue state tracking. Electron-ics , 12(6):1494. Tsung-Yi Lin, Priya Goyal, Ross Girshick, Kaiming He, and Piotr Dollár. 2017. Focal loss for dense object detection. In Proceedings of the IEEE International Conference on Computer Vision (ICCV) , pages 2980– 2988. Titouan Parcollet, Yuan Tseng, Shucong Zhang, and Ro-gier van Dalen. 2025. Loquacious set: 25,000 hours of transcribed and diverse english speech recognition data for research and commercial use. In Interspeech 2025 , pages 4053–4057. Šimon Sedláˇ cek, Bolaji Yusuf, Ján Švec, Pradyoth Hegde, Santosh Kesiraju, Oldˇ rich Plchot, and Jan ˇCernocký. 2025. Approaching Dialogue State Track-ing via Aligning Speech Encoders and LLMs. In 
+
+Interspeech 2025 , pages 1748–1752. Shuzheng Si, Wentao Ma, Haoyu Gao, Yuchuan Wu, Ting-En Lin, Yinpei Dai, Hangyu Li, Rui Yan, Fei Huang, and Yongbin Li. 2023. SpokenWOZ: A large-scale speech-text benchmark for spoken task-oriented dialogue agents. In Advances in Neural Information Processing Systems , volume 36. Hagen Soltau, Izhak Shafran, Mingqiu Wang, Abhinav Rastogi, Wei Han, and Yuan Cao. 2023. Dstc-11: Speech aware task-oriented dialog modeling track. In Proceedings of The Eleventh Dialog System Tech-nology Challenge , pages 226–234. Haoxiang Su, Hongyan Xie, Hao Huang, Shuangyong Song, Ruiyu Fang, Xiaomeng Huang, and Sijie Feng. 2023. Scalable-DSC: A structural template prompt approach to scalable dialogue state correction. In Pro-ceedings of the 2023 Conference on Empirical Meth-ods in Natural Language Processing , pages 7902– 7914. Guangzhi Sun, Chao Zhang, Ivan Vuli´ c, Paweł Budzianowski, and Philip C Woodland. 2025. Knowledge-aware audio-grounded generative slot fill-ing for limited annotated data. Computer Speech & Language , 89:101707. Team OLMo, Pete Walsh, Luca Soldaini, Dirk Groen-eveld, Kyle Lo, Shane Arora, Akshita Bhagia, Yuling Gu, Shengyi Huang, Matt Jordan, Nathan Lambert, Dustin Schwenk, Oyvind Tafjord, and 1 others. 2025. 2 OLMo 2 Furious. Preprint , arXiv:2501.00656. Xin Tian, Liankai Huang, Yingzhan Lin, Siqi Bao, Huang He, Yunyi Yang, Hua Wu, Fan Wang, and Shuqi Sun. 2021. Amendable generation for dialogue state tracking. In Proceedings of the 3rd Workshop on Natural Language Processing for Conversational AI , pages 80–92. Katia Vendrame, Bolaji Yusuf, Santosh Kesiraju, Ši-mon Sedláˇ cek, Oldˇ rich Plchot, and Jan ˇ Cernocký. 2025. Joint speech and text training for LLM-based end-to-end spoken dialogue state tracking. Preprint ,arXiv:2511.22503. Xuezhi Wang, Jason Wei, Dale Schuurmans, Quoc Le, Ed Chi, Sharan Narang, Aakanksha Chowdhery, and Denny Zhou. 2023. Self-consistency improves chain-of-thought reasoning in language models. In Inter-national Conference on Learning Representations (ICLR) .Jason D Williams, Antoine Raux, Deepak Ramachan-dran, and Alan W Black. 2013. The dialog state tracking challenge. In Proceedings of the SIGDIAL 2013 Conference , pages 404–413. Chien-Sheng Wu, Andrea Madotto, Ehsan Hosseini-Asl, Caiming Xiong, Richard Socher, and Pascale Fung. 2019. Transferable multi-domain state generator for task-oriented dialogue systems. In Proceedings of the 57th Annual Meeting of the Association for Com-putational Linguistics , pages 808–819. A Operator Slot Subsets 
+
+Each operator is enabled on a slot subset selected on the development set: a slot is included when enabling it corrects more errors than it introduces. The subsets were fixed before any test evaluation and cover 27 of the 35 candidate slots. A slot may appear under more than one operator, but only one fires per turn, since each operator is conditioned on whether the slot is present, absent, or unattested. 
+
+Operator Enabled slots VOTE (12) attraction-area, attraction-name, hotel-name, hotel-people, restaurant-pricerange, taxi-departure, taxi-leave, train-arrive, train-departure, train-destination, train-leave, train-people ADD (17) attraction-type, hotel-area, hotel-internet, hotel-parking, hotel-people, hotel-stars, hotel-stay, hotel-type, profile-phonenumber, restaurant-area, restaurant-day, restaurant-name, restaurant-people, restaurant-pricerange, train-day, train-departure, train-destination SWAP (5) hotel-stars, profile-name, restaurant-day, restaurant-food, train-destination 
+
+Table 7: Slots enabled for each operator, selected on the development set.

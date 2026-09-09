@@ -1,0 +1,593 @@
+Title: Cross-Lingual Representation Alignment by Token-Level Optimal Transport in a Language-Agnostic Space
+
+URL Source: https://arxiv.org/pdf/2609.06381v1
+
+Published Time: Wed, 09 Sep 2026 01:26:50 GMT
+
+Number of Pages: 20
+
+Markdown Content:
+# Cross-Lingual Representation Alignment by Token-Level Optimal Transport in a Language-Agnostic Space 
+
+## Taisei Yamamoto 1,2 , Ryoma Kumon 1,2 , Danushka Bollegala 3, Hitomi Yanaka 1,2,4 
+
+> 1
+
+## The University of Tokyo 2Riken 3University of Liverpool 4Tohoku University 
+
+## {yamamo96, kumoryo9, hyanaka}@is.s.u-tokyo.ac.jp danushka@liverpool.ac.uk 
+
+## Abstract 
+
+Cross-lingual alignment (CLA) aims to align the representations of large language mod-els (LLMs) across languages, enabling cross-lingual transfer to improve multilingual ca-pabilities. Previous CLA methods often ig-nore language-specific information encoded in representations and only consider sentence-level alignment, which may lead to suboptimal performance and input-output language mis-match. We propose CAROT (Cross-Lingual 
+
+Alignment of Representations in a Language-Agnostic Space via Optimal Transport), which consists of two steps: identifying language-specific representations in LLMs’ internal states and aligning language-agnostic represen-tations across languages at the token level by optimal transport, while explicitly preserving language-specific representations. Inference-time steering experiments show that the rep-resentations computed by CAROT are effec-tive alignment targets, improving multilingual performance by up to 11.2 points in accuracy while maintaining input-output language con-sistency. We further use the representations ob-tained by CAROT as training targets, internal-izing the aligned representations. The trained models outperform existing CLA methods in 11 of 18 evaluation settings (3 models × 3 tasks 
+
+× ID/OOD languages). Our work provides in-sights into what constitutes effective alignment targets for CLA in LLMs. Code is available at 
+
+https://github.com/ynklab/CAROT .
+
+## 1 Introduction 
+
+As large language models (LLMs) are being used around the world, it is crucial that LLMs pos-sess multilingual capabilities. However, previous studies have shown that LLMs have inconsistent abilities across languages, especially showing lim-ited understanding of low-resource languages (e.g., Ahuja et al., 2023; Singh et al., 2025). As low-resource languages lack sufficient training data, it is important to achieve cross-lingual transfer, the abil-ity of LLMs to generalize the knowledge and skills learned in one language to others. One key fac-tor enabling cross-lingual transfer is cross-lingual alignment (CLA). CLA aligns the representations of LLMs across languages, allowing the model to map semantically similar inputs from different lan-guages onto similar representations. Previous CLA methods are mainly based on in-sights into the multilingual mechanisms of LLMs. Several studies have suggested that LLMs follow a three-stage pipeline when processing multilingual inputs: (1) mapping inputs into a semantic space, (2) performing inference in that semantic space, and (3) translating back into the output language for generation (Wu et al., 2025; Zhao et al., 2024; Tang et al., 2024). Multiple studies have reported a correlation between task performance in a given language and the similarity of its internal repre-sentations to those of the dominant language (Kar-garan et al., 2025; Li et al., 2025). These findings have motivated the development of CLA methods aimed at increasing the cross-lingual similarity of the middle-layer representations of LLMs through inference-time steering (Zhao et al., 2025a; Li et al., 2026) and training (Liu and Niehues, 2025; Li et al., 2024; Zhao et al., 2025b). To promote CLA by leveraging representations in high-resource languages and identifying ideal representations for multilingual inputs, we must address two problems: what to align and where 
+
+to align it. Most training methods pull the hid-den states of parallel sentences across languages closer together, but they do not necessarily con-sider the language-specific information encoded in the representations (Liu and Niehues, 2025; Li et al., 2024). Indiscriminately minimizing cross-lingual distance risks destroying the language-specific features models rely on, so language-specific components should be protected while aligning the language-agnostic components. Fur-1arXiv:2609.06381v1 [cs.CL] 6 Sep 2026 Figure 1: Overview of CAROT. Stage 1 (Decomposition): LEACE decomposes the hidden states of each token into language-agnostic components ( Asrc and Atgt ) and a language-specific component ( Stgt ). Stage 2 (Alignment): Unbalanced optimal transport aligns Asrc with Atgt at the token level, producing ideal language-agnostic representations ˆAtgt . Application: The aligned representations are recombined with the preserved language-specific component to form ˆHtgt , which is used for inference-time steering or as a training signal. 
+
+thermore, many steering methods bring the multi-lingual representations closer to the model’s central language by applying a global vector shift, but they do not perform token-level alignment (Zhao et al., 2025a; Li et al., 2026). As languages differ in mor-phological structure and grammatical constructions, a finer-grained token-level investigation of multilin-gual representations is necessary to develop more effective CLA methods. For example, “I like dogs” 
+
+in English and “Watashi wa inu ga suki desu” in Japanese (Figure 1) have different word orders, and the Japanese sentence contains a topic marker “wa” and a subject marker “ga” that are not present in the English sentence. To overcome these challenges, we pro-pose CAROT (Cross-Lingual Alignment of 
+
+Representations in a Language-Agnostic Space via 
+
+Optimal Transport), a method to compute hidden representations that enhance the multilingual capa-bilities of LLMs by aligning token-level language-agnostic representations while preserving language-specific representations (Figure 1). We utilize LEACE (Belrose et al., 2023) to find linearly en-coded language-specific information (§3.1) and isolate the language-agnostic representations. We then align the language-agnostic representations between the source and target languages at the to-ken level via optimal transport (Chizat et al., 2018; Arase et al., 2023; Dou and Neubig, 2021), with dedicated adjustment for applying to LLMs’ inter-nal representations (§3.2). The source language is the dominant language in which the model per-forms best (e.g., English), and the target language is the language we want to improve. We confirm that the components removed by LEACE capture language-specific information and the remaining components correspond to language-agnostic se-mantic representations (§5). Our steering experi-ments, covering a broad range of tasks, demonstrate that the representations obtained by CAROT are effective alignment targets, significantly improving multilingual performance without inducing input-output language mismatch (§6). Inference-time steering with CAROT, however, requires a source-language translation of the input, which makes it impractical to apply at scale. We therefore propose a training method that encour-ages the model’s internal representations to match those obtained by CAROT (§7), so that translation is required only during training. Models trained with CAROT outperform existing CLA methods in 11 of 18 model-task-language settings (3 models 
+
+× 3 tasks × ID/OOD languages), although the im-provements do not yet match those observed with steering. Our work provides insights into the ideal multilingual representations and an interpretable framework for achieving CLA in LLMs, contribut-ing to more effective cross-lingual transfer. 
+
+## 2 Related Work 
+
+Multilingual Mechanisms of LLMs. A num-ber of studies have investigated the multilingual mechanisms of LLMs, revealing that LLMs pro-cess multilingual inputs through a shared semantic space in middle layers. Wendler et al. (2024) and Wu et al. (2025) applied logit lens to the middle layers of LLMs and found that the top-ranked lan-guage is often the dominant language of the model. Chang et al. (2022) demonstrated that languages share common linear subspaces in the middle lay-ers of multilingual LLMs. These findings support the hypothesis that LLMs first map multilingual in-puts into a shared semantic space and then perform inference in that space. 2Cross-Lingual Alignment (CLA). In addition to the multilingual mechanisms of LLMs de-scribed above, Kargaran et al. (2025) and Li et al. (2025) demonstrated that LLMs perform better in a language for which the hidden representa-tions are closer to those of the dominant language. Based on these findings, several studies applied inference-time steering to bring the multilingual representations closer to those of the dominant lan-guage (Zhao et al., 2025a; Lim et al., 2025). Fur-thermore, Liu and Niehues (2025) and Li et al. (2024) proposed contrastive training methods to increase the similarity of the middle-layer repre-sentations of LLMs across languages. However, these methods only consider sentence-level align-ment, and most training methods ignore language-specific information encoded in representations. Although Zhao et al. (2025b) proposed a cross-lingual training method that took into account language-specific representations, they only cal-culated and aligned sentence-level representations. Token-level cross-lingual alignment has also been studied for word alignment, with several methods using optimal transport (Dou and Neubig, 2021; Arase et al., 2023), but not for CLA in LLMs. Our approach addresses both issues by aligning token-level language-agnostic representations. 
+
+Concept Erasure. Concept erasure identifies and removes specific information from representations without compromising other features (Ravfogel et al., 2020, 2022). Belrose et al. (2023) developed LEACE, a concept erasure method that computes an affine transformation that removes the linear fea-tures representing the target concept (Appendix B). They provided theoretical guarantees that after ap-plying LEACE, the target labels cannot be clas-sified linearly while minimizing the distance be-tween the original and transformed representations. In the multilingual setting, earlier work removed language-specific components from multilingual encoders in a predefined form, by subtracting per-language centroids (Libovický et al., 2020), normal-izing language-specific means and variances (Zhao et al., 2021), or projecting out low-rank language subspaces (Xie et al., 2022; Zhao et al., 2025a). We utilize LEACE to isolate language-specific features from the internal representations of LLMs. 
+
+## 3 CAROT 
+
+We propose CAROT, a method for computing mul-tilingual representations of LLMs to enhance CLA. CAROT consists of two stages: (1) decompos-ing hidden representations into language-specific and language-agnostic components using LEACE (§3.1), and (2) aligning the language-agnostic rep-resentations of the source and target languages at the token level via optimal transport (§3.2). 
+
+3.1 Language-Specific and Language-Agnostic Decomposition Sentence Representations. To identify features encoding language information in LLMs’ internal representations, we calculate sentence-level embed-dings and train LEACE on these representations. Specifically, we calculate the sentence represen-tation x(l) (at layer l) by aggregating the hidden states h(l) 
+
+> t
+
+using a weighted average across token positions t, following Muennighoff (2022): 
+
+x(l) =
+
+> n
+
+X
+
+> t=1
+
+wth(l) 
+
+> t
+
+, where wt = t
+
+Pni=1 i (1) and n is the number of tokens in the sentence. This aggregation averages out token-level variation to expose the dominant semantic content across par-allel sentence pairs, leaving the language direction more salient for LEACE to identify. 
+
+LEACE-Based Erasure. As described in §2, LEACE calculates an affine transformation after which the target labels cannot be linearly separated. We train LEACE in a multiclass setting, where the target labels are the languages of the input sen-tences. LEACE is trained at each layer l, denoted as a function E(l). LEACE is subsequently applied to the hidden vectors of each token. 
+
+3.2 Token-Level Alignment with Optimal Transport in a Language-Agnostic Space 
+
+CAROT aligns the token-level language-agnostic representations of the target language with those of the source language, while preserving the language-specific representations of the target language. We select English as the source language as it is the dominant language for all models in our experi-ments and thus serves as a good anchor for align-ment. 
+
+LEACE-Based Decomposition. Let Hsrc ∈
+
+Rnsrc ×d and Htgt ∈ Rntgt ×d be the hidden states of the parallel sentences at layer l, where nsrc and ntgt 
+
+are the number of tokens in the source and target language sentences, respectively, and d is the hid-den dimension. We first apply the LEACE eraser 3E(l) to separate language-specific and language-agnostic representations: 
+
+Asrc = E(l)(Hsrc ), Atgt = E(l)(Htgt ), (2) 
+
+Stgt = Htgt − Atgt , (3) where E(l) is applied to each row of H, i.e., each token’s hidden vector. A denotes the language-agnostic representation, and Stgt is the language-specific component of the target language. 
+
+Optimal Transport in Language-Agnostic Space. 
+
+We align source and target language-agnostic repre-sentations via optimal transport (OT), using Maha-lanobis distance as the transport cost. We precom-pute the covariance matrix Σ of sentence represen-tations (Equation 1) on the same training data as LEACE. We define the cost matrix C ∈ Rntgt ×nsrc 
+
+as the squared Mahalanobis distance: 
+
+Cij = Σ−1/2(atgt ,i − asrc ,j ) 22, (4) where a⊤ 
+
+> tgt ,i
+
+and a⊤ 
+
+> src ,j
+
+are the i-th and j-th row of 
+
+Atgt and Asrc , which correspond to the language-agnostic representations of the i-th target and j-th source token, respectively. We use Mahalanobis distance considering that the hidden vectors of LLMs tend to be anisotropic 1 (Machina and Mer-cer, 2024). Since the source and target sequences generally differ in length ( nsrc ̸ = ntgt ) and not every token has a clear cross-lingual counterpart, we solve the 
+
+unbalanced OT problem with the Sinkhorn algo-rithm 2 (Chizat et al., 2018; Flamary et al., 2021) under uniform marginal distributions p = 1 
+
+> ntgt
+
+1
+
+and q = 1 
+
+> nsrc
+
+1:
+
+T = Sinkhorn -UB( p, q, C; ϵOT , ρ ), (5) where ϵOT controls entropic regularization and ρ
+
+relaxes the marginal constraints. 
+
+Perplexity-Based Filtering. The transport plan 
+
+T may assign diffuse mass to tokens that are diffi-cult to align. To suppress such noise, we compute the perplexity of the row-normalized transport dis-tribution for each target token i:
+
+ppl row  
+
+> i
+
+= exp 
+
+
+
+− X
+
+> j
+
+ˆTij log ˆTij 
+
+
+
+, (6) where ˆTij = Tij 
+
+P 
+
+> j
+
+Tij + ϵnum 
+
+, 
+
+> 1We confirm that especially gemma3-4b has highly anisotropic distributions of hidden representations, as dis-cussed in Appendix C.
+> 2https://github.com/PythonOT/POT
+
+and analogously for columns (source tokens). ϵnum 
+
+is a small constant for numerical stability. Rows with ppl row  
+
+> i
+
+> θ · nsrc and columns with ppl col  
+
+> j
+
+>θ · ntgt are zeroed out, where θ is a hyperparame-ter. This filtering retains only those target tokens that are confidently matched to a focused subset of source tokens, and vice versa. 
+
+Transported Representation. For each target to-ken i, the received transport mass mi = P 
+
+> j
+
+Tij 
+
+quantifies alignment confidence. We compute the new language-agnostic representation as a soft in-terpolation between the transported source and the original target: 
+
+ˆAtgt = α ⊙ ˆTA src + ( 1 − α) ⊙ Atgt , (7) where ˆT is the row-normalized filtered transport plan and αi = min(1 , m i/p i) scales each target token’s update proportionally to its received mass. Tokens with little or no received mass (e.g., by be-ing filtered out) thus retain their original language-agnostic representation. 
+
+Language-Specific Component Restoration. 
+
+Finally, we add back the preserved target language-specific component: 
+
+ˆHtgt = ˆAtgt + Stgt . (8) The resulting ˆHtgt carries language-agnostic repre-sentations aligned with the source language while retaining the target language identity. 
+
+3.3 Using CAROT Representations 
+
+We use ˆAtgt and ˆHtgt in two ways: as (1) an inference-time steering method and (2) a training target to encourage the model to produce better-aligned representations. 
+
+Inference-Time Application. When used for inference-time steering, CAROT is applied to the hidden states of the tokens corresponding to a ques-tion (and answer options for multiple-choice tasks) at a single layer, swapping in the new represen-tations ˆHtgt before the model continues forward. BOS, EOS, and padding tokens are excluded from steering to preserve the model’s generation behav-ior. Note that steering requires a source-language translation of the input. Our steering evaluation (§6) therefore serves to demonstrate the effective-ness of the representations computed by CAROT as alignment targets, while the approach itself remains applicable to offline settings where parallel inputs 4are naturally available, such as generating higher-quality reasoning traces in low-resource languages as distillation data. 
+
+Training Objective. When used for training, we fine-tune the model with two loss compo-nents: language-agnostic alignment loss Lalign 
+
+and language modeling loss LLM . Language-agnostic alignment loss is calculated on parallel data. We penalize the deviation of the model’s cur-rent language-agnostic component Atgt from the CAROT-derived ˆAtgt using the same Mahalanobis distance as OT cost: 
+
+Lalign = 1
+
+ntgt 
+
+> ntgt
+
+X
+
+> i=1
+
+Σ−1/2 (atgt ,i − ˆatgt ,i ) 22
+
+Σ−1/2 ˆatgt ,i 22 + ϵnum 
+
+. (9) Normalizing the loss by the target norm stabilizes the magnitude of the loss. Language modeling loss is calculated on the instruction-tuning data. We minimize the supervised fine-tuning (SFT) loss 
+
+LLM on the answer tokens of the target batch. In the first half of training, we optimize the two losses alternately at each training step rather than com-bining them into a single loss to avoid interference between the two objectives. In the second half, we only optimize LLM to allow the model to leverage its aligned representations for generation. Unlike steering, this application requires paral-lel data only during training. As parallel corpora are available for many languages and our training method requires only a modest amount of parallel data, training with CAROT is a practical route to improving the multilingual ability of LLMs. 
+
+## 4 Experimental Setup 
+
+Models and Datasets. In our experiments, we use three multilingual LLMs: Llama3.1-8B (Grattafiori et al., 2024), gemma3-4b (Gemma Team et al., 2025), and Qwen3-4B (Qwen Team, 2025). For training LEACE, we use paral-lel sentences from two multilingual datasets: WMT24++ (Deutsch et al., 2025) and NTREX (Fe-dermann et al., 2022). We include 12 in-distribution (ID) languages for LEACE, which vary in terms of their linguistic characteristics and re-source levels (see Table 4). In total, we use 2,560 sentences per language for training LEACE. For evaluation, we use KLAR Continent cate-gory (Wang et al., 2025) as the knowledge retrieval task, GMMLU (Singh et al., 2025) test set as the task that requires both knowledge and reasoning, BELEBELE (Bandarkar et al., 2024) for reading comprehension, and XQuAD (Artetxe et al., 2020) for open-ended question answering. We also use FLORES+ (NLLB Team et al., 2024) for analyz-ing the internal representations of the models in §5. The source language is English, and the target languages are seven languages for KLAR, nine for GMMLU and BELEBELE, and five for XQuAD, selected based on the availability of the datasets and the variety of characteristics (Table 4). 
+
+Hyperparameter Search. In the steering and training experiments in §6 and §7, we perform a grid search to find the optimal hyperparameters for each method and model. We use the dev set of GMMLU and adopt the parameters achieving the best accuracy. For steering with CAROT, we search for the best layer from every three layers, and the fil-tering threshold θ from {0.25 , 0.5, 0.75 , 1.0} (note that θ=1 means that no filter is applied). For train-ing with CAROT, we adopt the best layer and fil-tering threshold from the steering experiments for each model, and search for the best learning rate from {5e-4, 1e-4, 5e-5, 1e-5}. 
+
+Metrics. We use accuracy, (language) fidelity, and cross-lingual agreement ratio as evaluation metrics. Fidelity is the percentage of instances where the model’s answer is in the same language as the input. We use GlotLID (Kargaran et al., 2023) to identify the language of the model’s out-put. Cross-lingual agreement ratio is the percent-age of instances for which the model’s answer in the target language matches that in the source lan-guage. The details of the evaluation protocols are described in Appendix E. 
+
+## 5 Analysis of Language-Specific and Language-Agnostic Representations 
+
+First, we analyze the representations obtained by applying LEACE on sentence-level embeddings (§3.1). Figure 2 shows PCA-based and t-SNE-based (van der Maaten and Hinton, 2008) 2D scat-ter plots of the original, remaining, and LEACE-erased sentence representations of Llama3.1-8B at layer 12, calculated on the FLORES+ devtest set. We show the results for 12 ID languages and 6 out-of-distribution (OOD) languages, which are not used for training LEACE. For ID languages, sen-tences in the remaining representations are mixed across languages, while the LEACE-erased repre-sentations are clearly separated by language. These 5(a) In-distribution languages  
+
+> (b) Out-of-distribution languages
+> Figure 2: Scatter plot of original (left), remaining (center), and LEACE-erased (right) representations of Llama3.1-8B at layer 12. Each point represents the sen-tence embedding, colored by language.
+
+observations confirm that LEACE successfully identifies language-specific representations. For OOD languages, the remaining representations are somewhat clustered by language, indicating resid-ual language information not captured by LEACE. Meanwhile, the erased representations still show clear separation. This suggests that LEACE cap-tures language-specific representations that gener-alize to OOD languages to some extent. The same trend holds across other layers and models (Ap-pendix C). Figure 3 shows the average cosine similarity of the sentence representations between the intra-language pairs (i.e., sentences in the same lan-guage) and inter-language pairs (i.e., parallel sen-tence pairs between the source and target lan-guages) for Llama3.1-8B, calculated on the FLO-RES+ devtest set. In the remaining representa-tions, inter-language similarity is higher than intra-language similarity, showing that content rather than language determines the representation (i.e., the representations are language-agnostic). In con-trast, in the LEACE-erased representations, intra-language similarity is consistently close to 1, in-dicating that erased representations follow a com-mon direction within the same language regardless of content (i.e., the representations are language-specific). These results confirm that LEACE successfully disentangles language-specific and language-agnostic components. 
+
+## 6 Steering Evaluation 
+
+6.1 Baselines 
+
+We implement two steering methods for compari-son with CAROT. One is a vector offset based on diff-in-means (Lim et al., 2025), which we refer to as Lang Vec . The other is MLRS (Zhao et al., 2025a), which first identifies language-specific components and then suppresses them in the middle layers and adds them back in the later layers. Note that these methods perform sentence-level align-ment, while CAROT is a token-level alignment method. Also note that although MLRS considers language-specific representations, it does not give theoretical grounds for the decomposition, while CAROT does by using LEACE. We describe the details of these baselines in Appendix F. 
+
+6.2 Results and Analysis 
+
+Table 1 shows the task accuracy and language fi-delity for each method, averaged across target lan-guages. CAROT outperforms the baselines in most cases, achieving a significant improvement of up to 11.2 points in accuracy over the original model (Un-steered). Meanwhile, fidelity does not degrade sub-stantially, indicating that CAROT does not cause input-output language mismatch. For gemma3-4b on GMMLU, fidelity is lower than in the other set-tings for all methods, which may be due to the model’s tendency to generate reasoning steps in English even when the input is in another language. Additionally, Table 7 in Appendix H reports the agreement ratio, showing that CAROT achieves the highest agreement in most cases. These results indicate that CAROT improves CLA. The best steering layers of CAROT are all in the early-to-middle layers (layer 12, 6, 9 for Llama3.1-8B, gemma3-4b, and Qwen3-4B, respectively, as shown in Appendix G). As the intervention targets 6Figure 3: Cosine similarity between the intra-language (dashed, averaged across languages) and inter-language (solid) sentence pairs in the original, remaining, and LEACE-erased representations of Llama3.1-8B across layers.                                                                                                             
+
+> GMMLU (9) KLAR (7) BELEBELE (9) XQuAD (5) Model Method Acc Fid Acc Fid Acc Fid Acc Fid
+> Llama3.1-8B
+> Unsteered 48.4 93.5 68.4 94.7 74.7 87.7 35.0 77.9 Lang Vec 43.8 93.0 69.6 †94.5 74.5 80.7 37.2 †76.8 MLRS 43.7 93.8 69.5 †94.6 77.5 †88.8 35.6 †78.0 CAROT (Ours) 49.8 †93.1 73.3 †93.8 81.9 †85.3 41.2 †72.7
+> gemma3-4b
+> Unsteered 49.4 64.7 67.5 92.7 64.2 94.4 21.9 85.9 Lang Vec 49.0 63.9 67.9 92.8 63.8 94.1 21.8 86.3 MLRS 48.2 66.8 67.2 92.0 64.8 95.1 23.5 †85.1 CAROT (Ours) 51.8 †62.6 75.8 †96.4 66.0 †92.9 26.0 †82.5
+> Qwen3-4B
+> Unsteered 56.8 98.5 56.8 93.7 62.3 90.1 45.5 72.0 Lang Vec 54.9 97.0 59.1 †93.9 63.3 †75.8 45.8 68.9 MLRS 55.9 98.5 59.2 †93.9 64.9 †89.2 45.6 71.6 CAROT (Ours) 59.6 †98.1 68.0 †90.4 62.5 89.5 45.6 69.9
+
+Table 1: Steering results averaged across target languages. Each row reports task accuracy and fidelity (%) of four methods: Unsteered , Lang Vec , MLRS , and CAROT (Ours). The source language is English for all cases, and the number of target languages is shown in parentheses for each dataset. Bold marks the highest value per metric group.  
+
+> †
+
+indicates statistically significant accuracy improvement over Unsteered ( p < 0.05 , one-sided McNemar test across all languages). 
+
+Figure 4: Fidelity (left) and accuracy (right) of Llama3.1-8B on GMMLU dev calculated when conduct-ing hyperparameter search for the best steering layer with CAROT. For other parameters (e.g., θ), we use the best values at each layer. Dashed lines show the original model (Unsteered) performance. 
+
+only the question tokens, steering applied at later layers may have a weaker effect once the relevant information has already been propagated to the answer-generating position. Figure 4 shows layer-wise per-language fidelity and accuracy for Llama3.1-8B on the GMMLU 
+
+dev set when steering with CAROT, calculated when conducting hyperparameter search. CAROT achieves high fidelity across all languages and lay-ers, and the accuracy improves most in the early layers. In contrast, the results for Lang Vec show degraded fidelity in many cases (Figure 11). Lang Vec brings the hidden states of the target language closer to those of the source language, which can cause a loss of language-specific information and thus low fidelity. Additional results are shown in Appendix H. Figure 5 shows the cosine similarity of language-agnostic sentence representations between the source and target languages when steering with CAROT at layer 12 of Llama3.1-8B, calculated on the FLORES+ devtest set. Similarity increases at the steering layer, and higher similarity lasts in later 7Figure 5: Cosine similarity of the language-agnostic components of sentence representations between the source and target languages when applying CAROT steering at layer 12 of Llama3.1-8B. 
+
+layers. This confirms that CAROT successfully aligns the language-agnostic representations be-tween the source and target languages. As a sanity check, we inspect several samples and confirm that transport plans are sparse and exhibit little noise, and that semantically corresponding tokens are cor-rectly aligned across languages (Appendix D). An ablation study (Table 8, Appendix H) shows that LEACE-based decomposition and filtering of the OT plan contribute to the robustness of CAROT. Removing LEACE-based decomposition degrades performance in most cases. Removing the filtering yields comparable accuracy but is less stable (e.g., a drop of 14.0 points on Qwen3-4B/KLAR) and lowers fidelity in many settings. In addition, we compare CAROT with a variant that swaps the language-agnostic representations of only the last token between the source and target languages to investigate the effect of token-level alignment. The results show that CAROT outperforms this variant in most cases, indicating that token-level alignment effectively improves accuracy. The computational complexity of CAROT is 
+
+O(nsrc ntgt (d + T )) , where T is the number of iter-ations for Sinkhorn’s algorithm (we set T = 1000 ). Table 2 shows the average per-forward-pass la-tency for Llama3.1-8B on the GMMLU test set (30 samples per language). CAROT adds a second, source-language forward pass and the OT com-putation, roughly doubling the prefill cost (e.g., 
+
+24 .3 + 29 .6 = 53 .9 ms vs. 28 .1 ms for Spanish). However, since CAROT is applied only once at pre-fill, this cost is amortized over the entire generation process, which involves as many forward passes as                                
+
+> Lang orig fwd src fwd CAROT fwd Spanish 28.1 ±2.6 24.3 ±0.8 29.6 ±4.1 Japanese 28.7 ±2.7 28.2 ±2.9 30.8 ±6.3 Telugu 36.8 ±15.8 24.4 ±1.8 49.6 ±30.0
+> Table 2: Computational overhead of CAROT measured on Llama3.1-8B with 30 samples from the GMMLU test
+> set. We show the average time (in milliseconds) for one forward pass of the original model in the target language (orig fwd ), the original model in the source language ( src fwd ), and the model steered with CAROT ( CAROT fwd ). The average number of tokens in the source language (English) is 83.1, and in the target languages, 122.2 (Spanish), 122.1 (Japanese), and 601.4 (Telugu).
+
+the number of tokens generated. The overhead of CAROT is therefore modest in practice, especially for long generations. 
+
+## 7 Training Experiments 
+
+Finally, we evaluate the training application of CAROT described in §3.3, where the model is trained to produce language-agnostic representa-tions that match those calculated by CAROT. 
+
+7.1 Training Settings 
+
+To assess the effectiveness of CAROT in post-training, we apply instruction-tuning-style train-ing to the base (i.e., non-instruction-tuned) mod-els of Llama3.1-8B, gemma3-4b, and Qwen3-4B, incorporating cross-lingual alignment objectives. For the alignment data to calculate Lalign , we use WMT24++ and NTREX. For the instruction-tuning data to calculate LLM , we use Aya Dataset (Singh et al., 2024), a multilingual instruction-tuning dataset. We train the models in five high-resource languages and evaluate in both ID and OOD lan-guages, including low-resource languages (Ta-ble 4), reflecting the practical scenario where mas-sive training data is available in only high-resource languages. The evaluation datasets are the same as described in §4, except that we omit XQuAD. Unlike the other three datasets, XQuAD requires extractive generation, and the models instruction-tuned in our setting fail to consistently produce answers in the required format under all settings, making the resulting accuracy uninformative. We compare CAROT with standard SFT ( LM )and MidAlign (Liu and Niehues, 2025), which min-imizes the contrastive loss to increase the similarity of the middle-layer representations on the parallel sentences across languages. We fine-tune the mod-8GMMLU KLAR BELEBELE Model Method ID OOD ID OOD ID OOD                                                                                                                                                                   
+
+> Llama3.1-8B
+> LM 43.2 ±6.3 31.4 ±5.6 61.7 ±11.8 54.3 ±13.1 61.1 ±15.4 46.3 ±5.7 MidAlign 45.3 ±4.9 34.5 ±5.9 63.1 ±13.8 47.0 ±15.0 65.3 ±13.2 42.3 ±9.2 CAROT (Ours) 46.5 ±4.8 31.8 ±5.3 66.9 ±9.4 56.1 ±12.0 66.5 ±15.7 51.5 ±8.5
+> gemma3-4b
+> LM 33.5 ±3.2 30.5 ±2.3 54.3 ±12.3 38.7 ±4.2 50.3 ±6.9 40.8 ±4.2 MidAlign 34.8 ±5.5 32.0 ±1.4 56.4 ±15.0 41.2 ±1.4 60.3 ±10.7 50.5 ±6.0 CAROT (Ours) 34.7 ±5.9 31.5 ±2.7 57.5 ±14.1 42.9 ±3.8 57.8 ±8.6 49.8 ±4.6
+> Qwen3-4B
+> LM 64.6 ±4.5 49.4 ±5.6 71.2 ±15.1 51.6 ±12.3 79.8 ±4.6 68.9 ±6.5 MidAlign 65.3 ±4.4 48.7 ±4.1 74.6 ±13.7 40.9 ±17.7 76.6 ±10.2 65.7 ±4.9 CAROT (Ours) 66.1 ±4.0 49.6 ±5.8 75.2 ±10.5 45.0 ±15.7 81.9 ±8.5 68.4 ±6.0
+
+Table 3: Accuracy (%) on GMMLU, KLAR, and BELEBELE, aggregating ID and OOD languages. Values are mean ± standard deviation across languages within each group. Here ID/OOD indicates whether the language is included in the fine-tuning data. Bold marks the highest mean within each ID/OOD group. 
+
+els with LoRA (Hu et al., 2022) in all settings, and further details are described in Appendix I. 
+
+7.2 Results and Analysis 
+
+Table 3 shows the evaluation results. CAROT achieves the best accuracy in 11 out of 18 model-task-language settings (3 models × 3 tasks ×
+
+ID/OOD languages), indicating that it is effective in improving multilingual performance when incor-porated into post-training. To analyze the effect of our training method on the internal representa-tions, we calculate the cosine similarity between the source and target language-agnostic sentence representations before and after training on FLO-RES+ devtest set. The results for Llama3.1-8B are shown in Figure 12 (Appendix I). We confirm that language-agnostic representations are more aligned after training with CAROT, indicating the intended effect of our training objective. However, the overall performance gains by train-ing are smaller than those by steering (§6). One possible reason is that the LEACE erasers and co-variance matrices are precomputed and fixed during training, but the model’s representations change, which may reduce the effectiveness of the align-ment loss. To quantify this effect, we refit LEACE and the covariance matrix on the post-training rep-resentations of Llama3.1-8B at layer 12, which is the layer where the alignment loss is applied, and measure principal angles between the subspaces spanned by the top 50 eigenvectors of the pre- and post-training matrices. The averaged principal an-gles are 40.3° (max. 75.1°) for LEACE and 32.8° (max. 87.1°) for the covariance matrix. These large angles indicate a representation drift, which may make the precomputed parameters increasingly in-accurate. One possible remedy is periodically up-dating the LEACE and covariance matrices during training, which we leave for future work. Moreover, our training with CAROT yields smaller improvements in GMMLU, which includes reasoning-heavy problems. Although our exper-iments only consider SFT-based objectives, re-cent training approaches often adopt reinforcement learning (RL) to improve reasoning capabilities, such as GRPO (Shao et al., 2024). Incorporating CAROT into RL-based training is an interesting direction for future work. 
+
+## 8 Conclusion 
+
+We present CAROT, which disentangles language-specific and language-agnostic components in LLMs’ hidden states and aligns language-agnostic representations across languages at the token level while preserving language-specific representations. Our steering experiments show that representations calculated by CAROT enhance the multilingual per-formance of LLMs without compromising input-output language consistency. As steering requires a source-language translation of the input and is thus impractical to apply at scale, we propose to use representations obtained by CAROT as training objectives, so that translation is needed only dur-ing training. We demonstrate that models trained with CAROT outperform previous CLA methods in 11 of 18 evaluation settings, although the gains do not fully match those observed with steering. Our work provides insights into what constitutes effective alignment targets for CLA in LLMs. 
+
+## Limitations 
+
+Our experiments are conducted on 4–8B parameter models due to computational resource constraints. 9As Lim et al. (2025) suggest that the multilingual mechanisms of LLMs may differ by model size, the effectiveness of our method on larger models remains to be investigated. In CAROT, we use LEACE to identify language-specific and language-agnostic components in the model’s representations. LEACE considers only linear features, while LLMs involve non-linear transformations. Thus, it is possible that CAROT may overlook non-linear language features that LLMs actually use, which may limit the effective-ness of our method. As discussed in §7.2, our training relies on SFT-based objectives, while recent training approaches usually adopt RL to improve reasoning capabilities. We expect that CAROT can be incorporated into RL frameworks by alternately applying Lalign and the RL loss at each training step, which is left for future work. Additionally, as discussed in §7.2, we use the precomputed LEACE and covariance matrices ob-tained from the base model throughout training. However, the model’s representations drift during training, as shown by the large principal angles between the pre- and post-training LEACE and covariance matrices. Although we confirm that language-agnostic representations are more aligned between the source and target languages after train-ing (§7.2), periodically updating the LEACE and covariance matrices during training may provide a more accurate training signal, which is also left for future work. Han et al. (2025) point out that cross-lingual alignment often sacrifices the model’s ability to answer culturally specific questions, as representa-tions are aligned to the dominant language. Mean-while, CAROT preserves language-specific repre-sentations, which may help mitigate this issue. We do not evaluate the model’s cultural understanding in this work, and leave it for future work. 
+
+## Acknowledgments 
+
+We would like to thank the three anonymous re-viewers and the meta-reviewer for their thought-ful engagement with our work and constructive feedback. We also thank Adam Nohejl, Xiao-tian Wang, and Koki Ryu for their valuable dis-cussions and comments on the paper. This work was supported by JST CREST Grant Number JP-MJCR2565, Japan, and JST BOOST Program Grant Number JPMJBY24H5, Japan. 
+
+## References 
+
+Kabir Ahuja, Harshita Diddee, Rishav Hada, Milli-cent Ochieng, Krithika Ramesh, Prachi Jain, Ak-shay Nambi, Tanuja Ganu, Sameer Segal, Mohamed Ahmed, Kalika Bali, and Sunayana Sitaram. 2023. MEGA: Multilingual evaluation of generative AI. In Proceedings of the 2023 Conference on Empir-ical Methods in Natural Language Processing , pages 4232–4267, Singapore. Association for Computa-tional Linguistics. Yuki Arase, Han Bao, and Sho Yokoi. 2023. Unbal-anced optimal transport for unbalanced word align-ment. In Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Vol-ume 1: Long Papers) , pages 3966–3986, Toronto, Canada. Association for Computational Linguistics. Mikel Artetxe, Sebastian Ruder, and Dani Yogatama. 2020. On the cross-lingual transferability of mono-lingual representations. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics , pages 4623–4637, Online. Association for Computational Linguistics. Lucas Bandarkar, Davis Liang, Benjamin Muller, Mikel Artetxe, Satya Narayan Shukla, Donald Husa, Naman Goyal, Abhinandan Krishnan, Luke Zettlemoyer, and Madian Khabsa. 2024. The belebele benchmark: a parallel reading comprehension dataset in 122 lan-guage variants. In Proceedings of the 62nd Annual Meeting of the Association for Computational Lin-guistics (Volume 1: Long Papers) , pages 749–775, Bangkok, Thailand. Association for Computational Linguistics. Nora Belrose, David Schneider-Joseph, Shauli Ravfo-gel, Ryan Cotterell, Edward Raff, and Stella Bider-man. 2023. LEACE: Perfect linear concept erasure in closed form. In Thirty-seventh Conference on Neural Information Processing Systems .Tyler A. Chang, Zhuowen Tu, and Benjamin K. Bergen. 2022. The geometry of multilingual language model representations. In Proceedings of the 2022 Con-ference on Empirical Methods in Natural Language Processing , pages 119–136, Abu Dhabi, United Arab Emirates. Association for Computational Linguistics. Lenaic Chizat, Gabriel Peyré, Bernhard Schmitzer, and François-Xavier Vialard. 2018. Scaling algorithms for unbalanced optimal transport problems. Mathe-matics of computation , 87(314):2563–2609. Daniel Deutsch, Eleftheria Briakou, Isaac Rayburn Caswell, Mara Finkelstein, Rebecca Galor, Juraj Juraska, Geza Kovacs, Alison Lui, Ricardo Rei, Ja-son Riesa, Shruti Rijhwani, Parker Riley, Elizabeth Salesky, Firas Trabelsi, Stephanie Winkler, Biao Zhang, and Markus Freitag. 2025. WMT24++: Ex-panding the language coverage of WMT24 to 55 languages & dialects. In Findings of the Associa-tion for Computational Linguistics: ACL 2025 , pages 12257–12284, Vienna, Austria. Association for Com-putational Linguistics. 
+
+10 Zi-Yi Dou and Graham Neubig. 2021. Word alignment by fine-tuning embeddings on parallel corpora. In 
+
+Proceedings of the 16th Conference of the European Chapter of the Association for Computational Lin-guistics: Main Volume , pages 2112–2128, Online. Association for Computational Linguistics. Christian Federmann, Tom Kocmi, and Ying Xin. 2022. NTREX-128 – news test references for MT evalua-tion of 128 languages. In Proceedings of the First Workshop on Scaling Up Multilingual Evaluation ,pages 21–24, Online. Association for Computational Linguistics. Rémi Flamary, Nicolas Courty, Alexandre Gramfort, Mokhtar Z. Alaya, Aurélie Boisbunon, Stanislas Chambon, Laetitia Chapel, Adrien Corenflos, Kilian Fatras, Nemo Fournier, Léo Gautheron, Nathalie T.H. Gayraud, Hicham Janati, Alain Rakotomamonjy, Iev-gen Redko, Antoine Rolet, Antony Schutz, Vivien Seguy, Danica J. Sutherland, and 3 others. 2021. Pot: Python optimal transport. Journal of Machine Learn-ing Research , 22(78):1–8. Gemma Team, Aishwarya Kamath, Johan Ferret, Shreya Pathak, Nino Vieillard, Ramona Merhej, Sarah Perrin, Tatiana Matejovicova, Alexandre Ramé, Morgane Rivière, Louis Rouillard, Thomas Mesnard, Geoffrey Cideron, Jean bastien Grill, Sabela Ramos, Edouard Yvinec, Michelle Casbon, Etienne Pot, Ivo Penchev, and 196 others. 2025. Gemma 3 technical report. 
+
+arXiv preprint arXiv:2503.19786 . Version 1. Aaron Grattafiori, Abhimanyu Dubey, Abhinav Jauhri, Abhinav Pandey, Abhishek Kadian, Ahmad Al-Dahle, Aiesha Letman, Akhil Mathur, Alan Schel-ten, Alex Vaughan, Amy Yang, Angela Fan, Anirudh Goyal, Anthony Hartshorn, Aobo Yang, Archi Mi-tra, Archie Sravankumar, Artem Korenev, Arthur Hinsvark, and 540 others. 2024. The Llama 3 herd of models. arXiv preprint arXiv:2407.21783 . Version 3. HyoJung Han, Sweta Agrawal, and Eleftheria Briakou. 2025. Rethinking cross-lingual alignment: Bal-ancing transfer and cultural erasure in multilingual LLMs. arXiv preprint arXiv:2510.26024 . Version 1. Edward J Hu, yelong shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. 2022. LoRA: Low-rank adaptation of large language models. In International Conference on Learning Representations .Amir Hossein Kargaran, Ayyoob Imani, François Yvon, and Hinrich Schuetze. 2023. GlotLID: Language identification for low-resource languages. In Find-ings of the Association for Computational Linguis-tics: EMNLP 2023 , pages 6155–6218, Singapore. Association for Computational Linguistics. Amir Hossein Kargaran, Ali Modarressi, Nafiseh Nikeghbal, Jana Diesner, François Yvon, and Hinrich Schuetze. 2025. MEXA: Multilingual evaluation of English-centric LLMs via cross-lingual alignment. In Findings of the Association for Computational Linguistics: ACL 2025 , pages 27001–27023, Vienna, Austria. Association for Computational Linguistics. Chong Li, Shaonan Wang, Jiajun Zhang, and Chengqing Zong. 2024. Improving in-context learning of mul-tilingual generative language models with cross-lingual alignment. In Proceedings of the 2024 Con-ference of the North American Chapter of the Asso-ciation for Computational Linguistics: Human Lan-guage Technologies (Volume 1: Long Papers) , pages 8058–8076, Mexico City, Mexico. Association for Computational Linguistics. Qiming Li, Xiaocheng Feng, Yixuan Ma, Ruihan Chen, Zihe Tong, Zekai Ye, Xiachong Feng, Libo Qin, Haoyu Ren, Kun Chen, Yunfei Lu, Dandan Tu, and Bing Qin. 2026. Unlocking multilingual reasoning capability of LLMs and LVLMs through represen-tation engineering. In Proceedings of the 64th An-nual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 24810– 24829, San Diego, California, United States. Associ-ation for Computational Linguistics. Zihao Li, Yucheng Shi, Zirui Liu, Fan Yang, Ali Payani, Ninghao Liu, and Mengnan Du. 2025. Language ranker: A metric for quantifying LLM performance across high and low-resource languages. Proceed-ings of the AAAI Conference on Artificial Intelligence ,39(27):28186–28194. Jindˇ rich Libovický, Rudolf Rosa, and Alexander Fraser. 2020. On the language neutrality of pre-trained mul-tilingual representations. In Findings of the Associ-ation for Computational Linguistics: EMNLP 2020 ,pages 1663–1674, Online. Association for Computa-tional Linguistics. Zheng Wei Lim, Alham Fikri Aji, and Trevor Cohn. 2025. Language-specific latent process hin-ders cross-lingual performance. arXiv preprint arXiv:2505.13141 . Version 3. Danni Liu and Jan Niehues. 2025. Middle-layer rep-resentation alignment for cross-lingual transfer in fine-tuned LLMs. In Proceedings of the 63rd An-nual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 15979– 15996, Vienna, Austria. Association for Computa-tional Linguistics. Anemily Machina and Robert Mercer. 2024. Anisotropy is not inherent to transformers. In Proceedings of the 2024 Conference of the North American Chap-ter of the Association for Computational Linguistics: Human Language Technologies (Volume 1: Long Papers) , pages 4892–4907, Mexico City, Mexico. As-sociation for Computational Linguistics. Niklas Muennighoff. 2022. SGPT: GPT sentence embeddings for semantic search. arXiv preprint arXiv:2202.08904 . Version 5. 
+
+11 NLLB Team, Marta R. Costa-jussà, James Cross, Onur Çelebi, Maha Elbayad, Kenneth Heafield, Kevin Hef-fernan, Elahe Kalbassi, Janice Lam, Daniel Licht, Jean Maillard, Anna Sun, Skyler Wang, Guillaume Wenzek, Al Youngblood, Bapi Akula, Loic Barrault, Gabriel Mejia Gonzalez, Prangthip Hansanti, and 20 others. 2024. Scaling neural machine translation to 200 languages. Nature , 630(8018):841–846. Qwen Team. 2025. Qwen3 technical report. arXiv preprint arXiv:2505.09388 . Version 1. Shauli Ravfogel, Yanai Elazar, Hila Gonen, Michael Twiton, and Yoav Goldberg. 2020. Null it out: Guard-ing protected attributes by iterative nullspace projec-tion. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics , pages 7237–7256, Online. Association for Computational Linguistics. Shauli Ravfogel, Michael Twiton, Yoav Goldberg, and Ryan D Cotterell. 2022. Linear adversarial concept erasure. In Proceedings of the 39th International Conference on Machine Learning , volume 162 of 
+
+Proceedings of Machine Learning Research , pages 18400–18421. PMLR. Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, Xiao Bi, Haowei Zhang, Mingchuan Zhang, Y. K. Li, Y. Wu, and Daya Guo. 2024. Deepseekmath: Pushing the limits of mathematical reasoning in open language models. arXiv preprint arXiv:2402.03300 . Version 3. Shivalika Singh, Angelika Romanou, Clémentine Four-rier, David Ifeoluwa Adelani, Jian Gang Ngui, Daniel Vila-Suero, Peerat Limkonchotiwat, Kelly Marchi-sio, Wei Qi Leong, Yosephine Susanto, Raymond Ng, Shayne Longpre, Sebastian Ruder, Wei-Yin Ko, Antoine Bosselut, Alice Oh, Andre Martins, Leshem Choshen, Daphne Ippolito, and 4 others. 2025. Global MMLU: Understanding and addressing cultural and linguistic biases in multilingual evalua-tion. In Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Vol-ume 1: Long Papers) , pages 18761–18799, Vienna, Austria. Association for Computational Linguistics. Shivalika Singh, Freddie Vargus, Daniel D’souza, Börje F. Karlsson, Abinaya Mahendiran, Wei-Yin Ko, Herumb Shandilya, Jay Patel, Deividas Mataci-unas, Laura O’Mahony, Mike Zhang, Ramith Het-tiarachchi, Joseph Wilson, Marina Machado, Luisa Moura, Dominik Krzemi´ nski, Hakimeh Fadaei, Irem Ergun, Ifeoma Okoh, and 14 others. 2024. Aya dataset: An open-access collection for multilingual instruction tuning. In Proceedings of the 62nd An-nual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 11521– 11567, Bangkok, Thailand. Association for Compu-tational Linguistics. Tianyi Tang, Wenyang Luo, Haoyang Huang, Dong-dong Zhang, Xiaolei Wang, Xin Zhao, Furu Wei, and Ji-Rong Wen. 2024. Language-specific neurons: The key to multilingual capabilities in large language models. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Vol-ume 1: Long Papers) , pages 5701–5715, Bangkok, Thailand. Association for Computational Linguistics. Laurens van der Maaten and Geoffrey Hinton. 2008. Visualizing data using t-sne. Journal of Machine Learning Research , 9(86):2579–2605. Mingyang Wang, Heike Adel, Lukas Lange, Yihong Liu, Ercong Nie, Jannik Strötgen, and Hinrich Schuetze. 2025. Lost in multilinguality: Dissecting cross-lingual factual inconsistency in transformer language models. In Proceedings of the 63rd Annual Meet-ing of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 5075–5094, Vienna, Austria. Association for Computational Linguistics. Chris Wendler, Veniamin Veselovsky, Giovanni Monea, and Robert West. 2024. Do llamas work in English? on the latent language of multilingual transformers. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 15366–15394, Bangkok, Thai-land. Association for Computational Linguistics. Zhaofeng Wu, Xinyan Velocity Yu, Dani Yogatama, Ji-asen Lu, and Yoon Kim. 2025. The semantic hub hypothesis: Language models share semantic rep-resentations across languages and modalities. In 
+
+The Thirteenth International Conference on Learning Representations .Zhihui Xie, Handong Zhao, Tong Yu, and Shuai Li. 2022. Discovering low-rank subspaces for language-agnostic multilingual representations. In Proceed-ings of the 2022 Conference on Empirical Methods in Natural Language Processing , pages 5617–5633, Abu Dhabi, United Arab Emirates. Association for Computational Linguistics. Wei Zhao, Steffen Eger, Johannes Bjerva, and Isabelle Augenstein. 2021. Inducing language-agnostic mul-tilingual representations. In Proceedings of *SEM 2021: The Tenth Joint Conference on Lexical and Computational Semantics , pages 229–240, Online. Association for Computational Linguistics. Weixiang Zhao, Jiahe Guo, Yang Deng, Tongtong Wu, Wenxuan Zhang, Yulin Hu, Xingyu Sui, Yanyan Zhao, Wanxiang Che, Bing Qin, Tat-Seng Chua, and Ting Liu. 2025a. When less language is more: Language-reasoning disentanglement makes LLMs better multilingual reasoners. In Advances in Neural Information Processing Systems , volume 38, Main Conference, pages 38608–38642. Curran Associates, Inc. Weixiang Zhao, Yulin Hu, Jiahe Guo, Xingyu Sui, Tong-tong Wu, Yang Deng, Yanyan Zhao, Bing Qin, Wanx-iang Che, and Ting Liu. 2025b. Lens: Rethinking multilingual enhancement for large language models. 
+
+arXiv preprint arXiv:2410.04407 . Version 2. 
+
+12 Yiran Zhao, Wenxuan Zhang, Guizhen Chen, Kenji Kawaguchi, and Lidong Bing. 2024. How do large language models handle multilingualism? In The Thirty-eighth Annual Conference on Neural Informa-tion Processing Systems .
+
+## A Details on Models and Datasets 
+
+All the model weights used in our experiments are obtained via Hugging Face Hub, and the datasets are obtained from Hugging Face Hub or the offi-cial websites of the datasets (e.g., GitHub reposito-ries). In the steering experiment (§6), we use three instruction-tuned multilingual LLMs: Llama3.1-8B 3, gemma3-4b 4, and Qwen3-4B 5. In the train-ing experiment (§7), we use the base (i.e., non-instruction-tuned) variants of the three models. In §4, we train LEACE using parallel sentences from two datasets: WMT24++ 6 and NTREX 7. We also use FLORES+ 8 for analysis of the language-specific and language-agnostic representations (§5). In §6 and §7, we use KLAR Continent cate-gory 9, Global-MMLU (GMMLU) test set 10 , BELE-BELE 11 , and XQuAD 12 for evaluation. As an instruction-tuning dataset, we use Aya Dataset 13 .We list the languages used in each experiment in Table 4. 
+
+## B LEACE 
+
+LEACE (Belrose et al., 2023) is a method for con-cept erasure that calculates an affine transforma-tion to erase a concept from vectors while preserv-ing the remaining information. Let X ∈ Rn×d
+
+be a matrix of n vectors of dimension d and 
+
+Z ∈ Rn×k be the one-hot encoded concept la-bels over k classes. They first calculate the co-variance matrix ΣXX and the cross-covariance ma-trix ΣXZ . Here, let W = ( Σ 12
+
+> XX
+
+)+ and PWΣ XZ =
+
+> 3https://huggingface.co/meta-llama/Llama-3. 1-8B-Instruct
+> 4https://huggingface.co/google/gemma-3-4b-it
+> 5https://huggingface.co/Qwen/Qwen3-4B
+> 6https://huggingface.co/datasets/google/ wmt24pp
+> 7https://github.com/MicrosoftTranslator/NTREX/ tree/468c6b69c7f6a75d31d4743d9daba2af566cc18d
+> 8https://huggingface.co/datasets/ openlanguagedata/flores_plus
+> 9https://github.com/boschresearch/KLAR-CLC/ tree/02f73c57ea17d4fd9f8b08fd55547058a601ba52
+> 10 https://huggingface.co/datasets/CohereLabs/ Global-MMLU
+> 11 https://huggingface.co/datasets/facebook/ belebele
+> 12 https://huggingface.co/datasets/google/xquad
+> 13 https://huggingface.co/datasets/CohereLabs/ aya_dataset
+
+(WΣ XZ )( WΣ XZ )+. Then, the LEACE transfor-mation E is defined as: 
+
+E(x) = Px + E[x] − PE[x], (10) where P = I − W+PWΣ XZ W and E[x] is the mean of X. This transformation ensures that no linear classifier can predict Z from E(X) better than a constant predictor, while minimizing the expected squared distance between the original and transformed vectors. We apply LEACE to hidden states h of LLMs with the language of the input sentence as the concept Z, so that E(h) gives the language-agnostic component and h − E(h) the language-specific one. 
+
+## C Additional Results for Language-Specific and Language-Agnostic Representations 
+
+In §5, we show the 2D scatter plots of the origi-nal, remaining, and LEACE-erased representations of Llama3.1-8B at layer 12. Here, we show the scatter plots of Llama3.1-8B at layers 6 and 25 in Figure 6. We can observe that the same trend as layer 12 holds at both layers, with the LEACE-erased representations showing clearer separation by language, while the remaining representations are mixed together regardless of language. We also show the scatter plots of gemma3-4b and Qwen3-4B at layers 6 and 7 in Figure 7. For gemma3-4b, the original representations are more mixed across languages in the PCA-based visual-ization compared to other models. This can be due to anisotropic distribution of the hidden states of gemma3-4b, with a large contribution ratio of the top principal component (PC) (we observe 89.6% contribution ratio of the top PC at layer 13). Nonetheless, LEACE successfully identifies language representations, as shown by the similar trend in the scatter plots. Finally, we train a linear classifier to identify the language of the input sentence on the repre-sentations on the FLORES+ dev set and evaluate classification accuracy on the FLORES+ devtest set. We show the language classification accuracy be-fore and after LEACE transformation for the three models in Figure 8. After applying LEACE, clas-sification accuracy for ID languages drops clearly, indicating successful erasure of linearly encoded language-specific information. Although the ac-curacy remains around 50–80%, this can be be-cause the training and evaluation datasets are from 13 Split / Benchmark Languages          
+
+> LEACE ID English, French, Spanish, Mandarin Chinese, Russian, Japanese, Greek, Korean, Hebrew, Vietnamese, Bengali, Telugu LEACE OOD German, Turkish, Dutch, Ukrainian, Indonesian, Swahili Evaluation: KLAR (English), French, Spanish, Mandarin Chinese, Japanese, Korean, Hebrew, Greek, (Vietnamese only in §7) Evaluation: GMMLU/BELEBELE (English), French, Spanish, Mandarin Chinese, Japanese, Korean, Hebrew, Vietnamese, Bengali, Telugu Evaluation: XQuAD (English), Spanish, Mandarin Chinese, Vietnamese, Russian, Greek Training: ID English, French, Spanish, Mandarin Chinese, Japanese Training: OOD (KLAR) Korean, Hebrew, Greek, Vietnamese (GMMLU/BELEBELE) Korean, Hebrew, Vietnamese, Bengali, Telugu Parameter Search: GMMLU dev (English), French, Spanish, Mandarin Chinese, Japanese
+
+Table 4: Languages used in each experimental split and evaluation benchmark. 
+
+the same domain (i.e., FLORES+) while LEACE is trained on a different domain (i.e., WMT24++ and NTREX). Also, as the number of samples for training the classifier is limited, the classifier may overfit. For OOD languages, the classifier retains almost 100% accuracy even after applying LEACE, indicating residual language-specific information. 
+
+## D Optimal Transport Plans 
+
+Figure 9 shows examples of the transport plans calculated in CAROT for Llama3.1-8B. The trans-port plans are sparse, as a result of the perplexity-based filtering (Equation 6), which can increase robustness of alignment by suppressing noise. We can also see that semantically corresponding to-kens across languages are aligned (e.g., “(Tur)quie” and “Turkey”), which supports the effectiveness of CAROT in aligning semantic representations. 
+
+## E Evaluation Protocols 
+
+This section describes the evaluation configurations for the steering and training experiments in §6 and §7. We use four datasets for evaluation: KLAR Continent, GMMLU, BELEBELE, and XQuAD. We select these datasets because they provide paral-lel translations and are neutral in terms of language and culture, allowing fair evaluation of multilingual performance. For KLAR, five prompt templates in each language are provided in the official reposi-tory, and we use all of them for evaluation, result-ing in 1,060 samples per language. For GMMLU, BELEBELE, and XQuAD, we prepare one prompt template in English and translate it into other lan-guages with ChatGPT 14 . We randomly sample 30 instances for each GMMLU category and language to reduce the computational cost, resulting in 1,710 samples per language. BELEBELE has 900 sam-ples per language, and XQuAD has 1,190 samples per language. For KLAR, GMMLU, and BELE-BELE, we use test sets for evaluation, while for XQuAD, we use the validation set, since they only provide the validation set. We let the model generate the answer with greedy decoding up to 50 tokens for KLAR and XQuAD, 500 tokens for GMMLU, and 100 tokens for BELEBELE, expecting that the reasoning tasks will require more tokens. We extract the final an-swer from the generated text in a rule-based manner based on the instructions in the prompt templates. For hyperparameter tuning, we use the dev set of GMMLU (randomly sampled 50 instances per language) and perform a grid search. Regarding the parameters for Sinkhorn algorithm to solve op-timal transport in CAROT (Equation 5), we set the regularization parameter ϵOT to 0.05 and the unbalanced mass penalty ρ to 0.5. 
+
+## F Baseline Steering Methods 
+
+In the steering experiments (§6), we compare CAROT with two baseline methods: Lang Vec and 
+
+MLRS .
+
+Lang Vec adds the difference between the mean hidden vectors of the source and target languages to the hidden states at a specific layer to bring the representation of the target language closer to that 
+
+> 14 https://chatgpt.com/overview/
+
+14 (a) Layer 6 
+
+> (b) Layer 25
+
+Figure 6: Scatter plot of original (left), remaining (center), and LEACE-erased (right) representations of Llama3.1-8B at layer 6 and 25. Each point represents the representation of a sentence, colored by language. 
+
+of the source language: 
+
+h new tgt = htgt + α(¯hsrc − ¯htgt ). (11) We calculate the mean vectors on the sentence representations (Equation 1) of the same parallel datasets as used for training LEACE (§4). α is a hyperparameter that controls the strength of the steering. We search α from {0.5, 1.0, 1.5, 2.0} and the layer from every three layers for each model. For MLRS (Zhao et al., 2025a), it first calculates the mean hidden vectors of the last token activa-tions of each language in the training data and con-catenates them to form M ∈ Rd×L, where L is the number of languages. Then it minimizes the 
+
+> (a) gemma3-4b layer 6
+> (b) Qwen3-4B layer 7
+
+Figure 7: Scatter plot of original (left), remaining (center), and LEACE-erased (right) representations of gemma3-4b and Qwen3-4B at layers 6 and 7. Each point represents the representation of a sentence, col-ored by language. 
+
+following objective: 
+
+min  
+
+> Ma,Ms,Γ
+
+∥M − Ma1⊤ − MsΓ∥2 
+
+> F
+
+(12) s.t. Span (Ma) ⊥ Span (Ms), (13) where Ma ∈ Rd×1 is the language-agnostic com-ponent, Ms ∈ Rd×r is the language-specific com-ponent, and Γ ∈ Rr×L is the coefficient matrix. Following the paper that MLRS is based on (Xie et al., 2022), we set r = L − 1. The optimal solu-tion of this objective can be obtained using singular value decomposition. At inference time, MLRS intervenes in the language-specific component of the hidden states as follows: 
+
+h new tgt = htgt − λMsM⊤ 
+
+> s
+
+htgt , (14) 15 where λ is a hyperparameter that controls the direc-tion and strength of the intervention. We follow the original paper and set λ > 0 (suppressing language-specific information) from the one-third to two-thirds layers and λ < 0 (adding back language-specific information) for the last one-third layers. We search λsup from {0.1, 0.2, 0.3, 0.4} for sup-pressing and λadd from {-0.1, -0.2, -0.3, -0.4} for adding back. 
+
+## G Selected Hyperparameters 
+
+In the steering experiments (§6) and training exper-iments (§7), we select the best hyperparameters for each method based on the evaluation accuracy on the GMMLU dev set. The selected hyperparame-ters for steering methods are shown in Table 5, and those for training methods are shown in Table 6. Note that for the layer and θ of CAROT in the train-ing experiments, we use the best values selected in the steering experiments. 
+
+## H Additional Steering Results 
+
+Agreement Ratio of Steering Results. We show the agreement ratio (i.e., the percentage of in-stances for which the model’s answer in the target language matches that in the source language) of each steering method in Table 7, along with the accuracy reported in Table 1. The agreement ratio directly measures CLA, and a higher agreement ra-tio indicates that the model is more consistent in its answers across languages. Overall, the agreement ratio correlates with the accuracy, and CAROT achieves the highest agreement ratio in most cases. Moreover, CAROT tends to increase the agreement ratio more than the accuracy (e.g., for Llama3.1-8B on GMMLU, the accuracy increases by 1.4 points while the agreement ratio increases by 2.4 points). This indicates that the increase in the accuracy of CAROT is due to the improvement in CLA. 
+
+Detailed Layer-wise and Language-wise Steer-ing Results. We present the layer-wise per-language accuracy and fidelity when applying steer-ing with CAROT, calculated during the hyperpa-rameter search on GMMLU dev. The results for Llama3.1-8B are shown in Figure 4, and the re-sults for gemma3-4b and Qwen3-4B are shown in Figure 10. CAROT improves accuracy across lan-guages, especially in the early layers, and maintains high fidelity in most cases. However, for gemma3-4b, the fidelity is low in some languages (e.g., Chi-nese and Japanese). This can be because gemma3-4b originally (without steering) tends to generate English reasoning steps even when prompted in other languages. Furthermore, we show the layer-wise and per-language results of steering with Lang Vec on GMMLU dev in Figure 11. The accuracy is less improved relative to CAROT, and the fidelity of-ten becomes low in early-to-middle layers. Since Lang Vec adds the diff-in-means language vector to the hidden states of the target language, it can remove language information and thus change the output language, which can cause low fidelity. On the other hand, CAROT explicitly preserves the language representations, which can contribute to high fidelity. 
+
+Ablation of Each Component of CAROT. We conduct an ablation study to analyze the contri-bution of each component of CAROT, including LEACE-based decomposition, perplexity-based fil-tering of the OT plan, and the token-level OT alignment. Table 8 compares the evaluation ac-curacy and the fidelity of CAROT, CAROT with-out LEACE-based decomposition ( No LEACE ), CAROT without filtering the OT plan ( No Filter ), and swapping only the language-agnostic repre-sentations of the last token between the inputs in source and target languages ( Last Token ). Last To-ken corresponds to CAROT without token-level OT alignment. Note that No Filter is included in the hyperparameter search for CAROT, which corre-sponds to θ = 1 .0.The results show that CAROT is most stable across models and benchmarks. CAROT outper-forms No LEACE and Last Token in 9 and 10 out of 12 cases, respectively, in terms of accuracy. Al-though the accuracies of No Filter are comparable to those of CAROT, No Filter is sometimes unsta-ble (e.g., for Qwen3-4B on KLAR, the accuracy is 14.0 points lower than CAROT), and the fidelity is often lower than CAROT (9 out of 12 cases). These results suggest that LEACE-based decomposition and filtering of the OT plan make CAROT more ro-bust, and that token-level OT alignment is effective in improving accuracy. 
+
+## I Training Details 
+
+MidAlign. Here, we provide the detailed speci-fication of the training algorithms for the baseline method, MidAlign. MidAlign fine-tunes the model by alternating between a contrastive step and a language-modeling (LM) step. In the contrastive 16 Method Llama3.1-8B gemma3-4b Qwen3-4B                   
+
+> CAROT {layer: 12, θ: 0.25} {layer: 6, θ: 0.5} {layer: 9, θ: 0.75} Lang Vec {layer: 21, α: 0.5} {layer: 33, α: 0.5} {layer: 27, α: 2.0} MLRS {λsup : 0.1, λadd : -0.4} {λsup : 0.1, λadd : -0.4} {λsup : 0.1, λadd : -0.4}
+
+Table 5: Selected hyperparameters for each steering method and model.                   
+
+> Method Llama3.1-8B gemma3-4b Qwen3-4B
+> CAROT {lr: 5e-5} {lr: 1e-4} {lr: 1e-4} LM {lr: 1e-5} {lr: 1e-5} {lr: 5e-5} MidAlign {lr: 5e-5, τ: 0.1} {lr: 1e-4, τ: 0.1} {lr: 1e-4, τ: 0.1}
+
+Table 6: Selected hyperparameters for each training method and model.                                                       
+
+> GMMLU BELEBELE Model Method Acc Agr Acc Agr
+> Llama3.1-8B
+> Unsteered 48.4 51.5 74.7 75.3 Lang Vec 43.8 47.1 74.5 75.2 MLRS 43.7 47.0 77.5 78.2 CAROT 49.8 53.9 81.9 83.9
+> gemma3-4b
+> Unsteered 49.4 57.0 64.2 64.1 Lang Vec 49.0 56.9 63.8 63.3 MLRS 48.2 56.2 64.8 63.8 CAROT 51.8 61.4 66.0 65.6
+> Qwen3-4B
+> Unsteered 56.8 61.2 62.3 62.7 Lang Vec 54.9 59.0 63.3 63.7 MLRS 55.9 60.1 64.9 65.2
+> CAROT 59.6 64.2 62.5 63.1
+
+Table 7: Agreement ratio (Agr, %) alongside accuracy (Acc, %) on the two multiple-choice datasets (GMMLU and BELEBELE). The two metrics induce the same ranking over methods in five of six model–dataset set-tings. 
+
+step, at the specified layer l, the source and tar-get hidden states are calculated by mean-pooling hidden vectors over non-padding tokens, giving 
+
+h(l) 
+
+> s
+
+, h(l) 
+
+> t
+
+∈ RB×d, where B is the batch size and d
+
+is the hidden dimension. The symmetric InfoNCE loss is then computed as: 
+
+L(l) 
+
+> NCE, col
+
+= − log exp(sim( h(l) 
+
+> s
+
+, h(l) 
+
+> t
+
+)/τ )
+
+PBi=1 exp(sim( h(l) 
+
+> s
+
+, h(l) 
+
+> t,i
+
+)/τ ) ,
+
+(15) 
+
+L(l) 
+
+> NCE, row
+
+= − log exp(sim( h(l) 
+
+> t
+
+, h(l) 
+
+> s
+
+)/τ )
+
+PBi=1 exp(sim( h(l) 
+
+> t
+
+, h(l)
+
+> s,i
+
+)/τ ) ,
+
+(16) 
+
+L(l) 
+
+> contrastive
+
+= 12 (L(l) 
+
+> NCE, col
+
++ L(l)
+
+> NCE, row
+
+) (17) where τ is the temperature and sim( ·, ·) is the co-sine similarity function. As in the original paper, we use the alignment datasets for the contrastive step (parallel dataset) and the task-specific dataset for the LM step. 
+
+Training Parameters. We train all models for one epoch with a batch size of 16 using the AdamW optimizer. The learning rate is searched from {5e-4, 1e-4, 5e-5, 1e-5} for each model and method. For MidAlign, we search the temperature τ from {0.1, 0.5, 1.0}. The selected hyperparameters are shown in Table 6. For other parameters, we set weight decay to 0.01 and adopt a linear learning rate scheduler with 300 warmup steps. We apply LoRA to all linear modules with rank r = 64 ,scaling factor α = 64 , and a dropout rate of 0.05. We limit the maximum number of instruction-tuning training samples to 2,000 per language to balance the number of training data across lan-guages, and we sample the same number of parallel sentences for the alignment step. We set the max-imum input length to 500 tokens for task-specific data and 64 tokens for parallel sentences. As for the training layers for MidAlign, we select layers 16, 17, and 18 for Llama3.1-8B, gemma3-4b, and Qwen3-4B, respectively, following the analysis in the original paper, which shows that the middle layers are most effective for MidAlign. 
+
+Analysis of Training. To further analyze the training results, we calculate the cosine similarity between the source and target language-agnostic representations at each layer before and after train-ing. The results for Llama3.1-8B are shown in Figure 12. We observe that the similarity increases most significantly around the training layer (layer 12 for Llama3.1-8B) after training with CAROT, which indicates that the training successfully en-courages the model to produce language-agnostic representations that are close to the source repre-sentations. The increase in similarity lasts across 17 GMMLU (9) KLAR (7) BELEBELE (9) XQuAD (5) Model Method Acc Fid Acc Fid Acc Fid Acc Fid                                                                                                 
+
+> Llama3.1-8B
+> CAROT 49.8 93.1 73.3 93.8 81.9 85.3 41.2 72.7 No LEACE 55.7 91.3 73.6 92.5 81.4 82.7 39.6 69.9 No Filter 55.5 91.7 71.9 91.6 82.1 85.5 34.7 71.3 Last Token 49.5 93.5 67.8 93.6 76.5 88.9 36.2 78.0
+> gemma3-4b
+> CAROT 51.8 62.6 75.8 96.4 66.0 92.9 26.0 82.5 No LEACE 49.4 63.2 67.9 92.5 64.1 94.1 21.2 86.2 No Filter 53.2 59.0 77.2 93.3 65.1 87.9 31.9 75.8 Last Token 49.4 63.6 67.7 94.5 64.7 93.8 22.0 86.2
+> Qwen3-4B
+> CAROT 59.6 98.1 68.0 90.4 62.5 89.5 45.6 69.9 No LEACE 57.2 98.3 60.4 92.2 63.6 89.7 44.7 71.7 No Filter 59.8 97.3 54.0 87.2 57.8 91.5 36.8 71.2 Last Token 57.0 98.4 56.8 93.9 64.7 89.5 46.1 71.5
+
+Table 8: Ablation results of steering with CAROT, CAROT without LEACE-based decomposition (No LEACE), CAROT without perplexity-based filtering of the OT plan (No Filter), and swapping the language-agnostic represen-tations of only the last token between the source and target languages (Last Token). Bold marks the highest value per metric group. 
+
+layers, which can contribute to the improved per-formance in the evaluation benchmarks. 
+
+## J Computational Resources 
+
+All the experiments are conducted on a single NVIDIA H100 GPU. Hyperparameter search of the steering experiments in §6 took around 2 hours for each model and method. Hyperparameter search of the training experiments in §7 took around 1.5 hours for each model for LM and CAROT, and around 4 hours for MidAlign, since we search the temperature τ in addition to the learning rate for MidAlign. For the evaluation of each model and method, it took 2.5 hours for GMMLU, 20 min-utes for KLAR, BELEBELE, and XQuAD, respec-tively. 
+
+## K LLM Usage 
+
+We used Claude Code 15 as a coding assistant for implementing the scripts for the experiments and visualizations. We also used ChatGPT to proofread the paper and to translate the prompt template used in evaluation into different languages. 
+
+> 15 https://code.claude.com/docs/en/overview
+
+18 (a) Llama3.1-8B 
+
+> (b) gemma3-4b
+> (c) Qwen3-4B
+
+Figure 8: Language classification accuracy before (blue) and after (red) LEACE transformation at every six lay-ers of Llama3.1-8B, gemma3-4b and Qwen3-4B. We report the accuracies of in-distribution (solid) and out-of-distribution (dashed) languages separately. The ac-curacies for ID languages before LEACE and for OOD languages before and after LEACE are almost 100%. 
+
+> (a) French at layer 12
+> (b) Japanese at layer 12
+
+Figure 9: Visualization of the calculated OT transport plan T on Llama3.1-8B for a sample sentence pair in French-English (a) and Japanese-English (b). The brightness of each cell corresponds to the value of Tij ,indicating how much the j-th token in the source lan-guage (English) is transported to the i-th token in the target language (French or Japanese). 
+
+19 (a) gemma3-4b 
+
+> (b) Qwen3-4B
+
+Figure 10: Fidelity (left) and accuracy (right) of gemma3-4b and Qwen3-4B on GMMLU dev when ap-plying steering with CAROT. The results of Llama3.1-8B are shown in Figure 4. 
+
+> (a) Llama3.1-8B
+> (b) gemma3-4b
+> (c) Qwen3-4B
+
+Figure 11: Fidelity (left) and accuracy (right) of Llama3.1, gemma3-4b and Qwen3-4B on GMMLU dev when applying steering with Lang Vec .
+
+Figure 12: Cosine similarity between the source and target language-agnostic representations of Llama3.1-8B across layers before and after training with CAROT, calculated on FLORES+ devtest set. 
+
+20

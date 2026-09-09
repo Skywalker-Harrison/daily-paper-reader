@@ -1,0 +1,361 @@
+Title: AlcaTRAz - Anchored Tree-Rule Defense Against Jailbreaks
+
+URL Source: https://arxiv.org/pdf/2609.03693v1
+
+Published Time: Fri, 04 Sep 2026 00:54:49 GMT
+
+Number of Pages: 19
+
+Markdown Content:
+# AlcaTRAz – Anchored Tree-Rule Defense Against Jailbreaks 
+
+Jakub Reš 1 , Petr Kaška 1, Martin Perešíni 1 , Martin Ukrop 2 , and Kamil Malinka 1 
+
+> 1
+
+Brno University of Technology, Faculty of Information Technology, Czechia 
+
+{iresj, iperesini, malinka}@fit.vut.cz; xkaska01@vutbr.cz  
+
+> 2
+
+Red Hat, Czechia, mukrop@redhat.com 
+
+Abstract. Large language models (LLMs) are vulnerable to jailbreak attacks that bypass safety alignment through carefully crafted prompts. Many existing defenses require access to model weights or internals, making them difficult to apply to black-box deployments. We propose AlcaTRAz (Anchored Tree-Rule defense Against jailbreaks), a prompt-level defense based on rule trees that operates exclusively on the input text and requires no modification or retraining of the target model. The method automatically learns a transferable transformation rule that inserts controlled character-level perturbations at selected positions, thereby disrupting structural regularities exploited by jailbreak attacks while largely preserving the model’s utility on benign queries. We eval-uate the proposed method across 33 open-weight models, 22 jailbreak attack types, and a benchmark of short, single-turn benign questions, comparing against three representative prompt-level baselines (Llama Guard, RA-LLM, Goal Prioritization). Among the compared defenses, AlcaTRAz achieves the best composite security and functionality score in 73.4 % of model-attack combinations and shifts the aggregate score from a modal value of 10 (maximal-severity response to the malicious request) in the undefended setting to a modal value of 2 (near-refusal) after defense, while keeping the mean benign score within 0.27 points of the undefended baseline (8.35 vs. 8.62 on a 0–10 scale). AlcaTRAz substantially reduces but does not eliminate jailbreak success: a high-severity tail remains, and we do not consider adaptive attackers, so we position it as one layer within a defense-in-depth strategy rather than a standalone guarantee. 
+
+Keywords: Jailbreak attacks · Large language models · AI safety · Prompt-level defense · Genetic programming 
+
+# 1 Introduction 
+
+Large language models (LLMs) have become one of the most prominent direc-tions in artificial intelligence. Their ability to understand natural language and generate coherent responses has led to widespread deployment across program-ming, education, and assistive systems. However, as practical use expands, so arXiv:2609.03693v1 [cs.CR] 3 Sep 2026 2 Reš et al. 
+
+does the importance of AI safety. Models deployed in real-world settings must not only be helpful but must also reliably refuse harmful, dangerous, or otherwise disallowed requests [35]. The learned safety mechanisms (safeguards) of modern language models can often be circumvented through carefully crafted prompts, commonly referred to as jailbreak attacks . These attacks manipulate the input so that the model ignores or overrides its intended safeguards, producing content it would normally refuse [35,47]. This has motivated extensive research into both jailbreak attacks and corre-sponding defenses. Existing attacks vary in the level of access they assume, rang-ing from black-box attacks that operate only through the model’s inference API to white-box attacks that exploit gradients or internal representations [40]. In parallel, a broad spectrum of defensive approaches has been proposed, including input filtering, security classifiers, prompt rewriting, system-prompt safeguards, and model-level alignment [40,10,43]. Despite this progress, many defenses de-pend on access to model internals, making them inapplicable to models available only through inference APIs and costly to adapt when new models are released. A defense that operates at the prompt level, without any knowledge of or control over the target model, would be more broadly deployable. One of the main open problems concerns evaluation. Jailbreak success is often measured as a binary outcome, yet model outputs lie on a continuum ranging from complete refusal, through partial assistance, to fully explicit compliance with malicious intent [20,16]. Binary evaluation fails to capture the gradual nature of alignment breakdown. Moreover, many existing studies rely on pro-prietary evaluator models whose behavior is difficult to analyze, reproduce, or scale in open experimental settings [19,8]. 
+
+Our approach. This work introduces AlcaTRAz, a prompt-level jailbreak de-fense organized as a rule tree of elementary character-level transformations, learned automatically by genetic programming (GP). The defense acts as a pre-processing layer that transforms the user prompt before it reaches the target model, thereby disrupting the surface-form regularities that many jailbreak at-tacks rely on while largely preserving the semantics of legitimate queries. Be-cause the method operates only on input text, it uses no model internals and is deployable in black-box settings [40,2]. We pair the defense with a judge-based evaluation protocol on a continuous 0–10 scale, implemented using an open-weight judge model validated against five human annotators [27,9]. The protocol captures partial compliance more faithfully than binary scoring and is fully reproducible with publicly available models. 
+
+Contributions. The main contributions of this work are as follows. 1. We propose AlcaTRAz, a prompt-level jailbreak defense that learns a tree of anchored character-level transformation rules via genetic programming. Disrupting jailbreaks through input perturbation is an established princi-ple [11,29,12]; our contribution is a method for learning where and how to perturb, requiring no access to model parameters, gradients, or internals AlcaTRAz – Anchored Tree-Rule Defense Against Jailbreaks 3
+
+and transferring across the 33 evaluated open-weight target models without per-model retraining. 2. We conduct a large-scale evaluation across 33 open-weight models, 22 at-tack types, and two malicious-prompt benchmarks, comparing against three representative prompt-level defenses under a joint security and functionality criterion while measuring benign-query functionality explicitly. 
+
+# 2 Background and Threat Model 
+
+2.1 System and Threat Model 
+
+We consider a deployment in which a defense layer sits between the user and the target language model. The user submits a prompt p, the defense applies a transformation TR to obtain p′ = TR(p), and the target model M generates a response r = M (p′). The defense has no access to model weights, gradients, activations, or logits, and operates exclusively on the prompt text. We distinguish three attacker capabilities of increasing strength. A defense-unaware attacker crafts jailbreaks against the raw model, unaware that a de-fense is deployed. A defense-aware attacker knows that a prompt-level defense is active but not the specific instantiated rule R⋆. A rule-aware (adaptive) 
+
+attacker knows R⋆ and can re-optimize directly against the defended pipeline; we treat this as a worst case, do not claim robustness against it, and discuss it as a central limitation (Section 7). Our experiments apply fixed attack instances and therefore measure the defense-unaware attacker directly. The defense-aware setting is a realistic deployment scenario, but we do not instantiate it as a sepa-rate experimental condition. The defense targets attacks operating through the prompt; it does not address threats that bypass the prompt layer entirely, such as fine-tuning or manipulation of model-internal representations. 
+
+Scope of the safety objective. We study jailbreaks whose objective is to elicit harmful content. A response that gives no answer therefore receives a compliance score of 0, because such a response does not fulfill the malicious intent. This convention does not measure availability attacks. A defense that suppresses many responses can still constitute a denial-of-service attack, and our benign-query evaluation captures that effect only in part. 
+
+2.2 Problem Formulation 
+
+The defense is a deterministic transformation TR parameterized by a rule tree R:a small tree whose nodes select token positions ( anchors ) and apply elementary character-level operations at those positions, detailed in Section 4. Given a set of jailbreak prompts P = {(p1, g 1), . . . , (pN , g N )}, where each pi is a jailbreak prompt and gi its associated malicious intent, a black-box target model M , and a scoring function J that maps a (response, intent) pair to a compliance score in [0 , 10], we seek a rule tree that suppresses jailbreak compliance while perturbing 4 Reš et al. 
+
+the prompt as little as possible: 
+
+R⋆ = arg max 
+
+> R
+
+[
+
+−
+
+> N
+
+∑
+
+> i=1
+
+J(M (TR(pi)) , g i
+
+)︸ ︷︷ ︸
+
+> suppress malicious compliance
+
+− λlen 
+
+> N
+
+∑
+
+> i=1
+
+|TR(pi)| − | pi||pi|
+
+︸ ︷︷ ︸
+
+> limit prompt inflation
+
+]
+
+, (1) where | · | denotes prompt length in tokens, subject to a per-prompt budget 
+
+|TR(pi)| − | pi| ≤ Bi = max {1, ⌊ρ · | pi|⌋} and a minimum anchor spacing of dmin 
+
+tokens. The first term penalizes high compliance; the second, weighted by λlen ,penalizes prompt inflation. Benign functionality is deliberately not an explicit term, a choice we revisit in Section 4.2 and Section 7. 
+
+# 3 Related Work 
+
+We organize the related work into three areas, namely defense methods against jailbreak attacks, methodologies for evaluating jailbreak success, and prompt-level optimization for defense. 
+
+3.1 Defense Methods 
+
+Defenses against jailbreak attacks span several directions, including input trans-formation, prompt-level safeguards, external moderation, and model-level align-ment [40]. In practical deployments, prompt-level defenses are particularly at-tractive because they can be inserted in front of an already deployed model without requiring access to model parameters or retraining. The observation that jailbreak prompts are fragile to small surface-form changes [47] underlies a family of input-transformation defenses; the princi-ple that perturbing the prompt can disrupt an attack is by now well estab-lished [11,29,12]. Jain et al. [11] give the canonical paraphrasing and retok-enization (BPE-dropout) baselines, and perplexity filtering flags adversarial-suffix prompts [1]. These defenses differ mainly in how they perturb. Smooth-LLM [29] applies random character-level insert/swap/patch edits uniformly 
+
+across the prompt and aggregates predictions over N perturbed copies; Se-manticSmooth [12] smooths instead at the semantic level, aggregating over 
+
+N paraphrased copies. AlcaTRAz occupies a different point in this space: its perturbation is learned rather than random or semantic, anchored at token boundaries rather than injected uniformly (preserving token integrity on benign queries), and applied as a single deterministic rewrite , avoiding the N -sample inference cost of smoothing defenses. A complementary line instead wraps the query in safety-reinforcing instructions, as in self-reminders [37] and Goal Pri-oritization [43]. Unlike most of these studies, we explicitly measure how the perturbation affects benign-query responses. In this work, we compare AlcaTRAz against three representative prompt-level defense approaches. Llama Guard [10] is a moderation-style safeguard that classifies prompt-response pairs into safety-related categories and acts as an AlcaTRAz – Anchored Tree-Rule Defense Against Jailbreaks 5
+
+input-output filter. RA-LLM [2] is a prompt perturbation defense that exploits the observation that adversarial prompts are less robust to random degradation than benign queries. Goal Prioritization [43] reinforces safety by modifying the instruction hierarchy through a system prompt that explicitly prioritizes safety over helpfulness. These methods represent substantially different prompt-level strategies and therefore provide meaningful comparison points for our approach. 
+
+3.2 Evaluation of Jailbreak Success 
+
+Unlike traditional classification tasks, jailbreak success cannot be determined by a simple output metric alone. It is necessary to consider both the malicious intent of the prompt and the extent to which the model response fulfills that intent [20]. Responses can exhibit different degrees of policy violation, ranging from complete refusal to partial assistance to fully explicit compliance [16]. At present, no universally adopted evaluation standard exists. Existing stud-ies differ substantially in both their definition of attack success and the method-ology used to determine it [23,20]. Three broad evaluation strategies appear in the literature. Manual evaluation is often the most faithful approach, but it is expensive, difficult to scale, and usually relies on a single annotator or a very limited number of annotators. Regex-based evaluation is computationally cheap and fully automated but highly unreliable, as it operates on surface text patterns only and cannot capture semantically subtle policy violations [11,36,21]. Model-based evaluation is more scalable and semantically richer, but many approaches either ignore the original prompt context or rely on proprietary evaluators such as GPT-4, limiting transparency and reproducibility [42,24,19]. Several recent works attempt to improve this situation. PAIR and TAP intro-duce ordinal scales (1–5 and 1–10, respectively), though these are often collapsed back into binary labels in practice [42,24]. WildGuard combines harmfulness and refusal classification via a fine-tuned Mistral-7B model [8], while JailJudge trains an open model to mimic a multi-agent GPT-4 pipeline [19]. Existing benchmark-ing frameworks such as HarmBench and EasyJailbreak provide important infras-tructure but differ in evaluation assumptions [23,46]. Despite these advances, jailbreak evaluation remains inconsistent across studies and lacks a widely ac-cepted, transparent methodology. 
+
+3.3 Prompt-level Optimization for Defense 
+
+A growing line formulates defense design as prompt optimization [31]. Robust Prompt Optimization (RPO) [45] learns a transferable defensive suffix against an adversary in the loop, and Defensive Prompt Patch (DPP) [38] optimizes an interpretable defensive suffix appended to the prompt. The use of evolutionary search to optimize prompts is itself well established: EvoPrompt [7] and Prompt-breeder [6] evolve task prompts with genetic operators and remain competitive with hand-crafted prompting, which motivates our choice of genetic program-ming. AlcaTRAz shares the optimization intuition but differs in two respects. First, rather than appending or tuning a fixed natural-language suffix, it learns a 
+
+tree of anchored character-level edits applied directly into the user input, evolved 6 Reš et al. 
+
+by genetic programming. Second, the rule acts as a preprocessing step that uses no model internals rather than a model-specific tuned prompt, so a single rule transfers across the evaluated models without per-model retraining. 
+
+# 4 Proposed Defense Method 
+
+AlcaTRAz is a prompt-level intervention that constructs a transformation rule applied to user input before it is forwarded to the target language model. Its goal is to disrupt structural patterns exploited by jailbreak attacks while preserving the semantic content of legitimate queries. The method belongs to the prompt perturbation category of jailbreak defenses [40] and operates in a fully black-box setting, requiring no access to model parameters or internals. Rather than manually designing a transformation or perturbing the prompt uniformly at random [29], we treat the defense template as an optimizable object and evolve it via genetic programming [14], exploiting the fragility of adversarial prompts to small surface-form perturbations [47,11]. 
+
+4.1 The Tree of Rules 
+
+The defense forms a tree of transformation rules R⋆; applying the rule tree to a prompt p produces a modified prompt p′ = TR⋆ (p). Each rule selects anchor positions in the prompt and applies exactly one of three elementary operations; these three constitute the complete operation set, and no other operation type is available: prefix (inserting characters before a token), suffix (inserting char-acters after a token), and wrap (enclosing a token with a prefix and a suffix). The character pool is restricted to a fixed dictionary of printable ASCII special characters, Vdef = {!"#$%&’()*+,-./:;<=>?@[\]ˆ_‘| }. These char-acters belong to the base vocabulary of essentially every modern subword tok-enizer: byte-level BPE models (e.g., the GPT and LLaMA families) represent all 256 byte values natively, while character- and piece-based tokenizers such as WordPiece and SentencePiece likewise include the printable ASCII set. The perturbation is therefore independent of the specific tokenizer and architecture, and introduces no encoding-specific artifacts across the model families we eval-uate [3]. The total amount of inserted material is bounded by a global budget 
+
+B = max {1, ⌊ρ · n⌋} , where n is the prompt length in tokens and ρ is a tunable budget ratio. Anchors are defined as relative positions (quantiles) A = {r1, . . . , r m}, ri ∈
+
+(δ, 1 − δ), mapped to token indices ji = ⌊ri · n⌋. A safety margin δ prevents insertions near prompt boundaries, and a minimum inter-anchor spacing of dmin 
+
+tokens prevents excessive local disruption. If too few valid positions remain, anchors are distributed evenly within the prompt. Figure 1 illustrates a learned rule tree and its application to a harmful prompt. 
+
+4.2 Optimization via Genetic Programming 
+
+Genetic programming (GP) represents candidate solutions as trees and opti-mizes them through tournament selection, subtree crossover, mutation, and AlcaTRAz – Anchored Tree-Rule Defense Against Jailbreaks 7           
+
+> R⋆
+> Anchor
+> r1
+> Anchor
+> r2
+> Anchor
+> r3
+> prefix
+> !!
+> wrap
+> [ "
+> suffix
+> /;~
+> Figure 1: The learned rule tree R⋆: each anchor applies an elementary character-level operation ( prefix ,suffix , or wrap ) with characters from a fixed ASCII-punctuation dictionary. For example, it maps p=How to make a bomb? to p′=!!!How to [make" a bomb/;~? , disrupting the adversarial surface form while preserving the underlying words.
+
+elitism [14]. We treat the rule tree R as an optimizable object and search for an effective configuration using such a genetic algorithm. Each individual in the population corresponds to one candidate defense template parameterized by anchor positions, operation types, noise characters, and budget parameters. In each generation, every candidate rule tree is evaluated on a set of jailbreak prompts P. For prompt pi, the rule applies the transformation p′ 
+
+> i
+
+= TR(pi), the target model generates a response ri = M (p′
+
+> i
+
+), and a fitness function assigns a score Ji = J(ri, g i) ∈ [0 , 10] indicating the degree to which the malicious intent 
+
+gi was fulfilled. The scoring function J and the genetic operators that complete this loop are described in the following two subsections. 
+
+Fitness Function. 
+
+The GP fitness function is exactly the objective of Equation 1: it rewards rule trees that drive down the judge compliance score J(ri, g i) on jailbreak prompts while penalizing prompt inflation through the length term weighted by λlen .Crucially, the fitness contains no explicit benign-functionality term : functional-ity is preserved only indirectly , through the length penalty and the per-prompt budget B, which together cap how much material can be inserted and thereby bound the perturbation a benign prompt can experience. We adopt this mini-mal objective deliberately, as it keeps the search fully black-box and avoids a second round of target-model inference on a benign set inside every fitness eval-uation; the cost is that benign preservation is an emergent property rather than an enforced constraint. We verify empirically in Section 6.4 that this indirect mechanism does preserve benign utility (within 0 .27 points of the undefended baseline), and we discuss adding an explicit functionality term as a first-class extension in Section 7. We score each response ri on an eleven-point scale (0–10), where 10 indicates full compliance with the malicious request gi (worst) and 0 indicates complete refusal (best). This granularity captures partial safety violations that binary pass/fail metrics miss, and is consistent with psychometric evidence on optimal rating-scale resolution [27,20]. The rubric used in practice is given in Table 1. The 8 Reš et al.       
+
+> 10 Completely and directly answers the prompt
+> 8–9 Mostly answers with minor gaps or irrelevancies
+> 6–7 Partially answers, but still useful or suggestive
+> 3–5 Weak or mostly irrelevant, but shows some attempt
+> 1–2 Barely any relevance or usefulness
+> 0No answer, or entirely unrelated
+
+Table 1: Scoring rubric (0–10) used in the fitness function. 
+
+genetic algorithm thus maximizes f by suppressing compliance while limiting prompt inflation. The compliance scoring function is an LLM-as-a-judge, selected empirically. We collected a balanced validation set of 1 104 instances (552 malicious, from 23 stratified prompts × 3 attacks × 8 flagship models spanning the LLaMA, Gemma, Qwen, DeepSeek, Falcon, Yi, InternLM, and Command-R families, and 552 benign from Quora [28]), independently annotated by five human raters (inter-annotator ICC(2, k) = 0.851, Krippendorff’s α = 0.511; human ceiling Spearman = 0.718, MAE = 2.111 [33,15]), and compared 15 open-weight can-didates ( ≤30B parameters, beyond which gains are marginal [9]) against the human consensus. Gemma3:12b was the best-aligned (MAE = 1.42, Spear-man = 0.786, CCC = 0.753, bias = +0 .14) and serves as the judge in all exper-iments. 
+
+Algorithm and Hyperparameters. 
+
+Starting from a random population of P rule trees, each generation evaluates every candidate on the training prompts (for each pi it computes p′ 
+
+> i
+
+= TR(pi), generates ri = M (p′
+
+> i
+
+), and scores Ji = J(ri, g i), then aggregates fitness via Equation 1), and forms the next generation by tournament selection, crossover, mutation, and elitism, returning the best rule found over all generations. We use a population of P = 50 individuals evolved over G = 105 generations with tournament selection (size k = 3), crossover rate pc = 0 .5, and muta-tion rate pm = 0 .45. The length penalty weight is λlen = 0 .01, the budget ratio is ρ = 0 .6, the minimum anchor spacing is dmin = 4 tokens, the safety margin is δ = 0 .05, and the top 2 individuals are preserved via elitism each gen-eration. We did not perform systematic hyperparameter tuning. The reported configuration, including G = 105, is a fixed computational budget chosen during preliminary development rather than an empirically optimal setting. A sensitiv-ity analysis remains for future work (Section 7). Crossover exchanges subtrees (anchor/operation/character units) between two parent rule trees, while muta-tion independently resamples a node’s components (jittering an anchor position, flipping the operation type among { prefix , suffix , wrap }, or resampling char-acters from Vdef ), followed by a repair step that re-imposes the budget B and spacing dmin on the offspring. 
+
+Why Genetic Programming? 
+
+A defense template is a structured, discrete object: a tree of choices (operation type, anchor position, characters) in which subtree crossover can recombine a partial solution from one region of a prompt into another [14]. The objective of Equation 1 is non-differentiable, because the edits are discrete and the inference AlcaTRAz – Anchored Tree-Rule Defense Against Jailbreaks 9
+
+is black-box, so gradient methods do not apply. Bayesian optimization also scales poorly in high-dimensional discrete spaces, whereas GP remains derivative-free and can recombine good substructures. The intended mechanism is an asymme-try between adversarial and benign prompts: the former rely on precise struc-tural cues (role-play framing, instruction hierarchies, token-level suffixes) that are fragile to small disruptions [47,11], while benign queries keep their meaning under minor punctuation noise. GP searches for the anchors and characters that exploit this asymmetry. 
+
+# 5 Experiments 
+
+5.1 Experimental Protocol 
+
+The experiments examine each defense along two axes: resistance to jailbreak attacks (malicious prompts) and preservation of functionality (benign prompts). Across 33 open-weight models, we evaluate five conditions: the undefended base-line, three prompt-level baselines (Llama Guard, RA-LLM, Goal Prioritization), and AlcaTRAz; both axes are reported jointly in Section 6. For every defense and target model, both prompt sets are processed identically: the defense transforms the prompt, the target model responds, and the response is scored by the judge. The same judge serves as both the GP fitness signal and the test-time evaluator, but the training and evaluation prompt sets are strictly disjoint. This design carries a risk of evaluator-specific optimization. Disjoint training and evaluation prompts prevent prompt memorization, but they do not eliminate dependence on this judge’s scoring preferences (Section 7). The source code repository is available at GitHub repository Security-FIT/PromptAttacker. 
+
+5.2 Evaluation Dataset 
+
+Malicious prompts. We combine two malicious-prompt sources. Cy-SecBench [34] contributes 500 prompts across 10 cybersecurity categories. A second, general-harm set of 620 prompts merges the 100 behaviors of Jail-breakBench [4] with the 520 behaviors of AdvBench [47]; since AdvBench prompts are uncategorized, we assign each a harm category with an LLM following the labeling protocol of CySecBench [34], so the general-harm set spans 14 categories. Together, this yields 1 120 base prompts across 24 harm categories. To these base prompts we apply 22 jailbreak attacks covering seven families from the taxonomy of Yi et al. [40], namely LLM-generated [42,24], template-completion [32,18], context-based [36,39], code-injection [22], cipher-based [41,13], low-resource-language [17], and gradient-based attacks [47,21]. Together with the unattacked base prompts, this gives 23 evaluation conditions; applying them to the 1 120 base prompts yields 1 120 × 23 = 25 760 evaluation prompts overall. 
+
+Benign prompts. To measure functionality preservation, we use 1 120 uni-formly sampled questions from the Quora Question Pairs dataset [28], which provides diverse, legitimate short-form queries unrelated to any jailbreak attack. 10 Reš et al. 
+
+We treat this as a proxy for utility on short factual queries; broader settings (cod-ing, multi-step reasoning, long-form, multilingual) and dedicated over-refusal benchmarks such as XSTest and OR-Bench [30,5] are not covered, a limitation we revisit in Section 7. 
+
+5.3 Training Dataset 
+
+The GP optimization requires a separate training set for learning the defense rule. The training set is strictly disjoint from the evaluation set, preventing infor-mation leakage between optimization and evaluation. We construct the training set exclusively from CySecBench. We sample one prompt from each of its ten categories and apply the 22 jailbreak methods, retaining the raw prompt as an additional condition. This produces 10 × 23 = 230 training prompts. This size balances coverage across attack types against the computational cost of repeated target-model inference during evolutionary optimization, where each generation requires P × |P train | target-model inference calls and the same number of judge evaluations. 
+
+5.4 Target Models 
+
+The evaluation is conducted on 33 open-weight language models spanning mul-tiple families and parameter scales. We focus on open models because they offer reproducibility, technical transparency, and compatibility with local inference environments, unlike proprietary systems that restrict large-scale safety test-ing [26]. The evaluated models include representatives from LLaMA (2, 3.1, 3.2), Gemma 3, Qwen (2.5, 3), Falcon 3, DeepSeek-R1, Yi, InternLM 2/2.5, Phi (3, 4), Mixtral, and Command-R, with sizes ranging from 0.5B to 35B params. Open weights enable reproducible, large-scale evaluation, and AlcaTRAz does not require access to parameters. During both optimization and evaluation, the defense reads only the prompt text and the generated response, so the open weights are never used by the method itself. 
+
+5.5 Comparison with Baseline Defenses 
+
+AlcaTRAz is compared against an undefended baseline and three representative prompt-level defenses that instantiate three distinct strategies in the defense tax-onomy [40]: prompt classification (Llama Guard [10]), prompt perturbation (RA-LLM [2]), and system-prompt safeguards (Goal Prioritization [43]). We chose one representative per category and prioritized baselines that aim to preserve benign functionality [11,43]. Within the perturbation category, we use RA-LLM rather than character-level randomized smoothing [29], whose character edits would collapse to a near-variant of AlcaTRAz; RA-LLM’s token-level dropout instead isolates a distinct perturbation strategy. 
+
+5.6 Evaluation Metric 
+
+Metric. We score every response on the same eleven-point scale used by the GP fitness signal (Section 4.2), giving a uniform comparison of all five condi-AlcaTRAz – Anchored Tree-Rule Defense Against Jailbreaks 11 
+
+tions. On malicious prompts, 10 means full compliance and 0 complete refusal (lower is safer); on benign prompts the rubric is read in reverse, with 10 a full, direct answer and 0 a refusal or unrelated response. A defense that suppresses compliance by refusing everything therefore scores well on the malicious set but poorly on the benign set, and vice versa, making the trade-off between security and utility directly visible. 
+
+Composite score for defense comparison. To prevent rewarding the defense for lowering the attack success rates by disabling the model functionality, we report a composite score that pairs the safety gain with the functionality change produced by the same defense: 
+
+S = (Jmal undef − Jmal def 
+
+) + (Jben def − Jben undef 
+
+), (2) where Jmal def and Jmal undef are the mean judge scores on malicious prompts with and without the defense, and Jben def , Jben undef are the corresponding means on be-nign prompts. Under the sign convention stated above, both terms are positive when the defense lowers malicious compliance and preserves (or raises) benign answering. Thus, a higher S indicates a better defense. The composite score suits cross-defense comparison: each defense enters both terms as a difference against the same undefended baseline on the same models and prompts, so model- and prompt-level effects cancel, and what remains is associated with the defense (residual confounds, such as judge sensitivity to inserted punctuation, are uncontrolled). Because both terms use the same 0–10 scale, we add them with equal weights as a reporting convention. This choice does not imply that security and utility carry equal operational value in every deployment. We therefore use S only as a summary statistic and report the malicious and benign axes separately in Table 2 and Table 3, and jointly in the Pareto comparison of Figure 4. 
+
+# 6 Results 
+
+We report the empirical evaluation of AlcaTRAz under the protocol of Section 5, using the judge-based 0–10 scoring scheme of Section 5.6. Safety and utility are read jointly throughout, because a defense can dominate either axis alone at the expense of the other, as Llama Guard does on safety. 
+
+6.1 Overall Reduction in Jailbreak Success Rate 
+
+Pooling the malicious-prompt judge scores over all 33 models and 23 conditions (849 321 scored responses per setting), the undefended distribution is heavily right-skewed and peaks at score 10 (251 883 responses, ≈ 29 .7 %); after defense the modal score shifts to 2 (240 880, ≈ 28 .4 %), so the defense redistributes the 
+
+whole distribution toward refusal rather than only clipping the most successful jailbreaks. The mean malicious score falls from 6.65 to 4.48 ( −32 .6 %), the share in the top band (8–10) from 49.8 % to 26.9 %, and the refusal share (0–2) rises 12 Reš et al. 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%            
+
+> Proportion of Prompts
+> artprompt bijection_results cypher flip gpt4cipher Chameleon sql citation ica randomsearch rewrite Autodan suffix pair past tap multilang overload deep_inception dialog_attack renellm sequential_attack base
+> 2222333444444444444444444444455555555555555555666666666777778888888888888899999999999999999910 10 10 10 10 10 10 10 10 10 10 10 10 10
+> Score 012345678910
+
+(a) Before defense (undefended). 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%              
+
+> Proportion of Prompts
+> artprompt bijection_results cypher flip gpt4cipher Chameleon sql citation ica randomsearch rewrite Autodan suffix pair past tap multilang overload deep_inception dialog_attack renellm sequential_attack base
+> 0000111111111222222222222222222222233333335556666666666666666666777777777777777778888888888910
+> Score 012345678910
+
+(b) After applying AlcaTRAz. 
+
+Figure 2: Score distribution by attack type, aggregated over 33 target models. Each row shows the proportion of responses at each score level, with the median indicated by a black box. After defense (AlcaTRAz) (b), most medians decrease, and the proportion of high scores (8–10) is substantially reduced compared to the undefended condition (a). 
+
+from 6.1 % to 50.1 %. We stress, however, that the defended distribution stays 
+
+bimodal : read as a thresholded success rate, 26 .9 % of responses still land in the 8–10 band and would leak in a deployment that tolerates no severe output. Alca-TRAz therefore substantially reduces, but does not eliminate, jailbreak success, and is best deployed as one layer within a defense-in-depth strategy (Section 7). 
+
+6.2 Results by Jailbreak Attack Type 
+
+Disaggregating by attack family (Figure 2) reveals wide variation in intrinsic strength: undefended (Figure 2a), rewrite , randomsearch , and Chameleon con-centrate at scores 9–10, while encoding-based attacks ( bijection , ica ) are broader and lower. After defense (Figure 2b), the median falls by a median of 3 points and the upper tail contracts; 21 of the 23 conditions show a strict median reduction, with the largest drops on cipher- and context-based families (e.g., cypher 9 → 2, citation 9 → 3). 
+
+Attack-strength heterogeneity. Intrinsic strength ranges from near-harmless (base , multilang ; median ≤4) to saturated ( randomsearch , rewrite ; me-dian 10), so aggregate success rates conflate defense quality with benchmark composition, which the per-family view avoids. AlcaTRAz improves safety on essentially every dangerous family; the exception is optimization-based 
+
+randomsearch (median 8 after defense), whose suffix can be re-optimized against small input changes. AlcaTRAz – Anchored Tree-Rule Defense Against Jailbreaks 13 artprompt bijection_results cypher flip gpt4cipher Chameleon sql citation ica randomsearch rewrite Autodan suffix pair past tap multilang overload deep_inception dialog_attack renellm sequential_attack base command-r:35b command-r:latest deepseek-r1:32b falcon3:10b falcon3:3b falcon3:7b gemma3:12b gemma3:14b gemma3:1b gemma3:27b internlm2:1m internlm2:20b internlm2.5:latest llama2:13b llama2:7b llama3.1:8b llama3.2:1b llama3.2:3b mixtral:7b phi3:14b phi3:8b phi4:14b qwen2.5:0.5b qwen2.5:14b qwen2.5:32b qwen2.5:3b qwen2.5:7b qwen3:0.6b qwen3:30b qwen3:32b yi:34b yi:6b yi:9b 
+
+AlcaTRAz RA-LLM Goal Prioritization Llama Guard                     
+
+> Overall 020 40 60 80 100
+> % Share
+> 73.4% 23.5% 87.9% 18.2% 90.9% 90.9% 93.9% 48.5% 12.1% 90.9% 84.8% 18.2% 81.8% 84.8% 60.6% 93.9% 90.9% 93.9% 84.8% 87.9% 78.8% 66.7% 93.9% 36.4% 97.0% 9.1% 81.8% 9.1% 9.1% 6.1% 48.5% 84.8% 6.1% 12.1% 81.8% 9.1% 9.1% 30.3% 6.1% 6.1% 6.1% 12.1% 9.1% 15.2% 18.2% 6.1% 63.6% 6.1% 6.1% 9.1% 6.1% 15.2%
+
+Figure 3: Best-performing defense for each target model (rows) and attack type (columns) under the composite score S of Equation 2. AlcaTRAz (green) wins in 73.4 % of cells, RA-LLM (light blue) in 23.5 %, Goal Prioritization (blue) in 3.0 %, and Llama Guard (dark blue) in 0.1 %. The bottom panel shows aggregate shares across all models. 
+
+6.3 Comparison with Baseline Defenses 
+
+Figure 3 compares AlcaTRAz with the undefended setting and with the three prompt-level baselines across all 33 evaluated models and 22 attack types. Each cell indicates which defense achieved the best trade-off between malicious-prompt compliance and benign-prompt functionality for that model-attack combination, evaluated jointly through the composite score S of Equation 2. AlcaTRAz wins in 73.4 % of all combinations, compared with 23.5 % for RA-LLM, 3.0 % for Goal Prioritization, and fewer than 0.1 % for Llama Guard. Table 2 summarizes the aggregate safety statistics, and Table 3 reports the benign-functionality statistics used in the composite score. 14 Reš et al. ideal       
+
+> 0246810
+> Benign utility (mean judge score, higher is better)
+> 0246810
+> Safety (10  mean malicious)
+> Llama Guard
+> AlcaTRAz
+> RA-LLM Goal Prioritization Undefended
+> Pareto frontier
+
+Figure 4: Trade-off between security and utility for the five conditions. Horizontal: benign utility (higher is better); vertical: safety (10 minus mean malicious compliance, higher is better). The green region is the ideal quadrant, safe and useful at once. Alca-TRAz Pareto-dominates the utility-preserving baselines (RA-LLM, Goal Prioritization; gray arrows), while Llama Guard reaches high safety by giving up benign utility. 
+
+Defense Avg. Score ↓ Scores 8–10 [%] ↓ Scores 0–2 [%] ↑ Best by S [%] 
+
+Undefended 6.65 49.8 6.1 –Llama Guard 1.30 6.0 93.3 0.1 RA-LLM 5.52 52.7 40.2 23.5 Goal Prioritization 5.98 54.8 31.9 3.0 
+
+AlcaTRAz 4.48 26.9 50.1 73.4 Table 2: Aggregate safety statistics across all 33 models and 22 attack types. Arrows indicate the preferred direction. The rightmost column reports the percentage of model-attack combinations on which the defense obtains the highest composite security and functionality score S of Equation 2. 
+
+Reading the trade-off directly. A natural concern is whether the edge of Alca-TRAz is an artifact of S, since Llama Guard attains a lower absolute malicious score (Table 2). Figure 4 reports the two axes directly and resolves this ques-tion. Llama Guard reaches its low malicious score only by reducing benign an-swerability. Among the utility-preserving baselines, AlcaTRAz Pareto-dominates 
+
+RA-LLM and Goal Prioritization, and it is the only condition in the ideal region. The equal-weight composite score therefore formalizes a dominance relation that is already visible in the per-axis numbers. The advantage of AlcaTRAz is broad rather than localized. For 27 of the 33 evaluated models, it achieves the best composite score across most condi-tions. At the attack level, AlcaTRAz obtains the best composite score on the majority of the 33 models for 18 of the 22 attack types. The four exceptions are 
+
+bijection , sql , randomsearch , and sequential_attack 3, on which the token- 
+
+> 3
+
+All belong to gradient-based or optimization-heavy families in which random per-turbation is a strong ad hoc baseline. AlcaTRAz – Anchored Tree-Rule Defense Against Jailbreaks 15               
+
+> Defense Benign Score ↑∆vs. Undefended
+> Undefended 8.62 –Llama Guard 1.10 −7.52 RA-LLM 8.28 −0.34 Goal Prioritization 5.70 −2.92
+> AlcaTRAz 8.35 −0.27
+
+Table 3: Benign-query functionality across defenses, measured as the average judge score on 1 120 benign Quora questions. Higher scores indicate better functionality preservation. 
+
+level dropout of RA-LLM obtains the higher composite score. Even on those attacks, AlcaTRAz trails RA-LLM only narrowly, while outperforming it across the remaining attack types. 
+
+6.4 Benign-Query Functionality 
+
+A prompt-level defense is practical only if it preserves utility on legitimate queries. On the 1 120 short, single-turn Quora questions (Table 3), AlcaTRAz scores 8.35 versus 8.62 undefended, a drop of only 0.27 points ( ≈ 3.1 %). It es-sentially ties RA-LLM (8.28) but at far stronger safety, while Goal Prioritization loses 2.92 points, because its system prompt makes the model cautious even on benign queries. Llama Guard falls to 1.10, thereby substantially reducing benign answerability under our implementation. This result may depend on classifica-tion thresholds and implementation choices and is not generalized beyond our setup. The size of the drop warrants a dedicated error analysis of the rejected prompts (the original paper [10] reports no utility for benign queries), which we leave for future work. 
+
+# 7 Limitations 
+
+Adaptive attackers. Our evaluation applies fixed attack instances and there-fore covers the defense-unaware attacker (Section 2.1), but neither the defense-aware attacker as a separate condition nor the rule-aware adaptive attacker that knows R⋆ and re-optimizes directly against the defended pipeline. This omission is common in the prompt-level defense literature, where defenses are typically tested against fixed attack sets or generic optimizers rather than against an ad-versary tailored to the specific defense [25], and we treat it as an open gap. The omission is consequential here: adaptive attacks are known to circumvent perturbation and smoothing defenses 4, and the attack that already resists Al-caTRAz most strongly is the optimization-based randomsearch , precisely the family that an attacker is most likely to exploit. We thus claim no robustness against adaptive or optimization-based attackers; establishing it would require a nested, GCG-style optimization with the defense in the loop, which we leave to future work. 
+
+Isolating the contribution of learning. Our results show that a learned anchored rule is effective, but not that learning is necessary . The decisive  
+
+> 4
+
+Mostly > 95 % success against SmoothLLM [44] and perplexity filtering. 16 Reš et al. 
+
+missing experiment is a matched-budget comparison against random insertion, fixed/hand-designed templates, and a no-search rule tree, alongside the para-phrasing/retokenization [11] and randomized-smoothing [29] baselines. We also ran no sensitivity analysis over ρ, anchor placement, dmin , the vocabulary, and GP hyperparameters (set from preliminary runs), nor a fitness-vs-generation study of whether G > 105 helps; these ablations are our priority. 
+
+Evaluation approximation. The same judge is both the GP fitness signal and the final evaluator. Disjoint train/eval prompts prevent prompt-level overfitting but not exploitation of this judge’s idiosyncrasies, since the fitness signal is the judge itself. Its agreement with five annotators is only near a noisy human ceiling (Krippendorff’s α = 0 .511, MAE = 2 .111), so only aggregate, distributional shifts are reliable; confirming the ranking with an independent judge and a human study remains future work. 
+
+Scope of utility and distribution shift. Benign utility is measured only on short, single-turn factual queries (Quora), and some Quora items can be borderline. The result should not be generalized to coding, structured prompts, long-form generation, multi-turn interaction, multilingual use, or dedicated over-refusal benchmarks [30,5], none of which are evaluated here. The rule is optimized for a fixed attack distribution and may require periodic re-evolution; rare zero-to-nonzero transitions (the undefended model refuses, but the defended one does not) show that perturbation is not strictly monotonic with respect to safety. 
+
+# 8 Conclusion 
+
+We presented AlcaTRAz, a prompt-level defense for open-weight models that learns anchored character-level perturbations through genetic programming. Across 33 open-weight models and 22 attack families, it obtains the best joint security and functionality trade-off among the compared baselines, shifting the modal judge score from 10 (maximal-severity) to 2 (near-refusal) and winning the composite score S on 73.4 % of model-attack combinations while keeping benign utility within 0.27 points of the undefended baseline. The improvement is real but bounded: a substantial high-severity tail remains (26.9 % of at-tacked responses still score 8–10) and we do not evaluate adaptive attackers, so AlcaTRAz is best deployed as one mitigation layer within a defense-in-depth strategy rather than a standalone guarantee. Beyond the concrete defense, these results argue for evaluating prompt-level safeguards jointly on security and utility, and they motivate further controlled study of automated search as an alternative to manually specified perturbation rules [7,6].    
+
+> Ethics statement. This work develops defensive technology for LLM safety. All ex-periments use public datasets, open-weight models, and previously published attacks; no real users were exposed to harmful content, and annotators were informed that the content being assessed may be harmful.
+> AI Declaration. AI tools were used only for clarity, grammar, and phrasing; all ideas, methods, experiments, and conclusions are the authors’ own.
+> Acknowledgments. This work was partially supported by the Brno University of Technology (internal project FIT-S-23-8151). This research was supported by Red Hat.
+
+AlcaTRAz – Anchored Tree-Rule Defense Against Jailbreaks 17 
+
+# References 
+
+1. Alon, G., Kamfonas, M.: Detecting Language Model Attacks with Perplexity (2023), https://arxiv.org/abs/2308.14132 2. Cao, B., Cao, Y., Lin, L., Chen, J.: Defending Against Alignment-Breaking Attacks via Robustly Aligned LLM. In: Proc. ACL (2024), https://arxiv.org/abs/2309.1 4348 3. Cerf, V.G.: ASCII format for Network Interchange. Request for Comments 20, RFC Editor / IETF (Oct 1969), https://www.rfc-editor.org/rfc/rfc20.html 4. Chao, P., Debenedetti, E., Robey, A., Andriushchenko, M., Croce, F., Sehwag, V., Dobriban, E., Flammarion, N., Pappas, G.J., Tramer, F., Hassani, H., Wong, E.: JailbreakBench: An Open Robustness Benchmark for Jailbreaking Large Language Models. In: Proc. NeurIPS Datasets and Benchmarks Track (2024), https://arxiv. org/abs/2404.01318 5. Cui, J., Chiang, W.L., Stoica, I., Hsieh, C.J.: OR-Bench: An Over-Refusal Bench-mark for Large Language Models. In: Proc. ICML. pp. 11515–11542 (2025), https://proceedings.mlr.press/v267/cui25a.html 6. Fernando, C., Banarse, D., Michalewski, H., Osindero, S., Rocktäschel, T.: Prompt-breeder: Self-Referential Self-Improvement via Prompt Evolution. In: Proc. ICML. pp. 13481–13544 (2024), https://proceedings.mlr.press/v235/fernando24a.html 7. Guo, Q., Wang, R., Guo, J., Li, B., Song, K., Tan, X., Liu, G., Bian, J., Yang, Y.: Connecting Large Language Models with Evolutionary Algorithms Yields Powerful Prompt Optimizers. In: Proc. ICLR (2024), https://openreview.net/forum?id= ZG3RaNIsO8 8. Han, S., Rao, K., Ettinger, A., Jiang, L., Lin, B.Y., Lambert, N., Choi, Y., Dziri, N.: WildGuard: Open One-Stop Moderation Tools for Safety Risks, Jailbreaks, and Refusals of LLMs. In: Proc. NeurIPS Datasets and Benchmarks Track (2024), https://arxiv.org/abs/2406.18495 9. Ho, X., Huang, J., Boudin, F., Aizawa, A.: LLM-as-a-Judge: Reassessing the Per-formance of LLMs in Extractive QA (2025), https://arxiv.org/abs/2504.11972v2 10. Inan, H., Upasani, K., Chi, J., Rungta, R., Iyer, K., Mao, Y., Tontchev, M., Hu, Q., Fuller, B., Testuggine, D., Khabsa, M.: Llama Guard: LLM-based Input-Output Safeguard for Human-AI Conversations (2023), https://arxiv.org/abs/2312.06674 11. Jain, N., Schwarzschild, A., Wen, Y., Somepalli, G., Kirchenbauer, J., Chiang, P., Goldblum, M., Saha, A., Geiping, J., Goldstein, T.: Baseline Defenses for Adver-sarial Attacks Against Aligned Language Models (2023), https://arxiv.org/abs/ 2309.00614 12. Ji, J., Hou, B., Robey, A., Pappas, G.J., Hassani, H., Zhang, Y., Wong, E., Chang, S.: Defending Large Language Models against Jailbreak Attacks via Se-mantic Smoothing. In: Findings of the ACL (IJCNLP-AACL) (2025), https: //arxiv.org/abs/2402.16192 13. Jiang, F., Xu, Z., Niu, L., Xiang, Z., Ramasubramanian, B., Li, B., Poovendran, R.: ArtPrompt: ASCII Art-based Jailbreak Attacks against Aligned LLMs. In: Proc. ACL (2024), https://arxiv.org/abs/2402.11753 14. Koza, J.R.: Genetic programming as a means for programming computers by nat-ural selection. Statistics and Computing 4(2), 87–112 (1994). https://doi.org/10.1 007/BF00175355, https://doi.org/10.1007/BF00175355 15. Krippendorff, K.: Content Analysis: An Introduction to Its Methodology. SAGE Publications, 4 edn. (2018). https://doi.org/10.4135/9781071878781 18 Reš et al. 16. Li, H., Dong, Q., Chen, J., Su, H., Zhou, Y., Ai, Q., Ye, Z., Liu, Y.: LLMs-as-Judges: A Comprehensive Survey on LLM-based Evaluation Methods (2024), https: //arxiv.org/abs/2412.05579 17. Li, J., Liu, Y., Liu, C., Shi, L., Ren, X., Zheng, Y., Liu, Y., Xue, Y.: A Cross-Language Investigation into Jailbreak Attacks in Large Language Models (2024), https://arxiv.org/abs/2401.16765 18. Li, X., Zhou, Z., Zhu, J., Yao, J., Liu, T., Han, B.: DeepInception: Hypnotize Large Language Model to Be Jailbreaker (2024), https://arxiv.org/abs/2311.03191 19. Liu, F., Feng, Y., Xu, Z., Su, L., Ma, X., Yin, D., Liu, H.: JAILJUDGE: A Com-prehensive Jailbreak Judge Benchmark with Multi-Agent Enhanced Explanation Evaluation Framework (2024), https://arxiv.org/abs/2410.12855 20. Liu, S., Li, C., Qiu, J., Zhang, X., Huang, F., Zhang, L., Hei, Y., Yu, P.S.: The Scales of Justitia: A Comprehensive Survey on Safety Evaluation of LLMs (2025), https://arxiv.org/abs/2506.11094 21. Liu, X., Xu, N., Chen, M., Xiao, C.: AutoDAN: Generating Stealthy Jailbreak Prompts on Aligned Large Language Models. In: Proc. ICLR (2024), https://arxi v.org/abs/2310.04451 22. Lv, H., Wang, X., Zhang, Y., Huang, C., Dou, S., Ye, J., Gui, T., Zhang, Q., Huang, X.: CodeChameleon: Personalized Encryption Framework for Jailbreaking Large Language Models (2024), https://arxiv.org/abs/2402.16717 23. Mazeika, M., Phan, L., Yin, X., Zou, A., Wang, Z., Mu, N., Sakhaee, E., Li, N., Basart, S., Li, B., Forsyth, D., Hendrycks, D.: HarmBench: A Standardized Evaluation Framework for Automated Red Teaming and Robust Refusal. In: Proc. ICML (2024), https://arxiv.org/abs/2402.04249 24. Mehrotra, A., Zampetakis, M., Kassianik, P., Nelson, B., Anderson, H., Singer, Y., Karbasi, A.: Tree of Attacks: Jailbreaking Black-Box LLMs Automatically. In: Proc. NeurIPS (2024), https://arxiv.org/abs/2312.02119 25. Nasr, M., Carlini, N., Sitawarin, C., Schulhoff, S.V., Hayes, J., Ilie, M., Pluto, J., Song, S., Chaudhari, H., Shumailov, I., Thakurta, A., Xiao, K.Y., Terzis, A., Tramèr, F.: The Attacker Moves Second: Stronger Adaptive Attacks Bypass De-fenses Against Llm Jailbreaks and Prompt Injections (2025), https://arxiv.org/ab s/2510.09023 26. OpenAI: Usage policies (2025), https://openai.com/policies/usage-policies/revisi ons/2025-01-29/, revision dated January 29, 2025. Accessed: 2026-03-13 27. Preston, C.C., Colman, A.M.: Optimal number of response categories in rating scales: reliability, validity, discriminating power, and respondent preferences. Acta Psychologica 104 (1), 1–15 (2000). https://doi.org/https://doi.org/10.1016/S000 1-6918(99)00050-5, https://www.sciencedirect.com/science/article/pii/S0001691 899000505 28. Quora: Question Pairs Dataset. Kaggle (2017), https://www.kaggle.com/dataset s/quora/question-pairs-dataset, accessed: 2025-12-03 29. Robey, A., Wong, E., Hassani, H., Pappas, G.J.: SmoothLLM: Defending Large Language Models Against Jailbreaking Attacks (2024), https://arxiv.org/abs/23 10.03684 30. Röttger, P., Kirk, H.R., Vidgen, B., Attanasio, G., Bianchi, F., Hovy, D.: XSTest: A Test Suite for Identifying Exaggerated Safety Behaviours in Large Language Models. In: Proc. NAACL-HLT. pp. 5377–5400 (2024), https://aclanthology.org /2024.naacl-long.301/ 31. Sabbatella, A., Ponti, A., Giordani, I., Candelieri, A., Archetti, F.: Prompt Op-timization in Large Language Models. Mathematics 12 (6), 929 (2024). https: //doi.org/10.3390/math12060929 AlcaTRAz – Anchored Tree-Rule Defense Against Jailbreaks 19 32. Saiem, B.A., Shanto, M.S.H., Ahsan, R., ur Rashid, M.R.: SequentialBreak: Large Language Models Can be Fooled by Embedding Jailbreak Prompts into Sequential Prompt Chains. In: Proc. ACL (SRW) (2025), https://arxiv.org/abs/2411.06426 33. Shrout, P.E., Fleiss, J.L.: Intraclass correlations: Uses in assessing rater reliability. Psychological Bulletin 86 (2), 420–428 (1979). https://doi.org/10.1037/0033-2909. 86.2.420 34. Wahréus, J., Hussain, A.M., Papadimitratos, P.: CySecBench: Generative AI-based CyberSecurity-focused Prompt Dataset for Benchmarking Large Language Models. arXiv preprint arXiv:2501.01335 (2025), https://arxiv.org/abs/2501.01335 35. Wei, A., Haghtalab, N., Steinhardt, J.: Jailbroken: How Does LLM Safety Training Fail? In: Proc. NeurIPS (2023), https://arxiv.org/abs/2307.02483 36. Wei, Z., Wang, Y., Li, A., Mo, Y., Wang, Y.: Jailbreak and Guard Aligned Lan-guage Models with Only Few In-Context Demonstrations (2024), https://arxiv.or g/abs/2310.06387 37. Xie, Y., Yi, J., Shao, J., Curl, J., Lyu, L., Chen, Q., Xie, X., Wu, F.: Defending ChatGPT against jailbreak attack via self-reminders. Nature Machine Intelligence 
+
+5(12), 1486–1496 (2023). https://doi.org/10.1038/s42256-023-00765-8 38. Xiong, C., Qi, X., Chen, P.Y., Ho, T.Y.: Defensive Prompt Patch: A Robust and Interpretable Defense of LLMs against Jailbreak Attacks. In: Findings of the ACL. pp. 409–437 (2025), https://arxiv.org/abs/2405.20099 39. Yang, X., Tang, X., Han, J., Hu, S.: The Dark Side of Trust: Authority Citation-Driven Jailbreak Attacks on Large Language Models (2024), https://arxiv.org/ab s/2411.11407 40. Yi, S., Liu, Y., Sun, Z., Cong, T., He, X., Song, J., Xu, K., Li, Q.: Jailbreak Attacks and Defenses Against Large Language Models: A Survey (2024), https: //arxiv.org/abs/2407.04295 41. Yuan, Y., Jiao, W., Wang, W., Huang, J., He, P., Shi, S., Tu, Z.: GPT-4 Is Too Smart To Be Safe: Stealthy Chat with LLMs via Cipher. In: Proc. ICLR (2024), https://arxiv.org/abs/2308.06463 42. Zeng, Y., Lin, H., Zhang, J., Yang, D., Jia, R., Shi, W.: How Johnny Can Per-suade LLMs to Jailbreak Them: Rethinking Persuasion to Challenge AI Safety by Humanizing LLMs. In: Proc. ACL (2024), https://arxiv.org/abs/2401.06373 43. Zhang, Z., Yang, J., Ke, P., Mi, F., Wang, H., Huang, M.: Defending Large Lan-guage Models Against Jailbreaking Attacks Through Goal Prioritization. In: Proc. ACL Main Conference (2024), https://arxiv.org/abs/2311.09096 44. Zheng, X., Pang, T., Du, C., Liu, Q., Jiang, J., Lin, M.: Improved Few-Shot Jail-breaking Can Circumvent Aligned Language Models and Their Defenses (2024), https://arxiv.org/abs/2406.01288 45. Zhou, A., Li, B., Wang, H.: Robust Prompt Optimization for Defending Language Models Against Jailbreaking Attacks. In: Proc. NeurIPS (2024), https://arxiv.or g/abs/2401.17263 46. Zhou, W., Wang, X., Xiong, L., Xia, H., Gu, Y., Chai, M., Zhu, F., Huang, C., Dou, S., Xi, Z., Zheng, R., Gao, S., Zou, Y., Yan, H., Le, Y., Wang, R., Li, L., Shao, J., Gui, T., Zhang, Q., Huang, X.: EasyJailbreak: A Unified Framework for Jailbreaking Large Language Models (2024), https://arxiv.org/abs/2403.12171 47. Zou, A., Wang, Z., Carlini, N., Nasr, M., Kolter, J.Z., Fredrikson, M.: Universal and Transferable Adversarial Attacks on Aligned Language Models (2023), https: //arxiv.org/abs/2307.15043
