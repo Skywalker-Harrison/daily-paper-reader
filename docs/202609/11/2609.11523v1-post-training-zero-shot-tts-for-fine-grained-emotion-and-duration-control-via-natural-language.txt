@@ -1,0 +1,327 @@
+Title: Post-Training Zero-Shot TTS for Fine-Grained Emotion and Duration Control via Natural Language
+
+URL Source: https://arxiv.org/pdf/2609.11523v1
+
+Published Time: Fri, 11 Sep 2026 01:07:40 GMT
+
+Number of Pages: 6
+
+Markdown Content:
+## POST-TRAINING ZERO-SHOT TTS FOR FINE-GRAINED EMOTION AND DURATION CONTROL VIA NATURAL LANGUAGE 
+
+## Lianru Gao 1,†, Yujie Guo 1,†, Yong Qin 1,∗
+
+> 1
+
+## TMCC, College of Computer Science, Nankai University, Tianjin, China Email: 2211995@mail.nankai.edu.cn, qinyong@nankai.edu.cn 
+
+ABSTRACT 
+
+Audiobook narration, conversational agents, and audiovisual dub-bing require speech that conveys changing emotions and adapts its pacing within a single utterance. But most existing TTS systems typically rely on utterance-level style conditioning, making such fine-grained control difficult to achieve. In light of this, and in-spired by the success of post-training in large language models, we propose a unified post-training framework that equips pretrained text-to-speech models with natural-language control over segment-level emotion and duration. Supervised fine-tuning establishes instruction-conditioned speech generation, while reinforcement learning with group relative policy optimization refines control accuracy using emotion and duration rewards alongside content and speaker preservation objectives. By reusing the pretrained ar-chitecture, our approach avoids additional inference-time control modules. Experiments demonstrate significantly improved fine-grained controllability while maintaining speech intelligibility and speaker identity, highlighting post-training as a practical approach to extending existing speech synthesis models. 
+
+Index Terms — Speech synthesis, Fine-grained control, Post-training, Natural-language instruction following 
+
+1. INTRODUCTION 
+
+Speech synthesis for practical applications requires not only intel-ligible pronunciation and consistent speaker identity, but also flexi-ble control over how speech is expressed and timed. In audiobook narration, emotional expression may shift markedly within an utter-ance as the narrative unfolds; conversational agents need to adapt their delivery during interaction; and audiovisual dubbing may re-quire different segments within an utterance to align with distinct visual events or timing constraints, demanding segment-specific ad-justments in speaking rate and duration. These scenarios call for segment-level control over emotion and timing, allowing different parts of an utterance to be controlled independently. Although re-cent large-scale TTS models support increasingly rich control over emotion, speaking style, and duration, such controls are typically applied at the utterance level, making it difficult to satisfy distinct requirements across multiple segments. Natural-language instructions provide an intuitive way to control speech, but existing instruction-based systems such as PromptTTS and InstructTTS mainly describe the utterance as a whole[1, 2]. Finer-grained methods instead achieve local control through explicit mechanisms: WeSCon uses segment-wise emotional prompting and speed adjustment, TED-TTS relies on segment-specific con-ditioning and inference-time steering, and MAGIC-TTS adopts    
+
+> †Equal contribution. ∗Corresponding author.
+
+explicit token-level duration and pause control[3, 4, 5]. While effective, these methods require structured control signals or spe-cialized procedures, making them less intuitive and flexible than natural-language control. This motivates a more flexible capabil-ity: expressing segment-specific emotion and duration requirements directly in natural language and applying each requirement to the correct part of the utterance. Recent progress in post-training suggests a promising route to-ward this capability. In speech synthesis, recent studies have ex-plored GRPO-based refinement for intelligibility and naturalness, as well as staged supervised fine-tuning and reinforcement learning for fine-grained emotional control[6, 7]. Building on these develop-ments, we use staged post-training to equip a pretrained TTS model with natural-language control over segment-wise emotion and dura-tion. Supervised fine-tuning first establishes instruction-conditioned generation, after which GRPO directly refines local control accuracy while preserving linguistic content and speaker identity. By adapting the pretrained speech language model itself, our approach achieves fine-grained instruction following without additional inference-time control modules. Our contributions are threefold: • We develop a unified post-training framework that equips a pretrained TTS model with natural-language control over segment-level emotion and duration, without adding inference-time control modules. The framework combines teacher-synthesized emotional speech with duration-transformed recordings from existing corpora, avoiding additional speech collection and manual annotation. • We introduce instruction-equivalence distillation to improve robustness to diverse natural-language expressions of the same control intent. • We evaluate emotion-only, duration-only, and joint control using segment-level and strict utterance-level metrics, com-plemented by counterfactual and instruction-variation tests that examine the limits of instruction following. 
+
+2. RELATED WORK Mechanisms for Intra-Utterance Control. Existing approaches differ in how local control is represented and incorporated into synthesis. WeSCon generates expressive supervision through multi-round inference and subsequently uses self-training with dynamic emotional attention bias to enable word-level emotion and speaking-rate control[3]. TED-TTS instead modifies inference through segment-aware causal masking, monotonic stream alignment fil-tering, and local duration steering coupled with EOS modulation[4]. MAGIC-TTS conditions generation on explicit token-level con-tent durations and pauses[5]. EmoTra-TTS represents evolving arXiv:2609.11523v1 [cs.SD] 10 Sep 2026 emotion through frame-level valence–arousal–dominance trajec-tories, conditioning both language-model planning and acoustic generation[8]. These mechanisms provide different forms of tem-poral specificity; our setting represents the requested local attributes through natural-language instructions while retaining the pretrained generation architecture. 
+
+Reward-Based Adaptation of TTS. Reward-based adaptation has addressed both synthesis quality and expressive control. ASR-guided GRPO combines recognition error and recognition likelihood to improve linguistic fidelity[6], whereas EMORL-TTS optimizes emotional category, intensity, and local emphasis following su-pervised initialization[7]. Concurrent work, HybridEmo, targets natural-language multi-emotion generation through post-training, using task-specific rewards for sequential emotion trajectories and simultaneous emotion blending[9]. Unlike HybridEmo, which focuses on multi-emotion modeling, our work jointly addresses segment-level emotion and duration requirements within the same utterance. FlexiVoice progressively applies DPO and GRPO to dis-entangle style, speaker timbre, and content before optimizing com-plex instruction following[10]. Our work builds on this post-training paradigm, focusing on the acquisition and retention of segment-level emotion and duration control within a shared speech-token policy. 
+
+Distillation for Instruction Robustness. Sequence-level knowl-edge distillation trains a student using teacher-generated output sequences[11]. In TTS, ASR-based self-verification and distilla-tion have also been used to transfer reliable generation behavior into single-pass synthesis[12]. Our distillation objective addresses a different source of variability: equivalent instructions expressed in different forms. We combine shared speech targets with token-distribution matching between a frozen teacher conditioned on canonical instructions and a student conditioned on paraphrased in-structions. This targets consistency across instruction formulations rather than model compression. 
+
+3. METHOD 
+
+Given text divided into K spans x = (x1, . . . , x K ), a natural-language instruction c specifies the desired emotion, duration, or relative speaking rate of each span. Our goal is to generate a single utterance satisfying these local requests while preserving its content and reference-speaker identity. To achieve this, We train the speech language model of Cosyvoice2[13], while keeping its speech tok-enizer, acoustic generator, and vocoder frozen. Figure 1 summarizes the training pipeline. 
+
+3.1. Training Data Construction Emotion data. We retain five emotion categories from MED-TTS[4] and synthesize the annotated segments with IndexTTS2[14], using speaker references from Seed-TTS[15] and emotion references are selected from ESD[16] by jointly considering manual screening and MERaLiON-SER-v1 classification confidence[17], with the top three references retained for each emotion. The segments are syn-thesized separately, concatenated, and manually screened to form the final emotion training set. 
+
+Duration and joint-control data. We construct duration super-vision from transcribed LibriTTS-R recordings. Speech segments from the same speaker are independently stretched or compressed using pitch-preserving PSOLA and then concatenated. We construct exact-duration instructions from the measured segment durations and relative-rate instructions from the applied duration ratios. Dif-ferent transformations of the same text provide examples with distinct timing requirements.Although duration supervision is con-structed only from English data, we observe that the learned timing control generalizes to Chinese evaluation sets. We additionally ap-ply this procedure to the constructed emotional speech, retaining its emotion labels and adding timing requirements to obtain joint emotion–duration supervision. 
+
+3.2. Emotion-Control Post-Training Supervised initialization. We first use supervised fine-tuning to teach the model how local emotion instructions map to speech. Given target speech tokens z∗ extracted from the constructed train-ing audio, we optimize 
+
+LCE = − 1
+
+T
+
+> T
+
+X
+
+> t=1
+
+log πθ (z∗ 
+
+> t
+
+| x, c, z ∗
+
+> <t
+
+), (1) where πθ is the speech-token policy and T is the target sequence length. The instruction is provided as conditioning context but is not included in the spoken target. 
+
+Emotion-focused GRPO. Starting from the SFT model, we fur-ther optimize emotion control with GRPO [18]. For each in-struction, multiple speech candidates are sampled and decoded. Qwen3-ForcedAligner [19] aligns the generated speech with the input text to obtain the audio interval of each controlled segment, and MERaLiON-SER-v1 [17] predicts its emotion. The reward combines emotion confidence, segment-level accuracy, and strict utterance-level accuracy, where the latter is counted as correct only when all requested segments express their target emotions. ASR-based content consistency and speaker similarity are additionally used to preserve intelligibility and speaker identity. The reward combines emotion-control objectives with content and speaker preservation: 
+
+Rctrl = λconf Rconf + λseg Rseg + λutt Rutt ,R = Rctrl + λasr Rasr + λspk Rspk . (2) GRPO then favors higher-reward candidates within each sampled group while regularizing deviation from the reference policy. 
+
+3.3. Duration Acquisition and Joint Refinement Duration SFT. We fine-tune the emotion-refined model on duration-control data with emotion replay to mitigate forgetting. The objec-tive combines speech-token prediction with auxiliary supervision of segment token lengths and relative boundaries: 
+
+Ldur -SFT = LCE + λlen Llen + λbnd Lbnd . (3) The auxiliary terms apply smooth-L1 losses to log token counts and their cumulative normalized boundaries, using a training-only head removed before inference. 
+
+Duration-focused GRPO. Qwen3-ForcedAligner [19] aligns each generated utterance with its text to measure segment durations. Exact-duration requests receive a smooth score 
+
+sk = exp( −| log( ˆdk /d k )|/τ d). (4) where dk and ˆdk denote target and generated durations. Relative-rate requests are scored by interval compliance and proximity to the target duration ratio. The duration reward combines these soft scores with segment-level accuracy, strict utterance-level accuracy, and cu-mulative boundary agreement: 
+
+Rdur = λsoft Rsoft + λseg Rseg + λutt Rutt + λbnd Rbnd . (5) Unified Post -Training for Segment -Level Emotion and Duration Control  
+
+> TRAINING DATA CONSTRUCTION
+> CORE POST -TRAINING
+> TRAINING MECHANISMS
+> model / training supervision
+
+No additional inference -time control modules 
+
+> EMOTION DATA
+> Emotion -Annotated
+> Text Spans
+> Teacher TTS
+> Synthesis
+> Segment
+> Concatenation
+> & Quality Screening
+> Emotion
+> Supervision
+> Speaker reference +
+> emotion reference
+> Text + instruction +
+> target speech
+> DURATION DATA
+> Existing Speech –Text
+> Corpora
+> Segment -Wise
+> Time Scaling
+> Reassembly &
+> Quality Screening
+> Duration
+> Supervision
+> Pitch -preserving
+> time modification
+> Exact -duration /
+> relative -rate instructions
+
+Pretrained TTS  Emotion SFT  Emotion GRPO  Duration SFT  Duration -Focused  
+
+> GRPO
+
+Joint Emotion –Duration GRPO    
+
+> Initialization Learn local emotion
+> instructions
+> Refine emotion
+> accuracy
+> Learn local timing
+> instructions
+> Refine temporal
+> accuracy Balance control and retention
+> Emotion replay for retention
+> Trainable: Speech Language Model Frozen: Speech Tokenizer, Acoustic Generator, and Vocoder
+> shared GRPO mechanism
+
+Multi -Objective GRPO   
+
+> Text + Control
+> Instruction
+> Sample G Speech -
+> Token
+> Sequences
+> Frozen Acoustic
+> Decoder
+> Generated
+> Speech
+> Reward Evaluation Text –Speech Alignment
+> Content: ASR Speaker:
+> Similarity
+> Emotion: Segment
+> Classification
+> Duration: Segment
+> Timing
+> Task -dependent reward aggregation + KL regularization
+> Group -Relative Policy Update
+> policy feedback
+
+Instruction -Equivalence Distillation   
+
+> Canonical
+> Instruction
+> Frozen
+> Teacher
+> Teacher Token
+> Distribution
+> Equivalent
+> Paraphrases
+> Trainable
+> Student
+> Student Token
+> Distribution
+> Token -Level
+> KL Matching
+> Quality -Filtered Teacher Speech Targets
+> Speech -Token Cross -Entropy Same text and control intent; different
+> instruction wording
+> CONTROL INSTRUCTION EXAMPLE (NOT READ ALOUD)
+> Canonical: "Segment 1: happy, 2 s; segment 2: sad, 4 s."
+> Paraphrase: "Read the first part cheerfully in two seconds, then the second sadly in four seconds."
+> Mixed -Task GRPO
+> Refinement Final Controllable TTS
+> Natural -Language
+> Emotion & Duration
+> Control
+
+Fig. 1 . Overview of the proposed unified post-training framework for natural-language segment-level emotion and duration control. Exact-duration correctness uses a relative-error tolerance, whereas relative-rate correctness uses the specified interval; strict correctness requires all controlled segments to satisfy their respective criteria. Counterfactual timing variants pair the same text and speaker with different duration requirements, encouraging instruction-dependent pacing. Each variant forms a separate GRPO sampling group: candi-dates are compared within the same instruction, rather than through a cross-instruction ranking reward. ASR and speaker-preservation objectives remain active. 
+
+Joint refinement. We subsequently mix emotion-only, duration-only, and joint-control examples. Content and speaker rewards apply to all three tasks. Emotion-only examples additionally receive emo-tion rewards, duration-only examples receive duration rewards, and joint examples receive both, with task-specific aggregation weights. This stage aims to recover and retain emotion control while consoli-dating timing compliance. 
+
+3.4. Instruction-Equivalence Distillation 
+
+Starting from the checkpoint obtained after joint GRPO, we perform an instruction-equivalence distillation stage to improve robustness to instruction wording. Each canonical instruction c is paired with paraphrases ˜c that preserve the same control intent. A frozen copy of the joint-GRPO checkpoint serves as the teacher and generates high-quality speech-token targets z∗ under the canonical instruction. During distillation, the teacher is conditioned on c, while the student is conditioned on ˜c. Both share the same text and speech-token history. The student is optimized with 
+
+LIED = LCE (z∗ | x, ˜c) + λKL 
+
+T
+
+TX
+
+t=1 
+
+DKL 
+
+ ¯p tT ∥¯p tθ
+
+ , (6) where ¯p tT and ¯p tθ denote the teacher and student token distributions. This stage encourages equivalent instruction formulations to produce consistent control behavior. Finally, starting from the distilled model, we apply a short GRPO stage on mixed emotion, duration, and joint-control exam-ples to recover and further refine control accuracy. 
+
+4. EXPERIMENTS 4.1. Evaluation Setup 
+
+Our test set contains 534 examples: 170 emotion-only, 194 duration-only, and 170 joint-control examples. Emotion-bearing texts orig-inate from held-out MEDTTS examples, whereas duration-control examples are drawn from both LibriTTS-R and a subset of Chinese MEDTTS samples. The overall English-to-Chinese ratio is approx-imately 1:2. Duration instructions include both explicit target dura-tions and qualitative speaking-rate descriptions. The test set is dis-joint from the post-training data. The emotion counterfactual set contains 50 neutral-text groups, equally divided between Chinese and English. Each group includes five emotion sequences and one no-control probe, giving 250 con-trolled requests and 50 probes. The duration counterfactual set con-tains 50 new groups, each with three rate patterns and one probe, giving 150 controlled requests and 50 probes. Reference timings are measured from held-out recordings, with time-scaled speech provid-ing audio-grounded targets. Text, speaker reference, and generation seed are fixed within each group. Both counterfactual sets are dis-joint from the audited post-training data at the complete-text and segment levels. Finally, the instruction-variation set rephrases the 534 benchmark requests using held-out instruction formats while Table 1 . Objective evaluation of standard control, counterfactual requests, and unseen instruction formats. 
+
+A. Standard benchmark (534 requests) 
+
+System ASR ↓ Spk ↑ JR ↓
+
+Emotion MER ↑
+
+Acc/Utt Emotion E2V ↑
+
+Acc/Utt Duration ↑
+
+A15/U15 Duration ↑
+
+Range Acc/ Direction Acc Joint emo. ↑
+
+MER/E2V Utt Joint dur. ↑
+
+A15/U15 Joint ↑
+
+MER/E2V CosyVoice2 (instruct) 77.62 0.7919 0.1186 26.67/3.53 25.33/1.18 25.77/6.19 14.95/37.11 2.94/2.35 30.70/7.06 0.00/0.00 CosyVoice3 11.08 0.8059 0.1238 31.56/5.29 32.67/7.65 44.85/18.56 23.20/41.24 8.82/5.88 28.07/3.53 1.76/0.59 IndexTTS2-Native 3.43 0.7679 0.1303 28.44/3.53 29.78/4.71 \ \ 1.76/3.53 \ 0.59/0.59 TED-TTS (oracle) 6.96 0.6271 0.1376 51.78/19.41 46.89/14.71 46.91/16.49 26.29/48.97 14.71/11.76 21.49/7.06 1.18/0.59 MAGIC-TTS (oracle) 29.21 0.7581 0.1301 \ \ 46.39/21.65 22.16/46.91 \ 58.77 /29.41 0.00/0.59 Emotion-SFT 35.18 0.7935 0.1238 55.33/22.35 42.67/8.82 24.74/6.19 13.40/37.11 2.94/2.94 31.58/8.24 0.00/0.00 Emotion-RL 39.00 0.7797 0.1295 89.78 /77.06 68.89 /39.41 24.23/4.12 10.31/36.08 16.47/5.88 31.14/4.71 1.76/1.18 Duration-SFT 3.90 0.8047 0.1356 56.22/23.53 41.56/8.82 34.02/12.37 30.93/50.00 21.76/10.00 39.91/11.76 2.94/1.18 Duration-RL 3.77 0.8056 0.1233 53.33/20.59 40.44/8.24 52.06/26.80 28.87/62.37 15.88/5.29 44.30/9.41 1.18/0.59 Joint-RL 4.13 0.7945 0.1313 77.11/54.12 56.44/24.12 54.64 /31.96 35.57 /59.79 46.47 /20.00 43.42/15.29 5.29 /1.76 
+
+Instr.-Distilled 3.67 0.7932 0.1281 79.56/58.24 56.67/22.94 46.39/23.71 31.44/ 63.40 45.29/ 20.59 44.30/12.94 5.29 /1.18 
+
+B. Emotion counterfactual test (300 recordings; 250 controlled requests) 
+
+System MER ↑
+
+Acc/Utt E2V ↑
+
+Acc/Utt Dual ↑
+
+Acc/Utt ASR ↓ Spk ↑
+
+CosyVoice2 (instruct) 25.60/4.80 23.00/5.20 16.80/1.20 30.61 0.7477 CosyVoice3 35.40/6.40 24.00/3.60 14.60/0.00 1.43 0.7796 
+
+IndexTTS2-Native 28.20/1.20 24.80/2.40 18.00/0.00 1.35 0.7056 TED-TTS (oracle) 48.80/13.60 41.40 /13.20 32.00/6.80 1.37 0.5395 Joint-RL 71.40 /52.00 40.80/ 16.80 36.40 /12.40 1.40 0.7665 
+
+C. Duration counterfactual test (200 recordings; 150 controlled requests) 
+
+System ASR ↓ Spk ↑
+
+Duration ↑
+
+A15/U15 Duration ↑
+
+Range Acc/Direction Acc CosyVoice2 (instruct) 74.59 0.8652 25.33/4.67 13.00/34.67 CosyVoice3 3.51 0.8747 43.33/18.00 26.33/41.67 TED-TTS (oracle) 6.03 0.7760 47.00/18.00 25.67/40.67 MAGIC-TTS (oracle) 41.93 0.7644 51.33 /28.00 17.33/43.33 Joint-RL 3.00 0.8633 50.33/26.67 27.67 /45.67 D. Unseen instruction formats (534 requests) 
+
+System ASR ↓ Spk ↑ JR ↓
+
+Emotion MER ↑
+
+Acc/Utt Emotion E2V ↑
+
+Acc/Utt Duration ↑
+
+A15/U15 Duration ↑
+
+Range Acc/ Direction Acc Joint emo. ↑
+
+MER/E2V Utt Joint dur. ↑
+
+A15/U15 Joint ↑
+
+MER/E2V CosyVoice2 (instruct) 87.72 0.7968 0.1275 18.89/1.18 24.67/1.76 29.90/10.31 17.53/34.54 2.94/1.76 26.75/4.71 0.00/0.00 CosyVoice3 35.29 0.8216 0.1231 27.56/3.53 25.78/3.53 28.35/7.22 21.13/40.21 4.12/2.35 30.70/4.71 0.00/0.00 IndexTTS2-Native 3.37 0.7721 0.1246 29.11/2.94 28.00/4.71 \ \ 1.76/4.71 \ 0.59/0.59 TED-TTS (oracle) 7.05 0.6271 0.1375 51.78 /19.41 47.11 /14.71 46.91 /16.49 26.29 /48.97 14.71 /11.76 21.49/7.06 1.18/0.59 MAGIC-TTS (oracle) 29.20 0.7581 0.1301 \ \ 46.39/ 21.65 \ 1.18/1.76 58.33 /28.24 0.00/0.59 Joint-RL 19.76 0.8055 0.1292 35.33/8.24 31.11/2.94 31.96/12.37 19.59/32.47 3.53/3.53 27.19/5.88 1.18/0.59 Instr.-Distilled 3.57 0.8027 0.1298 44.00/12.35 40.44/7.06 41.75/10.31 20.62/33.51 6.47/4.71 31.58/10.59 2.35 /1.18                
+
+> Metric definitions. ↑/↓: higher/lower is better; bold : best within each panel, including ties. Values are percentages except Spk and JR. MER/E2V denote MERaLiON-SER-v1/emotion2vec+; Acc/Utt denote segment-level/strict utterance-level accuracy. A15/U15 denote duration accuracy at a 15% tolerance. Range Acc/Direction Acc denote interval/direction accuracy. Dual requires both emotion classifiers to match the targets. Joint emo./dur. report emotion/duration performance on joint-control requests; Joint reports simultaneous satisfaction of all requested controls with ASR error ≤20% , evaluated separately using MER/E2V. Panel C uses GT-audio-derived duration targets. preserving their texts, references, and control targets. It therefore measures paired instruction robustness rather than generalization to independent texts. Baselines include pretrained CosyVoice2[13], CosyVoice3[20], IndexTTS2[14], TED-TTS[4], and MAGIC-TTS[5]. CosyVoice models and IndexTTS2 receive natural-language instructions through their respective inference interfaces. Since IndexTTS2 does not explicitly claim duration-control capability, we exclude it from duration-related evaluation. TED-TTS receives segment-wise emotion descriptions and duration tokens, while MAGIC-TTS re-ceives duration and pause conditions but lacks the corresponding emotion-instruction interface;accordingly, we do not include it in the emotion-control evaluation. For the duration interfaces of TED-TTS and MAGIC-TTS, exact requests are converted to seconds, while qualitative requests use the midpoint of the target duration range. As these systems do not directly parse our natural-language instructions, their instruction-variation and counterfactual results are reported only for reference and do not reflect natural-language
+
+Table 2 . Human evaluation of emotion-label agreement and speech naturalness. 
+
+A. Classifier-disagreement listening test 
+
+Reference All votes ↑
+
+(n = 360 )Majority ↑
+
+(n = 107 )CF votes ↑
+
+(n = 81 )MERaLiON 45.56 55.14 40.74 emotion2vec+ 33.06 28.97 25.93 Requested label 57.22 70.09 38.27 
+
+B. Naturalness listening test 
+
+System Boundary MOS ↑ Overall MOS ↑ Seam ↓
+
+CosyVoice3 (concat.) 3.34 3.38 41.67 IndexTTS2 (concat.) 3.99 3.98 9.17 Joint-RL (one pass) 4.64 4.63 2.50 
+
+Metric definitions. ↑ / ↓: higher/lower is better. All votes/Majority/CF votes: agreement (%) with individual human labels/majority labels/individual labels in the counterfactual sub-set. Requested label denotes the target emotion, not a classifier. Boundary/Overall MOS: transition/whole-utterance naturalness (1– 5); Seam: ratings reporting an audible join (%). control robustness. All systems share the same evaluation texts, speaker references, targets, and scoring procedures. 
+
+4.2. Objective Metrics 
+
+Qwen3-ForcedAligner[19] aligns generated speech with the input text to recover controlled segments. MERaLiON-SER-v1 and emo-tion2vec+ large[21] independently classify each segment over the five target emotions. Because MERaLiON-SER-v1 is used for re-ward computation during training, emotion2vec+ large serves as an independent evaluator to assess whether the learned emotion control generalizes beyond the reward model. We report segment accuracy, strict utterance accuracy, and dual-classifier accuracy. For duration control, exact-duration Acc@15 measures the proportion of segments satisfying | ˆdk − dk |/d k ≤ 0.15 , with a strict version requiring all controlled segments to pass. Qualita-tive requests are evaluated by whether the generated duration ratio falls within the requested interval, and direction accuracy checks whether fast, normal, and slow requests produce ratios below 0.95, within [0 .95 , 1.05] , and above 1.05, respectively. Joint accuracy requires both emotion and duration conditions to be satisfied. Con-tent preservation is measured by English WER and Chinese CER using SenseVoice[22], and speaker similarity by embedding cosine similarity. To assess boundary-local pitch continuity, we adapt JR-F0 from EmoTra-TTS [8]. Using 10-ms F0 frames, we compute 
+
+at = |ft+1 − 2ft + ft−1| and detect abrupt changes with τ =median( a) + 3 × 1.4826 MAD( a). Boundary JR-F0 is the propor-tion of detected jumps within a 0.5 s neighborhood on each side of aligned segment boundaries. This boundary-local variant measures pitch discontinuity rather than overall naturalness. 
+
+4.3. Human Evaluation 
+
+We conduct two human evaluations to complement the objective metrics. First, for samples where MERaLiON-SER-v1 and emo-tion2vec+ large disagree, raters provide emotion labels to examine whether the disagreement mainly arises from classifier-specific lim-itations or possible over-adaptation to the reward classifier. Second, raters compare boundary and overall naturalness among our joint-control model and two segment-concatenation baselines based on CosyVoice3 and IndexTTS2, where each text segment is synthesized independently and the resulting audio segments are concatenated to form the final utterance. This comparison assesses whether learned joint control produces smoother and more natural transitions than direct segment-wise synthesis and concatenation. 
+
+5. RESULTS Control performance. Table 1A shows that staged post-training es-tablishes complementary control capabilities, with our method out-performing the baselines on nearly all evaluation metrics. Emotion-RL substantially improves emotional accuracy over Emotion-SFT, while subsequent duration training introduces timing control at the cost of some emotional accuracy. Joint refinement partially re-covers emotion control, yielding MER/E2V utterance accuracies of 54.12%/24.12% and duration A15/U15 of 54.64%/31.96% on the respective single-control subsets, exceeding the evaluated base-lines. Joint-RL also maintains low ASR error (4.13%) and speaker similarity of 0.7945. Nevertheless, simultaneous satisfaction of all emotion, duration, and content conditions remains challenging, with strict Joint-MER accuracy reaching only 5.29%. 
+
+Counterfactual evaluation and instruction robustness. On neutral-content emotion counterfactuals, Joint-RL achieves the highest utterance accuracy under both classifiers, although TED-TTS slightly exceeds its E2V segment accuracy. For duration counterfactuals, Joint-RL approaches MAGIC-TTS in A15/U15 (50.33%/26.67% versus 51.33%/28.00%), with substantially lower ASR error. Unseen instruction formats expose sensitivity to word-ing: instruction-equivalence distillation reduces Joint-RL’s ASR error from 19.76% to 3.57% and improves emotion segment accu-racy and duration A15. However, duration U15 does not improve, and standard-format duration performance declines, indicating a remaining trade-off between wording robustness and precise tim-ing. Structured-interface baselines bypass instruction wording and therefore do not directly measure this robustness. Nevertheless, our model ultimately achieves performance comparable to structured-input baselines while operating directly on natural-language instruc-tions. 
+
+Human evaluation. Table 2 shows that MERaLiON agrees more frequently with human judgments than emotion2vec+ on the selected disagreement segments; this does not establish overall classifier su-periority, but rather suggests that the evaluation is not simply over-fitted to a particular classifier and that MERaLiON may provide a more suitable measure for the emotion-control setting considered here. Joint-RL obtains a boundary MOS of 4.64, compared with 3.34 for concatenated CosyVoice3 and 3.99 for concatenated IndexTTS2. These results support more natural transitions than CosyVoice3 and IndexTTS2 concatenation. 
+
+6. CONCLUSION 
+
+We presented a unified post-training framework for natural-language control of segment-level emotion and duration without additional inference-time control modules. Staged SFT and GRPO improve fine-grained controllability, with our method outperforming most evaluated baselines on major control metrics. Counterfactual, instruction-variation, and human evaluations further demonstrate robust control behavior and more natural speech transitions. Future work will extend the framework to broader fine-grained controls, such as word-level emphasis. 7. REFERENCES 
+
+[1] Zhifang Guo, Yichong Leng, Yihan Wu, Sheng Zhao, and Xu Tan, “Prompttts: Controllable text-to-speech with text de-scriptions,” in ICASSP 2023-2023 IEEE International Confer-ence on Acoustics, Speech and Signal Processing (ICASSP) .IEEE, 2023, pp. 1–5. [2] Dongchao Yang, Songxiang Liu, Rongjie Huang, Chao Weng, and Helen Meng, “Instructtts: Modelling expressive tts in discrete latent space with natural language style prompt,” 
+
+IEEE/ACM Transactions on Audio, Speech, and Language Processing , vol. 32, pp. 2913–2925, 2024. [3] Tianrui Wang, Haoyu Wang, Meng Ge, Cheng Gong, Chunyu Qiang, Ziyang Ma, Zikang Huang, Guanrou Yang, Xiaobao Wang, Eng-Siong Chng, et al., “Word-level emotional expres-sion control in zero-shot text-to-speech synthesis,” Advances in Neural Information Processing Systems , vol. 38, pp. 147377– 147405, 2026. [4] Qifan Liang, Yuansen Liu, Ruixin Wei, Nan Lu, Junchuan Zhao, and Ye Wang, “Ted-tts: Training-free intra-utterance emotion and duration control for text-to-speech synthesis,” in 
+
+Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , 2026, pp. 23485–23508. [5] Jialong Mai, Xiaofen Xing, and Xiangmin Xu, “Magic-tts: Fine-grained controllable speech synthesis with explicit local duration and pause control,” arXiv preprint arXiv:2604.21164 ,2026. [6] Chang Liu, Ya-Jun Hu, Ying-Ying Gao, Shi-Lei Zhang, and Zhen-Hua Ling, “Group relative policy optimization for text-to-speech with large language models,” in ICASSP 2026-2026 IEEE International Conference on Acoustics, Speech and Sig-nal Processing (ICASSP) . IEEE, 2026, pp. 16132–16136. [7] Haoxun Li, Yu Liu, Yuqing Sun, Hanlei Shi, Leyuan Qu, and Taihao Li, “Emorl-tts: Reinforcement learning for fine-grained emotion control in llm-based tts,” in ICASSP 2026-2026 IEEE International Conference on Acoustics, Speech and Signal Pro-cessing (ICASSP) . IEEE, 2026, pp. 17272–17276. [8] Tianchi Liu, Zeyang Song, Tianrui Wang, Zhipeng Li, Chenglin Xu, and Yiwen Guo, “Emotra-tts: Smooth intra-utterance emotion transitions for speech synthesis,” arXiv preprint arXiv:2608.23791 , 2026. [9] Yan Zhou, Yun Hong, and Yang Feng, “Sequential trajecto-ries and simultaneous blending: Multi-emotion modeling for instruction-following tts,” arXiv preprint arXiv:2608.30325 ,2026. [10] Dekun Chen, Xueyao Zhang, Yuancheng Wang, Kenan Dai, Li Ma, and Zhizheng Wu, “Flexivoice: Enabling flexible style control in zero-shot tts with natural language instructions,” 
+
+arXiv preprint arXiv:2601.04656 , 2026. [11] Yoon Kim and Alexander M Rush, “Sequence-level knowl-edge distillation,” in Proceedings of the 2016 conference on empirical methods in natural language processing , 2016, pp. 1317–1327. [12] Ali Asaria, Tony Salomone, and Deep Gandhi, “Reliable neural-codec text-to-speech by asr self-verification and dis-tillation: Near-zero catastrophic failures across models and codecs,” arXiv preprint arXiv:2606.18323 , 2026. [13] Zhihao Du, Yuxuan Wang, Qian Chen, Xian Shi, Xiang Lv, Tianyu Zhao, Zhifu Gao, Yexin Yang, Changfeng Gao, Hui Wang, et al., “Cosyvoice 2: Scalable streaming speech synthesis with large language models,” arXiv preprint arXiv:2412.10117 , 2024. [14] Siyi Zhou, Yiquan Zhou, Yi He, Xun Zhou, Jinchao Wang, Wei Deng, and Jingchen Shu, “Indextts2: A breakthrough in emotionally expressive and duration-controlled auto-regressive zero-shot text-to-speech,” in Proceedings of the AAAI Confer-ence on Artificial Intelligence , 2026, vol. 40, pp. 35139–35148. [15] Philip Anastassiou, Jiawei Chen, Jitong Chen, Yuanzhe Chen, Zhuo Chen, Ziyi Chen, Jian Cong, Lelai Deng, Chuang Ding, Lu Gao, et al., “Seed-tts: A family of high-quality ver-satile speech generation models, 2024,” URL https://arxiv. org/abs/2406.02430 .[16] Kun Zhou, Berrak Sisman, Rui Liu, and Haizhou Li, “Seen and unseen emotional style transfer for voice conversion with a new emotional speech dataset,” in ICASSP 2021-2021 IEEE International Conference on Acoustics, Speech and Signal Pro-cessing (ICASSP) . IEEE, 2021, pp. 920–924. [17] Hardik B Sailor, Aw Ai Ti, Chen Fang Yih Nancy, Chiu Ying Lay, Ding Yang, He Yingxu, Jiang Ridong, Li Jingtao, Liao Jingyi, Liu Zhuohan, et al., “Meralion-ser: Robust speech emotion recognition model for english and sea languages,” 
+
+arXiv preprint arXiv:2511.04914 , 2025. [18] Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, Xiao Bi, Haowei Zhang, Mingchuan Zhang, YK Li, Yang Wu, et al., “Deepseekmath: Pushing the limits of math-ematical reasoning in open language models,” arXiv preprint arXiv:2402.03300 , 2024. [19] Xian Shi, Xiong Wang, Zhifang Guo, Yongqi Wang, Pei Zhang, Xinyu Zhang, Zishan Guo, Hongkun Hao, Yu Xi, Baosong Yang, et al., “Qwen3-asr technical report,” arXiv preprint arXiv:2601.21337 , 2026. [20] Zhihao Du, Changfeng Gao, Yuxuan Wang, Fan Yu, Tianyu Zhao, Hao Wang, Xiang Lv, Hui Wang, Chongjia Ni, Xian Shi, et al., “Cosyvoice 3: Towards in-the-wild speech gen-eration via scaling-up and post-training,” arXiv preprint arXiv:2505.17589 , 2025. [21] Ziyang Ma, Zhisheng Zheng, Jiaxin Ye, Jinchao Li, Zhifu Gao, Shiliang Zhang, and Xie Chen, “emotion2vec: Self-supervised pre-training for speech emotion representation,” in Findings of the Association for Computational Linguistics: ACL 2024 ,2024, pp. 15747–15760. [22] Keyu An, Qian Chen, Chong Deng, Zhihao Du, Changfeng Gao, Zhifu Gao, Yue Gu, Ting He, Hangrui Hu, Kai Hu, et al., “Funaudiollm: Voice understanding and generation founda-tion models for natural interaction between humans and llms,” 
+
+arXiv preprint arXiv:2407.04051 , 2024.

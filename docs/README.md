@@ -6,63 +6,65 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-10
-- 运行时间：2026-09-10 22:23:17 UTC
+- 最新运行日期：2026-09-11
+- 运行时间：2026-09-11 22:37:20 UTC
 - 运行状态：成功
-- 本次总论文数：13
-- 精读区：7
-- 速读区：6
+- 本次总论文数：14
+- 精读区：3
+- 速读区：11
 
 ### 今日简报（AI）
-今天从13篇中精读7篇、速读6篇，重点锁定两个8分精读：AlphaMWE多语平行语料揭示LLM翻译盲点，以及Qwen-Audio-3.0-ASR技术报告。
-
-最值得看的是多语言翻译评测与语音识别/合成两条线，速读中的T2LSC-Bench、IndicSafeEval和方向跟随TTS还分别覆盖图像局部语义控制、多语言越狱安全与TTS可控性。
-
-普通读者下一步可优先读AlphaMWE和Qwen-A
-- 详情：[/202609/10/README](/202609/10/README)
+- 今日共生成 14 篇推荐（精读 3 篇，速读 11 篇）
+- 精读：《Post-Training Zero-Shot TTS for Fine-Grained Emotion and Duration Control via Natural Language》（8.0/10）, 《Complex-Text Robustness Evaluation and Failure Diagnosis for Low-Resource Multilingual Text-to-Speech》（8.0/10）
+- 速读：《Source-Adaptive Data Curation for Bilingual NVV-Aware ASR》（7.0/10）, 《An Empirical Measurement of Jailbreaking Evaluators》（7.0/10）, 《SEAR: Segment-Evidence-Aware Routing for Weak-to-Strong Multilingual Speech MCQ》（7.0/10）
+- 这些结果覆盖了当下较热的方向，建议先看精读区论文的关键问题与方法。
+- 详情：[/202609/11/README](/202609/11/README)
 
 ### 精读区论文标签
-1. [Mind the Gap: Exposing LLM Translation Blind Spots Using the AlphaMWE Multilingual Parallel Corpus](/202609/10/2609.06634v1-mind-the-gap-exposing-llm-translation-blind-spots-using-the-alphamwe-multilingual-parallel-corpus)  
-   标签：评分：8.0/10、query:cross-lang
-   evidence：多语言平行语料评测大模型多词表达翻译
-2. [Qwen-Audio-3.0-ASR Technical Report](/202609/10/2609.07549v2-qwen-audio-30-asr-technical-report)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：基于MoE大模型的多语言语音识别，处理方言
-3. [DuplexJail: Safety Alignment Breaks Under Spoken Interruption in Full-Duplex Models](/202609/10/2609.09420v1-duplexjail-safety-alignment-breaks-under-spoken-interruption-in-full-duplex-models)  
-   标签：评分：8.0/10、query:llm-attack
-   evidence：全双工语音模型的语音打断越狱攻击
-4. [Arbitrary Cipher Attacks Against Large Language Models Do Not Require Fine-Tuning](/202609/10/2609.09553v1-arbitrary-cipher-attacks-against-large-language-models-do-not-require-fine-tuning)  
-   标签：评分：8.0/10、query:llm-attack
-   evidence：无需微调的密码越狱攻击
-5. [BuzzASR: A Swarm of 100+ Monolingual Speech Recognition Models](/202609/10/2609.09554v1-buzzasr-a-swarm-of-100-monolingual-speech-recognition-models)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：覆盖102种语言的单语ASR微调
-6. [SEA-SpeechBench: A Large-Scale Multitask Benchmark for Speech Understanding Across Southeast Asia](/202609/10/2609.09672v1-sea-speechbench-a-large-scale-multitask-benchmark-for-speech-understanding-across-southeast-asia)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：覆盖11种东南亚语言的多语言语音理解基准
-7. [Deterministic Prompting for Speaker-Stable Low-Resource Greek TTS](/202609/10/2609.10022v1-deterministic-prompting-for-speaker-stable-low-resource-greek-tts)  
+1. [Post-Training Zero-Shot TTS for Fine-Grained Emotion and Duration Control via Natural Language](/202609/11/2609.11523v1-post-training-zero-shot-tts-for-fine-grained-emotion-and-duration-control-via-natural-language)  
+   标签：评分：8.0/10、query:qwen-tts
+   evidence：以自然语言控制TTS片段级情感与时长
+2. [Complex-Text Robustness Evaluation and Failure Diagnosis for Low-Resource Multilingual Text-to-Speech](/202609/11/2609.11545v1-complex-text-robustness-evaluation-and-failure-diagnosis-for-low-resource-multilingual-text-to-speech)  
    标签：评分：8.0/10、query:low-res-tts
-   evidence：低资源希腊语TTS的确定性提示
+   evidence：低资源多语言TTS的鲁棒性评估
+3. [Beyond Word Error Rate: A Switch Aware Evaluation of ASR and Audio Language Models on English Yoruba Code-Switched Speech](/202609/11/2609.11786v1-beyond-word-error-rate-a-switch-aware-evaluation-of-asr-and-audio-language-models-on-english-yoruba-code-switched-speech)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：面向低资源语码转换语音的ASR与音频语言模型评测
 
 ### 速读区论文标签
-1. [T2LSC-Bench: Benchmarking Localized Semantic Control in Text-to-Image Generation](/202609/10/2609.02255v1-t2lsc-bench-benchmarking-localized-semantic-control-in-text-to-image-generation)  
-   标签：评分：7.0/10、query:mtg-bench
-   evidence：文本到图像生成中局部文字渲染与语义控制的基准
-2. [IndicSafeEval: Safety Robustness of Large Language Models under Multilingual Persuasive Jailbreak Attacks](/202609/10/2609.03781v1-indicsafeeval-safety-robustness-of-large-language-models-under-multilingual-persuasive-jailbreak-attacks)  
+1. [Source-Adaptive Data Curation for Bilingual NVV-Aware ASR](/202609/11/2609.09929v1-source-adaptive-data-curation-for-bilingual-nvv-aware-asr)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：中英双语语音识别系统
+2. [An Empirical Measurement of Jailbreaking Evaluators](/202609/11/2609.10594v1-an-empirical-measurement-of-jailbreaking-evaluators)  
    标签：评分：7.0/10、query:llm-attack
-   evidence：多语言说服式大模型越狱评测
-3. [Scalable Direction-Following TTS via Voice Impression-Guided Pseudo Triplet Construction](/202609/10/2609.02623v1-scalable-direction-following-tts-via-voice-impression-guided-pseudo-triplet-construction)  
-   标签：评分：6.0/10、query:qwen-tts
-   evidence：可控语音合成，按方向文本修改风格并保留音色与内容
-4. [A Hierarchical Consistency Framework for Auditing Retrieval-Augmented Generation Systems](/202609/10/2609.07075v1-a-hierarchical-consistency-framework-for-auditing-retrieval-augmented-generation-systems)  
-   标签：评分：6.0/10、query:fie-rag
-   evidence：面向RAG事实级一致性与矛盾的审计
-5. [Stabilizing Instruction Supervision for Instruct-TTS via Controllable Diversification and Drift Filtering](/202609/10/2609.08204v1-stabilizing-instruction-supervision-for-instruct-tts-via-controllable-diversification-and-drift-filtering)  
-   标签：评分：6.0/10、query:qwen-tts
-   evidence：可控Instruct-TTS的监督稳定化
-6. [Pushing the Boundaries of Streaming Multi-Speaker ASR: A Systematic Study of Architectural Trade-offs](/202609/10/2609.10265v1-pushing-the-boundaries-of-streaming-multi-speaker-asr-a-systematic-study-of-architectural-trade-offs)  
+   evidence：系统比较多种越狱评估器
+3. [SEAR: Segment-Evidence-Aware Routing for Weak-to-Strong Multilingual Speech MCQ](/202609/11/2609.11355v1-sear-segment-evidence-aware-routing-for-weak-to-strong-multilingual-speech-mcq)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：多语言对话语音理解系统
+4. [Prompt Revision as a Source of Cultural Bias in Text-to-Image Systems](/202609/11/2609.11532v1-prompt-revision-as-a-source-of-cultural-bias-in-text-to-image-systems)  
+   标签：评分：7.0/10、query:mtg-bench
+   evidence：WORLDVIEW多语言文本到图像基准，覆盖15种语言8960条提示
+5. [Nuha-Speech: Building General-Purpose Arabic Speech-LLMs](/202609/11/2609.11892v1-nuha-speech-building-general-purpose-arabic-speech-llms)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：阿拉伯语语音大模型的数据构建、训练与评测基础设施
+6. [To What Extent Do Large Language Models Understand Bangla Idioms?](/202609/11/2609.03410v1-to-what-extent-do-large-language-models-understand-bangla-idioms)  
+   标签：评分：6.0/10、query:cross-lang
+   evidence：面向大模型的富含文化内涵习语基准评测
+7. [X2Streaming-ASR: wait when uncertain, emit when ready for streaming ASR](/202609/11/2609.08672v1-x2streaming-asr-wait-when-uncertain-emit-when-ready-for-streaming-asr)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：流式多说话人语音识别架构权衡
+   evidence：流式自动语音识别提交策略
+8. [Improving Term Evaluation in Machine Translation: Variation Matters](/202609/11/2609.08779v1-improving-term-evaluation-in-machine-translation-variation-matters)  
+   标签：评分：6.0/10、query:cross-lang
+   evidence：考虑翻译变异的文档级机器翻译术语评测
+9. [StreamAlign: Streaming Text-Aligned Speech Tokenization](/202609/11/2609.09719v1-streamalign-streaming-text-aligned-speech-tokenization)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：面向ASR的流式文本对齐语音分词
+10. [Towards Stress-Aware Sentence-Level Filipino G2P With Weakly-Supervised ByT5 Fine-Tuning](/202609/11/2609.09974v1-towards-stress-aware-sentence-level-filipino-g2p-with-weakly-supervised-byt5-fine-tuning)  
+   标签：评分：6.0/10、query:low-res-tts
+   evidence：菲律宾语句级 G2P，低资源 TTS 前端
+11. [Continuous-Time Acoustic Modelling with Neural Controlled Differential Equations](/202609/11/2609.11725v1-continuous-time-acoustic-modelling-with-neural-controlled-differential-equations)  
+   标签：评分：6.0/10、query:qwen-tts
+   evidence：文本转语音中的时长感知声学建模与时长控制
 
 
 <div class="dpr-home-promo-card">
