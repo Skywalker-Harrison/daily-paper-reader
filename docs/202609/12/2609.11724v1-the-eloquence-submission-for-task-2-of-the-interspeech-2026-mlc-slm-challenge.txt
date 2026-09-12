@@ -1,0 +1,170 @@
+Title: The Eloquence submission for Task 2 of the Interspeech 2026 MLC-SLM challenge
+
+URL Source: https://arxiv.org/pdf/2609.11724v1
+
+Published Time: Fri, 11 Sep 2026 01:36:29 GMT
+
+Number of Pages: 5
+
+Markdown Content:
+# The Eloquence submission for Task 2 of the Interspeech 2026 MLC-SLM challenge 
+
+# Jordi Luque 1,∗, Lorenzo Concina 2,∗, Marco Matassoni 2, Alessio Brutti 2, Filippo Vella 31 Telef´ onica Innovaci´ on Digital, Scientific Group 
+
+2 Fondazione Bruno Kessler 
+
+3 Consiglio Nazionale delle Ricerche 
+
+jordi.luque@telefonica.com, {lconcina, brutti, matasso }@fbk.eu, filippo.vella@icar.cnr.it 
+
+# Abstract 
+
+This paper details the Eloquence team’s approach to Task 2 of the 2nd MLC-SLM challenge at Interspeech 2026, which involves multilingual Multiple-Choice Question Answering (MCQA) across 21 languages. Three approaches are ex-plored. First, we fine-tune Voxtral-Mini-3B via LoRA with cross-lingual data augmentation, ASR transcript augmentation and timestamp-aware audio cropping, achieving 0.72 macro-accuracy on evaluation Phase 2. Second, we apply multimodal in-context learning (ICL) to the frozen Voxtral-24B model to correct a strong label bias, reaching 0.81, our best result. Third, a training-free retrieval system based on a three-layer voice-anchored memory combining acoustic identity, semantic con-tent, and a knowledge graph achieves 0.68. All three systems substantially outperform the official baseline. 
+
+Index Terms : speech-LLMs, multiple-choice question answer-ing, label bias mitigation, in-context learning, retrieval aug-mented generation, speech recognition 
+
+# 1. Introduction 
+
+Recent progress in Large Language Models (LLMs) has driven a broad shift toward Speech LLMs that unify speech percep-tion and language understanding within a single model, moving beyond transcription-centric pipelines [1, 2] toward systems that can reason over both the acoustic and semantic content of spoken interaction [3, 4, 5, 6, 7, 8]. Real-world conversa-tional speech [9, 10], however, differs substantially from read or single-speaker recordings: it contains overlapping turns, dis-fluencies, and multiple speakers, and this complexity is com-pounded in multilingual settings where training resources are unevenly distributed across languages [11]. The Multilingual Conversational Speech Language Model (MLC-SLM) Chal-lenge [12] was introduced to address this gap by releasing large-scale, real-world multilingual conversational speech data together with a shared evaluation protocol. The first edition showed that current Speech LLMs largely solve transcription accuracy, while speaker diarization and deeper conversational understanding remained open; building on these findings, the second edition broadens language coverage and shifts emphasis toward diarization, acoustic understanding, and semantic under-standing of full conversations 1.This paper reports on the participation of the Eloquence team in Task 2 of the second MLC-SLM challenge, Multilin-gual Conversational Speech Understanding . Task 2 requires systems to answer multiple-choice questions probing both the 
+
+> *
+
+These authors contributed equally. 
+
+> 1
+
+https://www.nexdata.ai/competition/mlc-slm 
+
+Figure 1: Excerpt of 1141 006 Australian English dialogue. 
+
+acoustic properties (e.g. speaker traits, emotion) and the se-mantic content of an entire multi-speaker conversation [13, 14]. Crucially, no oracle information is available at evaluation time: no pre-segmented utterances, no speaker labels, and no ground-truth diarization are provided, so a complete system must re-solve who is speaking, what is said, and how it is said, directly from the raw recording. The task leaves the choice of architec-ture open, encouraging both pipeline-based and end-to-end so-lutions, and evaluates systems on their ability to answer ques-tions about the conversation as a whole. We submitted three systems for Task 2, addressing the problem from different an-gles. The first, described in Section 3, fine-tunes Voxtral-Mini-3B via LoRA with cross-lingual data augmentation, ASR tran-script augmentation, and timestamp-aware audio cropping. The second, described in Section 4, applies in-context learning to the frozen Voxtral-24B speech-LLM to correct a strong label bias without any parameter update. The third, described in Section 5, reframes the task as a retrieval problem: rather than adapting a Speech-LLM through training, it equips a frozen LLM with a persistent, voice-anchored memory layer queried at inference time. 
+
+# 2. Challenge and baseline description 
+
+The MLC-SLM challenge is focused on LLMs and their adap-tation capability to different languages and contexts. The re-markable results shown by LLMs in many tasks can be repli-cated with difficulty in a specific context or in multilingual set-tings, where some resources can be scarce and difficult to find. The challenge provides a real-world multilingual conversational speech dataset, see Fig. 1, with the aim of paving the ground for speech models that can respond to human counterpart natu-arXiv:2609.11724v1 [cs.CL] 10 Sep 2026 rally in multilingual, dynamic and context-rich environments. The dataset comprises diverse conversational styles and cap-tures the complexities of human dialog, including pauses, inter-ruptions, and speaker overlaps. The first challenge comprised 11 languages, including five regional varieties of English [12]. The second MLC-SLM challenge, which organizers describe as more challenging than the first, expanded the language cover-age by adding Tagalog, Urdu, and Turkish, as well as a regional dialects of Canadian French, Mexican Spanish, and Brasilian Portoguese. Task 1 is focused on multilingual conversational speech diarization and recognition, whereas Task 2, the task addressed by our system, is focused on multilingual conver-sational speech understanding. The training and development datasets provided are constructed using Gemini2.5-Pro, a multi-lingual multiple-choice question task that involves acoustic and semantic comprehension for training and development sets. The organizers provided a baseline system through Github 2, where Qwen2.5-Omni-7B is fine tuned using the ms-swift toolkit [15]. The evaluation set of the challenge has been built as multiple-choice questions of speech comprehension with a similar proce-dure, and an additional manual review is used to rank the tasks. 
+
+# 3. Fine-Tuning Speech-LLM 
+
+3.1. Model and Training Setup 
+
+We fine-tune Voxtral-Mini-3B-2507 [16] using LoRA [17] (r=16 , α=32 , all linear modules) on 4 ×H100-64 GB GPUs (effective batch 32, learning rate 2×10 −5 with linear decay). Each instance is a single-turn conversation placing audio and MCQ text in the user turn; the model emits a single letter (A– D) corresponding to the answer. Since all provided audio files appear in the challenge evaluation, extended fine-tuning leads to session memorisation. We restricted training to 0.25 × an epoch, selecting the checkpoint minimizing the generalisation gap before memorisation sets in. 
+
+3.2. Cross-Lingual Data Augmentation 
+
+Using langdetect [18] we estimate that the evaluation set contains ≈52% cross-lingual question pairs (non-English au-dio, English question), while training data have 0% coverage. To account for this mismatch we translated non-English ques-tions and options to English via NLLB-200 [19] (masking au-dio quotations, keeping native language terms for multilingual semantic questions) and train on a mixed dataset of original + translated copies (6,630 questions for 124 files, keeping 25 files for validation). 
+
+3.3. ASR Transcript Augmentation and Audio Cropping 
+
+We generate transcripts by fine-tuning Voxtral-Mini-3B as a LoRA ASR model: a Seed on MLC25 data, then an Adapted continuation with oversampled pre-training for the six new MLC26 languages. The Adapted model drops MLC26-new WER from 26.2% to 15.2%, with dramatic improvements on new languages (Table 1). Audio sessions are chunked into 1-minute segments with loop-detection to mitigate hallucinations. Transcripts are prepended as "Transcript: {text }" to augment the MCQ prompt. Approximately 51% of the ques-tions in the development set include timestamp references pointing to the audio excerpts containing the answers. To im-prove training and inference efficiency and to encourage the    
+
+> 2https://github.com/DontPushMeee/ MLC-SLM-2nd-Task2-Baseline
+> Table 1: WER (%) Seed vs. Adapted Voxtral ASR. ∆= Adapted −Seed. MLC25: official test set; MLC26 ( †): development set.
+
+Language Seed Adapted ∆
+
+English 7.0 6.9 −0.1 Spanish 8.2 7.9 −0.3 Vietnamese 9.1 9.0 −0.1 Thai 9.9 9.5 −0.4 Korean 8.8 10.1 +1.3 Portuguese 20.2 18.6 −1.6 Portuguese(Brazilian) † 18.4 10.9 −7.5 Russian 12.8 13.1 +0.3 Urdu † 140.1 13.0 −127.1 French 15.2 15.3 +0.1 French(Canadian) † 34.7 18.3 −16.4 German 17.5 17.3 −0.2 Tagalog † 49.7 20.6 −29.1 Italian 18.6 20.1 +1.5 Turkish † 88.8 21.2 −67.6 Japanese 19.3 21.5 +2.2 
+
+MLC25 Overall 11.8 12.0 +0.2 
+
+MLC26 Overall † 26.2 15.2 −11.0  
+
+> Table 2: Ablation of fine-tuning components on Phase 1.
+
+Training Data Transc. Crop Acc. 3B Baseline No No 0.7162 + NLLB-only No No 0.7382 + Mixed Yes No 0.7283 + Mixed Yes 30s 0.7446 
+
+Speech-LLM to focus on specific audio content, we cropped the audio to a ±30 s window around these automatically detected timestamps. This approach yielded our best Phase 1 score of 0.85. An ablation of the fine-tuning components is shown in Table 2 reporting results submitted in Phase 1. 
+
+# 4. In-Context Learning with Speech-LLM 
+
+We detected a systematic class-A prediction bias that affects both Voxtral model sizes. The 24B baseline model predicts class A for 63% of questions and class D for only 2%. 
+
+4.1. In-Context Learning 
+
+Prepending solved MCQ examples before the target question, i.e. few-shot In-Context Learning (ICL) corrects the bias in the 24B model for the English-audio/English-questions. Two text-only shots already shift class-A predictions from 63% to 44% and improve accuracy by +5.1 pp; scaling to six multimodal shots adds a further +1.5 pp, yielding our best score of 0.8095 
+
+(Table 3). Note that the same set of ICL examples is used for all evaluation instances, consisting exclusively of English ex-amples extracted from the training set. We hypothesize that em-ploying multilingual language-specific ICL strategies could fur-ther improve performance. Each multimodal shot places a 30 s audio clip in the user turn with an audio-focus prefix and MCQ text; the assistant turn is the bare answer letter. For 4-option questions, four shots cover one instance of each answer label (A, B, C, D) drawn from held-out audio, ensuring the model observes all four labels as valid outputs. For 2-option (A/B) Table 3: Predicted label distributions and Phase 2 accuracy (9,470 questions). All system use 30 s crop in inference and no ASR transcripts as augmented context. mm stands for multimodal shots. 
+
+System A B C D Acc. 24B Baseline 63% 26% 9% 2% 0.743 24B + ICL-2 text 44% 37% 14% 6% 0.795 24B + ICL-6 mm 43% 37% 14% 6% 0.810 
+
+24B + ICL-2 + calib. 43% 37% 14% 6% 0.795 3B Baseline 65% 24% 8% 2% 0.701 3B fine-tuned 57% 32% 10% 1% 0.724 questions, two shots are used. 
+
+4.2. Inference-Time Calibration 
+
+We also evaluated an inference-time calibration strategy known as prior calibration (CBU, [20]), which subtracts null-prompt log-probabilities to eliminate positional priors. When applied to ICL-2, this method reached the same accuracy as the base-line ICL-2 ( ≈0.795), suggesting that in-context learning alone is sufficient to correct positional bias for the 24B model 
+
+# 5. Training-Free Retrieval Approach 
+
+5.1. A voice-anchored memory layer 
+
+Our third approach treats Task 2 not as a model-training prob-lem but as a retrieval problem. We use a persistent voice-anchored memory layer that gives a standard LLM cross-session memory, semantic content memory, and a knowledge graph of facts and relationships [21], without training any com-ponent. We enroll the speech session in our system and then at query time we retrieve from it the relevant context needed to answer the question. The enrollment of audio files in this mem-ory layer is accomplished by an enrollment pipeline which seg-ments a multispeaker conversation by utterance through diariza-tion, then a single Speech-LLM Voxtral Mini 3B [16] served via vLLM[22], performs the entire audio frontend: one call per utterance returns the transcription, language, gender, age, and both the acoustic and textual emotion labels. All of these ex-tracted information are structured and stored in memory. The layer is then queried at runtime to assemble a structured fact sheet that is handed to a frozen, swappable downstream LLM and helps it answering the question based on the retrived in-formation; the entire system is composed of pre-trained models at inference time. This approach allows us to enroll the multi-speaker conversation once and then answer all the related ques-tions efficiently without the need to process the audio file mul-tiple times. For these experiments, we used LLM Qwen3-14B-AWQ 3.
+
+Shared utterance identifiers. Memory is organized as three persistent storage layers, illustrated in Figure 2: an acoustic-identity layer Lac , a semantic-content layer Lsem , and a knowledge-graph layer Lkg . Every turn ingested by the sys-tem — whether produced by diarization of a multi-speaker recording or by a chat turn — is assigned a single UUID u at in-gestion, which is propagated as the primary key across the lay-ers that record it. For audio utterances u is generated when the speaker embedding is written to Lac and reused as the record ID in Lsem and as the utterance-node identifier in Lkg ; chat turns 
+
+> 3https://huggingface.co/Qwen/Qwen3-14B-AWQ
+
+skip Lac and originate u in Lsem . The invariant is that when-ever two layers store information about the same utterance, they store it under the same key, so cross-layer references resolve by direct lookup rather than approximate matching. 
+
+Acoustic identity ( Lac ). For each utterance, a 192-dimensional speaker embedding is extracted with Titanet-Large [23] and stored in a persistent ChromaDB collection. Records are tagged as enroll data (durable identity profiles for known speakers) or probe data (transient embeddings produced during a single query session). At query time, the layer sup-ports identification (comparing a probe to enrolled profiles by top-k cosine retrieval and returning the closest identity above a similarity threshold) and resolution (matching a probe against other probes from the same session so that segments of the same unknown speaker are linked). 
+
+Semantic content ( Lsem ). Utterance text—transcribed by Voxtral for audio and taken verbatim for chat—is encoded with all-MiniLM-L6-v2 [24] and stored in a parallel ChromaDB col-lection under the same UUIDs as Lac . Per-record metadata sup-ports speaker-conditioned semantic search: a textual query can be restricted to utterances produced by one or more identified speakers, optionally filtered further by emotion, time, or dia-logue membership. 
+
+Knowledge graph ( Lkg ). The knowledge graph layer an-swers how facts relate and how they evolve . It is a directed graph in NetworkX [25] with four types of nodes (speaker, ut-terance, entity, and dialogue) and two classes of edges. We use a local Qwen3-14B-AWQ served by vLLM as a local extractor to extract nodes and relationships from conversation transcription. 
+
+Structural edges are added eagerly when an utterance is in-gested and require no LLM call: • SAID (speaker → utterance) • CONTAINS (dialogue → utterance) • HAS PARTICIPANT (dialogue → speaker) • KNOWS (speaker ↔ speaker), with co-occurrence counts ac-cumulated across dialogues 
+
+Semantic edges computed by an LLM extractor: • MENTIONS : from utterance to entity • FACT : typed edges between entities Each fact carries provenance and two timestamps, valid-from and valid-to : a new fact that contradicts an existing one does not delete it, but closes its validity interval, preserving his-tory. Newly extracted entities are reconciled against the graph by an entity resolver that embeds each candidate with the same sentence-transformer used in Lsem and searches a dedicated en-tity collection, auto-merging above a high similarity threshold, treating low-similarity candidates as new, and deferring am-biguous cases to an LLM judge. 
+
+Emotion as cross-layer metadata. Each utterance is anno-tated with two emotion labels attached as metadata to Lsem and 
+
+Lkg : an acoustic label from prosody and a textual label from lexical content, both produced by Voxtral in the same call as the transcription. The two channels are kept independent rather than fused, since tone and words can disagree and both carry signal; acoustic emotion is computed only for audio utterances. 
+
+Fact sheet assembly. At query time, the retrieval pipeline reads the three layers and assembles a fact sheet. Given an optional probe clip, Lac identifies the speaker against the en-rolled profiles; Lsem is queried with the question, filtered by the identified speaker(s); and Lkg is read in one of three modes— profile, dialogue, or entity—selected by a lightweight ques-tion classifier, returning emotion counts, participant lists, or Audio recording (diarization → segments) Chat session (user/assistant turns)    
+
+> UUID u
+> Lac : Acoustic Identity
+> TitaNet 192-d embedding ChromaDB
+> Lsem : Semantic Content
+> MiniLM 384-d embedding ChromaDB
+> Lkg : Knowledge Graph
+> NetworkX, typed FACTs
+> emotion meta emotion meta
+> User question
+> (+ optional probe audio)
+> Retrieval Fact sheet
+> speaker + content + facts + emotion
+> LLM
+> Answer enrollment write / question flow retrieval read meta cross-layer attribute
+
+Figure 2: System architecture. Every utterance receives a UUID u at ingestion. Audio inputs are diarized into segments and enrolled into the three layers, while chat sessions skip the acoustic layer. At query time, the Retrieval component receives a user question (optionally with a probe audio clip), reads from each layer (dashed lines), and assembles a fact sheet that is handed to a swappable answer LLM. 
+
+currently-valid facts respectively. The assembled fact sheet— per-utterance entries from Lsem , speaker identity from Lac ,graph context from Lkg , and emotion labels—is the only con-text passed to the downstream LLM, with a prompt that con-strains the model to rely on fact-sheet content alone. 
+
+5.2. Application to the MLC-SLM Task 2 
+
+Sessions are processed one at a time. Each conversation is di-arized with pyannote.audio [26, 27, 28]; every resulting segment is embedded with Titanet, transcribed and attribute-tagged by Voxtral, and written to all three layers ( Lac , Lsem ,
+
+Lkg ) under a shared UUID. Diarized segments are clustered and matched against previously enrolled speakers, giving the sys-tem a cross-segment notion of who is speaking that is anchored in voice rather than in an external speaker label. Task 2 is posed as multiple choice. For each question, the system performs speaker-conditioned semantic retrieval over the enrolled utter-ances of the current session and traverses the knowledge graph, then assembles the fact sheet described in Section 5.1. The fact sheet, together with the question and its candidate options, is the only context given to a frozen Qwen answer LLM, which is constrained to emit a single option letter. Because identity, content, and emotion are resolved by the retrieval layer before the LLM is invoked, the answer model performs neither speaker verification nor long-context recall itself. 
+
+# 6. Results 
+
+Table 4 summarizes the accuracy scores of all three developed systems. 
+
+Fine-tuned Voxtral-3B. The combination of translated data augmentation and 30s cropping yielded our highest de-velopment performance (0.85). While the mixed dataset (see Table 2) and timestamp-based cropping improved accuracy by directing the audio encoder toward relevant segments, the gains from transcription-based context augmentation and overall fine-tuning did not generalize to the evaluation sets. The result-ing drop in score to 0.72 is likely attributable to overfitting or the LLM learning language-specific shortcuts during the fine-tuning process to a small dataset. 
+
+Voxtral-24B with ICL. The 24B model with six multi-modal in-context shots reaches 0.81 on Phase 2, our best result overall. ICL corrects the strong label bias while requiring zero parameter updates or data for training. However, prior calibra-
+
+Table 4: Accuracy scores on the MLC-SLM Task 2 development and Phase-2 test sets. 
+
+System Dev Test Official baseline 0.35 –Voxtral-3B fine-tuned 0.85 0.72 Voxtral-24B + ICL-6 – 0.81 Train-free (multi-model) 0.78 –Train-free (Voxtral frontend) 0.83 0.68 tion provide no further gain over ICL, see Table 3. 
+
+Training-free retrieval. We evaluated two variants dif-fering only in the audio frontend: a multi-model pipeline (Whisper[29] + Wav2Vec2 + RoBERTa) and a unified Vox-tral Mini 3B frontend. The unified frontend outperformed it on the dev set ( 0.83 vs. 0.78 ) while simplifying the pipeline, and was submitted to the evaluation set where it reached 0.68 . This result is obtained without any training on the challenge corpus, indicating that a retrieval layer over frozen perception and lan-guage models is a competitive alternative to model adaptation, while remaining cheap to deploy and agnostic to the choice of downstream LLM. 
+
+# 7. Conclusions 
+
+We presented three systems for Task 2 of the second MLC-SLM challenge under a fully blind evaluation setting, utilizing no or-acle segmentation, speaker labels, or diarization during infer-ence. Our fine-tuning experiments demonstrate that NLLB-200 translation effectively bridges the 52% cross-lingual gap, and with timestamp-aware cropping achieved 0.85 on the develop-ment set; however it failed to generalize to the Phase 1 and Phase 2 evaluation sets due to overfitting. In contrast, apply-ing in-context learning to the frozen Voxtral-24B model suc-cessfully mitigated strong pretrained label bias without param-eter updates, achieving our best result of 0.81 on Phase 2. Fi-nally, our training-free retrieval system (0.83 dev, 0.68 Phase 2) shows that a voice-anchored memory layer over frozen mod-els is a competitive, low-cost alternative to task-specific adap-tation. Together, these three approaches offer complementary trade-offs between accuracy, training cost, and deployment sim-plicity, placing the Eloquence team 5th in the final ranking. 8. Acknowledgments 
+
+This work has received funding from the European Union’s Horizon Europe research and innovation programme under the project ELOQUENCE (Grant Agreement No. 101135916). This work was supported by computational resources from the EuroHPC Joint Undertaking under the EuroHPC AI Factory grant EHPC-AIF-2026LS01-004. 
+
+# 9. References 
+
+[1] N. Zheng, Y. Lin, S. Tian, M. Li, Z. Lin, L. Xiao, and D. Tu, “Balancing ASR and diarization in end-to-end LLMs for multi-talker speech recognition,” 2026. [2] M. Shi, X. Xiao, R. Fan, S. Ling, and J. Li, “Train Short, In-fer Long: Speech-LLM Enables Zero-Shot Streamable Joint ASR and Diarization on Long Audio,” 2026 IEEE International Con-ference on Acoustics, Speech and Signal Processing , 2026. [3] P. Jing, W. Yucheng, F. Yangui, X. Yu, L. Xu, Z. Xizhuo, and Y. Kai, “A Survey on Speech Large Language Models,” arXiv preprint arXiv:2410.18908 , 2024. [4] W. Mingqiu, H. Wei, S. Izhak, W. Zelin, C. Chung-Cheng, W. Yuan, Cao amd Yongqiang, C. Nanxin, Z. Yu, S. Hagen, R. Paul, Z. Lukas, Y. Dian, M. Zhong, P. Golan, S. Nikhil, S. Jo-han, and W. Yonghui, “SLM: bridge the thin gap between speech and text foundation models,” arXiv preprint arXiv:2310.00230 ,2023. [5] L. Concina, J. Luque, A. Brutti, M. Matassoni, and Y. Zhang, “The Eloquence team submission for task 1 of MLC-SLM chal-lenge,” arXiv preprint arXiv:2410.18908 , 2024. [6] C. Wang, H. Lu, X. Zhang, S. Liu, Y. Lu, J. Li, and Z. Wu, “Clos-ing the modality reasoning gap for speech large language models,” in Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , M. Liakata, V. P. Moreira, J. Zhang, and D. Jurgens, Eds. San Diego, Cali-fornia, United States: Association for Computational Linguistics, Jul. 2026, pp. 18 821–18 835. [7] D. Wang, J. Wu, J. Li, D. Yang, X. Chen, T. Zhang, and H. Meng, “MMSU: A Massive Multi-task Spoken Language Understanding and Reasoning Benchmark,” ArXiv , vol. abs/2506.04779, 2025. [8] J. Peng, J. Du, C. Wang, H. Li, Y. Yang, Y. Wang, X. Gu, G. Chen, Y. Wang, J. Li, Z. Zhao, H. Wang, W. Tu, H. Li, D. Ma, L. Qian, Y. Xi, W. Wen, J. Guo, H. Zhang, S. Fan, W. Jiang, S. Wang, and K. Yu, “A Unified and Reproducible Experimentation Framework for Speech Understanding,” 2026. [9] S. S. Kankanala, R. Chandra, and S. Ganapathy, “Benchmarking Humans And Machines On Complex Multilingual Speech Un-derstanding Tasks,” IEEE International Conference on Acoustics, Speech and Signal Processing , 2026. [10] S. Wang, Z. Sun, Z. Lin, C. Wang, Z. Pan, and L. Xie, “Msu-bench: Towards understanding the conversational multi-talker scenarios,” ArXiv , vol. abs/2508.08155, 2025. [11] S. Fong, M. Matassoni, and A. Brutti, “Speech LLMs in Low-Resource Scenarios: Data Volume Requirements and the Im-pact of Pretraining on High-Resource Languages,” arXiv preprint arXiv:2508.05149 [ , 2025. [12] B. Mu, P. Guo, Z. Sun, S. Wang, H. Liu, M. Shao, L. Xie, E. S. Chng, L. Xiao, Q. Feng, and D. Wang, “Summary on The Multilingual Conversational Speech Language Model Challenge: Datasets, Tasks, Baselines, and Methods,” in 2026 IEEE Interna-tional Conference on Acoustics, Speech and Signal Processing ,2026, pp. 19 442–19 446. [13] Q. Wang, H. B. Sailor, J. H. M. Wong, T. Liu, S. Sun, W. Zhang, M. Huzaifah, N. F. Chen, and A. Aw, “Incorporating Contextual Paralinguistic Understanding in Large Speech-Language Models,” 2025 IEEE Automatic Speech Recognition and Understanding Workshop (ASRU) , pp. 1–8, 2025. [Online]. Available: https://api.semanticscholar.org/CorpusID:280566781 [14] L. M. Maben, G. G. Lakshmy, S. Radhakrishnan, S. Arora, and S. Watanabe, “AURA: Agent for Understanding, Reasoning, and Automated Tool Use in Voice-Driven Tasks,” 2025 IEEE Automatic Speech Recognition and Understanding Workshop , pp. 1–4, 2025. [Online]. Available: https://api.semanticscholar.org/ CorpusID:280011205 [15] Y. Zhao, J. Huang, J. Hu, X. Wang, Y. Mao, D. Zhang, Z. Jiang, Z. Wu, B. Ai, A. Wang, W. Zhou, and Y. Chen, “SWIFT:A Scalable lightWeight Infrastructure for Fine-Tuning,” 2024. [Online]. Available: https://arxiv.org/abs/2408.05517 [16] A. H. Liu, A. Ehrenberg, A. Lo, C. Denoix, C. Barreau, G. Lam-ple, J.-M. Delignon, K. R. Chandu, P. von Platen, P. R. Mud-direddy et al. , “Voxtral,” arXiv preprint arXiv:2507.13264 , 2025. [17] E. J. Hu, Y. Shen, P. Wallis, Z. Allen-Zhu, Y. Li, S. Wang, L. Wang, and W. Chen, “LoRA: Low-rank adaptation of large lan-guage models,” in ICLR , 2022. [18] M. M. Danilak, “langdetect: Language detection library ported from Google’s language-detection,” https://github.com/ Mimino666/langdetect, 2014, version 1.0.9. [19] NLLB Team and M. R. C. juss` a et al., “No language left behind: Scaling human-centered machine translation,” arXiv:2207.04672 ,2022. [20] Z. Zhao, E. Wallace, S. Feng, D. Klein, and S. Singh, “Calibrate Before Use: Improving Few-shot Performance of Language Mod-els,” in Proc. ICML , 2021. [21] N. H. Wils, S. P. Garijo, K. M. Blum, R. Gerndt, and T. Doernbach, “Smalltalk-KG: A Knowledge Graph Construction Framework for Dialog Personalization in Human-Robot Interac-tion,” 2026 IEEE International Conference on Advanced Robotics and its Social Impacts (ARSO) , pp. 33–38, 2026. [Online]. Avail-able: https://api.semanticscholar.org/CorpusID:288874560 [22] W. Kwon, Z. Li, S. Zhuang, Y. Sheng, L. Zheng, C. H. Yu, J. Gon-zalez, H. Zhang, and I. Stoica, “Efficient memory management for large language model serving with PagedAttention,” in Proceed-ings of the 29th symposium on operating systems principles , 2023, pp. 611–626. [23] N. R. Koluguri, T. Park, and B. Ginsburg, “Titanet: Neural model for speaker representation with 1d depth-wise separable convolu-tions and global context,” in 2022 IEEE international conference on acoustics, speech and signal processing , 2022, pp. 8102–8106. [24] W. Wang, F. Wei, L. Dong, H. Bao, N. Yang, and M. Zhou, “Minilm: Deep self-attention distillation for task-agnostic com-pression of pre-trained transformers,” Advances in neural infor-mation processing systems , vol. 33, pp. 5776–5788, 2020. [25] A. Hagberg, P. J. Swart, and D. A. Schult, “Exploring network structure, dynamics, and function using NetworkX,” Los Alamos National Laboratory (LANL), Tech. Rep., 2007. [26] H. Bredin, “Pyannote.audio 2.1 speaker diarization pipeline,” CNRS, Tech. Rep., 2023. [27] ——, “pyannote.audio 2.1 speaker diarization pipeline: principle, benchmark, and recipe,” in Proc. INTERSPEECH 2023 , 2023. [28] A. Plaquet and H. Bredin, “Powerset multi-class cross entropy loss for neural speaker diarization,” in Proc. INTERSPEECH 2023 , 2023. [29] A. Radford, J. W. Kim, T. Xu, G. Brockman, C. McLeavey, and I. Sutskever, “Robust Speech Recognition via Large-Scale Weak Supervision,” in ICML , 2023.

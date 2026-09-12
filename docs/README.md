@@ -6,65 +6,56 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-11
-- 运行时间：2026-09-11 22:37:20 UTC
+- 最新运行日期：2026-09-12
+- 运行时间：2026-09-12 21:26:36 UTC
 - 运行状态：成功
-- 本次总论文数：14
+- 本次总论文数：11
 - 精读区：3
-- 速读区：11
+- 速读区：8
 
 ### 今日简报（AI）
-- 今日共生成 14 篇推荐（精读 3 篇，速读 11 篇）
-- 精读：《Post-Training Zero-Shot TTS for Fine-Grained Emotion and Duration Control via Natural Language》（8.0/10）, 《Complex-Text Robustness Evaluation and Failure Diagnosis for Low-Resource Multilingual Text-to-Speech》（8.0/10）
-- 速读：《Source-Adaptive Data Curation for Bilingual NVV-Aware ASR》（7.0/10）, 《An Empirical Measurement of Jailbreaking Evaluators》（7.0/10）, 《SEAR: Segment-Evidence-Aware Routing for Weak-to-Strong Multilingual Speech MCQ》（7.0/10）
+- 今日共生成 11 篇推荐（精读 3 篇，速读 8 篇）
+- 精读：《Prompt Revision as a Source of Cultural Bias in Text-to-Image Systems》（8.0/10）, 《Complex-Text Robustness Evaluation and Failure Diagnosis for Low-Resource Multilingual Text-to-Speech》（8.0/10）
+- 速读：《Whisper-Based Speech Transcription from Videos Across Multiple Languages for Cross-Cultural Understanding》（7.0/10）, 《CAGE: Coherence-Aware Graph Encoding for Retrieval-Augmented Generation》（6.0/10）, 《Choosing the Right Language Mode at Inference Time for Multilingual Reliability》（6.0/10）
 - 这些结果覆盖了当下较热的方向，建议先看精读区论文的关键问题与方法。
-- 详情：[/202609/11/README](/202609/11/README)
+- 详情：[/202609/12/README](/202609/12/README)
 
 ### 精读区论文标签
-1. [Post-Training Zero-Shot TTS for Fine-Grained Emotion and Duration Control via Natural Language](/202609/11/2609.11523v1-post-training-zero-shot-tts-for-fine-grained-emotion-and-duration-control-via-natural-language)  
-   标签：评分：8.0/10、query:qwen-tts
-   evidence：以自然语言控制TTS片段级情感与时长
-2. [Complex-Text Robustness Evaluation and Failure Diagnosis for Low-Resource Multilingual Text-to-Speech](/202609/11/2609.11545v1-complex-text-robustness-evaluation-and-failure-diagnosis-for-low-resource-multilingual-text-to-speech)  
+1. [Prompt Revision as a Source of Cultural Bias in Text-to-Image Systems](/202609/12/2609.11532v1-prompt-revision-as-a-source-of-cultural-bias-in-text-to-image-systems)  
+   标签：评分：8.0/10、query:mtg-bench
+   evidence：多语言文生图基准审计提示改写与文化偏见
+2. [Complex-Text Robustness Evaluation and Failure Diagnosis for Low-Resource Multilingual Text-to-Speech](/202609/12/2609.11545v1-complex-text-robustness-evaluation-and-failure-diagnosis-for-low-resource-multilingual-text-to-speech)  
    标签：评分：8.0/10、query:low-res-tts
-   evidence：低资源多语言TTS的鲁棒性评估
-3. [Beyond Word Error Rate: A Switch Aware Evaluation of ASR and Audio Language Models on English Yoruba Code-Switched Speech](/202609/11/2609.11786v1-beyond-word-error-rate-a-switch-aware-evaluation-of-asr-and-audio-language-models-on-english-yoruba-code-switched-speech)  
+   evidence：低资源多语言TTS鲁棒性评估
+3. [Nuha-Speech: Building General-Purpose Arabic Speech-LLMs](/202609/12/2609.11892v1-nuha-speech-building-general-purpose-arabic-speech-llms)  
    标签：评分：8.0/10、query:speech-tech
-   evidence：面向低资源语码转换语音的ASR与音频语言模型评测
+   evidence：面向阿拉伯语的多语种语音大模型与评测
 
 ### 速读区论文标签
-1. [Source-Adaptive Data Curation for Bilingual NVV-Aware ASR](/202609/11/2609.09929v1-source-adaptive-data-curation-for-bilingual-nvv-aware-asr)  
+1. [Whisper-Based Speech Transcription from Videos Across Multiple Languages for Cross-Cultural Understanding](/202609/12/2609.11772v1-whisper-based-speech-transcription-from-videos-across-multiple-languages-for-cross-cultural-understanding)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：中英双语语音识别系统
-2. [An Empirical Measurement of Jailbreaking Evaluators](/202609/11/2609.10594v1-an-empirical-measurement-of-jailbreaking-evaluators)  
-   标签：评分：7.0/10、query:llm-attack
-   evidence：系统比较多种越狱评估器
-3. [SEAR: Segment-Evidence-Aware Routing for Weak-to-Strong Multilingual Speech MCQ](/202609/11/2609.11355v1-sear-segment-evidence-aware-routing-for-weak-to-strong-multilingual-speech-mcq)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：多语言对话语音理解系统
-4. [Prompt Revision as a Source of Cultural Bias in Text-to-Image Systems](/202609/11/2609.11532v1-prompt-revision-as-a-source-of-cultural-bias-in-text-to-image-systems)  
-   标签：评分：7.0/10、query:mtg-bench
-   evidence：WORLDVIEW多语言文本到图像基准，覆盖15种语言8960条提示
-5. [Nuha-Speech: Building General-Purpose Arabic Speech-LLMs](/202609/11/2609.11892v1-nuha-speech-building-general-purpose-arabic-speech-llms)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：阿拉伯语语音大模型的数据构建、训练与评测基础设施
-6. [To What Extent Do Large Language Models Understand Bangla Idioms?](/202609/11/2609.03410v1-to-what-extent-do-large-language-models-understand-bangla-idioms)  
+   evidence：基于Whisper的多语言语音转写
+2. [CAGE: Coherence-Aware Graph Encoding for Retrieval-Augmented Generation](/202609/12/2609.04647v1-cage-coherence-aware-graph-encoding-for-retrieval-augmented-generation)  
+   标签：评分：6.0/10、query:fie-rag
+   evidence：面向检索增强生成的连贯性感知重排序框架
+3. [Choosing the Right Language Mode at Inference Time for Multilingual Reliability](/202609/12/2609.04653v1-choosing-the-right-language-mode-at-inference-time-for-multilingual-reliability)  
    标签：评分：6.0/10、query:cross-lang
-   evidence：面向大模型的富含文化内涵习语基准评测
-7. [X2Streaming-ASR: wait when uncertain, emit when ready for streaming ASR](/202609/11/2609.08672v1-x2streaming-asr-wait-when-uncertain-emit-when-ready-for-streaming-asr)  
+   evidence：多语言大模型推理、翻译策略与跨语言语义迁移
+4. [ACEA: An Adversarial Co-Evolution Arena for Head-to-Head Red-Team and Blue-Team LLM Testing](/202609/12/2609.08256v1-acea-an-adversarial-co-evolution-arena-for-head-to-head-red-team-and-blue-team-llm-testing)  
+   标签：评分：6.0/10、query:llm-attack
+   evidence：针对大模型的对抗红队攻击
+5. [SpeechAnnotator: A Context-Aware Multi-Agent Framework and Benchmark for Multidimensional Speech Annotation](/202609/12/2609.09947v1-speechannotator-a-context-aware-multi-agent-framework-and-benchmark-for-multidimensional-speech-annotation)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：流式自动语音识别提交策略
-8. [Improving Term Evaluation in Machine Translation: Variation Matters](/202609/11/2609.08779v1-improving-term-evaluation-in-machine-translation-variation-matters)  
-   标签：评分：6.0/10、query:cross-lang
-   evidence：考虑翻译变异的文档级机器翻译术语评测
-9. [StreamAlign: Streaming Text-Aligned Speech Tokenization](/202609/11/2609.09719v1-streamalign-streaming-text-aligned-speech-tokenization)  
+   evidence：面向可控语音生成的多维语音标注多智能体框架与基准
+6. [Automatic Lyric Transcription for Greek Songs: Scaling and Task Composition Effects in Whisper Adaptation](/202609/12/2609.11302v1-automatic-lyric-transcription-for-greek-songs-scaling-and-task-composition-effects-in-whisper-adaptation)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：面向ASR的流式文本对齐语音分词
-10. [Towards Stress-Aware Sentence-Level Filipino G2P With Weakly-Supervised ByT5 Fine-Tuning](/202609/11/2609.09974v1-towards-stress-aware-sentence-level-filipino-g2p-with-weakly-supervised-byt5-fine-tuning)  
-   标签：评分：6.0/10、query:low-res-tts
-   evidence：菲律宾语句级 G2P，低资源 TTS 前端
-11. [Continuous-Time Acoustic Modelling with Neural Controlled Differential Equations](/202609/11/2609.11725v1-continuous-time-acoustic-modelling-with-neural-controlled-differential-equations)  
-   标签：评分：6.0/10、query:qwen-tts
-   evidence：文本转语音中的时长感知声学建模与时长控制
+   evidence：低资源希腊语歌词转写与Whisper适配
+7. [SEAR: Segment-Evidence-Aware Routing for Weak-to-Strong Multilingual Speech MCQ](/202609/12/2609.11355v1-sear-segment-evidence-aware-routing-for-weak-to-strong-multilingual-speech-mcq)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：覆盖21种语言的多语言对话语音模型
+8. [The Eloquence submission for Task 2 of the Interspeech 2026 MLC-SLM challenge](/202609/12/2609.11724v1-the-eloquence-submission-for-task-2-of-the-interspeech-2026-mlc-slm-challenge)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：覆盖21种语言的多语言语音问答
 
 
 <div class="dpr-home-promo-card">
