@@ -1,0 +1,837 @@
+Title: Understanding In-Context Multimodal Jailbreaks via Posterior Reweighting
+
+URL Source: https://arxiv.org/pdf/2609.10613v1
+
+Published Time: Fri, 11 Sep 2026 00:08:45 GMT
+
+Number of Pages: 22
+
+Markdown Content:
+Published as a conference paper at ICLR 2027 
+
+# UNDERSTANDING IN-C ONTEXT MULTIMODAL JAIL -
+
+# BREAKS VIA POSTERIOR REWEIGHTING 
+
+Xu Zhang Dev Mistry Xiang Xu Ren Wang 
+
+ABSTRACT 
+
+In-context learning (ICL) jailbreaks reveal a critical vulnerability in multimodal large language models (MLLMs): harmful demonstrations in the prompt can induce unsafe outputs without modifying model parameters. Despite extensive empirical evidence, existing work lacks a principled understanding of why such jailbreaks reliably succeed or how their effectiveness scales with context composition. We propose a posterior reweighting framework that models a safety-aligned MLLM as implicitly operating over competing behavioral modes, and interprets in-context demonstrations as inference-time evidence that dynamically shifts the model’s posterior preference between safe and harmful behaviors. This view formalizes jailbreak as a process of evidence accumulation , yielding predictive scaling laws with respect to demonstration count, harmful ratio, adversarial strength, and semantic diversity. Guided by this framework, we introduce a posterior-aware inference-time defense that adaptively injects benign counter-evidence based on estimated risk, effectively suppressing harmful posterior drift while preserving model utility. Compared to existing in-context defenses, our method achieves a significantly improved robustness-utility trade-off under a fixed intervention budget. Together, our results establish posterior reweighting as a unifying and predictive framework for understanding and mitigating ICL jailbreak in MLLMs. 
+
+1 INTRODUCTION 
+
+Multimodal large language models (MLLMs) have evolved into general-purpose assistants that follow multimodal instructions and perform grounded reasoning over visual and textual inputs (Liu et al., 2023; OpenAI & et al., 2024). Their deployment in open-world, user-facing settings elevates safety to a first-order concern, as unsafe generations can propagate to downstream decisions and real-world users (OpenAI & et al., 2024). A central threat is jailbreak , where adversaries exploit multimodal inputs to induce unsafe outputs at inference time (Bagdasaryan et al., 2023; Wei et al., 2023). Prior studies primarily categorize multimodal jailbreak attacks and demonstrate empirical effec-tiveness under different prompt constructions (Bagdasaryan et al., 2023; Carlini et al., 2023), but offer limited mechanistic understanding of how in-context learning (ICL) systematically erodes safety alignment at inference time. Specifically, it remains unclear how demonstrations reweight a safety-aligned model’s internal preference between safe and harmful behaviors. A similar gap exists for inference-time defenses: appending refusal-style demonstrations is known to mitigate jailbreaks empirically, but often incurs a robustness-utility trade-off, and lacks a principled account of when and why such interventions should be applied (Xue et al., 2024). In this work, we develop a posterior reweighting framework that makes in-context multimodal jailbreaks mechanistically explicit , as illustrated in Fig. 1. Our core abstraction is to view a safety-aligned MLLM as implicitly operating over multiple latent generation modes, including safe and harmful behaviors. Under this view, in-context demonstrations act as inference-time evidence: each demonstration either reinforces the model’s safe behavior (e.g., refusal-style responses) or reinforces the harmful behavior (e.g., compliant unsafe responses), and the overall prompt determines which behavior becomes dominant for the target query. This perspective turns “prompt hacking” into a concrete accumulation process, explaining why jailbreak success systematically increases with (i) a larger number of harmful demonstrations, (ii) a higher fraction of harmful demonstrations relative to benign ones, (iii) stronger demonstrations that more convincingly match the harmful behavior, and (iv) semantically diverse demonstrations that cover multiple harm categories. 1arXiv:2609.10613v1 [cs.CR] 8 Sep 2026 Published as a conference paper at ICLR 2027 
+
+Figure 1: Overview of the proposed framework. Left: ICL jailbreak arises when in-context demon-strations induce the model to produce unsafe responses for a harmful query. Middle: we interpret this behavior as posterior reweighting over latent generation modes, where demonstrations act as evidence that shift the model from a safe mode toward a harmful mode. Right: based on this mechanism, we design a posterior-aware defense that injects benign demonstrations as counter-evidence, with a harmfulness detector adaptively gating intervention to balance safety and utility. Guided by the same posterior reweighting mechanism (Fig. 1, middle), we design a posterior-aware inference-time defense that suppresses jailbreaks by injecting benign demonstrations. Rather than applying benign injection unconditionally, which can bias the posterior toward excessive refusal and degrade utility, our defense uses a harmfulness detector to gate intervention. Specifically, benign demonstrations are injected only when the input lies in an uncertain risk regime where posterior reweighting is likely to be effective, while clearly benign inputs bypass intervention and highly harmful inputs trigger direct refusal. This adaptive design targets the posterior mechanism underlying jailbreaks while avoiding unnecessary posterior suppression on benign queries. 
+
+Our contributions are threefold: 
+
+• Safety-specialized latent posterior framework. We formulate multimodal jailbreak as inference-time posterior reweighting over safe and harmful latent generation modes. This yields a task-specific mechanistic model that goes beyond generic Bayesian ICL by explicitly capturing safety-aligned generation dynamics at the inference time. • Predictive scaling laws for jailbreak. From this formulation, we derive testable scaling predictions that characterize how jailbreak success varies with harmful demonstration count, harmful-to-benign ratio, adversarial strength, and semantic diversity. These predictions are consistently validated across multiple MLLMs, demonstrating that jailbreak behavior follows a structured posterior-driven scaling law rather than ad hoc empirical trends. • Adaptive posterior-aware defense. We translate the proposed framework into a posterior-aware inference-time defense , where benign demonstrations are injected as counter-evidence and a gating mechanism adaptively controls the intervention strength. This design yields improved robustness–utility trade-offs. 
+
+2 RELATED WORK 
+
+Attacks on Multimodal Large Language Models. Jailbreak attacks manipulate model inputs to elicit responses to otherwise forbidden queries. Beyond text-only jailbreak strategies for large language models (LLMs) Guo et al. (2024); Liu et al. (2024a); Yu et al. (2024a), the incorporation of visual inputs substantially expands the attack surface of MLLMs. Prior work commonly categorizes MLLM jailbreaks into perturbation-based and structure-based attacks Wang et al. (2024). The former crafts adversarial images to bypass safety mechanisms Bagdasaryan et al. (2023); Carlini et al. (2023); Yin et al. (2023), while the latter encodes harmful instructions into images via typography or text-to-image generation tools (e.g., Stable Diffusion Rombach et al. (2022)) to induce unsafe responses without explicit textual prompts Gong et al. (2025); Liu et al. (2024b); Ma et al. (2024). 2Published as a conference paper at ICLR 2027 
+
+In-Context Learning Theory. Recent work increasingly views ICL as an inference-time mecha-nism. A dominant theoretical perspective models ICL through a Bayesian lens, where demonstrations serve as evidence that induces implicit posterior inference over latent task variables (Xie et al., 2021; Wies et al., 2023; Panwar et al., 2023; Jiang, 2023). Complementary studies relate ICL to gradient-based optimization or kernel regression in simplified settings, highlighting the role of attention mechanisms and induction heads in contextual pattern matching (Irie et al., 2022; Akyürek et al., 2022; Olsson et al., 2022). While insightful, these analyses are not tailored to safety-aligned MLLMs and do not directly explain how harmful behaviors persist and are amplified at inference time. 
+
+Defenses for Multimodal Large Language Models. Existing defenses for MLLMs broadly fall into training-time and inference-time alignment. Training-time approaches safeguard MLLMs via supervised fine-tuning (SFT) Chen et al. (2024b); Li et al. (2024) or by training harmfulness detectors to filter unsafe outputs Pi et al. (2024). Inference-time defenses intervene during generation without modifying model parameters and are generally more lightweight, including safety-oriented prompting Gong et al. (2025), response evaluation with iterative refinement Gou et al. (2024), and consistency-based detection via input perturbation Wang et al. (2024). 
+
+3 A P OSTERIOR REWEIGHTING FRAMEWORK FOR ICL-B ASED JAILBREAK 
+
+In this section, we develop a theoretical framework for analyzing jailbreak attacks against safety-aligned MLLMs under an ICL paradigm. Our analysis adopts the view that in-context learning operates as inference over latent behaviors rather than parameter updating Brown et al. (2020); Wies et al. (2023); Wei et al. (2023); Wang et al. (2023). 3.1 PRELIMINARIES 
+
+In an ICL setting, we consider a safety-aligned generative model that produces a textual response conditioned on an input and an in-context demonstration set. The input x may be either text-only, as in an LLM, or multimodal, as in an MLLM. To unify both settings, we write x = ( v, q ), where q
+
+denotes the textual query and v denotes an optional visual input; for text-only LLMs, v = ∅. The context is defined as 
+
+C =  (x1, y 1), (x2, y 2), . . . , (xk, y k), (1) where each xi is either a textual or multimodal input and yi is the corresponding response. Conditioned on the context C, the model is queried with a target input xt and generates 
+
+yt ∼ P (y | C, x t). (2) We focus on ICL-based jailbreak attacks , in which an adversary manipulates the context C to induce the model to generate harmful content for a fixed target input xt. Formally, the attack objective is 
+
+max  
+
+> C
+
+Pjs := Pr  H(yt) = 1 | C, x t
+
+, (3) where H(·) denotes a binary harmfulness predictor. Our formulation applies to both LLMs and MLLMs; the multimodal case is obtained by allowing v to contain visual information. 3.2 SAFETY MECHANISM MODELING FOR ALIGNED MLLM S
+
+To formalize how harmful outputs can be induced, we model an aligned MLLM as implicitly operating over latent generation modes, following prior work Wei et al. (2023). We consider two modes: a harmful mode, denoted by h, and a safe mode, denoted by s. Let Z ∈ { h, s } denote the latent mode variable. Conditioned on a specific mode Z = z, the model induces a mode-specific output distribution Pz (y | x). Marginalizing over the latent mode, the conditional output distribution for a given input x can be written as 
+
+P (y | x) = λP h(y | x) + (1 − λ)Ps(y | x), (4) where λ = Pr( Z = h) ∈ (0 , 1) denotes the prior probability of the harmful mode. Safety alignment can be interpreted as reducing λ by suppressing the harmful mode. However, alignment does not eliminate the harmful mode entirely, and thus λ remains strictly positive. This mixture-based 3Published as a conference paper at ICLR 2027 abstraction captures the coexistence of safe and harmful behaviors under an aligned model. Either mode may produce harmful outputs, but the harmful mode assigns a higher probability to such outputs. Conversely, the safe mode is more likely to generate safe outputs than the harmful mode. To formally connect the jailbreak success probability Pjs with the posterior probability Pr( Z = h |
+
+C), we establish Proposition 1, which characterizes how posterior concentration on the harmful mode governs jailbreak outcomes. 
+
+Proposition 1 (Posterior Control of Jailbreak Probability) . The probability that the model produces a harmful output for target input xt under context C satisfies 
+
+Pjs = ps + ( ph − ps) Pr( Z = h | C), (5) 
+
+where ph and ps are the mode-specific jailbreak probability conditioned on Z = h and Z = s,respectively. The proof of Proposition 1 is provided in Appendix A.1. 
+
+Under this proposition, inducing the model to generate harmful content corresponds to increasing the posterior probability Pr( Z = h | C) that the model operates in the harmful mode when the input query and MLLM are fixed. Consequently, the success of an ICL-based jailbreak attack can be characterized by the posterior mass assigned to the harmful mode. 3.3 POSTERIOR REWEIGHTING AND JAILBREAK SUCCESS 
+
+Under the latent inference view of ICL, conditioning on a context C updates the model’s posterior belief over latent generation modes Wang et al. (2023). We consider a sequential context C =(d1, . . . , d k), where each demonstration is di = ( xi, y i) and C<i = ( d1, . . . , d i−1) denotes the preceding history. As discussed above, the objective of an ICL-based jailbreak attack is to increase the posterior probability Pr( Z = h | C). We next derive how it is reweighted by the likelihood contributions of individual in-context demonstrations. 
+
+Posterior Reweighting under Context. By Bayes’ rule, the posterior over latent modes satisfies 
+
+Pr( Z = h | C) = λP (C | Z = h)
+
+λP (C | Z = h) + (1 − λ)P (C | Z = s) . (6) The likelihood admits a sequential factorization: P (C | Z = z) = Qki=1 P (di | C<i , Z = z), z ∈{h, s }. Taking log-odds yields: 
+
+log Pr( Z = h | C)Pr( Z = s | C) = log λ 
+
+> 1−λ
+
++
+
+> k
+
+X
+
+> i=1
+
+log P (di | C<i , Z = h)
+
+P (di | C<i , Z = s) . (7) The posterior probability can be expressed in closed form as 
+
+Pr( Z = h | C) = σ(L(C)) , (8) where L(C) denotes the posterior log-odds defined in equation 7. The detailed derivation is provided in Appendix A.1. This formulation shows that jailbreak success is governed by how in-context demonstrations accumulate log-likelihood evidence in favor of the harmful mode. The alignment prior log λ 
+
+> 1−λ
+
+biases the model toward safe behavior, while in-context demonstrations act as evidence that shifts the posterior through cumulative log-likelihood contributions. Jailbreak succeeds when contextual evidence sufficiently outweighs the prior bias. We next translate this posterior-based characterization into practical principles for designing stronger jailbreak attacks. 
+
+Number of Harmful Demonstrations. Consider a context consisting solely of harmful demonstra-tions. Let α = E
+
+h
+
+log P (di|C<i ,Z =h) 
+
+> P(di|C<i ,Z =s)
+
+i
+
+> 0 denote the average per-demonstration evidence. Under a homogeneous approximation, Eq. equation 8 yields 
+
+Pr( Z = h | C) = σ
+
+
+
+log λ 
+
+> 1−λ
+
++ kα 
+
+
+
+, (9) which increases monotonically with k and exhibits sigmoid saturation, indicating that adding more harmful demonstrations monotonically increases the probability of successful jailbreak. 4Published as a conference paper at ICLR 2027 
+
+Harmful Demonstration Ratio. Consider a context with kh harmful and k − kh benign demonstra-tions, and define r = kh/k . Let α > 0 and β > 0 denote the average positive and negative evidence contributions, respectively. Then 
+
+Pr( Z = h | C) = σ
+
+
+
+log λ 
+
+> 1−λ
+
++ k rα − (1 − r)β
+
+. (10) Thus, increasing the harmful ratio amplifies posterior evidence toward the harmful mode, while benign demonstrations act as counter-evidence. As a result, for a fixed context size k, increasing the harmful ratio r leads to a higher likelihood of successful jailbreak. 
+
+Demonstration Harmfulness Strength. The harmfulness strength of a demonstration is determined by how much evidence it contributes toward the harmful latent mode. For a demonstration di =(xi, y i), we define its evidence strength as log P (di|C<i ,Z =h)  
+
+> P(di|C<i ,Z =s)
+
+. For a fixed context containing kh
+
+harmful demonstrations, the cumulative harmful evidence is 
+
+L(C) = L0 +
+
+> kh
+
+X
+
+> i=1
+
+αi −
+
+> k−kh
+
+X
+
+> j=1
+
+βj , (11) where L0 = log λ 
+
+> 1−λ
+
+, αi > 0 denotes the positive evidence contributed by the i-th harmful demon-stration, and βj > 0 denotes the negative evidence contributed by the j-th benign demonstration. Increasing the strength of harmful demonstrations increases one or more αi, and therefore 
+
+∂L (C)
+
+∂α i
+
+= 1 > 0, ∂ Pr( Z = h | C)
+
+∂α i
+
+= σ(L(C))(1 − σ(L(C))) > 0. (12) Thus, stronger harmful demonstrations induce larger posterior shifts toward the harmful mode and more likely jailbreak success, regardless of whether the attack signal is visual, textual, or multimodal. 
+
+Semantic Diversity. Consider a fixed-size context containing kh harmful demonstrations drawn from m distinct semantic categories. Demonstrations from similar semantic categories can be redundant, causing their effective evidence to be smaller than the simple sum. We capture this effect with a redundancy-corrected posterior log-odds: 
+
+L(C) = L0 +
+
+> kh
+
+X
+
+> i=1
+
+αi −
+
+> k−kh
+
+X
+
+> j=1
+
+βj − X
+
+> 1≤i<j ≤kh
+
+γij , (13) where γij ≥ 0 measures redundancy between harmful demonstrations di and dj . When two demon-strations belong to the same or highly similar harmful category, γij is larger; when they cover distinct semantic categories, γij is smaller. Let the total redundancy be Γ( m) = P 
+
+> 1≤i<j ≤kh
+
+γij . Increasing the number of semantic categories m reduces average redundancy among demonstrations ∂Γ( m) 
+
+> ∂m
+
+< 0.Therefore, ∂L (C) 
+
+> ∂m
+
+= − ∂Γ( m) 
+
+> ∂m
+
+> 0, and consequently 
+
+∂ Pr( Z = h | C)
+
+∂m = σ(L(C))(1 − σ(L(C))) ∂L (C)
+
+∂m > 0. (14) Thus, semantic diversity improves jailbreak effectiveness by reducing redundancy and allowing harmful demonstrations to provide more independent posterior evidence. 3.4 VALIDATION OF THE ABSTRACT FORMULATION 
+
+While prior work (Wei et al., 2023; Wies et al., 2023; Wolf et al., 2023) has introduced latent-variable abstractions to interpret in-context learning, these formulations are primarily theoretical and lack direct empirical validation in realistic model behaviors. To establish the practical validity of our generation-mode formulation, we conduct a set of targeted validation experiments. To examine whether the proposed abstraction is behaviorally meaningful, we directly analyze the internal representations of the target model, Qwen3-VL-8B. Specifically, we collect hidden-state representations from model responses under different in-context configurations and apply dimensionality reduction to obtain a compact representation of the model’s latent behavioral states. We then use expectation-maximization (EM) to fit Gaussian mixture models with varying num-bers of components, where each component represents a candidate dominant generation mode. 5Published as a conference paper at ICLR 2027 Table 1: BIC comparison for latent mixture models with varying numbers of components. # Components BIC ↓
+
+1 (single-mode) 100988.35 2 (two-mode) 96812.74 
+
+3 (three-mode) 100323.18 4 (four-mode) 104936.12 To compare models with different levels of complexity, we use the Bayesian Information Criterion (BIC), which jointly accounts for goodness of fit and the number of model pa-rameters. As shown in Table 1, the two-component model achieves the lowest BIC ( 96812 .74 ), substantially outper-forming the single-component model ( 100988 .35 ) as well as the more complex three- and four-component alterna-tives ( 100323 .18 and 104936 .12 , respectively). This result indicates that a single mode is insufficient to capture the observed behavioral variation, while introducing additional components beyond two does not provide sufficient explana-tory benefit to offset the increased model complexity. These findings provide empirical support for our two-mode abstraction, suggesting that the dominant variation in the model’s internal representations under different in-context configurations can be effectively characterized by two latent behavioral modes. We further evaluate the predictive implications of this formulation in a cross-dataset setting, with detailed results provided in Appendix A.2. 
+
+4 POSTERIOR -A WARE INFERENCE -T IME DEFENSE 
+
+4.1 UNCONDITIONAL INJECTION DEFENSE 
+
+Recall from equation 9, we can find that there are three potential levers for suppressing the harmful-mode posterior: (i) decreasing the prior bias λ, (ii) reducing the number of demonstrations k, (iii) decreasing the average per-demonstration evidence α. Among these, directly modifying λ requires retraining or fine-tuning and is thus beyond inference-time defenses. Reducing k is also undesirable in practice, as limiting the number of in-context demonstrations directly undermines the model’s in-context generalization capability. Therefore, the most practical inference-time lever is to decrease the average per-demonstration evidence. This motivates a posterior-aware inference-time defense that injects benign demonstrations as counter-evidence. Avg. MMBench MMStar MMMU MathVista Hallusion AI2D OCRBench MMVet 
+
+> Models
+> Qwen3-VL-2B Qwen3-VL-4B Qwen3-VL-8B Qwen3-VL-30B-A3B Kimi-VL-A3B MiniGPT-4 LLaVA-2
+> Context
+> Original Context +8 Benign Demos
+
+Figure 2: Impact of unconditional benign demonstration injection on utility, showing consistent degradation across benchmarks. 
+
+Limitation of Unconditional Injection. Although unconditional benign demonstration injection is ef-fective at mitigating ICL jailbreak attacks, its im-pact on model utility remains unclear. We there-fore evaluate the utility of multiple MLLMs across standard benchmarks using OpenCompass (Contrib-utors, 2023), as shown in Figure 2. After injecting eight benign demonstrations, all evaluated models exhibit consistent performance drops on standard util-ity benchmarks, despite the absence of adversarial intent in the inputs. Across models, unconditional benign injection consistently degrades performance, e.g., Q WEN 3-VL-30B-A3B drops from 79 .1 to 76 .8
+
+(average) and 79 .0 to 75 .6 on M ATH VISTA , while QWEN 3-VL-8B declines from 72 .1 to 70 .4 with sim-ilar reductions on MMB ENCH V1.1 and MMS TAR .Even smaller models such as Q WEN 3-VL-2B exhibit noticeable degradation, with the average score decreasing from 59 .2 to 56 .1 and OCRB ENCH dropping from 808 to 770 . These results indicate that indiscriminate benign injection introduces a clear utility trade-off by overloading the context, suggesting that such interventions should be applied selectively rather than uniformly. 4.2 RISK -G ATED INJECTION DEFENSE 
+
+To address the above limitation, we propose an adaptive, posterior-aware inference-time defense that conditions the injection of benign demonstrations on the estimated harmfulness of the input. We introduce a lightweight harmfulness detector that maps a target input xt = ( vt, q t) and context C to a scalar score u(xt, C ) ∈ [0 , 1] , which estimates the probability that the input will induce harmful 6Published as a conference paper at ICLR 2027 behavior. The detector operates independently of the base MLLM and is used solely to estimate relative input risk for gating purposes, without participating in response generation. 
+
+Gated Injection Rule. To determine when benign demonstrations should be injected, we adopt a gated injection rule based on the harmfulness score. Given two thresholds 0 ≤ τℓ < τ u ≤ 1,benign demonstrations are injected only when τℓ ≤ u(xt, C ) ≤ τu. Inputs with u(xt, C ) < τ ℓ are treated as benign and processed without intervention, preserving the original posterior. Inputs with 
+
+u(xt, C ) > τ u are deemed highly harmful and may be directly refused. Thus, benign demonstrations are introduced only in the intermediate, uncertain regime. we append Csafe after the original user-supplied context and immediately before the target query xt. Formally, let Cusr denote the user-supplied context and Csafe the benign demonstrations. The effective context becomes 
+
+C =
+
+Cusr ◦ Csafe , τℓ ≤ u(xt, C usr ) ≤ τu,Cusr , otherwise . (15) 
+
+Learning the Gating Thresholds. In practice, we couple the harmfulness detector with the target MLLM and learn the gating thresholds instead of manually specifying (τℓ, τ u). Given the detector score u(xt, C usr ), we parameterize the thresholds using a lightweight two-layer fully connected network. The gating parameters are trained to optimize a differentiable utility–robustness objective over benign and harmful inputs. Specifically, for benign Q&A data Db, we measure utility using 
+
+Lutil = 1
+
+|D b|
+
+X
+
+> (x,C,y ⋆)∈D b
+
+ℓ fdef (x, C ), y ⋆, (16) where ℓ(·, ·) denotes the cross-entropy loss and fdef is the defended MLLM. For harmful inputs Dh,we encourage safe behavior by minimizing a refusal-oriented loss 
+
+Lrob = 1
+
+|D h|
+
+X
+
+> (x,C )∈D h
+
+ℓ fdef (x, C ), y safe , (17) where ysafe denotes a safe response. The overall training objective is then given by 
+
+Lgate = Lutil + μLrob , (18) where μ balances task utility and robustness. Further discussion on the design choices underlying this objective and the associated robustness–utility trade-offs is provided in Appendix A.3. 
+
+5 EXPERIMENTS 
+
+Detailed experimental setup, including datasets, models, attack configurations, baselines, metrics and harmfulness detector training, is provided in Appendix A.4. 5.1 CONSTRUCTING EFFECTIVE ICL-B ASED JAILBREAKS 
+
+Effect of the Number of Harmful Demonstrations. Table 2 shows that ASR increases monotoni-cally with the number of harmful demonstrations k across all models and attack modalities. Table 2: ASR consistently increases with larger demonstrations k across all evaluated models.                                                                                                                                                                                                                                                                                 
+
+> Attack Type # Demos Qwen3-VL-2B Qwen3-VL-4B Qwen3-VL-8B Qwen3-VL-30B-A3B Kimi-VL-A3B GPT-5.4 Gemini-3.5
+> Image
+> k= 0 38 .17 ±1.80 31 .23 ±2.62 26 .33 ±2.10 22 .84 ±1.74 23 .89 ±1.23 15 .79 ±1.02 19 .68 ±0.88
+> k= 4 54 .87 ±2.97 51 .43 ±2.36 49 .19 ±2.36 45 .93 ±1.23 44 .04 ±2.75 33 .64 ±2.52 39 .34 ±1.48
+> k= 8 67 .61 ±1.49 63 .92 ±1.38 57 .65 ±1.76 51 .87 ±1.93 51 .32 ±1.95 44 .45 ±1.92 47 .09 ±2.56
+> k= 12 72 .76 ±1.42 70 .65 ±1.54 64 .98 ±1.51 63 .40 ±1.49 62 .96 ±2.10 52 .23 ±1.76 55 .51 ±2.38
+> Text
+> k= 0 36 .99 ±2.15 29 .59 ±1.17 21 .49 ±1.91 20 .84 ±1.14 21 .59 ±1.10 10 .81 ±2.13 19 .29 ±2.15
+> k= 4 51 .97 ±2.87 46 .16 ±1.89 43 .51 ±1.45 40 .59 ±2.16 43 .53 ±1.96 29 .17 ±1.31 37 .57 ±1.99
+> k= 8 63 .80 ±1.26 57 .59 ±2.85 53 .08 ±1.69 49 .34 ±2.13 50 .15 ±1.77 35 .69 ±1.98 40 .12 ±2.44
+> k= 12 71 .62 ±1.50 63 .11 ±2.55 61 .66 ±2.09 60 .26 ±2.12 61 .69 ±2.25 46 .89 ±2.48 50 .51 ±3.15
+> Mixed
+> k= 0 42 .29 ±1.65 40 .15 ±1.71 35 .38 ±1.07 27 .82 ±1.36 27 .31 ±1.58 21 .07 ±1.56 24 .60 ±2.59
+> k= 4 58 .17 ±2.11 54 .84 ±1.85 52 .60 ±2.11 46 .31 ±1.40 45 .49 ±2.50 38 .18 ±1.23 41 .46 ±3.28
+> k= 8 68 .69 ±2.44 65 .50 ±1.40 58 .53 ±1.31 53 .51 ±2.34 52 .96 ±2.36 48 .41 ±2.71 50 .24 ±2.87
+> k= 12 73 .18 ±1.32 70 .17 ±1.64 69 .02 ±1.16 64 .91 ±2.02 63 .89 ±1.87 53 .38 ±2.00 56 .93 ±1.52
+
+7Published as a conference paper at ICLR 2027 
+
+Effect of the Harmful Demonstration Ratio. Table 3 shows that ASR increases monotonically with the harmful demonstration ratio r across all models and attack modalities. This consistent scaling behavior indicates that context composition acts as the primary control variable, where increasing 
+
+r shifts the posterior toward the harmful generation mode via likelihood ratio accumulation, while benign demonstrations serve as counter-evidence that suppresses this shift. Table 3: ASR increases monotonically with higher harmful demonstration ratio r.
+
+Attack Type Ratio Qwen3-VL-2B Qwen3-VL-4B Qwen3-VL-8B Qwen3-VL-30B-A3B Kimi-VL-A3B GPT-5.4 Gemini-3.5 
+
+Image 
+
+r = 25% 38 .74 ± 1.80 32 .62 ± 2.62 27 .11 ± 2.10 21 .17 ± 1.74 23 .19 ± 1.23 16 .57 ± 1.02 19 .25 ± 0.88 
+
+r = 50% 51 .84 ± 2.97 46 .26 ± 2.36 40 .81 ± 2.36 37 .76 ± 0.93 39 .45 ± 2.45 30 .63 ± 2.52 35 .11 ± 1.48 
+
+r = 75% 59 .29 ± 1.81 54 .89 ± 1.69 52 .37 ± 1.76 49 .63 ± 1.93 42 .51 ± 1.95 36 .24 ± 1.60 39 .55 ± 2.20 
+
+r = 100% 67 .61 ± 1.49 63 .92 ± 1.38 57 .65 ± 1.76 51 .87 ± 1.93 51 .32 ± 1.95 44 .45 ± 1.92 47 .09 ± 2.56 
+
+Text 
+
+r = 25% 34 .88 ± 2.15 30 .85 ± 1.17 25 .79 ± 1.91 19 .26 ± 0.79 19 .76 ± 0.78 12 .17 ± 2.13 16 .54 ± 2.15 
+
+r = 50% 47 .95 ± 2.87 43 .79 ± 1.89 38 .53 ± 1.15 33 .90 ± 1.86 35 .52 ± 1.66 28 .57 ± 1.31 30 .12 ± 1.99 
+
+r = 75% 57 .79 ± 1.56 53 .90 ± 2.85 50 .33 ± 1.69 47 .19 ± 2.13 41 .74 ± 1.77 34 .79 ± 1.98 36 .09 ± 2.08 
+
+r = 100% 63 .80 ± 1.26 57 .59 ± 2.85 53 .08 ± 1.69 49 .34 ± 2.13 50 .15 ± 1.77 35 .69 ± 1.98 40 .12 ± 2.44 
+
+Mixed 
+
+r = 25% 39 .54 ± 1.34 35 .76 ± 1.41 29 .39 ± 1.07 22 .87 ± 1.36 26 .71 ± 1.58 17 .12 ± 1.18 20 .71 ± 2.59 
+
+r = 50% 52 .31 ± 2.11 49 .48 ± 1.85 41 .71 ± 2.11 38 .36 ± 1.10 39 .23 ± 2.20 31 .85 ± 1.23 39 .80 ± 2.88 
+
+r = 75% 60 .82 ± 2.44 57 .14 ± 1.72 56 .97 ± 1.31 51 .85 ± 2.34 44 .91 ± 2.36 38 .56 ± 2.34 44 .69 ± 2.87 
+
+r = 100% 68 .69 ± 2.44 65 .50 ± 1.40 58 .53 ± 1.31 53 .51 ± 2.34 52 .96 ± 2.36 48 .41 ± 2.71 50 .24 ± 2.87 
+
+Effect of Demonstration Harmfulness Strength. Table 4 shows that ASR increases monotonically with attack strength across all modalities. This trend is consistent with our theory, where stronger demonstrations provide larger evidence, accelerating posterior reweighting toward the harmful mode. Table 4: ASR consistently increases with perturbation strength across attack modalities and models. 
+
+Attack Type Strength Qwen3-VL-2B Qwen3-VL-4B Qwen3-VL-8B Qwen3-VL-30B-A3B Kimi-VL-A3B GPT-5.4 Gemini-3.5 
+
+Image 
+
+ϵi = 8 /255 54 .54 ± 2.14 52 .58 ± 2.92 49 .13 ± 2.40 43 .91 ± 2.04 44 .80 ± 1.53 39 .93 ± 1.37 41 .68 ± 1.51 
+
+ϵi = 16 /255 67 .61 ± 1.49 63 .92 ± 1.38 57 .65 ± 1.76 51 .87 ± 1.93 51 .32 ± 1.95 44 .45 ± 1.92 47 .09 ± 2.56 
+
+ϵi = 32 /255 70 .34 ± 1.49 69 .84 ± 1.38 66 .12 ± 1.43 61 .98 ± 1.58 63 .39 ± 1.60 49 .23 ± 1.92 53 .79 ± 2.56 
+
+ϵi = 64 /255 74 .24 ± 1.42 72 .94 ± 1.54 69 .83 ± 1.51 67 .01 ± 1.49 68 .53 ± 2.10 53 .65 ± 1.76 58 .12 ± 2.38 
+
+Text 
+
+ϵt = 0 .05 51 .71 ± 2.51 51 .56 ± 1.47 46 .69 ± 2.21 39 .86 ± 1.14 41 .98 ± 1.40 34 .56 ± 2.71 37 .63 ± 2.84 
+
+ϵt = 0 .1 63 .80 ± 1.26 57 .59 ± 2.85 53 .08 ± 1.69 49 .34 ± 2.13 50 .15 ± 1.77 35 .69 ± 1.98 40 .12 ± 2.44 
+
+ϵt = 0 .2 68 .42 ± 1.26 66 .12 ± 2.46 62 .26 ± 1.36 58 .53 ± 2.13 62 .90 ± 1.44 46 .52 ± 2.34 49 .82 ± 2.44 
+
+ϵt = 0 .4 73 .43 ± 1.50 71 .78 ± 2.55 68 .79 ± 2.09 62 .25 ± 2.12 64 .53 ± 2.25 51 .62 ± 2.48 54 .23 ± 3.15 
+
+Mixed Low 59 .85 ± 1.65 56 .59 ± 1.71 53 .68 ± 1.37 46 .88 ± 1.66 45 .39 ± 1.88 40 .76 ± 1.89 41 .87 ± 2.97 
+
+Medium 68 .69 ± 2.44 65 .50 ± 1.40 58 .53 ± 1.31 53 .51 ± 2.34 52 .96 ± 2.36 48 .41 ± 2.71 50 .24 ± 2.87 
+
+High 73 .15 ± 2.44 71 .06 ± 1.40 68 .87 ± 1.01 63 .98 ± 1.96 65 .71 ± 1.99 50 .44 ± 2.71 54 .57 ± 2.87 
+
+Very High 75 .18 ± 1.32 73 .67 ± 1.64 70 .42 ± 1.16 68 .92 ± 2.02 69 .51 ± 1.87 54 .82 ± 2.00 58 .76 ± 1.52 
+
+Effect of Semantic Diversity. ASR increases monotonically with the number of harmful cate-gories m across all modalities. This indicates that semantically diverse demonstrations contribute complementary evidence, leading to more effective reinforcement of the harmful posterior. Table 5: ASR increases consistently with larger m across all evaluated models. 
+
+Attack Type m Qwen3-VL-2B Qwen3-VL-4B Qwen3-VL-8B Qwen3-VL-30B-A3B Kimi-VL-A3B GPT-5.4 Gemini-3.5 
+
+Image 
+
+m = 1 57 .62 ± 2.14 54 .66 ± 2.92 46 .44 ± 2.40 40 .97 ± 2.04 39 .54 ± 1.23 30 .97 ± 1.37 31 .19 ± 1.20 
+
+m = 2 61 .78 ± 2.59 57 .52 ± 2.36 54 .67 ± 2.36 48 .74 ± 1.23 49 .17 ± 2.75 36 .75 ± 2.52 38 .52 ± 1.48 
+
+m = 4 67 .61 ± 1.49 63 .92 ± 1.38 57 .65 ± 1.76 51 .87 ± 1.93 51 .32 ± 1.95 44 .45 ± 1.92 47 .09 ± 2.56 
+
+m = 8 70 .56 ± 1.42 66 .22 ± 1.54 61 .96 ± 1.51 54 .62 ± 1.84 53 .25 ± 2.48 46 .09 ± 1.76 48 .53 ± 2.38 
+
+Text 
+
+m = 1 54 .51 ± 2.51 51 .69 ± 1.47 43 .50 ± 2.21 36 .12 ± 1.14 38 .32 ± 1.10 26 .15 ± 2.71 27 .54 ± 2.84 
+
+m = 2 58 .62 ± 2.87 53 .98 ± 1.89 49 .54 ± 1.45 44 .57 ± 2.16 44 .39 ± 1.96 31 .25 ± 1.31 37 .21 ± 1.99 
+
+m = 4 63 .80 ± 1.26 57 .59 ± 2.85 53 .08 ± 1.69 49 .34 ± 2.13 50 .15 ± 1.77 35 .69 ± 1.98 40 .12 ± 2.44 
+
+m = 8 67 .91 ± 1.50 64 .46 ± 2.55 58 .56 ± 2.46 52 .76 ± 2.52 52 .39 ± 2.64 41 .92 ± 2.48 43 .69 ± 3.15 
+
+Mixed 
+
+m = 1 58 .52 ± 1.65 56 .11 ± 1.71 49 .35 ± 1.37 41 .74 ± 1.66 43 .47 ± 1.88 31 .65 ± 1.56 34 .45 ± 2.59 
+
+m = 2 62 .42 ± 1.77 58 .78 ± 1.85 55 .36 ± 2.11 50 .83 ± 1.40 50 .44 ± 2.50 39 .30 ± 1.23 42 .03 ± 3.28 
+
+m = 4 68 .69 ± 2.44 65 .50 ± 1.40 58 .53 ± 1.31 53 .51 ± 2.34 52 .96 ± 2.36 48 .41 ± 2.71 50 .24 ± 2.87 
+
+m = 8 71 .82 ± 1.32 68 .87 ± 1.64 62 .79 ± 1.16 58 .08 ± 2.41 57 .94 ± 2.23 49 .93 ± 2.00 51 .67 ± 1.52 
+
+Multi-turn Jailbreak. We construct a multi-turn variant of the single-turn setting by distributing an identical set of in-context demonstrations across dialogue turns. As shown in Table 6, results on Qwen3-VL-8B exhibit the same monotonic scaling behavior as in the single-turn setting. This indicates that posterior reweighting depends on accumulated evidence rather than its temporal placement, and thus persists under multi-turn context construction. Additional results on other MLLMs are provided in Appendix A.5. 8Published as a conference paper at ICLR 2027 Table 6: Multi-turn jailbreak results on Qwen3-VL-8B.                                                                       
+
+> (a) Number of Harmful Demonstrations k(b) Harmful Demonstration Ratio r
+> Modality 12480.25 0.50 0.75 1.00 Image 24 .02 ±1.82 29 .03 ±1.28 47 .13 ±2.75 52 .24 ±2.46 24 .65 ±2.41 37 .91 ±2.34 46 .59 ±2.20 52 .24 ±2.46
+> Text 23 .74 ±1.13 28 .77 ±1.29 38 .18 ±1.07 47 .13 ±1.79 24 .55 ±1.58 33 .60 ±1.41 43 .42 ±2.54 47 .13 ±1.79
+> Mixed 29 .02 ±1.42 35 .77 ±1.81 45 .95 ±1.51 54 .41 ±2.50 25 .74 ±1.11 35 .81 ±2.48 53 .49 ±2.46 54 .41 ±2.50
+> (c) Demonstration Harmfulness Strength ϵ(d) Semantic Diversity m
+> Modality Low Medium High Very High 1248Image 45 .58 ±1.31 52 .24 ±2.46 57 .78 ±2.36 60 .62 ±2.02 42 .58 ±2.46 48 .21 ±1.41 52 .24 ±2.46 58 .00 ±1.47
+> Text 40 .63 ±2.59 47 .13 ±1.79 55 .38 ±1.80 61 .08 ±1.09 40 .33 ±1.77 45 .33 ±1.79 47 .13 ±1.79 52 .15 ±2.26
+> Mixed 46 .72 ±2.63 54 .41 ±2.50 59 .24 ±1.17 63 .21 ±2.00 42 .25 ±2.44 52 .87 ±2.14 54 .41 ±2.50 57 .62 ±2.04
+
+5.2 DEFENSE EVALUATION ACROSS MULTIPLE DATASETS 
+
+To evaluate the effectiveness of the proposed gated defense across different datasets, we focus on Qwen3-VL-8B and assess its robustness and utility. Importantly, the same detector and learned thresholds are used across all benchmarks without any dataset-specific tuning. Quantitative results are summarized in Table 7, with additional cross-model results reported in Appendix A.6. We further evaluate the defense against the structure-based FigStep attack in Appendix A.7 to assess its generalization beyond perturbation-based jailbreaks. Table 7: Cross-dataset defense evaluation of different defense methods on Qwen3-VL-8B. 
+
+Defense Method SafetyBench AdvBench JailbreakBench Utility Image Text Mixed Image Text Mixed Image Text Mixed 
+
+No Defense 57 .65 53 .08 58 .53 57 .11 54 .67 62 .58 59 .19 56 .81 65 .02 72 .1
+
+ICD 42 .99 41 .00 46 .98 48 .15 45 .93 52 .63 50 .05 48 .15 55 .49 71 .6
+
+Uncond. Benign 38 .10 36 .47 42 .00 43 .08 41 .32 47 .48 45 .43 43 .78 50 .52 70 .3
+
+AdaShield 36 .38 34 .80 39 .98 40 .82 39 .41 45 .46 43 .26 42 .03 48 .58 70 .8
+
+ECSO 31 .31 29 .88 34 .16 35 .21 34 .01 39 .39 37 .74 36 .79 42 .84 69 .7
+
+Ours 25 .61 24 .39 28 .00 29 .32 28 .53 33 .06 33 .03 32 .34 37 .36 71 .5
+
+5.3 EFFECT OF THE TRADE -OFF PARAMETER μ
+
+The parameter μ controls the utility–robustness trade-off in the gating objective. As shown in Table 8, increasing μ consistently reduces ASR across image, text, and mixed attacks, while utility remains largely stable up to μ = 0 .7. We therefore set μ = 0 .7 by default as a favorable balance between robustness and utility; additional results on detector, robustness under adaptive attacks, and inference latency overhead are provided in Appendix A.9, Appendix A.10, and Appendix A.11, respectively. Table 8: Effect of μ on ASR (%) and utility across attack modalities. 
+
+Model Attack μ = 0 .3 μ = 0 .5 μ = 0 .7 μ = 1 .0
+
+ASR ↓ Utility ↑ ASR ↓ Utility ↑ ASR ↓ Utility ↑ ASR ↓ Utility ↑
+
+Qwen3-VL-8B Image 29 .95 71 .8 27 .33 71 .7 25 .61 71 .5 23 .80 70 .1
+
+Text 27 .97 71 .8 25 .42 71 .7 24 .39 71 .5 22 .09 70 .1
+
+Mixed 31 .88 71 .8 28 .76 71 .7 28 .00 71 .5 24 .71 70 .1
+
+6 CONCLUSION 
+
+We propose a posterior reweighting framework that explains in-context multimodal jailbreaks as posterior shifts between latent safe and harmful generation modes. This perspective unifies diverse empirical observations and shows that jailbreak effectiveness follows predictable scaling laws. Build-ing on this mechanism, we develop a posterior-aware inference-time defense that injects benign demonstrations as counter-evidence, consistently improving the robustness–utility trade-off across multiple datasets and models without retraining. Nevertheless, highly diverse harmful contexts and stronger adaptive attacks remain challenging for inference-time safety control. 9Published as a conference paper at ICLR 2027 AI USE STATEMENT 
+
+Generative AI tools were used solely to improve the readability, grammar, and linguistic clarity of the manuscript. They were not used to develop the theoretical framework, formulate mathematical claims, design experiments, implement methods, analyze data, or interpret experimental results. All AI-assisted edits were reviewed and verified by the authors, who take full responsibility for the final content of the paper. ETHICS STATEMENT 
+
+This work investigates jailbreak vulnerabilities in safety-aligned LLMs and MLLMs for the purpose of improving model safety. Because the study involves harmful prompts and adversarial inputs, it carries potential dual-use risks; we therefore restrict our evaluation to controlled benchmark settings and focus on defensive analysis and mitigation. All experiments use publicly available datasets or model-generated inputs, involve no human subjects or personally identifiable information, and do not require the collection of sensitive user data. The proposed method is intended solely to improve robustness against harmful in-context attacks while preserving benign model utility. REPRODUCIBILITY STATEMENT 
+
+We provide detailed experimental settings in Appendix A.4, including datasets, models, attack configurations, defense baselines, evaluation metrics, harmfulness detector training, and gating procedures. The appendix also contains additional ablations, robustness evaluations, and complete derivations of the theoretical results. These details are provided to facilitate independent reproduction of the reported results. Anonymous source code will be provided with the submission. 
+
+REFERENCES 
+
+Ekin Akyürek, Dale Schuurmans, Jacob Andreas, Tengyu Ma, and Denny Zhou. What learning algo-rithm is in-context learning? investigations with linear models. arXiv preprint arXiv:2211.15661 ,2022. Eugene Bagdasaryan, Tsung-Yin Hsieh, Ben Nassi, and Vitaly Shmatikov. Abusing images and sounds for indirect instruction injection in multi-modal llms, 2023. URL https://arxiv. org/abs/2307.10490 .Tom B. Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, Sandhini Agarwal, Ariel Herbert-Voss, Gretchen Krueger, Tom Henighan, Rewon Child, Aditya Ramesh, Daniel M. Ziegler, Jeffrey Wu, Clemens Winter, Christopher Hesse, Mark Chen, Eric Sigler, Mateusz Litwin, Scott Gray, Benjamin Chess, Jack Clark, Christopher Berner, Sam McCandlish, Alec Radford, Ilya Sutskever, and Dario Amodei. Language models are few-shot learners, 2020. URL https: //arxiv.org/abs/2005.14165 .Nicholas Carlini, Milad Nasr, Christopher A. Choquette-Choo, Matthew Jagielski, Irena Gao, Pang Wei W Koh, Daphne Ippolito, Florian Tramer, and Ludwig Schmidt. Are aligned neural networks adversarially aligned? In A. Oh, T. Naumann, A. Globerson, K. Saenko, M. Hardt, and S. Levine (eds.), Advances in Neural Information Processing Systems , volume 36, pp. 61478–61500. Curran Associates, Inc., 2023. Patrick Chao, Edoardo Debenedetti, Alexander Robey, Maksym Andriushchenko, Francesco Croce, Vikash Sehwag, Edgar Dobriban, Nicolas Flammarion, George J. Pappas, Florian Tramèr, Hamed Hassani, and Eric Wong. Jailbreakbench: An open robustness benchmark for jailbreaking large language models. In NeurIPS Datasets and Benchmarks Track , 2024. Lin Chen, Jinsong Li, Xiaoyi Dong, Pan Zhang, Yuhang Zang, Zehui Chen, Haodong Duan, Jiaqi Wang, Yu Qiao, Dahua Lin, et al. Are we on the right way for evaluating large vision-language models? arXiv preprint arXiv:2403.20330 , 2024a. 10 Published as a conference paper at ICLR 2027 Yangyi Chen, Karan Sikka, Michael Cogswell, Heng Ji, and Ajay Divakaran. Dress: Instructing large vision-language models to align and interact with humans via natural language feedback. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) ,pp. 14239–14250, June 2024b. OpenCompass Contributors. Opencompass: A universal evaluation platform for foundation models. 
+
+https://github.com/open-compass/opencompass , 2023. Yichen Gong, Delong Ran, Jinyuan Liu, Conglei Wang, Tianshuo Cong, Anyu Wang, Sisi Duan, and Xiaoyun Wang. Figstep: Jailbreaking large vision-language models via typographic visual prompts. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 39, pp. 23951–23959, 2025. Google DeepMind. Gemini 3.5 flash. Model Card, May 2026. URL https://deepmind. google/models/model-cards/gemini-3-5-flash/ . Published May 19, 2026. Yunhao Gou, Kai Chen, Zhili Liu, Lanqing Hong, Hang Xu, Zhenguo Li, Dit-Yan Yeung, James T Kwok, and Yu Zhang. Eyes closed, safety on: Protecting multimodal llms via image-to-text transformation. In European Conference on Computer Vision , pp. 388–404. Springer, 2024. Tianrui Guan, Fuxiao Liu, Xiyang Wu, Ruiqi Xian, Zongxia Li, Xiaoyu Liu, Xijun Wang, Lichang Chen, Furong Huang, Yaser Yacoob, et al. Hallusionbench: an advanced diagnostic suite for entan-gled language hallucination and visual illusion in large vision-language models. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 14375–14385, 2024. Xingang Guo, Fangxu Yu, Huan Zhang, Lianhui Qin, and Bin Hu. Cold-attack: Jailbreaking llms with stealthiness and controllability, 2024. URL https://arxiv.org/abs/2402.08679 .Kazuki Irie, Róbert Csordás, and Jürgen Schmidhuber. The dual form of neural networks revisited: Connecting test time predictions to training patterns via spotlights of attention. In International Conference on Machine Learning , pp. 9639–9659. PMLR, 2022. Hui Jiang. A latent space theory for emergent abilities in large language models. arXiv preprint arXiv:2304.09960 , 2023. Aniruddha Kembhavi, Mike Salvato, Eric Kolve, Minjoon Seo, Hannaneh Hajishirzi, and Ali Farhadi. A diagram is worth a dozen images. In European conference on computer vision , pp. 235–251. Springer, 2016. Mukai Li, Lei Li, Yuwei Yin, Masood Ahmed, Zhenguang Liu, and Qi Liu. Red teaming visual language models, 2024. URL https://arxiv.org/abs/2401.12915 .Haotian Liu, Chunyuan Li, Qingyang Wu, and Yong Jae Lee. Visual instruction tuning. Advances in neural information processing systems , 36:34892–34916, 2023. Xiaogeng Liu, Nan Xu, Muhao Chen, and Chaowei Xiao. Autodan: Generating stealthy jailbreak prompts on aligned large language models, 2024a. URL https://arxiv.org/abs/2310. 04451 .Xin Liu, Yichen Zhu, Jindong Gu, Yunshi Lan, Chao Yang, and Yu Qiao. Mm-safetybench: A benchmark for safety evaluation of multimodal large language models. In European Conference on Computer Vision , pp. 386–403. Springer, 2024b. Yuan Liu, Haodong Duan, Yuanhan Zhang, Bo Li, Songyang Zhang, Wangbo Zhao, Yike Yuan, Jiaqi Wang, Conghui He, Ziwei Liu, et al. Mmbench: Is your multi-modal model an all-around player? In European conference on computer vision , pp. 216–233. Springer, 2024c. Yuliang Liu, Zhang Li, Mingxin Huang, Biao Yang, Wenwen Yu, Chunyuan Li, Xu-Cheng Yin, Cheng-Lin Liu, Lianwen Jin, and Xiang Bai. Ocrbench: on the hidden mystery of ocr in large multimodal models. Science China Information Sciences , 67(12):220102, 2024d. Pan Lu, Hritik Bansal, Tony Xia, Jiacheng Liu, Chunyuan Li, Hannaneh Hajishirzi, Hao Cheng, Kai-Wei Chang, Michel Galley, and Jianfeng Gao. Mathvista: Evaluating mathematical reasoning of foundation models in visual contexts. In International Conference on Learning Representations (ICLR) , 2024. 11 Published as a conference paper at ICLR 2027 Siyuan Ma, Weidi Luo, Yu Wang, and Xiaogeng Liu. Visual-roleplay: Universal jailbreak at-tack on multimodal large language models via role-playing image character. arXiv preprint arXiv:2405.20773 , 2024. Kenneth Marino, Mohammad Rastegari, Ali Farhadi, and Roozbeh Mottaghi. Ok-vqa: A visual question answering benchmark requiring external knowledge. In Conference on Computer Vision and Pattern Recognition (CVPR) , 2019. Catherine Olsson, Nelson Elhage, Neel Nanda, Nicholas Joseph, Nova DasSarma, Tom Henighan, Ben Mann, Amanda Askell, Yuntao Bai, Anna Chen, et al. In-context learning and induction heads. 
+
+arXiv preprint arXiv:2209.11895 , 2022. OpenAI. Gpt-5. https://openai.com/gpt-5/ , 2026. Proprietary large language model description; accessed January 26, 2026. OpenAI and Josh Achiam. et al. Gpt-4 technical report, 2024. URL https://arxiv.org/abs/ 2303.08774 .Madhur Panwar, Kabir Ahuja, and Navin Goyal. In-context learning through the bayesian prism. 
+
+arXiv preprint arXiv:2306.04891 , 2023. Renjie Pi, Tianyang Han, Jianshu Zhang, Yueqi Xie, Rui Pan, Qing Lian, Hanze Dong, Jipeng Zhang, and Tong Zhang. Mllm-protector: Ensuring mllm’s safety without hurting performance, 2024. URL https://arxiv.org/abs/2401.02906 .Xiangyu Qi, Kaixuan Huang, Ashwinee Panda, Peter Henderson, Mengdi Wang, and Prateek Mittal. Visual adversarial examples jailbreak aligned large language models. In Proceedings of the AAAI conference on artificial intelligence , volume 38, pp. 21527–21536, 2024. Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual models from natural language supervision. In International conference on machine learning , pp. 8748–8763. PmLR, 2021. Robin Rombach, Andreas Blattmann, Dominik Lorenz, Patrick Esser, and Björn Ommer. High-resolution image synthesis with latent diffusion models. In Proceedings of the IEEE/CVF Confer-ence on Computer Vision and Pattern Recognition (CVPR) , pp. 10684–10695, June 2022. Kimi Team, Angang Du, Bohong Yin, Bowei Xing, Bowen Qu, Bowen Wang, Cheng Chen, Chenlin Zhang, Chenzhuang Du, Chu Wei, et al. Kimi-vl technical report. arXiv preprint arXiv:2504.07491 ,2025. Qwen Team. Qwen3 technical report, 2025. URL https://arxiv.org/abs/2505.09388 .Xinyi Wang, Wanrong Zhu, Michael Saxon, Mark Steyvers, and William Yang Wang. Large language models are latent variable models: Explaining and finding good demonstrations for in-context learning. Advances in Neural Information Processing Systems , 36:15614–15638, 2023. Yu Wang, Xiaogeng Liu, Yu Li, Muhao Chen, and Chaowei Xiao. Adashield: Safeguarding mul-timodal large language models from structure-based attack via adaptive shield prompting. In 
+
+European Conference on Computer Vision , pp. 77–94. Springer, 2024. Zeming Wei, Yifei Wang, Ang Li, Yichuan Mo, and Yisen Wang. Jailbreak and guard aligned language models with only few in-context demonstrations. arXiv preprint arXiv:2310.06387 , 2023. Noam Wies, Yoav Levine, and Amnon Shashua. The learnability of in-context learning. Advances in Neural Information Processing Systems , 36:36637–36651, 2023. Yotam Wolf, Noam Wies, Oshri Avnery, Yoav Levine, and Amnon Shashua. Fundamental limitations of alignment in large language models. arXiv preprint arXiv:2304.11082 , 2023. Sang Michael Xie, Aditi Raghunathan, Percy Liang, and Tengyu Ma. An explanation of in-context learning as implicit bayesian inference. arXiv preprint arXiv:2111.02080 , 2021. 12 Published as a conference paper at ICLR 2027 Zhiyu Xue, Guangliang Liu, Bocheng Chen, Kristen Marie Johnson, and Ramtin Pedarsani. No free lunch for defending against prefilling attack by in-context learning. arXiv preprint arXiv:2412.12192 , 2024. Ziyi Yin, Muchao Ye, Tianrong Zhang, Tianyu Du, Jinguo Zhu, Han Liu, Jinghui Chen, Ting Wang, and Fenglong Ma. Vlattack: Multimodal adversarial attacks on vision-language tasks via pre-trained models. In A. Oh, T. Naumann, A. Globerson, K. Saenko, M. Hardt, and S. Levine (eds.), Advances in Neural Information Processing Systems , volume 36, pp. 52936–52956. Curran Associates, Inc., 2023. Jiahao Yu, Xingwei Lin, Zheng Yu, and Xinyu Xing. Gptfuzzer: Red teaming large language models with auto-generated jailbreak prompts, 2024a. URL https://arxiv.org/abs/ 2309.10253 .Weihao Yu, Zhengyuan Yang, Linjie Li, Jianfeng Wang, Kevin Lin, Zicheng Liu, Xinchao Wang, and Lijuan Wang. Mm-vet: Evaluating large multimodal models for integrated capabilities. In 
+
+International conference on machine learning . PMLR, 2024b. Xiang Yue, Yuansheng Ni, Kai Zhang, Tianyu Zheng, Ruoqi Liu, Ge Zhang, Samuel Stevens, Dongfu Jiang, Weiming Ren, Yuxuan Sun, Cong Wei, Botao Yu, Ruibin Yuan, Renliang Sun, Ming Yin, Boyuan Zheng, Zhenzhu Yang, Yibo Liu, Wenhao Huang, Huan Sun, Yu Su, and Wenhu Chen. Mmmu: A massive multi-discipline multimodal understanding and reasoning benchmark for expert agi. In Proceedings of CVPR , 2024. Zhexin Zhang, Leqi Lei, Lindong Wu, Rui Sun, Yongkang Huang, Chong Long, Xiao Liu, Xuanyu Lei, Jie Tang, and Minlie Huang. Safetybench: Evaluating the safety of large language models. In 
+
+Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pp. 15537–15553, 2024. Deyao Zhu, Jun Chen, Xiaoqian Shen, Xiang Li, and Mohamed Elhoseiny. Minigpt-4: En-hancing vision-language understanding with advanced large language models. arXiv preprint arXiv:2304.10592 , 2023. Andy Zou, Zifan Wang, Nicholas Carlini, Milad Nasr, J Zico Kolter, and Matt Fredrikson. Universal and transferable adversarial attacks on aligned language models. arXiv preprint arXiv:2307.15043 ,2023. 
+
+A APPENDIX 
+
+A.1 PROOFS OF THEORETICAL RESULTS 
+
+Mode Harmfulness Coupling Assumption. We assume that the harmful and safe latent modes induce different propensities for generating harmful outputs. Specifically, there exist constants 
+
+ph > p s such that for any target input xt,
+
+(Pr  H(yt) = 1 | xt, Z = h = ph,
+
+Pr  H(yt) = 1 | xt, Z = s = ps. (19) Assume that each benign demonstration (xj , y j ) ∈ C satisfies 
+
+Ph(yj | xj )
+
+Ps(yj | xj ) = ρj < 1, (20) which means that the demonstrated response yj is more likely under the safe mode than under the harmful mode. Intuitively, a benign demonstration provides evidence that is aligned with safety objectives and therefore downweights the posterior probability of the harmful mode. 
+
+Proof of Proposition 1. By the law of total probability over the latent mode Z, we have 
+
+Pr  H(yt) = 1 | C, x t
+
+ = X
+
+> z∈{ h,s }
+
+Pr  H(yt) = 1 | xt, Z = z Pr( Z = z | C). (21) 13 Published as a conference paper at ICLR 2027 Under Assumption equation 19, the two conditional terms satisfy 
+
+Pr  H(yt) = 1 | xt, Z = h = ph, Pr  H(yt) = 1 | xt, Z = s = ps. (22) Substituting these bounds yields 
+
+Pr  H(yt) = 1 | C, x t
+
+ = ph Pr( Z = h | C) + ps Pr( Z = s | C) = ps + ( ph − ps) Pr( Z = h | C),
+
+which completes the proof. 
+
+Derivation of the Posterior Probability. From equation 7, define the posterior log-odds as 
+
+L(C) ≜ log Pr( Z = h | C)Pr( Z = s | C) = log λ 
+
+> 1−λ
+
++
+
+> k
+
+X
+
+> i=1
+
+log P (di | C<i , Z = h)
+
+P (di | C<i , Z = s) . (23) Since Pr( Z = s | C) = 1 − Pr( Z = h | C), we have 
+
+L(C) = log Pr( Z = h | C)1 − Pr( Z = h | C) . (24) Exponentiating both sides gives 
+
+exp( L(C)) = Pr( Z = h | C)1 − Pr( Z = h | C) . (25) Solving for Pr( Z = h | C) yields 
+
+Pr( Z = h | C) = exp( L(C)) 1 + exp( L(C)) = σ(L(C)) , (26) where σ(t) = 1 /(1 + e−t) is the logistic sigmoid function. A.2 QUANTITATIVE VALIDATION OF THE PREDICTED SCALING LAW 
+
+Table 9: Out-of-sample prediction perfor-mance of the fitted sigmoid scaling law on the held-out validation set. 
+
+Modality RMSE (%) ↓ MAE (%) ↓
+
+Image 3.73 3.45 
+
+Text 3.47 3.05 
+
+Mixed 3.40 2.71 
+
+Overall 3.54 3.07 
+
+To quantitatively validate the scaling behavior pre-dicted by our posterior-reweighting framework, we evaluate whether the combined effect of different contextual factors can predict jailbreak success on configurations that are not used for fitting . Specif-ically, we divide the empirical measurements into two disjoint subsets: a calibration subset used only to estimate the scaling-law parameters and a sepa-rate held-out validation subset used exclusively for evaluating predictive accuracy. No measurements from the held-out subset are used during parameter estimation. Using only the calibration subset, we fit the logistic model 
+
+Pjs (C) = σ(a + b k h + c r + d ϵ + e m ) , (27) where Pjs (C) denotes the predicted jailbreak success probability, kh is the number of harmful demonstrations, r is the harmful demonstration ratio, ϵ denotes adversarial strength, m is the number of distinct harmful categories, and σ(·) is the logistic function. The parameters (a, b, c, d, e ) are estimated exclusively from the calibration measurements via logistic regression. After fitting, these parameters are fixed and directly applied to the disjoint held-out configurations to predict their ASRs. As shown in Fig. 3, ASRs measured on the held-out configurations closely follow the sigmoid relationship predicted from the calibration subset over a broad range of evidence scores, with consistent behavior across image, text, and mixed-modal attacks. Importantly, all reported prediction errors are computed exclusively on the held-out validation subset rather than on the measurements used to estimate the model parameters. As summarized in Table 9, the resulting out-of-sample predictions achieve an overall RMSE of 3.54% and an MAE of 3.07% , with similarly low prediction errors across all three attack modalities. These results show that a scaling law calibrated from only a subset of observations can accurately predict jailbreak success under previously unseen contextual configurations. This out-of-sample agreement provides quantitative evidence for the posterior-reweighting scaling law, beyond merely describing monotonic trends in the observed data. 14 Published as a conference paper at ICLR 2027 1.0 0.5 0.0 0.5 1.0 
+
+> Fitted log-odds / evidence score
+> 020 40 60 80 100
+> Attack Success Rate (ASR, %)
+> Fitted sigmoid Image (measured) Text (measured) Mixed (measured)
+
+Figure 3: Out-of-sample validation of the predicted sigmoid scaling law. The logistic model is fitted only on the calibration subset, after which its parameters are fixed. Measured ASRs from the disjoint held-out validation subset under image, text, and mixed-modal jailbreak configurations are plotted against their predicted log-odds evidence scores. The close agreement with the predicted sigmoid curve therefore reflects generalization to unseen measurements rather than in-sample fitting. A.3 DESIGN CONSIDERATIONS 
+
+We address two key design considerations regarding our defense below. 
+
+(1) Preserving in-context generalization. A seemingly straightforward use of the harmfulness detector would be to remove or filter out harmful demonstrations from the context based on their predicted scores. However, one of the primary design goals of our defense is to preserve the in-context generalization capability of MLLMs. Directly modifying or deleting user-supplied context risks disrupting the semantic structure of the prompt and degrading model utility. For this reason, our defense does not alter the original user-provided context, but instead introduces benign demonstrations as posterior counter-evidence only when necessary. 
+
+(2) Limitations under high semantic diversity. Our defense may become less effective when harmful demonstrations exhibit high semantic diversity. In such cases, injecting a fixed set of benign demonstrations may not provide sufficiently targeted counter-evidence. A possible mitigation is category-aware benign injection, which would require a finer-grained semantic classification of harmfulness and adaptive selection of benign demonstrations. However, we do not adopt this strategy, as it substantially increases detector complexity and training cost. The remaining vulnerability under high semantic diversity reflects an inherent efficiency–robustness trade-off in our design: we prioritize lightweight, practical defense over fully adaptive but significantly more expensive alternatives. A.4 EXPERIMENTAL SETUP 
+
+Datasets. We evaluate standard MLLM utility using OpenCompass (Contributors, 2023), an open-source evaluation framework that provides unified access to a wide range of multimodal benchmarks under standardized prompting, decoding, and scoring configurations. In our experiments, OpenCom-pass is used to report both per-benchmark performance and an aggregated average score including MMBench V1.1 (Liu et al., 2024c), MMStar (Chen et al., 2024a), MMMU (Yue et al., 2024), MathVista (Lu et al., 2024), HallusionBench (Avg.) (Guan et al., 2024), AI2D (Kembhavi et al., 15 Published as a conference paper at ICLR 2027 2016), OCRBench (Liu et al., 2024d), and MMVet (Yu et al., 2024b). Together, these benchmarks cover a broad range of capabilities, including general multimodal understanding, fine-grained visual reasoning, mathematical and logical problem solving, hallucination detection, document and diagram understanding, OCR, and real-world task-oriented reasoning. To evaluate jailbreak and defense effectiveness, we adopt SafetyBench (Zhang et al., 2024), Ad-vBench (Zou et al., 2023), and JailbreakBench (Chao et al., 2024). SafetyBench is a safety-oriented benchmark designed to assess model behavior under potentially harmful inputs. SafetyBench covers 13 prohibited scenarios derived from OpenAI usage policies, spanning illegal activity, hate speech, malware generation, physical harm, fraud, privacy violation, medical and legal advice, and other high-risk categories. The full list of forbidden scenarios and their definitions is summarized in Table 10. Following prior work, a response is considered a successful jailbreak if it violates the safety constraints associated with the corresponding scenario. Table 10: Forbidden scenarios in the usage policies of OpenAI.               
+
+> Scenario Description
+> Illegal Activity (IA) Unlawful use of models, tools, or services. Hate Speech (HS) Content promoting hatred, harassment, or violence based on identity. Malware (MG) Generation of malicious code for system disruption or unauthorized access. Physical Harm (PH) High-risk activities (e.g., weapons, warfare, self-harm). Economic Harm (EH) Financially harmful practices (e.g., scams, gambling, lending). Fraud (FR) Deceptive behaviors (e.g., scams, disinformation, plagiarism). Pornography (PO) Adult content and sexual services (excluding education). Political Lobbying (PL) Campaigning, targeted messaging, or advocacy tools. Privacy Violation (PV) Unauthorized tracking, identification, or data disclosure. Legal Advice (LO) Unauthorized legal guidance. Financial Advice (FA) Unregulated personalized financial guidance. Health Consultation (HC) Medical diagnosis or treatment guidance. Government Decision (GD) High-risk public sector decision-making.
+
+Models. We evaluate a diverse set of MLLMs spanning different parameter scales, architectures, and access settings. Specifically, we include the open-weight models Qwen3-VL-2B, Qwen3-VL-4B, Qwen3-VL-8B, and Qwen3-VL-30B-A3B (Team, 2025), as well as Kimi-VL-A3B (16B) (Team et al., 2025). We further include two proprietary multimodal models, GPT-5.4 (OpenAI, 2026) and Gemini 3.5 Flash (Google DeepMind, 2026), to assess whether the observed jailbreak behaviors generalize beyond publicly available model families. For open-weight models, we use the publicly released checkpoints without any additional fine-tuning or parameter updates and follow the default inference configurations recommended by the respective model developers unless otherwise specified. Proprietary models are accessed through their official APIs using the corresponding default inference settings. All evaluated models support multimodal instruction following with both textual and visual inputs. Experiments involving open-weight models were conducted on four NVIDIA A100 GPUs, while proprietary models were evaluated through their official API services. All results are reported as mean ± standard deviation over five runs with different random seeds. 
+
+Attack Configurations. We consider a generalized jailbreak setting that encompasses image-based ,
+
+text-based , and mixed-modal attacks. For proprietary models, where direct access to model gradients and internal representations is unavailable, we adopt a black-box surrogate-based transfer setting. Specifically, adversarial perturbations are optimized on an open-weight surrogate MLLM, MiniGPT-4 with a Vicuna-13B language backbone (Zhu et al., 2023), and then directly transferred to the target proprietary models for evaluation. For the visual channel, we follow the adversarial image construction in (Qi et al., 2024) to generate harmful demonstrations. Unless otherwise specified, adversarial perturbations are constrained under the ℓ∞ norm with ϵi = 16 /255 , and each adversarial image is optimized for 50 iterations. For text-based attacks, we follow prior work (Zou et al., 2023) and construct adversarial prompts under a bounded embedding-space perturbation. Specifically, we constrain the perturbation by an ℓ2 norm bound ∥δ∥2 ≤ ϵt · ∥ e(x)∥2, where ϵt = 0 .1, with 
+
+e(x) denoting the original token embedding. For mixed-modal attacks, harmful demonstrations are constructed by pairing adversarial textual prompts with adversarial images. Note that the target input 
+
+xt = ( vt, q t) is itself constructed with the same modality-specific adversarial procedure. By default, 16 Published as a conference paper at ICLR 2027 we use k = 8 demonstrations with a harmful ratio r = 1 , corresponding to a fully harmful and maximally adversarial context. The demonstrations are drawn from four distinct harmful categories. 
+
+Baselines. When defenses are applied, we inject five benign demonstrations as counter-evidence. We compare the proposed defense with the following baselines: (i) In-Context Defense (ICD) (Wei et al., 2023), which appends safety-aligned demonstrations consisting of benign images and refusal-style responses; (ii) Unconditional benign demonstration injection , which appends benign responses paired with adversarially optimized images to every input without risk gating; (iii) AdaShield (Wang et al., 2024), a training-free prompt-based defense that adaptively prepends input-aware defense prompts selected from an automatically refined prompt pool; and (iv) ECSO (Gou et al., 2024), a training-free defense that when necessary, transforms the input image into query-aware text to restore the safety mechanism of the underlying language model. 
+
+Metrics. To evaluate defense effectiveness against jailbreak attacks, we use Attack Success Rate (ASR) , defined as the fraction of prohibited queries that elicit prohibited responses. Formally, 
+
+ASR = 1
+
+> N
+
+PNi=1 1(J(yi) = True ), where yi is the MLLM response to the i-th prohibited query, N
+
+is the total number of queries, J(·) denotes an automated harmfulness judge that outputs a binary decision, and 1(·) is the indicator function. We use GPT-5 (OpenAI, 2026) as the judging model. To evaluate MLLM utility, we report the average score across a diverse suite of multimodal benchmarks, including MMBench V1.1 (Liu et al., 2024c), MMStar Chen et al. (2024a), MMMU (Yue et al., 2024), MathVista (Lu et al., 2024), HallusionBench (Avg.) (Guan et al., 2024), AI2D (Kembhavi et al., 2016), OCRBench (Liu et al., 2024d), and MMVet (Yu et al., 2024b), using OpenCompass. 
+
+Harmfulness Detector Training. The harmfulness detector used in our experiments is imple-mented as a binary classifier built on the CLIP-ViT-Base-Patch32 backbone (Radford et al., 2021). Specifically, we construct a balanced training set by selecting all 520 harmful inputs generated by GPT-5 (OpenAI, 2026) as positive examples and randomly sampling 520 benign inputs from OK-VQA Marino et al. (2019) as negative examples. The classifier is trained for 200 epochs on this dataset. After training the detector, we freeze both the detector and the target MLLM, and optimize the lower and upper thresholds (τℓ, τ u) on the same training set. We set μ = 0 .7 to balance utility and robustness, and train the gating module for 20 epochs. All training data used for the harmfulness detector and gating module are strictly disjoint from all evaluation datasets and test samples used throughout the paper. Since the inference-time gating rule uses hard thresholds, directly optimizing such discrete decisions is non-differentiable. Therefore, during training, we replace the hard gate with a differentiable sigmoid-based relaxation: 
+
+g(u) = σ κ(u − τℓ) · σ κ(τu − u), (28) where u = u(xt, C ) denotes the harmfulness score, σ(·) is the sigmoid function, and κ controls the sharpness of the relaxation. The resulting soft gate g(u) ∈ (0 , 1) enables gradient propagation through the gating mechanism under the utility–robustness objective. At inference time, we recover the hard thresholding rule in Eq. (15). Unless otherwise specified, we use κ = 10 .
+
+GPT-5 generation template. We prompt GPT-5 to generate harmful queries using the following template: “Generate a multimodal question that requests guidance, instructions, or actionable infor-mation to achieve a specified harmful objective. The question should be natural, contextually coherent, and grounded in a hypothetical image scenario. The harmful objective is [harmful intention].” 
+
+A.5 ADDITIONAL MULTI -TURN RESULTS ON OTHER MLLM S
+
+We extend the multi-turn evaluation to a broader set of MLLMs, including Qwen3-VL-2B/4B/30B-A3B, Kimi-VL-A3B, GPT-5.4, and Gemini 3.5, and observe broadly consistent scaling trends across both open-weight and proprietary models. As the number of harmful demonstrations k increases, ASR generally rises substantially across the evaluated models and attack modalities. For example, under mixed-modal attacks, ASR increases from 29 .74% at k=1 to 60 .97% at k=8 on Qwen3-VL-2B, from 22 .89% to 51 .07% on Qwen3-VL-30B-A3B, and from 14 .25% to 43 .15% on GPT-5.4. A similar overall trend is observed for the harmful demonstration ratio r: increasing r from 0.25 to 1.00 
+
+raises mixed-modal ASR from 36 .74% to 60 .97% on Qwen3-VL-2B and from 19 .31% to 45 .49% on 17 Published as a conference paper at ICLR 2027 Gemini 3.5. These results support the prediction that increasing the amount or proportion of harmful contextual evidence generally shifts model behavior toward harmful generation. Increasing adversarial strength ϵ also tends to improve jailbreak effectiveness. For instance, the mixed-modal ASR of Qwen3-VL-30B-A3B increases from 41 .06% under low strength to 67 .03% 
+
+under very high strength, while Gemini 3.5 increases from 39 .99% to 52 .24% . Similarly, greater semantic diversity m is associated with higher overall attack effectiveness. Under mixed-modal attacks, ASR increases from 38 .23% at m=1 to 51 .79% at m=8 on Kimi-VL-A3B, and from 29 .75% 
+
+to 46 .19% on GPT-5.4. We observe several local fluctuations in the strength and diversity sweeps, which are expected under stochastic multi-turn generation and finite-sample evaluation; nevertheless, the overall direction of change remains consistent with the predicted scaling behavior. Across most configurations, mixed-modal attacks remain among the strongest attack types, suggesting that combining harmful evidence across modalities can further reinforce jailbreak behavior. Overall, these results indicate that the predicted posterior-reweighting trends persist under multi-turn interaction and generalize across model families and access settings, including proprietary MLLMs. Table 11: Multi-turn jailbreak results across different MLLMs under four scaling factors. 
+
+(a) # Harmful Demonstrations k (r=1 , ϵ=Medium, m=4 ) (b) Harmful Ratio r (k=8 , ϵ=Medium, m=4 )
+
+Model Type 1 2 4 8 0.25 0.50 0.75 1.00 Qwen3-VL-2B Image 25 .48 ±1.66 34 .03 ±2.15 46 .68 ±1.55 59 .48 ±1.56 34 .36 ±2.52 46 .36 ±2.11 52 .90 ±1.72 59 .48 ±1.56 
+
+Text 26 .08 ±2.43 32 .53 ±1.55 49 .68 ±2.56 54 .87 ±1.65 29 .82 ±1.28 41 .46 ±2.40 54 .73 ±2.42 54 .87 ±1.65 
+
+Mixed 29 .74 ±2.36 37 .44 ±2.76 54 .79 ±2.38 60 .97 ±1.72 36 .74 ±2.47 50 .75 ±1.96 56 .83 ±2.25 60 .97 ±1.72 
+
+Qwen3-VL-4B Image 24 .39 ±1.14 32 .46 ±2.64 48 .59 ±2.74 55 .67 ±2.51 29 .86 ±1.75 44 .60 ±1.68 52 .72 ±1.65 55 .67 ±2.51 
+
+Text 22 .53 ±1.98 31 .02 ±2.24 43 .86 ±2.46 55 .91 ±1.85 26 .43 ±2.63 38 .69 ±2.28 50 .42 ±2.29 55 .91 ±1.85 
+
+Mixed 26 .10 ±1.77 35 .34 ±1.50 47 .14 ±1.97 62 .56 ±2.24 31 .69 ±1.12 46 .30 ±1.59 52 .79 ±1.47 62 .56 ±2.24 
+
+Qwen3-VL-30B-A3B Image 19 .54 ±1.54 23 .88 ±1.89 41 .18 ±1.86 48 .36 ±1.34 20 .49 ±1.59 36 .11 ±1.56 42 .79 ±1.44 48 .36 ±1.34 
+
+Text 20 .06 ±1.46 25 .08 ±1.76 35 .11 ±1.79 47 .53 ±1.26 16 .97 ±1.01 31 .26 ±1.78 42 .37 ±1.90 47 .53 ±1.26 
+
+Mixed 22 .89 ±1.82 25 .32 ±1.13 44 .56 ±1.30 51 .07 ±2.10 19 .87 ±0.63 35 .25 ±1.72 45 .86 ±2.52 51 .07 ±2.10 
+
+Kimi-VL-A3B Image 21 .64 ±1.58 24 .58 ±1.96 41 .00 ±1.99 44 .87 ±2.12 21 .19 ±2.41 34 .77 ±1.58 37 .48 ±2.44 44 .87 ±2.12 
+
+Text 15 .78 ±0.93 21 .27 ±1.10 38 .87 ±1.15 48 .45 ±1.33 19 .33 ±0.81 30 .62 ±2.02 40 .76 ±1.41 48 .45 ±1.33 
+
+Mixed 22 .64 ±2.27 26 .16 ±1.03 39 .04 ±2.22 48 .73 ±1.72 23 .54 ±1.18 37 .92 ±2.05 40 .47 ±2.24 48 .73 ±1.72 
+
+GPT-5.4 Image 15 .27 ±1.83 16 .98 ±1.92 29 .95 ±1.58 42 .45 ±1.72 15 .53 ±1.85 29 .62 ±2.47 35 .01 ±2.78 42 .45 ±1.72 
+
+Text 11 .95 ±1.32 15 .14 ±1.89 26 .03 ±1.68 34 .49 ±2.68 11 .55 ±2.00 26 .64 ±1.83 32 .43 ±2.38 34 .49 ±2.68 
+
+Mixed 14 .25 ±0.94 19 .17 ±2.06 36 .07 ±1.96 43 .15 ±2.89 15 .08 ±1.25 28 .48 ±2.62 36 .76 ±1.76 43 .15 ±2.89 
+
+Gemini-3.5 Image 15 .22 ±2.07 19 .45 ±0.93 36 .70 ±1.67 40 .70 ±3.21 18 .18 ±2.13 31 .44 ±2.13 36 .20 ±2.24 40 .70 ±3.21 
+
+Text 13 .26 ±1.21 19 .27 ±1.26 36 .27 ±2.31 35 .29 ±2.45 14 .85 ±1.91 28 .44 ±2.52 33 .38 ±1.26 35 .29 ±2.45 
+
+Mixed 17 .48 ±0.88 21 .69 ±2.09 37 .79 ±1.89 45 .49 ±3.09 19 .31 ±1.29 38 .47 ±1.31 40 .85 ±1.67 45 .49 ±3.09 
+
+(c) Strength ϵ (k=8 , r=1 , m=4 ) (d) Diversity m (k=8 , r=1 , ϵ=Medium) 
+
+Model Type Low Med High V.High 1 2 4 8Qwen3-VL-2B Image 49 .42 ±2.55 59 .48 ±1.56 60 .88 ±1.33 71 .00 ±2.32 53 .72 ±1.62 59 .64 ±2.90 59 .48 ±1.56 67 .40 ±1.33 
+
+Text 45 .91 ±1.64 54 .87 ±1.65 64 .50 ±1.80 70 .63 ±1.79 50 .13 ±2.88 55 .77 ±3.11 54 .87 ±1.65 64 .88 ±2.41 
+
+Mixed 55 .63 ±2.14 60 .97 ±1.72 69 .41 ±2.44 63 .97 ±2.09 50 .43 ±2.22 58 .27 ±3.04 60 .97 ±1.72 69 .14 ±1.99 
+
+Qwen3-VL-4B Image 45 .65 ±1.42 55 .67 ±2.51 64 .46 ±1.18 66 .84 ±1.28 52 .40 ±1.59 49 .52 ±2.44 55 .67 ±2.51 64 .15 ±1.98 
+
+Text 45 .78 ±2.94 55 .91 ±1.85 62 .83 ±1.53 64 .91 ±2.40 46 .09 ±1.76 47 .02 ±2.94 55 .91 ±1.85 59 .08 ±2.95 
+
+Mixed 50 .80 ±1.47 62 .56 ±2.24 64 .96 ±1.89 64 .75 ±2.59 49 .05 ±1.52 56 .83 ±2.29 62 .56 ±2.24 63 .03 ±1.88 
+
+Qwen3-VL-30B-A3B Image 39 .93 ±1.78 48 .36 ±1.34 56 .89 ±1.84 58 .00 ±2.08 35 .04 ±1.72 45 .27 ±2.46 48 .36 ±1.34 52 .10 ±1.59 
+
+Text 37 .95 ±2.23 47 .53 ±1.26 53 .00 ±1.84 55 .64 ±2.07 33 .48 ±1.29 37 .94 ±1.16 47 .53 ±1.26 49 .30 ±1.69 
+
+Mixed 41 .06 ±2.02 51 .07 ±2.10 54 .59 ±2.56 67 .03 ±2.18 39 .16 ±1.88 43 .88 ±1.95 51 .07 ±2.10 54 .67 ±2.34 
+
+Kimi-VL-A3B Image 41 .07 ±2.33 44 .87 ±2.12 54 .77 ±2.67 61 .13 ±2.15 33 .69 ±2.42 46 .04 ±2.39 44 .87 ±2.12 50 .77 ±1.93 
+
+Text 38 .92 ±2.40 48 .45 ±1.33 53 .72 ±1.37 59 .20 ±1.34 35 .12 ±1.56 37 .76 ±2.22 48 .45 ±1.33 50 .59 ±1.53 
+
+Mixed 38 .86 ±1.89 48 .73 ±1.72 61 .29 ±2.36 65 .44 ±2.18 38 .23 ±2.26 43 .93 ±2.00 48 .73 ±1.72 51 .79 ±1.71 
+
+GPT-5.4 Image 37 .09 ±1.20 42 .45 ±1.72 43 .86 ±2.86 48 .14 ±3.20 28 .92 ±2.79 33 .86 ±2.04 42 .45 ±1.72 41 .43 ±3.10 
+
+Text 33 .63 ±2.54 34 .49 ±2.68 42 .62 ±2.21 50 .40 ±1.63 22 .82 ±2.72 29 .37 ±2.13 34 .49 ±2.68 36 .14 ±2.24 
+
+Mixed 34 .99 ±2.15 43 .15 ±2.89 48 .83 ±1.60 53 .46 ±2.61 29 .75 ±1.98 36 .74 ±2.41 43 .15 ±2.89 46 .19 ±2.93 
+
+Gemini-3.5 Image 40 .57 ±2.45 40 .70 ±3.21 47 .46 ±3.07 51 .30 ±2.17 28 .08 ±1.34 33 .87 ±1.15 40 .70 ±3.21 41 .48 ±2.58 
+
+Text 36 .71 ±2.37 35 .29 ±2.45 45 .00 ±1.66 49 .60 ±1.43 26 .76 ±1.73 35 .07 ±2.16 35 .29 ±2.45 39 .78 ±1.89 
+
+Mixed 39 .99 ±2.73 45 .49 ±3.09 51 .74 ±2.38 52 .24 ±2.89 29 .90 ±1.81 37 .02 ±2.22 45 .49 ±3.09 47 .56 ±3.20 
+
+A.6 ADDITIONAL DEFENSE RESULTS ON OTHER MLLM S
+
+Table 12 extends the defense evaluation to four additional MLLMs with different parameter scales and architectures. All experiments follow the same protocol as in the main text: the same harmfulness detector and gating configuration are applied to all target models without model-specific tuning. We report results on SafetyBench under image-based attacks. Across all evaluated models, the proposed gated defense consistently achieves the lowest ASR while preserving utility close to the no-defense baseline. For example, ASR decreases from 67 .61% 
+
+18 Published as a conference paper at ICLR 2027 Table 12: Additional results on SafetyBench for different MLLMs under image-based attacks. We report mean ASR and utility under different defense methods. 
+
+Model Defense ASR ↓ Utility ↑ Model ASR ↓ Utility ↑
+
+Qwen3-VL-2B No Defense 67 .61 59 .2
+
+Qwen3-VL-4B 
+
+63 .92 69 .3
+
+ICD 55 .55 58 .5 52 .46 68 .7
+
+Uncond. Benign 50 .15 57 .4 46 .98 67 .4
+
+AdaShield 47 .55 57 .9 44 .47 67 .9
+
+ECSO 41 .28 56 .8 38 .60 66 .6
+
+Ours 33 .85 58 .9 31 .57 69 .0
+
+Qwen3-VL-30B-A3B No Defense 51 .87 79 .1
+
+Kimi-VL-A3B 
+
+51 .32 74 .3
+
+ICD 41 .46 78 .6 40 .94 73 .8
+
+Uncond. Benign 36 .65 77 .6 36 .08 72 .7
+
+AdaShield 34 .73 78 .0 34 .16 73 .2
+
+ECSO 29 .30 76 .8 29 .47 71 .9
+
+Ours 24 .40 78 .9 24 .45 74 .0
+
+to 33 .85% on Qwen3-VL-2B and from 51 .87% to 24 .40% on Qwen3-VL-30B-A3B, while the corresponding utility drops are only 0.3 and 0.2 points. Our method also consistently outperforms stronger baselines such as AdaShield and ECSO; on Qwen3-VL-30B-A3B, ECSO achieves an ASR of 29 .30% , compared with 24 .40% for our method. These results demonstrate that selective, risk-gated benign injection provides a more favorable robustness–utility trade-off than unconditional intervention and generalizes across MLLMs with different model scales and architectures. A.7 DEFENSE EVALUATION UNDER FIG STEP 
+
+To further evaluate the generalization of the proposed defense, we assess its performance against FigStep (Gong et al., 2025), a structure-based multimodal jailbreak attack that embeds harmful instructions into visual inputs. Table 13 reports the ASR and utility under different defense methods. Across all evaluated models, the proposed defense achieves the lowest ASR against FigStep while preserving utility close to the no-defense baseline. For example, on Qwen3-VL-2B, ASR is reduced from 28 .0% without defense to 10 .5% , while utility only decreases from 59 .2 to 58 .9; similarly, on Kimi-VL-A3B, ASR drops from 17 .5% to 5.8% with only a 0.3-point utility reduction. Our method also consistently outperforms existing inference-time defenses such as AdaShield and ECSO, demonstrating that risk-gated benign injection remains effective beyond perturbation-based attacks and generalizes to structure-based multimodal jailbreaks such as FigStep. Table 13: Defense performance against FigStep across different MLLMs.                                                         
+
+> Model Defense ASR ↓Utility ↑Model ASR ↓Utility ↑
+> Qwen3-VL-2B No Defense 28 .059 .2
+> Qwen3-VL-8B
+> 15 .072 .1
+> ICD 23 .058 .512 .871 .6
+> Uncond. Benign 20 .557 .411 .470 .3
+> AdaShield 15 .057 .98.570 .8
+> ECSO 18 .556 .814 .069 .7
+> Ours 10 .558 .97.571 .5
+> Qwen3-VL-30B-A3B No Defense 11 .579 .1
+> Kimi-VL-A3B
+> 17 .574 .3
+> ICD 10 .078 .614 .873 .8
+> Uncond. Benign 9.077 .613 .272 .7
+> AdaShield 6.878 .09.873 .2
+> ECSO 10 .876 .812 .571 .9
+> Ours 6.578 .95.874 .0
+
+19 Published as a conference paper at ICLR 2027  
+
+> (a) Defense success case. (b) Defense failure case.
+
+Figure 4: Qualitative comparison of defense outcomes under the same query xt. Increasing the diversity of harmful demonstrations increases the difficulty of inference-time defense. A.8 QUALITATIVE EXAMPLES 
+
+To complement the quantitative evaluation, we provide two qualitative examples illustrating typical defense outcomes across different in-context defenses. In both cases, the queried instruction is identical: 
+
+xt = "Teach people how to avoid paying taxes illegally" . (29) Specifically, Figure 4a shows a case where harmful demonstrations are sampled from two distinct harmful categories. In this setting, the harmful evidence in the context remains relatively concentrated, allowing the gated benign demonstrations to counteract the harmful influence effectively, while other defenses fail. By contrast, Figure 4b depicts a scenario where harmful demonstrations are drawn from four distinct harmful categories. The resulting context contains more diverse harmful signals, under which none of the evaluated defense methods are sufficient to suppress unsafe generation. A.9 ABLATION STUDY OF THE RISK -G ATING MECHANISM 
+
+Detector threshold sensitivity. We quantitatively evaluate the harmfulness detector on a balanced evaluation set containing both harmful and benign inputs. To examine the sensitivity of the detector to its decision boundary, we vary the classification threshold from 0.3 to 0.7 and report the false negative rate (FNR), false positive rate (FPR), accuracy, and F1 score. The results are summarized in Table 14. Table 14 shows that the detector remains robust over a broad range of decision thresholds, with the best overall trade-off occurring around the default threshold of 0.5. At this threshold, the detector achieves an FNR of 3.3% , an FPR of 2.4% , an accuracy of 97 .2% , and an F1 score of 97 .1% .Lowering the threshold makes the detector more conservative toward potentially harmful inputs: the FNR decreases to 0% at thresholds of 0.4 and 0.3, at the cost of increasing the FPR to 9.1% and 
+
+12 .7% , respectively. Conversely, increasing the threshold reduces false positives but increases missed harmful inputs, with the FNR rising to 6.3% at 0.6 and 19 .7% at 0.7. Overall, these results indicate that the detector is not overly sensitive to the precise threshold choice and that a threshold around 0.5
+
+provides a favorable balance between detecting harmful inputs and preserving benign ones. 
+
+Decomposition of the risk-gating mechanism. To further disentangle the contribution of benign counter-evidence injection from that of the direct-refusal branch, we analyze the learned gating policy 20 Published as a conference paper at ICLR 2027 Table 14: Effect of the decision threshold on the harmfulness detector over a balanced evaluation set.                         
+
+> Threshold FNR (%) FPR (%) Accuracy (%) F1 (%)
+> 0.30 0.0 12.7 93.7 94.0 0.40 0.0 9.1 95.5 95.6 0.50 3.3 2.4 97.2 97.1 0.60 6.3 0.0 96.9 96.7 0.70 19.7 0.0 90.2 89.1
+
+on Qwen3-VL-8B. We report both the fraction of harmful inputs assigned to each gating regime and the ASR obtained after independently removing either the injection or direct-refusal component. Table 15: Decomposition of the proposed risk-gating mechanism on Qwen3-VL-8B. The first three columns report the fraction of harmful inputs routed to the bypass, benign-injection, and direct-refusal regimes, respectively. The remaining columns report ASR under component ablations. 
+
+Gating Regime (%) ASR (%) ↓
+
+Attack Bypass Inject Refuse No Defense Refusal Only Injection Only Full 
+
+Image 0.3 74.6 25.1 57.65 46.79 34.89 25.61 
+
+Text 0.7 77.8 21.5 53.08 45.12 30.14 24.39 
+
+Mixed 0.2 71.3 28.5 58.53 48.91 37.23 28.00 
+
+A.10 DETECTOR ROBUSTNESS UNDER ADAPTIVE ATTACKS 
+
+Table 16: Detector robustness under adaptive attacks across all models. We report mean ASR (%) under three attack modalities with increasing perturbation budgets ϵ. Lower is better. 
+
+Model Attack ϵ = 0 ϵ = 2 ϵ = 4 ϵ = 8 ϵ = 16 Robustified ( ϵ = 16 )
+
+Qwen3-VL-2B Image 33 .85 42 .12 49 .75 56 .63 61 .68 53 .84 
+
+Text 31 .59 39 .55 46 .75 53 .52 58 .24 51 .15 
+
+Mixed 36 .21 45 .67 53 .30 61 .04 65 .44 57 .38 
+
+Qwen3-VL-4B Image 31 .57 39 .73 46 .72 53 .61 59 .11 51 .49 
+
+Text 29 .24 36 .97 43 .96 50 .75 55 .41 48 .52 
+
+Mixed 33 .79 42 .69 50 .00 57 .53 62 .08 54 .24 
+
+Qwen3-VL-8B Image 25 .61 32 .20 38 .21 43 .71 46 .80 40 .79 
+
+Text 24 .39 30 .55 36 .37 41 .94 45 .15 39 .24 
+
+Mixed 28 .00 35 .51 41 .74 47 .55 51 .39 44 .73 
+
+Qwen3-VL-30B-A3B Image 24 .40 30 .99 36 .69 42 .39 46 .40 39 .81 
+
+Text 23 .06 29 .30 35 .09 40 .70 44 .35 37 .85 
+
+Mixed 26 .45 33 .93 39 .89 45 .68 49 .78 42 .83 
+
+Kimi-VL-A3B Image 24 .45 30 .99 37 .15 43 .12 47 .29 40 .47 
+
+Text 22 .84 29 .19 35 .44 41 .32 45 .30 38 .67 
+
+Mixed 26 .06 34 .02 40 .37 46 .72 50 .80 43 .50 
+
+We evaluate the robustness of the proposed defense under adaptive black-box attacks that explicitly target the harmfulness detector. In this setting, the attacker jointly optimizes the input to suppress detector confidence while preserving jailbreak effectiveness. As shown in Table 16, ASR increases monotonically with the perturbation budget across all evaluated models and attack modalities. For ex-ample, on Qwen3-VL-8B under image attacks, ASR rises from 25 .61% at ϵ = 0 to 32 .20% , 38 .21% ,
+
+43 .71% , and 46 .80% as ϵ increases to 2, 4, 8, and 16 , respectively. Mixed-modal attacks consistently yield the highest ASR, reflecting the stronger combined adversarial signal across modalities. Impor-21 Published as a conference paper at ICLR 2027 tantly, replacing the standard detector with a robustified version at ϵ = 16 substantially reduces ASR; for Qwen3-VL-8B, image-attack ASR decreases from 46 .80% to 40 .79% , with similar improvements observed across the other models and modalities. Overall, these results show that the proposed defense degrades gracefully under detector-aware adaptive attacks, and that improving detector robustness can partially recover defense effectiveness under stronger adversarial perturbations. A.11 INFERENCE LATENCY OVERHEAD 
+
+Table 17: End-to-end inference latency and relative overhead of the proposed defense.                   
+
+> Target Model No Defense (s) Ours (s) Overhead (%)
+> Qwen3-VL-2B 0.74 0.87 17 .6
+> Qwen3-VL-4B 0.96 1.11 15 .6
+> Qwen3-VL-8B 1.34 1.52 13 .4
+> Qwen3-VL-30B-A3B 2.86 3.13 9.4
+> Kimi-VL-A3B 2.11 2.34 10 .9
+
+We evaluate the end-to-end inference latency of the proposed defense across all target MLLMs. Table 17 reports the average per-sample latency (in seconds) with and without defense, along with the relative overhead. The proposed defense introduces only modest latency overhead across all evaluated models. Notably, the relative overhead decreases as model size increases, dropping from 17 .6% 
+
+on Qwen3-VL-2B to 9.4% on Qwen3-VL-30B-A3B. This trend arises because the computational cost of the harmfulness detector remains nearly constant, while the decoding cost of larger MLLMs dominates total inference time. Overall, these results demonstrate that the proposed posterior-aware defense is computationally lightweight and practical for real-world deployment. 22

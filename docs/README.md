@@ -6,40 +6,43 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-13
-- 运行时间：2026-09-13 21:32:29 UTC
+- 最新运行日期：2026-09-14
+- 运行时间：2026-09-14 22:38:06 UTC
 - 运行状态：成功
 - 本次总论文数：6
-- 精读区：1
-- 速读区：5
+- 精读区：0
+- 速读区：6
 
 ### 今日简报（AI）
-今天完成6篇论文扫描，精读1篇、速读5篇，头条聚焦文生图提示词改写如何引入文化偏见。
-最值得看的是9.0分精读《Prompt Revision as a Source of Cultural Bias in Text-to-Image Systems》，以及社媒翻译评估中“指标可能奖励最差译文”的文化推理问题。
-普通读者下步可多问一句“谁的文化被当成默认”，并在跨语言内容里别只信机器分数。
-- 详情：[/202609/13/README](/202609/13/README)
+今日速读6篇AI论文、0篇精读，焦点落在多模态越狱、Agent越狱攻防与阿拉伯语语音大模型。
+
+最值得看的是两篇7.0分越狱研究：一篇用后验重加权理解多模态越狱，另一篇系统梳理Agentic AI时代的攻击、防御与实践考量；Nuha-Speech则指向通用阿拉伯语语音-LLM建设。
+
+普通读者可先读Agent越狱SoK建立全景，再按兴趣深入多模态越狱或阿拉伯语语音方向。
+- 详情：[/202609/14/README](/202609/14/README)
 
 ### 精读区论文标签
-1. [Prompt Revision as a Source of Cultural Bias in Text-to-Image Systems](/202609/13/2609.11532v1-prompt-revision-as-a-source-of-cultural-bias-in-text-to-image-systems)  
-   标签：评分：9.0/10、query:mtg-bench
-   evidence：覆盖15种语言的多语言文生图基准
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [When Metrics Reward the Worst Translations: Internalizing Cultural Reasoning for Social Media Translation Evaluation](/202609/13/2609.08156v1-when-metrics-reward-the-worst-translations-internalizing-cultural-reasoning-for-social-media-translation-evaluation)  
-   标签：评分：7.0/10、query:cross-lang
-   evidence：翻译指标在文化负载表达与文化推理上失效
-2. [Nuha-Speech: Building General-Purpose Arabic Speech-LLMs](/202609/13/2609.11892v1-nuha-speech-building-general-purpose-arabic-speech-llms)  
+1. [Understanding In-Context Multimodal Jailbreaks via Posterior Reweighting](/202609/14/2609.10613v1-understanding-in-context-multimodal-jailbreaks-via-posterior-reweighting)  
+   标签：评分：7.0/10、query:llm-attack
+   evidence：多模态大模型的上下文越狱
+2. [Nuha-Speech: Building General-Purpose Arabic Speech-LLMs](/202609/14/2609.11892v1-nuha-speech-building-general-purpose-arabic-speech-llms)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：阿拉伯语语音大模型训练与评测
-3. [Reproducing Omitted Temporal Expressions in Japanese News for Retrieval-Augmented Applications](/202609/13/2609.09569v1-reproducing-omitted-temporal-expressions-in-japanese-news-for-retrieval-augmented-applications)  
+   evidence：阿拉伯语语音大模型的数据训练与评测
+3. [SoK: Rethinking Jailbreaking in the Era of Agentic AI: Attacks, Defenses, and Practical Consideration](/202609/14/2609.12413v1-sok-rethinking-jailbreaking-in-the-era-of-agentic-ai-attacks-defenses-and-practical-consideration)  
+   标签：评分：7.0/10、query:llm-attack
+   evidence：面向大模型越狱攻击与防御的知识系统化
+4. [Noēsis: Deterministic-First Retrieval with Two-Tier Context Hydration for Factuality-Critical Queries on Small Local Models](/202609/14/2609.07663v1-nosis-deterministic-first-retrieval-with-two-tier-context-hydration-for-factuality-critical-queries-on-small-local-models)  
    标签：评分：6.0/10、query:fie-rag
-   evidence：结合语言时间表达的RAG预处理
-4. [NOPE-HYPE: A Structured Simulation Workflow for Robust Speech-to-Text Across Diverse Acoustic Environments](/202609/13/2609.10058v1-nope-hype-a-structured-simulation-workflow-for-robust-speech-to-text-across-diverse-acoustic-environments)  
+   evidence：面向事实关键查询的检索增强生成
+5. [Bridging the Semantic-Utility Gap in Multimodal RAG via Generator-in-the-Loop Alignment](/202609/14/2609.08188v1-bridging-the-semantic-utility-gap-in-multimodal-rag-via-generator-in-the-loop-alignment)  
+   标签：评分：6.0/10、query:fie-rag
+   evidence：面向多模态检索增强生成的生成器在环对齐
+6. [Kraken: LLM-based Speech-to-Speech Translation via Low-bitrate VQ and Dual-path Source Conditioning](/202609/14/2609.13045v1-kraken-llm-based-speech-to-speech-translation-via-low-bitrate-vq-and-dual-path-source-conditioning)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：跨声学环境的鲁棒语音转文本
-5. [Assessing the Reusability of Public Speech Resources for Low-Resource Languages: A Central Kurdish Case Study](/202609/13/2609.11246v1-assessing-the-reusability-of-public-speech-resources-for-low-resource-languages-a-central-kurdish-case-study)  
-   标签：评分：6.0/10、query:low-res-tts
-   evidence：低资源库尔德语公开TTS语音与数据资源审查
+   evidence：基于大模型的低比特率语音到语音翻译
 
 
 <div class="dpr-home-promo-card">
