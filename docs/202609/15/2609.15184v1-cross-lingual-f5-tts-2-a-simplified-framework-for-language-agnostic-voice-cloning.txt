@@ -1,0 +1,436 @@
+Title: Cross-Lingual F5-TTS 2: A Simplified Framework for Language-Agnostic Voice Cloning
+
+URL Source: https://arxiv.org/pdf/2609.15184v1
+
+Published Time: Tue, 15 Sep 2026 02:34:23 GMT
+
+Number of Pages: 10
+
+Markdown Content:
+> IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 1
+
+# Cross-Lingual F5-TTS 2: A Simplified Framework for Language-Agnostic Voice Cloning 
+
+Qingyu Liu*, Rixi Xu*, Yushen Chen, Zhikang Niu, Haitao Li, Pengcheng Zhu, Bowen Zhang, Jian Zhao, Yunting Yang, Qinyuan Cheng, Xipeng Qiu, Berrak Sisman, Kai Yu, and Xie Chen 
+
+Abstract —Zero-shot text-to-speech (TTS) can clone a speaker’s voice from a short audio prompt, yet most TTS systems still require the audio prompt transcript during inference. This dependency prevents cross-lingual voice cloning when the au-dio prompt transcript is unavailable, particularly for unseen languages. Cross-Lingual F5-TTS removes this dependency and enables transcript-free cross-lingual voice cloning, but it prepares its training data with forced alignment. Forced alignment is sensitive to boundary errors, and its cost grows as more languages are covered. Its speaking rate predictor is also unreliable at estimating duration when the audio prompt begins or ends with silence. In this paper, we present Cross-Lingual F5-TTS 2, a simplified framework for transcript-free cross-lingual voice cloning without forced alignment. Instead of using forced align-ment to segment real utterances, we build same-speaker prompt and target pairs using a pretrained F5-TTS model and fine-tune the same model on these constructed pairs. This simplifies data preparation and preserves the acoustic modeling capability of the pretrained model, enabling adaptation with only a short fine-tuning stage. We further make the syllable-level speaking rate predictor robust to leading and trailing silence through silence-aware augmentation. Experiments show that Cross-Lingual F5-TTS 2 reaches higher speaker similarity than F5-TTS and Cross-Lingual F5-TTS while maintaining intelligibility. All related resources are publicly available. 1
+
+Index Terms —Zero-shot text-to-speech, cross-lingual voice cloning, flow matching. 
+
+I. I NTRODUCTION 
+
+# ZERO-SHOT text-to-speech (TTS), also known as voice cloning, aims to generate speech that closely resembles a target speaker’s voice from only a brief audio prompt. Recent systems fall into three families. Autoregressive (AR) codec language models such as VALL-E [1] treat speech genera-tion as next-token prediction and pioneered in-context voice cloning. Hybrid systems such as the CosyVoice [2]–[4] and IndexTTS [5], [6] series combine AR semantic modeling with 
+
+> Qingyu Liu and Berrak Sisman are with the Center for Language and Speech Processing, Johns Hopkins University, Baltimore, MD, USA. Qingyu Liu, Rixi Xu, Yushen Chen, Zhikang Niu, Kai Yu, and Xie Chen are with the MoE Key Lab of Artificial Intelligence, X-LANCE Lab, Shanghai Jiao Tong University, Shanghai, China. (e-mail: qliu91@jh.edu, chenxie95@sjtu.edu.cn) Yushen Chen, Zhikang Niu, Haitao Li, Qinyuan Cheng, Xipeng Qiu, and Xie Chen are with Shanghai Innovation Institute, Shanghai, China. Pengcheng Zhu, Bowen Zhang, Jian Zhao, and Yunting Yang are with Geely, China. Haitao Li is with Zhejiang University, Zhejiang, China. Qinyuan Cheng and Xipeng Qiu are with Fudan University, Shanghai, China. Qingyu Liu and Rixi Xu contributed equally to this work. Xie Chen is the corresponding author.
+> 1https://qingyuliu0521.github.io/Cross-Lingual F5-TTS 2 demo/
+
+non-autoregressive (NAR) acoustic refinement in a coarse-to-fine framework. Purely NAR flow-matching models such as Voicebox [7], E2-TTS [8], and F5-TTS [9] instead generate all acoustic frames in parallel, which avoids the sequential bottleneck of AR decoding and yields faster synthesis with a streamlined architecture that needs no cascaded discrete-token pipeline. Across these families, however, most systems still condition on the transcript of the audio prompt during inference. This transcript dependency is particularly difficult to avoid in cross-lingual voice cloning. When the reference speaker and the target text are in different languages, the prompt transcript is often unreliable or simply unavailable, especially when a user provides spontaneous speech in a low-resource or unfamiliar language. A transcript-free method is therefore most valuable in this setting, provided it still keeps the full in-context prompt. Two main lines of work have removed this dependency. One line conditions on a global speaker embedding instead of an in-context prompt, as in YourTTS [10]; Qwen3-TTS [11] likewise offers a speaker-embedding mode for transcript-free cloning. Such embeddings sidestep the transcript but keep only a coarse copy of the speaker and lose the local timbre and prosody that in-context prompting carries over. The other line keeps in-context prompting and builds same-speaker prompt-target pairs during data preparation, as in MOSS-TTS [12] and the IndexTTS series [5], [6], which removes the transcript at inference at the cost of a heavy preprocessing pipeline. Removing the transcript is more involved for F5-TTS. Instead of explicit phoneme alignment or a separate duration predictor, F5-TTS pads the character sequence with filler tokens and estimates the target duration from the length ratio between the audio prompt transcript and the target text [9]. The transcript therefore serves two roles: it forms the prompt portion of the text the model conditions on, and its length sets the reference for duration estimation. Without it, both the text condition and the duration estimate break down. Cross-Lingual F5-TTS [13] addresses both roles of the transcript. For the text condition, it uses forced alignment to split each training utterance into a prompt and a target segment and discards the prompt transcript, so that inference no longer requires it; VoXtream2 [14] likewise relies on forced alignment for training-data segmentation. For duration, because NAR models must fix the target length before generation and can no longer derive it from a text length ratio, it trains a syllable-level speaking rate predictor (SRP) over the audio prompt. However, both components leave residual problems. Forced alignment is sensitive to boundary errors and grows more arXiv:2609.15184v1 [cs.SD] 14 Sep 2026 IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 2
+
+expensive as language coverage widens. The speaking rate predictor becomes unreliable when the audio prompt carries leading or trailing silence: the silence lowers the estimated speaking rate, so the predicted duration is inflated and the generated speech is stretched, which hurts naturalness and intelligibility. In this paper, we propose Cross-Lingual F5-TTS 2, a simpli-fied supervised fine-tuning (SFT) framework built on F5-TTS that removes the audio prompt transcript at inference without forced alignment. For each training sample, a pretrained F5-TTS model synthesizes an audio prompt in the same speaker’s voice, which we concatenate with the real speech as the target. We fine-tune on these pairs without the audio prompt transcript, matching transcript-free inference. This paper makes the following contributions:  
+
+> •
+
+Simplified Supervised Fine-Tuning Framework: We propose an SFT framework built on F5-TTS that pairs each real utterance with a same-speaker prompt synthe-sized by the pretrained model, removing the audio prompt transcript at inference and simplifying data preparation.  
+
+> •
+
+Prompt-Token Text Conditioning: We introduce ratio-based learnable prompt tokens with an end-of-sequence (EOS) marker that preserve the pretrained text-audio layout and accelerate WER convergence during fine-tuning.  
+
+> •
+
+Silence-Robust Speaking Rate Predictor: We make transcript-free duration estimation robust to leading or trailing silence in the audio prompt through silence-aware augmentation. The remainder of this paper is organized as follows. Section II reviews related work. Section III presents the proposed method. Section IV describes the experimental setup, followed by results and analysis in Section V. Section VI concludes the paper. II. R ELATED WORK 
+
+A. Transcript-Free Voice Cloning 
+
+Most zero-shot TTS systems require the transcript of the audio prompt at inference to condition generation on the reference speaker. A widely used approach conditions generation on a global speaker embedding. YourTTS [10] represents the reference with a single speaker vector at both training and inference, and Qwen3-TTS [11], though trained with in-context learning, additionally offers a speaker-embedding mode that needs no prompt transcript. A speaker embedding removes the transcript directly, but it retains only a coarse speaker identity and loses the local timbre and prosody that an in-context prompt preserves. Another approach keeps in-context prompting and obtains same-speaker prompt-target pairs during data preparation. MOSS-TTS [12] and the IndexTTS series [5], [6] build such pairs either by mining open-domain recordings with speaker diarization and single-speaker segment merging, or by drawing on speaker-labeled corpora such as Emilia [15]. This preserves in-context fidelity, but removes the audio prompt transcript only through a heavy data-preparation pipeline. More recent systems rely on a forced aligner when preparing the training data. Cross-Lingual F5-TTS [13] uses MMS forced alignment [16] to locate word boundaries, splits each utterance into a prompt and a target segment, and discards the prompt transcript. VoXtream2 [14] depends on the Clap-IPA forced aligner to align phonemes to audio frames. Forced alignment is error-prone and wastes data: VoXtream2 discards about 35% of its training corpus after removing failed align-ments and invalid transcripts. Removing the audio prompt transcript thus comes at a cost along every route, either in speaker fidelity or in the effort and data loss of training-data preparation. This leaves open the need for a transcript-free method that preserves full in-context fidelity without a costly data preparation pipeline. 
+
+B. Synthetic Data for TTS Training 
+
+Synthetic speech generated by existing models is increas-ingly used to train TTS systems. One direction focuses on the synthetic-data pipeline itself: a study of training with purely synthetic data [17] shows that diverse, clean synthetic speech can match or even surpass real recordings, and Speech-Weave [18] generates multilingual, speaker-standardized text-speech pairs to improve data diversity and normalization. These works establish synthetic speech as a viable general-purpose training resource. Another direction uses synthetic data to compensate for scarce real data, particularly for low-resource languages. LLM-to-Speech [19] builds an Egyptian Arabic corpus by generating dialectal text with an LLM and converting it to speech, then fine-tunes a multilingual TTS model on it, while a recent study on low-resource spoken language modeling [20] uses synthetic supervision to enable zero-shot voice cloning for Lao. 
+
+C. Duration Modeling for NAR Zero-Shot TTS Systems 
+
+Non-autoregressive zero-shot TTS systems must determine the target acoustic length before acoustic generation. Earlier zero-shot NAR systems model an explicit phoneme-level du-ration and obtain the per-phoneme duration targets from an alignment tool. Voicebox [7] decouples acoustic and duration modeling, training a separate duration model and relying on a forced aligner for the duration targets. NaturalSpeech 3 [21] instead models duration with a diffusion module and a length regulator, using an internal alignment tool to obtain the phoneme-level durations. Both systems couple the duration stage to an external aligner during data preparation. Recent NAR TTS systems avoid this dependency. E2-TTS [8] and F5-TTS [9] pad the character sequence with filler tokens to the mel length, so they need neither frame-level text-speech alignment nor a phoneme-level duration predictor. At inference, however, the total target duration still has to be set. F5-TTS infers it from the length ratio between the reference and target text, and M3-TTS [22], though it replaces filler padding with cross-modal attention, likewise sets the output length from a reference speech-to-text ratio. The ratio is simple and needs no extra predictor, but it breaks down across languages, where a text-length ratio need not match the speech-duration ratio. Cross-Lingual F5-TTS [13] removes IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 3To Generate 
+
+> Transcript
+> Audio Prompt
+> Characters
+> Input Speech
+> Noise
+
+DiT Block 
+
+> Discarded
+> Transcript
+> Characters
+> Masked Speech
+> Noisy Speech
+
+DiT Block  
+
+> Masked
+> Synthetic Speech Speech from Real Dataset
+
+Pretrained F5-TTS  Cross-Lingual F5-TTS 2                        
+
+> I'mfine!Bye!<F> <F>
+> I'm fine! Bye!
+> Speech from Real Dataset
+> ODE Solver
+> c
+> Audio Prompt Target Speech
+> I'mfine!<F> .<P> <P> <P> <P>
+> Bye! EOS
+> Marker I'm fine!
+> Masked
+
+Fig. 1. Overview of the proposed SFT pipeline. (Left) Synthetic Data Generation : a pretrained F5-TTS model is used to synthesize speaker-consistent audio pairs. (Right) SFT with Synthetic Prompt : Cross-Lingual F5-TTS 2 is initialized from pretrained F5-TTS and fine-tuned on the constructed real-synthetic pairs, where the audio prompt transcript is replaced by learnable prompt tokens followed by an EOS marker, forcing the model to condition on acoustic prompts without relying on their transcripts. 
+
+this limitation by estimating a speaking rate from the audio prompt rather than from a text-length ratio, so the estimate transfers across languages. Whether from a text-length ratio or a speaking rate predic-tor, these methods derive the target duration from the audio prompt, assuming the prompt is speech throughout. However, audio prompts supplied by users often carry leading or trailing silence, which lowers the apparent speaking rate, inflates the estimated duration, and stretches the synthesized speech. III. P ROPOSED METHOD 
+
+We propose Cross-Lingual F5-TTS 2, a transcript-free fine-tuning framework built on pretrained F5-TTS. Instead of using MMS forced alignment to remove audio prompt transcripts, the proposed framework uses synthetic audio prompts to form real-synthetic pairs, and replaces the missing prompt transcript with learnable prompt tokens followed by an end-of-sequence (EOS) marker. The overall SFT pipeline is shown in Fig. 1. This section first reviews the preliminaries on flow matching, F5-TTS, and Cross-Lingual F5-TTS, then describes the SFT procedure, and finally introduces the silence-robust speaking rate predictor used for duration estimation. 
+
+A. Preliminaries 
+
+1) Flow Matching: 
+
+The Flow Matching (FM) objective is to learn a time-dependent vector field vt that matches a probability path pt
+
+from a simple prior distribution p0 to the data distribution 
+
+q [23]. The FM loss regresses vt against the target field ut:
+
+LFM (θ) = Et, p t(x) ∥vt(x; θ) − ut(x)∥2 . (1) Since pt and ut are intractable, a conditional probability path 
+
+pt(x|x1) is used in practice, yielding the Conditional Flow Matching (CFM) loss with identical gradients: 
+
+LCFM (θ) = Et, q (x1), p (x0) vt(ψt(x0); θ) − ddt ψt(x0)
+
+> 2
+
+.
+
+(2) Further leveraging the Optimal Transport (OT) form ψt(x0) = (1 − t)x0 + tx 1, the OT-CFM loss simplifies to 
+
+LOT -CFM (θ) = Et, q (x1), p (x0) ∥vt((1 − t)x0 + tx 1; θ) − (x1 − x0)∥2 , (3) where the target velocity field reduces to the constant vector 
+
+(x1 − x0).
+
+2) F5-TTS: 
+
+F5-TTS [9] adopts a Diffusion Transformer (DiT) backbone and is trained on the text-guided speech infilling task. Given surrounding speech (1 − m) ⊙ x1, a noisy mixture (1 − t)x0 +
+
+tx 1, and a filler-token-padded character sequence, the model predicts the masked target region m⊙x1. Filler tokens pad the character sequence to match the mel-frame length, eliminating the need for explicit phoneme alignment or a separate duration predictor. At inference, the target mel spectrogram is obtained by integrating the predicted vector field from an initial noise sample x0 using an ODE solver: 
+
+x1 = x0 +
+
+Z 10
+
+vt(ϕt(x0), c ; θ) d t. (4) Target duration is estimated from the length ratio of the audio prompt transcript to the target text, which approximates the ratio of prompt to target mel frames. The audio prompt IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 4
+
+transcript thus plays a dual role: it contributes to the text-side condition observed by the model, and provides the length reference for duration estimation. 
+
+3) Cross-Lingual F5-TTS: 
+
+Cross-Lingual F5-TTS [13] extends F5-TTS to remove the audio prompt transcript dependency. During training, MMS forced alignment [16] extracts word boundaries from each utterance; a randomly selected boundary partitions it into a prompt and a target segment, after which the prompt transcript is discarded and only the target transcript is retained as the text condition. At inference, a speaking rate predictor estimates the target duration directly from the audio prompt, replacing the transcript-dependent text length ratio. The speaking rate predictor is a transformer-based model that takes mel-spectrograms as input and predicts discrete speaking rate categories using Gaussian Cross-Entropy (GCE) loss, which incorporates the ordinal structure of the rate intervals via Gaussian soft labels: 
+
+LGCE = − 1
+
+NsNsX
+
+> i=1
+> C
+
+X
+
+> c=1
+
+ysoft  
+
+> c
+
+log(ˆ yc), (5) where the soft label for category c is computed by a Gaussian kernel centered at the ground truth category cgt :
+
+ysoft  
+
+> c
+
+= e −(c−cgt )22σ2 . (6) The standard deviation σ controls the smoothness of the soft label distribution, assigning larger weights to speaking-rate categories closer to the ground truth. Cross-Lingual F5-TTS trains predictors at phoneme, syllable, and word granularities, and finds that the syllable-level predictor generalizes best in cross-lingual settings, where the audio prompt comes from a language unseen during predictor training. 
+
+B. Synthetic-Prompt Supervised Fine-Tuning 
+
+1) Real-Synthetic Pair Construction: 
+
+Rather than relying on forced alignment to partition real speech, we construct prompt-target pairs using a pretrained F5-TTS model. For each real training sample, the sample itself serves as the audio prompt, and a target text is drawn from a text pool in the corresponding language. The pretrained model synthesizes a new utterance in the same speaker’s voice, yielding a synthetic audio prompt xsyn prompt . This synthetic prompt is paired with the original real speech as the target 
+
+xtarget , forming a complete training pair without requiring an external forced aligner. 
+
+2) SFT with Synthetic Prompt: 
+
+We retain the speech infilling formulation of F5-TTS but remove the transcript associated with the synthetic audio prompt. The acoustic input x1 is constructed by concatenating the synthetic audio prompt and the real target speech along the temporal axis: 
+
+x1 = xsyn prompt ; xtarget 
+
+. (7) Let τ1 and τ2 denote the frame lengths of the prompt and target respectively, and τ = τ1 + τ2 the total length. A binary temporal mask m is then defined as 
+
+m[: , j ] = 
+
+(
+
+0, j ∈ [0 , τ 1),
+
+1, j ∈ [τ1, τ ), (8) so that (1 −m)⊙x1 exposes the synthetic audio prompt as the acoustic condition and m ⊙ x1 masks the real target speech as the region to be predicted. 
+
+3) Prompt-Token Text Conditioning: 
+
+In pretrained F5-TTS, the text condition follows a structured layout: the prompt transcript comes before the target text, and the remaining positions are filled with filler tokens. This layout implicitly associates text-side positions with the prompt and target regions in the acoustic sequence. If the audio prompt transcript is directly removed during SFT, the target text is shifted into positions that previously corresponded to the audio prompt transcript, disrupting the learned text-audio correspondence and making adaptation unnecessarily difficult. To retain the pretraining layout while moving to transcript-free prompting, we replace the missing prompt-token region with N learnable prompt tokens ⟨P ⟩ followed by an end-of-sequence (EOS) marker ‘. ’ before the target text. The learn-able prompt tokens serve as explicit transcript-free prompt indicators and provide placeholders in the text sequence for the acoustic prompt. The EOS marker reuses the text-boundary cue already learned during F5-TTS pretraining, where the sequence ‘. ’ marks the end of a sentence or utterance. Placed after the prompt tokens, this marker signals the boundary between the prompt-token region and the following target text, which helps the model adapt faster during fine-tuning. The full text sequence z is constructed as 
+
+z =   ⟨P ⟩, . . . , ⟨P ⟩
+
+| {z }
+
+> N
+
+, ‘ . ’ , ‘ ’,c1, . . . , c M , ⟨F ⟩, . . . , ⟨F ⟩
+
+| {z }   
+
+> τ−N−M−2
+
+, (9) where c1, . . . , c M is the target text token sequence of length 
+
+M and ⟨F ⟩ denotes filler tokens used for padding. The number of prompt tokens N is determined according to the ratio between the prompt and target speech durations. This ratio-based design ensures that the length of the prompt-token region approximates what the prompt transcript would occupy in the pretraining text condition. 
+
+C. Silence-Robust Speaking Rate Predictor 
+
+Following Cross-Lingual F5-TTS [13], we use a syllable-level speaking rate predictor to estimate the target speech duration from the prompt audio and the target text. However, real prompts often contain leading or trailing silence, which can bias the observed speaking rate downward and lead to overestimated target durations. To make the predictor robust to such prompts, we apply silence-aware augmentation during training: as shown in Fig. 2, with a certain probability, silence is inserted before, after, or on both sides of the prompt audio. The model architecture and training labels remain unchanged; only the acoustic input to the predictor is augmented. IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 51D Conv 
+
+> Input Speech
+> Linear
+> Transformer Block
+> 1D Conv
+> Classifier
+> Pooling
+> Predicted distribution
+> Duration of
+> clean speech
+> 4.26
+> Hi there! Nice weather today!
+> Are you heading out for breakfast too?
+> Transcript
+> 1. Random Silence Augmentation
+> Speech
+> (a) No augmentation
+> (b) Leading silence
+> (c) Trailing silence
+> (d) Both-side silence
+> Silence
+> # Target Syllables
+> 16
+> Real Speaking Rate
+> 16 / 4.26 = 3.76
+> Silence duration
+> Mapped GT Category
+> 3.75
+> # Linguistic Units
+> Duration
+> Speaking Rate =
+> Nearest Category Mapping
+> 2. Ground Truth Label
+
+Fig. 2. Silence-aware augmentation for training the silence-robust speaking rate predictor. With some probability, silence is inserted before, after, or on both sides of the prompt audio, so the predictor sees prompts with leading or trailing silence during training. The speaking rate label is unchanged, because the augmentation only pads the prompt with silence without modifying the speech segment that determines the rate. 
+
+IV. E XPERIMENTAL SETUP 
+
+A. Dataset 
+
+We use the Emilia dataset [15] as the primary training source. After filtering transcription failures and misclassified language speech, the training pool contains approximately 95K hours of English and Chinese speech. 
+
+TABLE I TRAINING DATA FOR SYNTHETIC -PROMPT SFT AT EACH DATA SCALE .
+
+Real speech (h) Synthetic speech (h) 
+
+1,000 286 2,000 574 5,000 1,443 95,282 29,169 
+
+For each real utterance in Emilia, we generate a correspond-ing synthetic prompt with a pretrained F5-TTS model [9], yielding paired synthetic-prompt and real-target speech for fine-tuning. To examine the effect of data scale, we addition-ally construct three reduced subsets by selecting utterances with the highest DNSMOS scores [24] from the same training pool, balanced across the two languages, and generate syn-thetic prompts for each subset in the same manner. Table I summarizes the real and synthetic durations at each scale. 
+
+B. Model Setup 
+
+Cross-Lingual F5-TTS 2 is initialized from pretrained F5-TTS and fine-tuned on the constructed real-synthetic pairs. The model uses the same F5-TTS-Base architecture as the pretrained model, with a diffusion transformer backbone con-taining 22 layers, 16 attention heads, and 1024 dimensional embeddings. SFT is conducted for 100K updates on eight NVIDIA A100 GPUs. We use a per-GPU batch size of 38,400 audio frames and the AdamW optimizer. The learning rate is linearly warmed up to 7.5 × 10 −5 over the first 20K updates and then linearly decayed. The speaking rate predictor uses a transformer-based archi-tecture with 6 layers, 8 attention heads, and 512-dimensional embeddings. It is trained on a balanced subset of 500 hours each from the Chinese and English portions of Emilia, fol-lowing Cross-Lingual F5-TTS [13]. Training is conducted on four A100 GPUs for 30K updates with a per-GPU batch size of 19,200 audio frames. The learning rate is warmed up to 2.5 × 10 −4 over the first 7.5K updates and then linearly decayed. For Gaussian Cross-Entropy loss, we set the standard deviation to σ = 1.0. For silence data augmentation, we probabilistically insert silence into the prompt audio during training: 70% of prompts remain unchanged, while silence is inserted at the beginning, at the end, or at both sides of the prompt with 10% probability each. The inserted silence duration is uniformly sampled between 30% and 70% of the original prompt duration. For inference, we follow the F5-TTS setting, with the Euler ODE solver using 32 function evaluations (NFE = 32), CFG strength 2.0, sway sampling coefficient -1.0, and a pretrained Vocos vocoder [25]. 
+
+C. Baselines 
+
+We adopt F5-TTS [9] and Cross-Lingual F5-TTS [13] as baselines, both introduced in Section III. The two baselines estimate the target duration differently at inference. F5-TTS uses a ratio-based method, in which the duration equals the audio prompt duration scaled by the ratio of the target text length to the reference text length. Cross-Lingual F5-TTS uses the original speaking rate predictor trained without silence augmentation. In contrast, Cross-Lingual F5-TTS 2 estimates the target duration with our speaking rate predictor trained with silence augmentation. IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 6                                                                 
+
+> TABLE II OBJECTIVE AND SUBJECTIVE TTS RESULTS ON LIBRI SPEECH -PC TEST -CLEAN , S EED -TTS TEST -EN ,AND SEED -TTS TEST -ZH . SMOS ( 1–5)AND
+> CMOS ( RELATIVE TO GROUND TRUTH )ARE OBTAINED FROM A SUBJECTIVE LISTENING TEST ON 15 RANDOMLY -SAMPLED UTTERANCES PER TEST SET .
+> System WER(%) ↓SIM-o ↑UTMOS ↑SMOS ↑CMOS ↑
+> LibriSpeech-PC test-clean
+> F5-TTS 2.205 0.668 3.797 4.324 +0.480
+> Cross-Lingual F5-TTS 2.144 0.658 3.893 4.063 +0.258
+> Cross-Lingual F5-TTS 2 2.014 0.687 3.704 4.216 +0.150
+> Seed-TTS test-en
+> F5-TTS 1.545 0.676 3.582 4.148 +0.141
+> Cross-Lingual F5-TTS 1.613 0.659 3.635 4.051 +0.003
+> Cross-Lingual F5-TTS 2 1.629 0.683 3.544 4.082 -0.064
+> Seed-TTS test-zh
+> F5-TTS 1.475 0.762 2.898 4.290 +0.508 Cross-Lingual F5-TTS 1.521 0.763 2.901 4.064 +0.677 Cross-Lingual F5-TTS 2 1.594 0.768 2.761 4.098 -0.068
+
+D. Evaluation 
+
+We follow the evaluation setting of F5-TTS, using LibriSpeech-PC test-clean [26] and Seed-TTS-eval [27] as the intra-lingual evaluation sets. To evaluate cross-lingual voice cloning, we further build a test set whose audio prompts come from eight languages that are out-of-distribution with respect to the English and Chinese training data: Korean from Emilia [15], Vietnamese from Dolly-Audio [28], and Thai, Indonesian, French, Ger-man, Russian, and Maltese from Common Voice [29]. These languages span different families and writing systems, cov-ering both tonal and non-tonal as well as high-resource and less represented cases. Each prompt language is paired with 500 English and 500 Chinese target sentences drawn from Common Voice, giving 16 cross-lingual subsets in which the prompt language always differs from the target. We evaluate TTS performance using three objective metrics: 
+
+Word Error Rate (WER) measures the intelligibility of synthesized speech by comparing automatic transcriptions with the ground-truth text. We use Whisper-large-V3 [30] for English and Paraformer-zh [31] for Chinese recognition, and compute WER accordingly. 
+
+Speaker Similarity (SIM-o) measures speaker similarity be-tween synthesized speech and the reference speech. We extract speaker embeddings using a WavLM-large-based speaker ver-ification model [32] and compute their cosine similarity. 
+
+UTMOS [33] provides an automatic estimate of speech natu-ralness and audio quality using a pretrained MOS prediction model. It is used as an objective proxy for naturalness rather than a subjective listening score. In Table II, we further report two subjective metrics: 
+
+Similarity MOS (SMOS) measures the similarity in timbre and prosody between the synthesized speech and the speaker prompt. SMOS is on a scale of 1 to 5.
+
+Comparative MOS (CMOS) measures the naturalness of the synthesized speech relative to the ground-truth recording of the same utterance. CMOS is on a scale of −3 to +3 .To assess robustness to leading and trailing silence, we additionally evaluate on a padded prompt that adds silence to both sides of the original prompt, each side fixed to 50% of the prompt duration, and compare it against the default 
+
+clean prompt on LibriSpeech-PC test-clean , Seed-TTS test-en , and Seed-TTS test-zh . Under both prompts we report both the duration prediction accuracy of the speaking rate predictor, using the two metrics below, and the resulting TTS performance, using the WER, SIM-o, and UTMOS metrics defined above. 
+
+Mean Relative Error (MRE) measures the average relative difference between the predicted duration and the ground-truth duration. The predicted duration is obtained from the number of target linguistic units divided by the predicted speaking rate. 
+
+Mean Absolute Error (MAE) measures the absolute de-viation between the predicted and ground-truth durations in seconds. V. R ESULTS AND ANALYSIS 
+
+A. Main Results 
+
+Table II compares Cross-Lingual F5-TTS 2 with F5-TTS and Cross-Lingual F5-TTS on LibriSpeech-PC test-clean and Seed-TTS test sets along three dimensions: intelligibility, similarity, and naturalness. Our method achieves competitive performance across all three test sets. In intelligibility, Cross-Lingual F5-TTS 2 is comparable to both baselines on WER and obtains the lowest value on LibriSpeech-PC test-clean 
+
+(2.014% ), indicating that replacing the real audio prompt does not degrade intelligibility. In similarity, Cross-Lingual F5-TTS 2 achieves the highest SIM-o on all three test sets, with the largest gains on the English benchmarks (LibriSpeech-PC 
+
+test-clean and Seed-TTS test-en ) and a slight improvement on Seed-TTS test-zh . This gain comes from the synthetic prompt used during supervised fine-tuning, which provides a cleaner conditioning signal: real recordings carry unstable prosody and paralinguistic information that the model must discount before copying the target voice, whereas the synthetic prompt is steadier and plainer, so the model learns speaker identity more reliably. Cross-Lingual F5-TTS 2 also obtains a higher SMOS than Cross-Lingual F5-TTS but a slightly lower one than F5-TTS on all three test sets. Because SMOS reflects both timbre and prosody while SIM-o captures mainly timbre, IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 7
+
+TABLE III CROSS -LINGUAL RESULTS WITH OUT -OF -DISTRIBUTION (OOD) AUDIO PROMPTS . T HE PROMPT LANGUAGE (KO /TH /VI /ID /FR /DE /RU /MT ) DIFFERS FROM THE TARGET LANGUAGE (EN /ZH ) AND IS UNSEEN DURING TRAINING . WER (%), SIM-O, AND UTMOS ARE REPORTED FOR EACH LANGUAGE PAIR .
+
+Prompt Language Cross-Lingual F5-TTS Cross-Lingual F5-TTS 2 WER ↓ SIM-o ↑ UTMOS ↑ WER ↓ SIM-o ↑ UTMOS ↑
+
+Target Language: English 
+
+Korean 3.496 0.449 3.426 3.383 0.455 3.370 Thai 3.599 0.468 3.705 4.236 0.508 3.481 Vietnamese 3.281 0.510 4.184 3.464 0.503 4.153 Indonesian 4.330 0.431 3.405 4.442 0.450 3.290 French 3.929 0.506 3.718 3.841 0.532 3.599 German 3.913 0.554 3.602 3.431 0.579 3.509 Russian 4.337 0.492 3.608 3.614 0.517 3.513 Maltese 3.884 0.516 3.693 3.486 0.531 3.622 
+
+Target Language: Chinese 
+
+Korean 4.133 0.644 2.761 4.574 0.658 2.602 Thai 3.938 0.607 2.888 5.030 0.626 2.609 Vietnamese 4.268 0.673 3.550 4.517 0.671 3.488 Indonesian 5.370 0.478 2.788 4.714 0.500 2.593 French 4.961 0.515 3.097 4.933 0.529 2.862 German 4.685 0.512 2.950 4.771 0.532 2.777 Russian 5.325 0.544 2.976 4.659 0.553 2.814 Maltese 4.842 0.518 3.002 5.332 0.529 2.845 
+
+the flatter prosody induced by the synthetic prompt lowers SMOS relative to F5-TTS. In naturalness, Cross-Lingual F5-TTS 2 is slightly lower than both baselines on UTMOS and CMOS on all three test sets, as the cleaner but prosodically flatter synthetic prompt biases the model. This modest decrease in naturalness is an acceptable trade-off for the substantial gain in speaker similarity. Overall, Cross-Lingual F5-TTS 2 removes the dependency on audio prompt transcripts while improving speaker similarity and maintaining intelligibility, at only a modest cost in naturalness. 
+
+B. Cross-Lingual Voice Cloning Results 
+
+Table III evaluates cross-lingual voice cloning, where the audio prompt is in one of eight out-of-distribution languages and the target text is English or Chinese, so the prompt language always differs from the target. We compare Cross-Lingual F5-TTS 2 with Cross-Lingual F5-TTS across all 16 prompt-target pairs. The overall pattern is consistent with the intra-lingual results in Section V-A: Cross-Lingual F5-TTS 2 obtains higher SIM-o on 14 of the 16 pairs; Cross-Lingual F5-TTS obtains higher UTMOS, and WER is comparable between the two models. These results show that Cross-Lingual F5-TTS 2 can take an out-of-distribution audio prompt, without access to its transcript, and clone the speaker identity into English or Chinese across a wide range of languages, including less represented ones such as Maltese, whose Semitic origins place it outside the Indo-European and Sino-Tibetan families of the training languages. This is the practical benefit of removing the transcript dependency: the model can clone speakers from prompt languages for which a reliable transcript is difficult to obtain. 
+
+TABLE IV ABLATION OF PROMPT -TOKEN TEXT CONDITIONING . T HE PLACEHOLDER DENOTES THE SUBSTITUTE FOR THE MISSING PROMPT TRANSCRIPT .
+
+ID Placeholder EOS WER(%) ↓ SIM-o ↑ UTMOS ↑
+
+LibriSpeech-PC test-clean 
+
+A0 None ✗ 3.022 0.686 3.705 A1 Filler token ✗ 2.028 0.687 3.707 
+
+A2 Prompt token ✗ 1.984 0.688 3.703 A3 Prompt token ✓ 2.014 0.687 3.704 
+
+Seed-TTS test-en 
+
+A0 None ✗ 7.116 0.675 3.516 A1 Filler token ✗ 2.994 0.681 3.514 A2 Prompt token ✗ 2.018 0.683 3.508 A3 Prompt token ✓ 1.629 0.683 3.544 Seed-TTS test-zh 
+
+A0 None ✗ 5.066 0.765 2.745 A1 Filler token ✗ 1.900 0.767 2.777 
+
+A2 Prompt token ✗ 1.621 0.768 2.760 A3 Prompt token ✓ 1.594 0.768 2.761 
+
+C. Ablation Study on Text Conditioning 
+
+Table IV examines how the text conditioning that replaces the missing audio prompt transcript affects fine-tuning. We compare four variants, each fine-tuned for 100K steps: no placeholder (A0), N filler tokens (A1), N learnable prompt tokens (A2), and N learnable prompt tokens followed by an EOS marker (A3), where N is set from the prompt-to-target duration ratio as described in Section III. The placeholder column denotes the token used in place of the audio prompt transcript, and the EOS column denotes whether an EOS marker is appended. Fig. 3 plots WER against the number of SFT steps on the three test sets, with a log-scaled y-axis and a dashed line at 2% WER as a reference, which makes the convergence speed of each variant visible. Among the four variants, A3 converges fastest on the Seed-IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 8
+
+TTS sets, where it crosses the 2% reference earliest and reaches the lowest final WER. The comparison among A0, A1, and A2 isolates the effect of the placeholder. Both A1 and A2 fill the dropped prompt-token region with N tokens and converge to a much lower WER than removing it outright (A0), because they preserve the text-conditioning layout seen during pretraining; leaving the region empty (A0) shifts the target text into positions that previously held the audio prompt transcript, abruptly changing the structure and perturbing the attention distribution that the pretrained model relies on. By comparing A2 with A1, A2 outperforms A1 because they form an explicit, trainable signal: each prompt token is updated by gradient descent into a task-specific representation. In contrast, filler tokens are masked out during the forward pass and provide no such signal, leaving the prompt-token region without a text-side anchor. A2 also exhibits a distinctive slow-start phase, during which its randomly initialized prompt tokens provide no useful conditioning until training shapes them and WER improves only slowly before falling sharply. This phase lasts longest on Seed-TTS test-en and is shortest on Seed-TTS test-zh , where A2 is already among the lowest at 10K steps. 20k 40k 60k 80k 100k SFT step 23510 20 30 WER (%)            
+
+> LibriSpeech-PC test-clean
+> 20k 40k 60k 80k 100k SFT step
+> Seed-TTS test-en
+> 20k 40k 60k 80k 100k SFT step
+> Seed-TTS test-zh
+> A0 (None) A1 (Filler token) A2 (Prompt token) A3 (Prompt token + EOS)
+
+Fig. 3. WER versus SFT step for the four text-conditioning variants in Table IV, on LibriSpeech-PC test-clean (left), Seed-TTS test-en (middle), and 
+
+test-zh (right); the y-axis is log-scaled and the dashed line marks a 2% WER reference. 
+
+Comparing A3 with A2 isolates the effect of the EOS marker. As shown in Fig. 3, appending the EOS marker mainly accelerates convergence: A3 converges far faster than A2 on Seed-TTS test-en and settles at a lower final WER, while it converges slightly faster and reaches a comparable final WER on LibriSpeech-PC test-clean and Seed-TTS test-zh . The EOS marker accelerates convergence because F5-TTS has already learned during pretraining that the sequence ‘. ’ marks the end of an utterance, so reusing it at fine-tuning time supplies a familiar cue that closes the prompt-token region and signals where the target segment begins. 
+
+D. Ablation Study on Fine-Tuning Data Scale 
+
+Table V studies how the amount of fine-tuning data affects synthetic-prompt SFT. We fine-tune Cross-Lingual F5-TTS 2 at four data scales, pairing each real utterance with a synthetic prompt as in Table I. Overall, more data brings only a small improvement, and even the smallest scale (B0) already reaches performance close to the full set. The three metrics respond to scale differently. SIM-o is the only one that improves consistently with more data: B3 obtains the highest score on all three test sets, although the margin over 
+
+TABLE V ABLATION STUDY ON FINE -TUNING DATA SCALE FOR SYNTHETIC -PROMPT 
+
+SFT. 
+
+ID Real / Synthetic (h) WER(%) ↓ SIM-o ↑ UTMOS ↑
+
+LibriSpeech-PC test-clean 
+
+B0 1,000 / 286 2.223 0.683 3.747 B1 2,000 / 574 2.264 0.683 3.739 B2 5,000 / 1,443 2.190 0.686 3.748 
+
+B3 95,282 / 29,169 2.014 0.687 3.704 
+
+Seed-TTS test-en 
+
+B0 1,000 / 286 1.760 0.679 3.533 B1 2,000 / 574 1.645 0.679 3.526 B2 5,000 / 1,443 1.690 0.680 3.538 B3 95,282 / 29,169 1.629 0.683 3.544 Seed-TTS test-zh 
+
+B0 1,000 / 286 1.591 0.765 2.770 
+
+B1 2,000 / 574 1.552 0.763 2.759 B2 5,000 / 1,443 1.589 0.765 2.769 B3 95,282 / 29,169 1.594 0.768 2.761 
+
+the smaller scales is small (within 0.005). WER and UTMOS show no clear trend and vary within a narrow band; B3 is not uniformly best, and B1 even reaches the lowest WER on Seed-TTS test-zh .This limited sensitivity to data scale is expected. Cross-Lingual F5-TTS 2 is initialized from a pretrained F5-TTS that has already learned acoustic modeling, so fine-tuning only needs to adapt the model to the transcript-free text conditioning rather than to relearn the acoustic mapping. A moderate amount of data is sufficient for this adaptation: a few thousand hours recover most of the benefit, and the full pool adds only a marginal gain in speaker similarity. 
+
+TABLE VI DURATION PREDICTION ACCURACY OF THE ORIGINAL AND SILENCE -ROBUST SPEAKING RATE PREDICTORS .
+
+Duration Method Clean Prompt Padded Prompt MAE(s) ↓ MRE(%) ↓ MAE(s) ↓ MRE(%) ↓
+
+LibriSpeech-PC test-clean 
+
+Syllable-level SRP 0.729 11.414 4.495 70.211 
+
++ Silence Aug. 0.729 11.567 0.817 13.154 Seed-TTS test-en 
+
+Syllable-level SRP 0.683 15.774 3.034 70.984 
+
++ Silence Aug. 0.697 16.330 0.652 15.364 Seed-TTS test-zh 
+
+Syllable-level SRP 0.730 12.692 4.708 85.491 
+
++ Silence Aug. 0.772 13.532 1.034 18.933 
+
+E. Robustness to Prompt Silence 
+
+Tables VI and VII examine how robust the duration estima-tion is to silence in the audio prompt, under a clean prompt and a padded prompt that adds leading and trailing silence. Both tables compare the original speaking rate predictor from Cross-Lingual F5-TTS, with the silence-robust speaking rate predictor of Section III. Table VI reports the duration accuracy IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 9
+
+TABLE VII TTS PERFORMANCE OF CROSS -L INGUAL F5-TTS 2 USING TARGET DURATIONS FROM THE ORIGINAL AND SILENCE -ROBUST SPEAKING RATE PREDICTORS UNDER CLEAN AND PADDED PROMPTS .
+
+Duration Method Clean Prompt Padded Prompt WER(%) ↓ SIM-o ↑ UTMOS ↑ WER(%) ↓ SIM-o ↑ UTMOS ↑
+
+LibriSpeech-PC test-clean 
+
+Syllable-level SRP 1.979 0.683 3.704 3.463 0.672 3.656 
+
++ Silence Aug. 2.014 0.687 3.704 2.454 0.685 3.731 Seed-TTS test-en 
+
+Syllable-level SRP 1.626 0.675 3.550 3.241 0.674 3.477 
+
++ Silence Aug. 1.629 0.683 3.544 1.919 0.675 3.559 Seed-TTS test-zh 
+
+Syllable-level SRP 1.494 0.766 2.802 4.006 0.725 2.746 
+
++ Silence Aug. 1.594 0.768 2.761 1.738 0.753 2.870 
+
+of each predictor, and Table VII reports the TTS performance when its predicted durations are used by the same Cross-Lingual F5-TTS 2 model, so that the two settings differ only in the estimated target duration. Under clean prompts the two predictors behave almost identically: silence augmentation leaves MAE and MRE es-sentially unchanged, with MRE rising by only 0.6 and 0.8 points on Seed-TTS test-en and test-zh , so it costs little when the prompt is already clean. The difference emerges under padded prompts. Once silence is added in the audio prompt, the original predictor fails badly, with MRE above 70% and MAE exceeding three seconds, because the silence lowers the predicted speaking rate and the estimated duration is inflated accordingly. The silence-robust speaking rate predictor instead stays close to its clean-prompt accuracy. Table VII shows how these duration errors carry over to the synthesized speech. On clean prompts the durations from the two predictors lead to comparable WER, SIM-o, and UTMOS. On padded prompts the durations from the original predictor degrade all three metrics, with higher WER, lower SIM-o, and lower UTMOS. The cause is the inflated duration: when the predicted speaking rate is too slow, the target is allotted more frames than the content needs, the speech is stretched, and its prosody is distorted, which lowers both intelligibility and naturalness. With durations from the silence-robust speaking rate predictor, the padded-prompt results stay close to the clean-prompt ones, in line with the accurate durations in Table VI. VI. C ONCLUSION 
+
+In this work, we present Cross-Lingual F5-TTS 2, asimplified fine-tuning framework that achieves cross-lingual zero-shot voice cloning without audio prompt transcripts or forced alignment. Our method pairs each real utterance with a same-speaker prompt synthesized by a pretrained F5-TTS, and fine-tunes the same pretrained model on these pairs. For duration estimation, we follow Cross-Lingual F5-TTS and use a syllable-level speaking rate predictor, which we make robust to leading or trailing silence through silence-aware augmentation. Experiments show that Cross-Lingual F5-TTS 2 reaches higher speaker similarity than F5-TTS and Cross-Lingual F5-TTS while maintaining intelligibility, and generalizes to out-of-distribution prompt languages without their transcripts. The silence-robust speaking rate predictor further keeps the predicted duration accurate when the prompt contains leading or trailing silence. The main limitation is a small drop in naturalness, caused by the prosodically flatter synthetic prompt. In future work, we will improve the expres-siveness of the synthetic prompt and extend the approach to more languages beyond English and Chinese. REFERENCES [1] S. Chen, C. Wang, Y. Wu, Z. Zhang, L. Zhou, S. Liu, Z. Chen, Y. Liu, H. Wang, J. Li, L. He, S. Zhao, and F. Wei, “Neural codec language models are zero-shot text to speech synthesizers,” IEEE/ACM TASLP ,vol. 33, pp. 705–718, 2025. [2] Z. Du, Q. Chen, S. Zhang, K. Hu, H. Lu, Y. Yang, H. Hu, S. Zheng, Y. Gu, Z. Ma, Z. Gao, and Z. Yan, “CosyVoice: A scalable multilin-gual zero-shot text-to-speech synthesizer based on supervised semantic tokens,” arXiv preprint arXiv:2407.05407 , 2024. [3] Z. Du, Y. Wang, Q. Chen, X. Shi, X. Lv, T. Zhao, Z. Gao, Y. Yang, C. Gao, H. Wang, F. Yu, H. Liu, Z. Sheng, Y. Gu, C. Deng, W. Wang, S. Zhang, Z. Yan, and J. Zhou, “CosyVoice 2: Scalable streaming speech synthesis with large language models,” arXiv preprint arXiv:2412.10117 ,2024. [4] Z. Du, C. Gao, Y. Wang, F. Yu, T. Zhao, H. Wang, X. Lv, H. Wang, C. Ni, X. Shi, K. An, G. Yang, Y. Li, Y. Chen, Z. Gao, Q. Chen, Y. Gu, M. Chen, Y. Chen, S. Zhang, W. Wang, and J. Ye, “CosyVoice 3: Towards in-the-wild speech generation via scaling-up and post-training,” 
+
+arXiv preprint arXiv:2505.17589 , 2025. [5] S. Zhou, Y. Zhou, Y. He, X. Zhou, J. Wang, W. Deng, and J. Shu, “IndexTTS2: A breakthrough in emotionally expressive and duration-controlled auto-regressive zero-shot text-to-speech,” in Proc. AAAI ,vol. 40, no. 41, 2026, pp. 35 139–35 148. [6] Y. Li, X. Zhou, J. Wang, L. Wang, Y. Wu, S. Zhou, Y. Zhou, and J. Shu, “IndexTTS 2.5 technical report,” arXiv preprint arXiv:2601.03888 ,2026. [7] M. Le, A. Vyas, B. Shi, B. Karrer, L. Sari, R. Moritz, M. Williamson, V. Manohar, Y. Adi, J. Mahadeokar, and W.-N. Hsu, “Voicebox: Text-guided multilingual universal speech generation at scale,” in Proc. NeurIPS , vol. 36, 2023, pp. 14 005–14 034. [8] S. E. Eskimez, X. Wang, M. Thakker, C. Li, C.-H. Tsai, Z. Xiao, H. Yang, Z. Zhu, M. Tang, X. Tan, Y. Liu, S. Zhao, and N. Kanda, “E2 TTS: Embarrassingly easy fully non-autoregressive zero-shot tts,” in Proc. SLT , 2024, pp. 682–689. [9] Y. Chen, Z. Niu, Z. Ma, K. Deng, C. Wang, J. Zhao, K. Yu, and X. Chen, “F5-TTS: A fairytaler that fakes fluent and faithful speech with flow matching,” in Proc. ACL , 2025, pp. 6255–6271. [10] E. Casanova, J. Weber, C. D. Shulby, A. C. Junior, E. G¨ olge, and M. A. Ponti, “YourTTS: Towards zero-shot multi-speaker tts and zero-shot voice conversion for everyone,” in Proc. ICML , 2022, pp. 2709–2720. IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 10 
+
+[11] H. Hu, X. Zhu, T. He, D. Guo, B. Zhang, X. Wang, Z. Guo, Z. Jiang, H. Hao, Z. Guo, X. Zhang, P. Zhang, B. Yang, J. Xu, J. Zhou, and J. Lin, “Qwen3-TTS technical report,” arXiv preprint arXiv:2601.15621 , 2026. [12] Y. Gong, B. Jiang, Y. Zhao, Y. Yuan, K. Chen, Y. Jiang, C. Chang, D. Hong, M. Chen, R. Li, Y. Zhang, Y. Gao, H. Chen, K. Chen, S. Wang, X. Yang, Y. Zhang, K. Huang, Z. Lin, K. Yu, Z. Chen, J. Wang, Z. Fei, Q. Cheng, S. Li, and X. Qiu, “MOSS-TTS technical report,” arXiv preprint arXiv:2603.18090 , 2026. [13] Q. Liu, Y. Chen, Z. Niu, C. Wang, Y. Yang, B. Zhang, J. Zhao, P. Zhu, K. Yu, and X. Chen, “Cross-Lingual F5-TTS: Towards language-agnostic voice cloning and speech synthesis,” in Proc. ICASSP , 2026, pp. 17 362–17 366. [14] N. Torgashov, G. E. Henter, and G. Skantze, “VoXtream2: Full-stream tts with dynamic speaking rate control,” arXiv preprint arXiv:2603.13518 ,2026. [15] H. He, Z. Shang, C. Wang, X. Li, Y. Gu, H. Hua, L. Liu, C. Yang, J. Li, P. Shi, Y. Wang, K. Chen, P. Zhang, and Z. Wu, “Emilia: An extensive, multilingual, and diverse speech dataset for large-scale speech generation,” in Proc. SLT , 2024, pp. 885–890. [16] V. Pratap, A. Tjandra, B. Shi, P. Tomasello, A. Babu, S. Kundu, A. Elkahky, Z. Ni, A. Vyas, M. Fazel-Zarandi, A. Baevski, Y. Adi, X. Zhang, W.-N. Hsu, A. Conneau, and M. Auli, “Scaling speech tech-nology to 1,000+ languages,” Journal of Machine Learning Research ,vol. 25, no. 97, pp. 1–52, 2024. [17] T. Zhou, L. Zhang, Z. Chen, and Y. Qian, “Training text-to-speech model with purely synthetic data: Feasibility, sensitivity, and generalization capability,” arXiv preprint arXiv:2512.17356 , 2025. [18] K. Dua, P. Mittal, R. Gupta, and H. L. Patel, “SpeechWeave: Diverse multilingual synthetic text & audio data generation pipeline for training text to speech models,” in Proc. ACL Industry Track , 2025, pp. 718–737. [19] A. Khamis and H. A. Ahmed, “LLM-to-speech: A synthetic data pipeline for training dialectal text-to-speech models,” in Proc. Workshop on NLP for Languages Using Arabic Script , 2026, pp. 47–54. [20] Y. Geng, Y. Li, J. Yang, T. Jiang, B. An, Y. Li, and X. Shen, “Bridging the stability-expressivity gap: Synthetic data scaling and preference alignment for low-resource spoken language models,” arXiv preprint arXiv:2605.27383 , 2026. [21] Z. Ju, Y. Wang, K. Shen, X. Tan, D. Xin, D. Yang, E. Liu, Y. Leng, K. Song, S. Tang, Z. Wu, T. Qin, X. Li, W. Ye, S. Zhang, J. Bian, L. He, J. Li, and S. Zhao, “NaturalSpeech 3: Zero-shot speech synthesis with factorized codec and diffusion models,” in Proc. ICML , 2024, pp. 22 605–22 623. [22] X. Wang, C. Qiang, R. Fu, Z. Wen, X. Liu, Y. Liu, Y. Liang, K. Yin, Y. Xie, H. Xie, C. Li, C. Zhang, and C. Li, “M3-TTS: Multi-modal dit alignment & mel-latent for zero-shot high-fidelity speech synthesis,” 
+
+arXiv preprint arXiv:2512.04720 , 2025. [23] Y. Lipman, R. T. Q. Chen, H. Ben-Hamu, M. Nickel, and M. Le, “Flow matching for generative modeling,” in Proc. ICLR , 2023. [24] C. K. A. Reddy, V. Gopal, and R. Cutler, “DNSMOS P.835: A non-intrusive perceptual objective speech quality metric to evaluate noise suppressors,” in Proc. ICASSP , 2022, pp. 886–890. [25] H. Siuzdak, “Vocos: Closing the gap between time-domain and fourier-based neural vocoders for high-quality audio synthesis,” in Proc. ICLR ,2024. [26] A. Meister, M. Novikov, N. Karpov, E. Bakhturina, V. Lavrukhin, and B. Ginsburg, “LibriSpeech-PC: Benchmark for evaluation of punctuation and capitalization capabilities of end-to-end ASR models,” in Proc. ASRU , 2023, pp. 1–7. [27] P. Anastassiou, J. Chen, J. Chen, Y. Chen, Z. Chen, Z. Chen, J. Cong, L. Deng, C. Ding, L. Gao et al. , “Seed-TTS: A family of high-quality versatile speech generation models,” arXiv preprint arXiv:2406.02430 ,2024. [28] V. H. Nguyen and D. T. Nguyen, “Dolly-Audio: Vietnamese multi-speaker high-quality speech corpus,” https://huggingface.co/datasets/ dolly-vn/dolly-audio-1000h-vietnamese, 2025. [29] R. Ardila, M. Branson, K. Davis, M. Kohler, J. Meyer, M. Henretty, R. Morais, L. Saunders, F. Tyers, and G. Weber, “Common Voice: A massively-multilingual speech corpus,” in Proc. LREC , 2020, pp. 4218– 4222. [30] A. Radford, J. W. Kim, T. Xu, G. Brockman, C. McLeavey, and I. Sutskever, “Robust speech recognition via large-scale weak super-vision,” in Proc. ICML , 2023, pp. 28 492–28 518. [31] Z. Gao, S. Zhang, I. McLoughlin, and Z. Yan, “Paraformer: Fast and accurate parallel transformer for non-autoregressive end-to-end speech recognition,” in Proc. Interspeech , 2022, pp. 2063–2067. [32] S. Chen, C. Wang, Z. Chen, Y. Wu, S. Liu, Z. Chen, J. Li, N. Kanda, T. Yoshioka, X. Xiao et al. , “WavLM: Large-scale self-supervised pre-training for full stack speech processing,” IEEE Journal of Selected Topics in Signal Processing , vol. 16, no. 6, pp. 1505–1518, 2022. [33] T. Saeki, D. Xin, W. Nakata, T. Koriyama, S. Takamichi, and H. Saruwatari, “UTMOS: UTokyo-SaruLab system for VoiceMOS chal-lenge 2022,” in Proc. Interspeech , 2022, pp. 4521–4525.

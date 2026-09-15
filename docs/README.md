@@ -6,43 +6,59 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-14
-- 运行时间：2026-09-14 22:38:06 UTC
+- 最新运行日期：2026-09-15
+- 运行时间：2026-09-15 22:57:48 UTC
 - 运行状态：成功
-- 本次总论文数：6
-- 精读区：0
-- 速读区：6
+- 本次总论文数：13
+- 精读区：1
+- 速读区：12
 
 ### 今日简报（AI）
-今日速读6篇AI论文、0篇精读，焦点落在多模态越狱、Agent越狱攻防与阿拉伯语语音大模型。
-
-最值得看的是两篇7.0分越狱研究：一篇用后验重加权理解多模态越狱，另一篇系统梳理Agentic AI时代的攻击、防御与实践考量；Nuha-Speech则指向通用阿拉伯语语音-LLM建设。
-
-普通读者可先读Agent越狱SoK建立全景，再按兴趣深入多模态越狱或阿拉伯语语音方向。
-- 详情：[/202609/14/README](/202609/14/README)
+2026-09-15 语音日报精选13篇：1篇精读、12篇速读，聚焦跨语言语音克隆、多语种语音翻译与低资源ASR。最值得看的是9.0分的《Cross-Lingual F5-TTS 2》提出的语言无关语音克隆简化框架，以及CVSS-X覆盖28种语言的多语种语音翻译语料库。普通读者可先关注跨语言音色克隆的落地体验，再留意低资源语种识别与翻译的数据积累进展。
+- 详情：[/202609/15/README](/202609/15/README)
 
 ### 精读区论文标签
-- 本次无精读推荐。
+1. [Cross-Lingual F5-TTS 2: A Simplified Framework for Language-Agnostic Voice Cloning](/202609/15/2609.15184v1-cross-lingual-f5-tts-2-a-simplified-framework-for-language-agnostic-voice-cloning)  
+   标签：评分：9.0/10、query:speech-tech
+   evidence：跨语言TTS语音克隆
 
 ### 速读区论文标签
-1. [Understanding In-Context Multimodal Jailbreaks via Posterior Reweighting](/202609/14/2609.10613v1-understanding-in-context-multimodal-jailbreaks-via-posterior-reweighting)  
-   标签：评分：7.0/10、query:llm-attack
-   evidence：多模态大模型的上下文越狱
-2. [Nuha-Speech: Building General-Purpose Arabic Speech-LLMs](/202609/14/2609.11892v1-nuha-speech-building-general-purpose-arabic-speech-llms)  
+1. [Nuha-Speech: Building General-Purpose Arabic Speech-LLMs](/202609/15/2609.11892v1-nuha-speech-building-general-purpose-arabic-speech-llms)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：阿拉伯语语音大模型的数据训练与评测
-3. [SoK: Rethinking Jailbreaking in the Era of Agentic AI: Attacks, Defenses, and Practical Consideration](/202609/14/2609.12413v1-sok-rethinking-jailbreaking-in-the-era-of-agentic-ai-attacks-defenses-and-practical-consideration)  
-   标签：评分：7.0/10、query:llm-attack
-   evidence：面向大模型越狱攻击与防御的知识系统化
-4. [Noēsis: Deterministic-First Retrieval with Two-Tier Context Hydration for Factuality-Critical Queries on Small Local Models](/202609/14/2609.07663v1-nosis-deterministic-first-retrieval-with-two-tier-context-hydration-for-factuality-critical-queries-on-small-local-models)  
+   evidence：面向低资源语言的阿拉伯语语音大模型
+2. [CVSS-X: A Multilingual Speech-to-Speech Translation Corpus for 28 Languages](/202609/15/2609.13413v1-cvss-x-a-multilingual-speech-to-speech-translation-corpus-for-28-languages)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：多语言语音到语音翻译与跨语言声音克隆
+3. [Sequential Adapter Stacking for Cross-Lingual Low-Resource ASR](/202609/15/2609.15758v1-sequential-adapter-stacking-for-cross-lingual-low-resource-asr)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：跨语言低资源语音识别迁移
+4. [Matryoshka Hash Representations for Model-Aware Compact Semantic Retrieval](/202609/15/2609.07276v1-matryoshka-hash-representations-for-model-aware-compact-semantic-retrieval)  
    标签：评分：6.0/10、query:fie-rag
-   evidence：面向事实关键查询的检索增强生成
-5. [Bridging the Semantic-Utility Gap in Multimodal RAG via Generator-in-the-Loop Alignment](/202609/14/2609.08188v1-bridging-the-semantic-utility-gap-in-multimodal-rag-via-generator-in-the-loop-alignment)  
+   evidence：面向RAG稠密检索的量化紧凑语义检索
+5. [Do LLMs Make More Mistakes If They Do Not Believe the Input Data?](/202609/15/2609.09363v1-do-llms-make-more-mistakes-if-they-do-not-believe-the-input-data)  
    标签：评分：6.0/10、query:fie-rag
-   evidence：面向多模态检索增强生成的生成器在环对齐
-6. [Kraken: LLM-based Speech-to-Speech Translation via Low-bitrate VQ and Dual-path Source Conditioning](/202609/14/2609.13045v1-kraken-llm-based-speech-to-speech-translation-via-low-bitrate-vq-and-dual-path-source-conditioning)  
+   evidence：多语言场景下RAG忠实度与事实性
+6. [Xiaomi-CocktailASR-1 Technical Report](/202609/15/2609.11274v1-xiaomi-cocktailasr-1-technical-report)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：基于大模型的低比特率语音到语音翻译
+   evidence：面向多说话人场景的LLM端到端目标说话人ASR
+7. [Kraken: LLM-based Speech-to-Speech Translation via Low-bitrate VQ and Dual-path Source Conditioning](/202609/15/2609.13045v1-kraken-llm-based-speech-to-speech-translation-via-low-bitrate-vq-and-dual-path-source-conditioning)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：基于大模型的语音到语音翻译
+8. [The VoiceMOS Challenge 2026: Evaluating Speech Enhancement, Emotional TTS and Accented TTS Systems](/202609/15/2609.13792v1-the-voicemos-challenge-2026-evaluating-speech-enhancement-emotional-tts-and-accented-tts-systems)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：评测情感与带口音TTS系统
+9. [Can We Triage LLM Translation Errors in Classical Texts Without Human References? Source Novelty, GEMBA Scoring, and Budgeted Review through Pali-to-English Translation](/202609/15/2609.14963v1-can-we-triage-llm-translation-errors-in-classical-texts-without-human-references-source-novelty-gemba-scoring-and-budgeted-review-through-pali-to-english-translation)  
+   标签：评分：6.0/10、query:cross-lang
+   evidence：经典文本LLM翻译错误的无参考分诊
+10. [Typhoon ASR Streaming: Steerable Low-Latency Thai Speech Recognition with Real-Time Shallow Fusion](/202609/15/2609.14991v1-typhoon-asr-streaming-steerable-low-latency-thai-speech-recognition-with-real-time-shallow-fusion)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：低资源语言低延迟语音识别
+11. [Can We Trust the Judges? Validation of Factuality Evaluation Methods via Answer Perturbation](/202609/15/2609.15561v1-can-we-trust-the-judges-validation-of-factuality-evaluation-methods-via-answer-perturbation)  
+   标签：评分：6.0/10、query:fie-rag
+   evidence：通过扰动验证事实性评测
+12. [Enabling Streaming User Transcription in Full-Duplex Speech-to-Speech Models](/202609/15/2609.15759v1-enabling-streaming-user-transcription-in-full-duplex-speech-to-speech-models)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：为全双工语音模型增加流式语音识别
 
 
 <div class="dpr-home-promo-card">
