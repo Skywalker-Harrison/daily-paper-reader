@@ -1,0 +1,291 @@
+Title: T-SANDHI: Tone Sandhi-aware Adaptive Network with Decoupled Hybrid Injection for Low-resource Taiwanese Hokkien Speech Recognition
+
+URL Source: https://arxiv.org/pdf/2609.18194v1
+
+Published Time: Thu, 17 Sep 2026 00:41:04 GMT
+
+Number of Pages: 7
+
+Markdown Content:
+# T-SANDHI: Tone Sandhi-aware Adaptive Network with Decoupled Hybrid Injection for Low-resource Taiwanese Hokkien Speech Recognition 
+
+Hung-Yang Sung ∗, Chien-Chun Wang †, Tien-Hong Lo ∗, Yu-Sheng Tsao ‡, Yung-Chang Hsu ‡, Berlin Chen ∗∗Department of Computer Science and Information Engineering, National Taiwan Normal University, Taiwan 
+
+†E.SUN Financial Holding Co., Ltd., Taiwan 
+
+‡EZAI, Taiwan 
+
+Abstract —In Taiwanese Hokkien automatic speech recognition (ASR), prior studies often treat tone sandhi as a major chal-lenge under the assumption that models fail to process implicit phonological variations. However, our experiments on Taiwanese Hokkien reveal that speech foundation models actually handle tone sandhi variations effectively, and the real performance bot-tleneck stems from a localized confusion between these variations and retained citation tones. To address this, we propose T-SANDHI to explicitly decouple surface acoustics from underlying lexical intent on top of a frozen Whisper backbone. Using a lexicon-guided multi-task learning structure driven by text-derived pseudo labels, our lightweight hybrid injection module integrates independent citation and sandhi phonetic streams via dynamic gating. Extensive evaluation on the TAT-MOE corpus and two blind test sets demonstrates that this explicit disentanglement effectively resolves tonal mapping confusion, outperforming baselines with strict parameter efficiency. 
+
+Index Terms —automatic speech recognition, low resource, Taiwanese Hokkien, tone sandhi, lexicon-guided 
+
+I. I NTRODUCTION 
+
+A fundamental assumption in most automatic speech recog-nition (ASR) systems is a consistent, reliable mapping between surface acoustics and underlying lexical units [1]–[7]. How-ever, this mapping relationship becomes less straightforward in tonal languages with complex phonological variations. A prime example is Taiwanese Hokkien (Taiwanese) [8]–[14]. Unlike Mandarin [15]–[17], which maintains relatively static tonal mappings, Taiwanese Hokkien features a complex web of tone sandhi that applies to syllables based on their position within syntactic units [13], [18], [19]. In continuous speech, tone sandhi applies to every non-final syllable, meaning that the actual surface tone frequently shifts based on the grammat-ical context [13], [20]. Consequently, a syllable’s underlying dictionary pronunciation (the citation tone ) only occurs at specific morphosyntactically defined boundaries, while all other syllables are realized with altered tones (the sandhi tone )[20]–[22]. As illustrated in Fig. 1, when a speaker utters the pronoun “You” (Taiwanese Hanzi 1: 你), the citation syllable is “l´ ı” (Tone 2) and the sandhi tone is Tone 1. Current ASR systems typically rely on models to implicitly internalize these complex phonological mappings through the 
+
+> 1
+
+https://language.moe.gov.tw/.../D005.pdf English Taiwanese-Hanzi Mandarin Tâi-lô (Citation) Citation Tone Sandhi Tone                                            
+
+> kin-á-j i̍ tlí siūnn-bueh khì tó-uī ？
+> 今仔⽇你想欲去佗位？
+> 今天你想去哪裡？
+> Where do you want to go today?
+> T1 T2 T8 T2 T7 T4 T3 T2 T7
+> T7 T1 T4 T1 T3 T2 T2 T1 T7
+
+Fig. 1. Illustration of the acoustic-to-label discrepancy in Taiwanese Hokkien continuous speech. Due to the tone sandhi system, the actual surface tone (sandhi tone, highlighted in orange) frequently shifts away from its dictionary pronunciation (citation tone). For example, in the phrase “Today where do you want to go”, the pronoun “l´ ı” shifts from Tone 2 to Tone 1, whereas only the sentence-final syllable retains its original citation tone (highlighted in blue). 
+
+final transcription loss [14], [21], [23]. While scaled param-eters in data-abundant scenarios can partially absorb such variations, this implicit learning paradigm often faces sub-stantial challenges under low-resource constraints [24]–[27]. To address these constraints, adopting parameter-efficient fine-tuning (PEFT) techniques, such as AdaLoRA, has emerged as a standard and highly effective approach to adapt speech foundation models to various low-resource languages [28]– [30]. Following this established paradigm, we build our study upon a parameter-efficient framework to explore foundation model behavior. Prior study focused on utilizing syllables with citation tones as target labels, evaluating various self-supervised learning (SSL) models with connectionist temporal classification (CTC) loss [13]. Their findings indicate that tone sandhi represent a major source of character substitution errors, frequently confusing phonetically similar phones in the predictions, thereby suggesting that an independent tonal handling mechanism would be beneficial for future efforts [13]. However, it remains unclear whether modern speech foundation models such as Whisper are similarly affected by tone sandhi variations. To address this gap, we conduct an empirical analysis to evaluate baseline predictions across various model scales. Our findings reveal a counter-intuitive phenomenon: while modern foundation models process tone sandhi variations with reason-arXiv:2609.18194v1 [cs.CL] 16 Sep 2026 T0 T1 T2 T3 T4 T5 T7 T8 
+
+Tone Category 
+
+> 0100000 200000 300000 400000 500000 600000 700000 800000
+> Frequency
+
+(a) Overall Tone Distribution        
+
+> Citation Label Sandhi Label
+> T0 T1 T2 T3 T4 T5 T7 T8
+
+Sandhi Tone                                                         
+
+> T0 T1 T2 T3 T4 T5 T7 T8
+> Citation Tone
+> 18300 0000000052248 0000335559 00388128 67236 0000001026 249693 32448 00000384 95430 020202 00102702 0000049188 420888 0000459474 0051246 000051504 117231 01359 14820
+
+(b) Tone Transition Matrix 
+
+> 0100000 200000 300000 400000
+
+Fig. 2. Quantitative analysis of tonal distribution and phonetic variations across TAT-MOE corpus. (a) Overall distribution of syllables categorized by their citation forms (blue bars) and sandhi forms (orange bars). (b) Tone transition matrix detailing the absolute counts of syllables mapping from their citation tone to their realized tone. TABLE I STATISTICS OF THE TAT-MOE DATASET ACROSS TRAINING ,
+
+> DEVELOPMENT AND TEST SPLITS
+
+, INCLUDING THE NUMBER OF SPEAKERS , UTTERANCES AND TOTAL DURATION IN HOURS .
+
+Split # Speakers # Utterances Duration (Hours) 
+
+Training 328 86,072 153.33 Development 58 16,357 28.60 Test 54 15,962 26.28 Total 440 118,391 208.21 
+
+able proficiency, their performance bottlenecks significantly on syllables that genuinely retain their citation tones. As we will detail in Section II, this localized performance gap is primarily driven by an extreme volume imbalance in con-tinuous speech, where distinct underlying citation categories frequently conflate into identical surface realizations. These empirical findings indicate that explicitly incorporating both citation and sandhi syllable information can serve as a viable path to reduce this localized performance gap and enhance overall speech recognition accuracy. To bridge this critical gap, we propose T-SANDHI, a
+
+Tone Sandhi-aware Adaptive Network designed specifically to resolve tonal mapping ambiguity. Instead of treating the acoustic-to-label mapping as a monolithic black box, we introduce a parameter-efficient Decoupled Hybrid Injection mechanism on top of a frozen Whisper backbone [1], [29], [31]. To overcome data scarcity without reliance on expensive phonetic annotations, we adopt a rule-derived multi-task learn-ing framework driven by automatically generated text-based pseudo labels. Specifically, by leveraging CTC [32]–[36], we explicitly construct two auxiliary streams, where one predicts the citation syllables and the other tracks the sandhi tones. Since sandhi mutations are highly context-dependent, a dy-namic gating mechanism is employed to seamlessly integrate these dual phonetic streams. This explicit decoupling allows the decoder to ground its predictions simultaneously on surface 
+
+TABLE II BASELINE PERFORMANCE ANALYSIS ON THE TAT-MOE CORPUS ,
+
+> EVALUATED ACROSS SANDHI AND CITATION CONTEXTS
+
+.
+
+Size Type (Dist.%) CER (%) Precision (%) Recall (%) F1-Score (%) 
+
+Small Sandhi (87.36) 15.27 85.61 84.73 85.17 Citation (12.64) 17.21 84.25 82.79 83.51 Medium Sandhi (87.36) 13.39 87.32 86.61 86.96 Citation (12.64) 15.21 85.94 84.79 85.36 Large Sandhi (87.36) 12.75 87.83 87.25 87.54 Citation (12.64) 14.19 86.85 85.81 86.33 
+
+acoustic variations and underlying lexical intent. The main contributions of this study are as follows: 1) Novel Insights on Tone Sandhi: We reveal that while foundation models effectively process tone sandhi, they struggle to map these acoustics back to citation forms due to severe tonal confusion. 2) Explicit Decoupling Architecture: We propose the first ASR framework to disentangle surface acoustics from underlying lexical intent via a dynamically gated, dual-stream injection module. 3) High Efficacy with Minimal Overhead: Our approach ef-fectively mitigates mapping ambiguity on TAT-MOE [37], achieving robust performance gains while adding merely 3% to the parameter count of the frozen backbone. II. C ORPORA AND PHONOLOGICAL ANALYSIS 
+
+A. Corpora 
+
+To evaluate under authentic low-resource conditions, we uti-lized the TAT-MOE corpus [37], alongside two external blind test sets: the FSRC 2020 corpus [38] and the yttd taigi trs cor-pus [10]. All three datasets feature diverse accents and spon-taneous speech. The detailed statistical partitions of the TAT-MOE corpus across the training, development, and test splits are summarized in Table I. Acoustic signals were uniformly resampled to 16 kHz for backbone alignment. As a tonal language, Taiwanese Hokkien exhibits a rich and complex tone sandhi system [20], [21]. In continuous spoken streams, these sandhi mutations apply systematically to virtually every non-final syllable within a morphosyntactically defined unit [20], resulting in a prominent discrepancy between citation dictio-nary forms and contextual surface realizations. A statistical phonological analysis regarding this tonal distribution and its impact on modern ASR is detailed below. 
+
+B. Quantitative Analysis of Tone Sandhi Impact 
+
+To investigate the impact of this phonological discrepancy on modern speech foundation models, we evaluate Whisper baselines across various scales based on phonological bound-aries. The contextual tone sandhi variants within the training split are deterministically derived from standard tone sandhi rules [20]. As detailed in Table II, scaling up the architecture improves overall performance, yet a localized gap persists. The models consistently exhibit lower character error rates (CERs) when decoding sandhi-form syllables compared to citation-form syllables. Regardless of model size, the corresponding drops in precision and recall confirm a tonal mapping con-fusion, where the networks struggle to distinguish citation features from tone sandhi variations. To analyze this localized performance gap, we examine the data distribution from a phonological perspective. Fig. 2(a) highlights a severe volume imbalance in continuous Taiwanese Hokkien speech, where approximately 87% of syllables un-dergo tone sandhi and only about 12% retain their cita-tion tones. This extreme imbalance biases foundation mod-els toward sandhi acoustic characteristics during pre-training. Consequently, implicit end-to-end learning fails to construct sufficiently robust representations for citation-retained sylla-bles under low-resource fine-tuning. Furthermore, the tone transition matrix in Fig. 2(b) illustrates that distinct underlying citation categories frequently conflate into identical surface realizations. For instance, underlying Tone 1 (T1) and Tone 5 (T5) often converge into surface Tone 7 (T7) after sandhi mutations. This many-to-one mapping ambiguity creates lo-calized confusion between sandhi and citation forms, limiting overall performance and motivating the explicit phonetic dis-entanglement in our proposed architecture. III. P ROPOSED METHOD 
+
+A. Architecture Overview 
+
+As established, forcing an ASR model to implicitly mem-orize the complex, non-linear mapping between speech un-dergo tone sandhi and citation labels leads to severe surface-to-underlying mapping discrepancy. To explicitly break this entanglement, we propose T-SANDHI. As illustrated in Fig. 3, the architecture builds upon the robust acoustic priors of a frozen Whisper encoder-decoder backbone. To maintain parameter efficiency while adapting to the intricate Taiwanese phonology, we avoid catastrophic forgetting by applying AdaLoRA [28] only to the attention and feed-forward mod-ules. Crucially, rather than relying on the decoder to implicitly resolve tonal ambiguities, we introduce a Decoupled Hybrid 🔥 Decoupled Hybrid Injection Module Feature Modulation             
+
+> ❄Whisper Decoder
+> ⚙AdaLoRA
+> Transcription
+> Active Only During Training Active During Training and Inference ❄Frozen 🔥 Trainable
+> ⚙Parameter-Efficient Fine-Tuning
+> ⚙
+> ❄
+> ❄
+> Citation CTC Head Sandhi CTC Head
+> ❄Whisper Encoder
+> ⚙AdaLoRA ⚙
+> Log-Mel Spectrogram
+> Gate Generator
+> Fig. 3. Architecture of T-SANDHI. To explicitly decouple lexical intent from surface acoustics, a decoupled hybrid injection module augments the frozen Whisper encoder. It projects features into independent citation and sandhi streams, dynamically fusing them into Hf used via a gate generator. Lightweight linear heads provide CTC supervision during training and supply decoupled representations during inference with negligible overhead.
+
+Injection module directly on top of the encoder. This module explicitly constructs two independent auxiliary streams: one modeling the underlying lexical intent (citation syllables), and the other tracking the actual surface tone (sandhi tones). 
+
+B. Decoupled Hybrid Injection 
+
+The core design philosophy behind our injection module is to enforce representation disentanglement without introducing heavy computational overhead. Let Henc ∈ RT ×d denote the acoustic hidden states from the Whisper encoder, where T is the sequence length and d is the hidden dimension. We project these states through two auxiliary CTC heads to obtain the citation logits Zcit ∈ RT ×| Vcit | and the sandhi logits Zsan ∈
+
+RT ×| Vsan |:
+
+Zcit = Henc Wcit + bcit , (1) 
+
+Zsan = Henc Wsan + bsan , (2) where W and b denote the learnable weight matrices and bias vectors, while |Vcit | and |Vsan | represent the vocabulary sizes of the citation syllables and sandhi tones, respectively. Crucially, we deliberately restrict these heads to simple linear projections. This architectural bottleneck ensures that the parameter overhead remains minimal, actively forcing the core Whisper encoder to learn highly disentangled and robust acoustic representations rather than outsourcing the task to deep, heavy sub-networks. To prepare these decoupled streams for integration, we first convert the raw logits into probability distributions via a softmax function, and then project them back to the hidden dimension d to form phonetic embeddings: 
+
+Ecit = Proj cit (Softmax( Zcit )) , (3) 
+
+Esan = Proj san (Softmax( Zsan )) . (4) Applying softmax grounds the projections in discrete phonetic probabilities, preventing a linear collapse of the acoustic states. Subsequently, we employ a dynamic gating mechanism to effectively fuse these features back into the main network. Rather than simply adding the features, we concatenate the original acoustic states with the projected phonetic embed-dings to form a joint representation C = [ Henc ; Ecit ; Esan ] ∈
+
+RT ×3d. A gate generator then processes this joint representa-tion to output a frame-level weight matrix G ∈ RT ×2:
+
+G = σ(CW gate + bgate ), (5) where Wgate ∈ R3d×2 and G = [ gcit , gsan ]. The physical significance of this dynamic gate directly mirrors the context-dependent nature of Taiwanese tone sandhi. Since tonal shifts occur strictly based on grammatical positions, G acts as an adaptive soft switch. By observing both the acoustic context and the explicit phonetic hypotheses, the gate dynamically allocates attention between the underlying intent ( gcit ) and the surface realization ( gsan ) frame by frame. To prevent the newly initialized gate from catastrophically interfering with the frozen Whisper backbone during the cru-cial early stages of fine-tuning, we initialize the bias bgate to a strong negative scalar ( −3). This insight-driven initialization forces the initial gate values toward zero, compelling the model to rely on the robust pre-trained features first and gradually learn to blend in the decoupled phonetic patches. The final fused representation Hf used , which is subsequently fed to the decoder, is computed as: 
+
+Hf used = Henc + gcit ⊙ Ecit + gsan ⊙ Esan , (6) where ⊙ represents element-wise multiplication, with gcit and 
+
+gsan implicitly broadcasted across the hidden dimension d.
+
+C. Multi-Task Learning Objective 
+
+To actualize this decoupled architecture, the training ob-jective must explicitly penalize entangled representations. Our primary objective remains the standard sequence-to-sequence cross-entropy loss LASR generated by the Whisper decoder for the final Taiwanese Hanzi transcriptions. However, to provide the necessary phonetic grounding for our injection module, we must introduce auxiliary losses. Since frame-level forced alignment data is prohibitively expensive and largely unavailable for low-resource languages, we formulate these as CTC objectives. CTC naturally marginalizes over all possible unsegmented acoustic alignments. Thus, L(cit )
+
+> CT C
+
+explicitly guides the extraction of citation syllables, while 
+
+L(san ) 
+
+> CT C
+
+supervises the sandhi tone tracking: 
+
+LT otal = LASR + λcit L(cit ) 
+
+> CT C
+
++ λsan L(san ) 
+
+> CT C
+
+, (7) where λcit and λsan are scalar hyperparameters. This joint optimization ensures that the encoder effectively disentangles “what is heard” from “what is meant” before passing the representation to the decoder. IV. E XPERIMENTAL SETUP 
+
+A. Dual-Track Supervision Strategy 
+
+Our data preparation goes beyond formatting to construct explicit supervision signals for the decoupled architecture. Using the official MOE Taiwanese Dictionary 2 and Taibun toolkit 3, we extracted two strictly parallel phonetic tracks from the Hanzi transcriptions: the citation dictionary forms and the contextual sandhi tones. This dual-track extraction yields the text-derived pseudo labels to independently guide our auxiliary CTC streams under weak supervision. Specifically, the citation vocabulary |Vcit | comprises 1309 unique syllables with tone marks, while the sandhi vocabulary |Vsan | tracks 10 classes (8 tones, a neutral tone, and a blank token). 
+
+B. Implementation Details 
+
+We employed Whisper-small [1] as our acoustic foundation. To preserve its pre-trained speech representations while adapt-ing to Taiwanese Hokkien, we did not perform full fine-tuning. Instead, we applied AdaLoRA [28] to the attention and feed-forward blocks with an initial rank of 12 (pruned down to 4) and a dropout rate of 0.1 to ensure parameter efficiency. To guarantee stable training for our decoupled hybrid injection module, the bias vector of the gate mechanism, bgate , was initialized to −3. This configuration ensures that the model heavily relies on the robust frozen backbone during the initial training phase, gradually incorporating the auxiliary phonetic information as training converges. For the multi-task objective function (Eq. 7), the CTC loss weights λcit and λsan were empirically set to 0.9 and 0.1, respectively. This weighting ensures adequate phonetic supervision without overshadowing the primary sequence-to-sequence objective. 
+
+C. Evaluation and Diagnostic Metrics 
+
+Our primary performance metric is the CER on Taiwanese Hanzi, which directly reflects practical utility. However, to evaluate whether our architecture effectively addresses the localized mapping confusion between surface acoustics and underlying lexical intent, we must look beyond final transcrip-tion errors. Therefore, we introduce two diagnostic metrics: syllable error rate (SER) to evaluate underlying lexical intent tracking, and tone error rate (TER) to measure surface tone resolution. Tracking these metrics allows us to empirically verify that the performance gains stem directly from our explicit phonetic disentanglement.      
+
+> 2https://sutian.moe.edu.tw/zh-hant
+> 3https://github.com/andreihar/taibun TABLE III CER (%) COMPARISON ON THE TAT-MOE, FSRC 2020, AND YTTD TAIGI TRS BLIND TEST SETS .
+
+Model Parameters (M) TAT-MOE FSRC 2020 yttd taigi trs Development Test Blind Test Blind Test 
+
+Zipformer [6] 65 48.57 45.82 15.69 58.15 HuBERT-base [2] 96 26.16 24.49 12.97 61.68 CLiFT-ASR [39] 96 22.37 20.94 8.06 57.69 Whisper-small (Encoder-CTC) 104 19.90 17.98 9.43 42.73 Whisper-small (Fully Fine-tuned) 244 22.47 18.68 7.66 44.43 Whisper-small (AdaLoRA) 244 18.54 16.30 8.75 39.11 
+
+T-SANDHI (Ours) 249 16.49 14.30 7.36 36.57 
+
+Qwen3-ASR 600 16.74 14.03 7.38 44.91 Whisper-large (AdaLoRA) 1,550 16.03 13.89 7.20 29.31      
+
+> TABLE IV CER (%) PERFORMANCE AND RELATIVE REDUCTION (R EL ., %) ACROSS
+> WHISPER SCALES ON THE TAT-MOE CORPUS .
+
+Model Scale Baseline T-SANDHI Rel. 
+
+Small 16.30 14.30 12.27 Medium 14.58 13.65 6.38 Large 13.89 12.93 6.91 
+
+V. R ESULTS AND DISCUSSION 
+
+A. Overall ASR Performance 
+
+Table III demonstrates that explicitly decoupling surface contextual features from underlying canonical features ef-fectively mitigates the tonal mapping confusion caused by tone sandhi. To ensure a rigorous evaluation, our baselines span three architectural paradigms: RNN-Transducer (RNN-T) models, pure CTC frameworks, and attention-based encoder-decoder (AED) foundation models. Traditional end-to-end RNN-T models struggle to implicitly memorize dynamic tonal mappings, as demonstrated by Zipformer [6], HuBERT-base [2], and CLiFT-ASR [39] yielding Test CERs of 45.82%, 24.49%, and 20.94%, respectively. Augmenting the foundation encoder with a standard CTC head (Whisper-small (Encoder-CTC)) improves performance but yields a suboptimal 17.98% CER, constrained by a monolithic sequence loss. Naive adap-tations of the Whisper backbone similarly fall short: full fine-tuning suffers from representation distortion (18.68%), and standard AdaLoRA (16.30%) remains bottlenecked by entangled phonetic features. Crucially, T-SANDHI overcomes these limitations. With only a 5M parameter overhead for the decoupled hybrid injection module, our framework achieves a 14.30% Test CER, a 12.27% relative error reduction over AdaLoRA. Coupled with robust out-of-domain generalization on the FSRC 2020 (7.36%) and yttd taigi trs (36.57%) blind test sets, these results confirm that explicit phonetic disentanglement, rather than mere parameter scaling, drives the performance gains. 
+
+B. Scalability Across Backbone Capacities 
+
+We further investigate T-SANDHI’s scalability across larger foundation models. As detailed in Table IV, the method yields consistent gains across all evaluated Whisper back-bones. While increasing model capacity naturally lowers the     
+
+> TABLE V ABLATION STUDIES OF T-SANDHI ON THE TAT-MOE CORPUS .
+
+Model Configuration SER % TER % CER % 
+
+T-SANDHI (Full Model) 16.27 13.99 14.30 w/o Decoupled Streams - - 16.30 w/o Citation CTC Head - 13.52 15.44 w/o Sandhi CTC Head 16.68 - 15.19 w/o Gate Generator 17.45 14.30 15.55 w/o Dynamic Gating 17.36 14.19 15.67 
+
+baseline error rate, our dual-stream module extracts additional improvements, achieving relative error reductions of 12.27%, 6.38%, and 6.91% on the small, medium, and large backbones, respectively. This confirms that phonetic disentanglement pro-vides orthogonal benefits to naive parameter scaling. 
+
+C. Ablation Studies 
+
+Table V validates that our performance gains stem from explicit phonetic disentanglement. Removing the dual-stream architecture entirely regresses the CER to 16.30%, indicating that the frozen backbone alone cannot fully resolve acoustic-to-lexical confusion. Ablating individual CTC heads highlights the mechanics of tone sandhi resolution. Omitting the citation head improves the surface TER (13.52%) but degrades the final CER (15.44%), as the model overfits surface acoustics and loses underlying Hanzi identity. Conversely, removing the sandhi head worsens the SER (16.68%), demonstrating that surface tracking provides essential acoustic grounding. Moreover, optimal integration requires dynamic fusion. An unweighted summation degrades CER to 15.55% by re-entangling features, and using static global weights (heuris-tically tuned on the development set) yields a suboptimal 15.67%. Static weights fail to capture position-dependent sandhi rules (e.g., word-medial mutation vs. sentence-final retention), underscoring the necessity of a frame-by-frame neural soft-switch. 
+
+D. Impact of Information Granularity in Dual Streams 
+
+To determine the optimal feature resolution, we ablated the linguistic granularity injected into the dual streams. Ta-ble VI contrasts configuring either stream with phone-level tone labels versus full syllable-level targets. Pairing citation TABLE VI ABLATION STUDY ON THE GRANULARITY OF INJECTED LINGUISTIC INFORMATION FOR THE DUAL STREAMS .
+
+Citation Info Sandhi Info Test CER (%) 
+
+Tone Tone 15.60 Tone Syllable 15.84 Syllable Tone 14.30 
+
+Syllable Syllable 14.80 0.0 0.2 0.4 0.6 0.8 1.0 
+
+Error Rate (SER / TER)  
+
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Average CER
+> Syllable Error Rate (SER) Tone Error Rate (TER)
+> Fig. 4. Correlation between phonetic errors and transcription accuracy.
+
+syllables with surface tones yields the lowest CER (14.30%), outperforming all symmetric configurations. Phonetically, the citation stream relies on full syllables to anchor lexical identity. Conversely, the surface stream, tracking actual acoustic realizations, functions best when constrained to tone-level variations. This structural bottleneck prevents the sandhi head from overfitting to specific lexical items, effectively mitigating localized mapping confusion in low-resource settings. 
+
+E. Correlation between Phonetic and Character Errors 
+
+Fig. 4 plots final CER against auxiliary phonetic error rates, verifying that the decoder actively utilizes decoupled representations. The strong positive correlation confirms that accurate phonetic grounding is a prerequisite for transcription. Crucially, sandhi TER and citation SER trajectories diverge as errors increase. The SER’s steeper slope indicates the citation syllable serves as the primary structural anchor; misidentifying it severely degrades character prediction. The TER’s gentler slope suggests the decoder leverages contextual language modeling to tolerate minor tone errors. Nevertheless, mini-mizing TER remains essential to resolve localized mapping confusion and push CER below 20%. This hierarchy, where syllables provide structure and tones provide disambiguation, empirically justifies the dual-stream strategy. 
+
+F. Emergent Phonological Awareness in Dynamic Gating 
+
+Fig. 5 visualizes dynamic gate behavior across a continuous utterance to illustrate mapping resolution. During phrase-internal mutations (e.g., Tsok4 realized as Gik8 ), the network autonomously suppresses the surface stream ( gsan ≈ 0) to filter deceptive acoustics, anchoring instead on the citation intent ( gcit ). At the phrase-final position ( Tsu1 ), where sur-face acoustics and citation tones align, gsan activates sharply (gsan → 1). This demonstrates the network learns to rely on 040 80      
+
+> Mel Bin
+> Tsok4 (Sandhi) Tsia2 (Sandhi) Tin5 (Sandhi) Gik8 (Sandhi) Tsu1 (Citation)
+> 01234
+> Time (Second)
+> 0.0 0.5 1.0
+> Gate Weight
+> Citation Gate Sandhi Gate
+> Fig. 5. Frame-level visualization of the dynamic gate.
+
+̍Sandhi Tone T4 T1 T7 T2 T2 T1 T3 
+
+Baseline Prediction  ⽇ ⼦ 電 討 較 好 過
+
+Tâi-lô (Citation) ji̍ t-tsí tiān thó khah hó-kuè 
+
+Citation  Tone T8 T2 T7 T2 T4 T2 T3 
+
+Sandhi Tone T4 T1 T3 T1 T2 T1 T3 
+
+SANDHI-ASR Prediction  ⽇ ⼦ 顛 倒 較 好 過                            
+
+> English Sandhi Tone Reference AdaLoRA SANDHI-ASR
+> ⽇⼦
+> Life has unexpectedly become easier.
+> 顛倒較好過
+> T4 T1 T7 T2 T2 T1 T3
+> ⽇⼦電討較好過
+> ⽇⼦顛倒較好過
+> Fig. 6. Qualitative comparison of error resolution.
+
+surface acoustics only when phonologically reliable. These findings indicate an emergent, data-driven awareness of right-prominent sandhi rules within the gating mechanism. 
+
+G. Targeted Error Analysis 
+
+Fig. 6 illustrates T-SANDHI’s resolution of character map-ping confusion. In the phrase “ 顛倒” ( tian-t` o, unexpectedly), underlying citation tones (T1-T3) mutate into surface tones (T7-T2). Misled by these surface acoustics, the Whisper-small (AdaLoRA) baseline incorrectly predicts the phoneti-cally identical but semantically unrelated “ 電討” ( ti¯ an th´ o,citation T7-T2). This substitution highlights how conventional models, lacking explicit guidance, overfit surface tone varia-tions and fail to recover lexical intent. In contrast, T-SANDHI successfully outputs the correct Hanzi. By tracking surface realizations (T7-T2) while anchoring on citation identity (T1-T3), the decoupled framework bridges the phonological gap. This frame-by-frame dynamic gating effectively resolves the confusion of entangled architectures. VI. C ONCLUSION AND FUTURE WORK 
+
+In this paper, we proposed T-SANDHI 4, a parameter-efficient framework that explicitly disentangles surface acous-tics from underlying lexical intent to mitigate tone sandhi map-ping confusion. By employing a dynamic gating mechanism, our approach achieves robust performance gains across foun-dation models without substantial parameter scaling. While currently supervised by rule-derived pseudo-labels, future work will explore unsupervised disentanglement for undocu-mented dialects, as well as extending this decoupled paradigm to Mandarin-Taiwanese code-switching. 
+
+> 4Our source code: https://anonymous.4open.science/r/T-SANDHI-0D38
+
+REFERENCES [1] A. Radford, J. W. Kim, T. Xu, G. Brockman, C. Mcleavey, and I. Sutskever, “Robust speech recognition via large-scale weak super-vision,” in Proc. PMLR , 2023. [2] W.-N. Hsu, B. Bolte, Y.-H. H. Tsai, K. Lakhotia, R. Salakhutdinov, and A. Mohamed, “HuBERT: Self-supervised speech representation learning by masked prediction of hidden units,” IEEE/ACM Transactions on Audio, Speech, and Language Processing , vol. 29, pp. 3451–3460, 2021. [3] A. Graves, “Sequence transduction with recurrent neural networks,” in 
+
+Proc. ICML , 2012. [4] X. Wang, Z. Yao, X. Shi, and L. Xie, “Cascade RNN-transducer: Syllable based streaming on-device Mandarin speech recognition with a syllable-to-character converter,” in Proc. IEEE SLT , 2021. [5] M. Ghodsi, X. Liu, J. Apfel, R. Cabrera, and E. Weinstein, “RNN-transducer with stateless prediction network,” in Proc. ICASSP , 2020. [6] Z. Yao, L. Guo, X. Yang, W. Kang, F. Kuang, Y. Yang, Z. Jin, L. Lin, and D. Povey, “Zipformer: A faster and better encoder for automatic speech recognition,” in Proc. ICLR , 2024. [7] S. Watanabe, T. Hori, S. Kim, J. R. Hershey, and T. Hayashi, “Hybrid CTC/Attention architecture for end-to-end speech recognition,” IEEE Journal of Selected Topics in Signal Processing , vol. 11, no. 8, pp. 1240–1253, 2017. [8] H.-l. Khoo, “The dynamics of Southern Min in Taiwan: From Southern Min dialects to “Taigi”,” in The Routledge Handbook of Chinese Discourse Analysis , C. Shei, Ed. Routledge, 2019, pp. 596–610. [9] C.-W. Chen, Y.-F. Yeh, C.-L. Lin, S.-P. Tseng, and J.-F. Wang, “Hybrid deep neural network acoustic model for Taiwanese speech recognition,” in Proc. IEEE ICOT , 2020. [10] P.-Y. Chen, C.-H. Wu, H.-S. Lee, S.-K. Tsao, M.-T. Ko, and H.-M. Wang, “Using Taigi dramas with Mandarin Chinese subtitles to improve Taigi speech recognition,” in Proc. O-COCOSDA , 2020. [11] M.-L. Hsieh, “Taiwanese Hokkien/Southern Min,” in The Handbook of Chinese Linguistics , 2014, pp. 629–656. [12] Y.-F. Liao, W.-H. Hsu, C.-M. Pan, W.-J. Wang, M. Pleva, and D. Hladek, “Personalized Taiwanese speech synthesis using cascaded ASR and TTS framework,” in Proc. RADIOELEKTRONIKA , 2022. [13] Y.-H. Chou, K. Chang, M.-J. Wu, W. Ou, A. W.-H. Bi, C. Yang, B. Y. Chen, R.-W. Pai, P.-Y. Yeh, J.-P. Chiang, I.-T. Phoann, W. Chang, C. Cui, N. Chen, and J. Shi, “Evaluating self-supervised speech models on a Taiwanese Hokkien corpus,” in Proc. IEEE ASRU , 2023. [14] J. Lin, S. Lu, H. Huang, W. Guan, B. Xu, H. Bu, Q. Hong, and L. Li, “MinSpeech: A corpus of Southern Min dialect for automatic speech recognition,” in Proc. Interspeech , 2024. [15] B. Zhang, H. Lv, P. Guo, Q. Shao, C. Yang, L. Xie, X. Xu, H. Bu, X. Chen, C. Zeng, D. Wu, and Z. Peng, “WenetSpeech: A 10000+ hours multi-domain Mandarin corpus for speech recognition,” in Proc. ICASSP , 2022. [16] H. Bu, J. Du, X. Na, B. Wu, and H. Zheng, “AISHELL-1: An open-source Mandarin speech corpus and a speech recognition baseline,” in 
+
+Proc. O-COCOSDA , 2017. [17] Y. Fu, L. Cheng, S. Lv, Y. Jv, Y. Kong, Z. Chen, Y. Hu, L. Xie, J. Wu, H. Bu, X. Xu, J. Du, and J. Chen, “AISHELL-4: An open source dataset for speech enhancement, separation, recognition and speaker diarization in conference scenario,” in Proc. Interspeech , 2021. [18] R. L. Cheng, “Tone sandhi in Taiwanese,” Linguistics , vol. 6, no. 41, pp. 19–42, 1968. [19] Y.-F. Chien and A. Jongman, “Tonal neutralization of Taiwanese checked and smooth syllables: An acoustic study,” Language and Speech , vol. 62, no. 3, pp. 452–474, 2019. [20] Y.-Y. Chuang and S.-F. Wang, “Tonal variation and word meaning in Taiwanese,” in Proc. Interspeech , 2025. [21] P.-J. Chen, K. Tran, Y. Yang, J. Du, J. Kao, Y.-A. Chung, P. Tomasello, P.-A. Duquenne, H. Schwenk, H. Gong, H. Inaguma, S. Popuri, C. Wang, J. Pino, W.-N. Hsu, and A. Lee, “Speech-to-speech translation for a real-world unwritten language,” in Findings of ACL , 2023. [22] J. Myers and J. Tsay, “Neutralization in Taiwan Southern Min Tone Sandhi,” Interfaces in Chinese Phonology , 2008. [23] G. Shen, M. Watkins, A. Alishahi, A. Bisazza, and G. Chrupała, “Encoding of lexical tone in self-supervised models of spoken language,” in Proc. NAACL , 2024. [24] S. Bandarupalli, B. Akkiraju, C. Devarakonda, V. Narsinga, and A. K. Vuppala, “Efficient ASR for low-resource languages: Leveraging cross-lingual unlabeled data,” in Findings of IJCNLP , 2025. [25] O. Klejch, W. Lamb, and P. Bell, “A practitioner’s guide to building ASR models for low-resource languages: a case study on Scottish Gaelic,” in 
+
+Proc. Interspeech , 2025. [26] M. Bartelds, N. San, B. McDonnell, D. Jurafsky, and M. Wieling, “Making more of little data: Improving low-resource automatic speech recognition using data augmentation,” in Proc. ACL , 2023. [27] C. Jacobs, A. Smith, D. Klop, O. Klejch, F. de Wet, and H. Kamper, “Speech recognition for automatically assessing Afrikaans and IsiXhosa preschool oral narratives,” in Proc. ICASSP , 2025. [28] Q. Zhang, M. Chen, A. Bukharin, N. Karampatziakis, P. He, Y. Cheng, W. Chen, and T. Zhao, “AdaLoRA: Adaptive budget allocation for parameter-efficient fine-tuning,” in Proc. ICLR , 2023. [29] Z. Song, J. Zhuo, Y. Yang, Z. Ma, S. Zhang, and X. Chen, “LoRA-Whisper: Parameter-Efficient and Extensible Multilingual ASR,” in 
+
+Proc. Interspeech , 2024. [30] T. Tan, X. Chen, X. Le, W. Fan, X. Xia, C. Huang, and J. Lu, “CBA-Whisper: curriculum learning-based AdaLoRA fine-tuning on whisper for low-resource dysarthric speech recognition,” in Proc. Interspeech ,2025. [31] W. Liu, Y. Qin, Z. Peng, and T. Lee, “Sparsely Shared Lora on Whisper for Child Speech Recognition,” in Proc. ICASSP , 2024. [32] A. Graves, S. Fern´ andez, F. Gomez, and J. Schmidhuber, “Connection-ist temporal classification: Labelling unsegmented sequence data with recurrent neural networks,” in Proc. ICML , 2006. [33] S. Kim, T. Hori, and S. Watanabe, “Joint CTC-attention based end-to-end speech recognition using multi-task learning,” in Proc. ICASSP ,2017. [34] K. Hojo, Y. Wakabayashi, K. Ohta, A. Ogawa, and N. Kitaoka, “Boost-ing CTC-based ASR using inter-layer attention-based CTC loss,” in 
+
+Proc. Interspeech , 2024. [35] S. Han, M. Xu, Z. Lei, Z. Huang, and X. Na, “Enhancing CTC-based speech recognition with diverse modeling units,” in Proc. Interspeech ,2024. [36] N. Kusunoki, Y. Higuchi, T. Ogawa, and T. Kobayashi, “Hierarchical multi-task learning with CTC and recursive operation,” in Proc. Inter-speech , 2024. [37] Y.-F. Liao, J. S. Tsay, P. Kang, H.-L. Khoo, L.-K. Tan, L.-C. Chang, U.-G. Iunn, H.-L. Su, T.-G. Thiann, H.-K. Tiun, and S.-L. Liao, “Taiwanese across Taiwan corpus and its applications,” in Proc. O-COCOSDA , 2022. [38] Y.-F. Liao, C.-Y. Chang, H.-K. Tiun, H.-L. Su, H.-L. Khoo, J. S. Tsay, L.-K. Tan, P. Kang, T.-g. Thiann, U.-G. Iunn, J.-H. Yang, and C.-N. Liang, “Formosa speech recognition challenge 2020 and Taiwanese across Taiwan corpus,” in Proc. O-COCOSDA , 2020. [39] H.-Y. Sung, C.-C. Wang, K.-T. Huang, T.-H. Lo, Y.-S. Tsao, Y.-C. Hsu, and B. Chen, “CLiFT-ASR: A cross-lingual fine-tuning framework for low-resource Taiwanese Hokkien speech recognition,” in Proc. ROCLING , 2025.
