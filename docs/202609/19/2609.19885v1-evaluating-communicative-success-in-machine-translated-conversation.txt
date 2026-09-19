@@ -1,0 +1,737 @@
+Title: Evaluating Communicative Success in Machine-Translated Conversation
+
+URL Source: https://arxiv.org/pdf/2609.19885v1
+
+Published Time: Fri, 18 Sep 2026 00:50:35 GMT
+
+Number of Pages: 32
+
+Markdown Content:
+# Evaluating Communicative Success in Machine-Translated Conversation 
+
+Faiz Ghifari Haznitrama Alice Oh 
+
+School of Computing, KAIST 
+
+haznitrama@kaist.ac.kr 
+
+Abstract 
+
+Interpreter agents built on machine translation (MT) increasingly mediate live con-versation between people who do not share a language, yet we still evaluate them with metrics built for isolated sentences, which measure fidelity rather than whether communication succeeds. We introduce a reusable three-layer checklist-and-judge framework that evaluates interpreter-mediated conversation across semantic, prag-matic, and cultural-social dimensions, covering the naturalness, intent, and social appropriateness that fidelity metrics leave unmeasured. It runs in both single-turn and interactive multi-turn settings, where simulated users reply to translated mes-sages as the conversation unfolds and each turn is scored alongside the conversation as a whole. We extensively validate it through controlled perturbations, cross-judge comparisons, and human annotations. Our main single-turn benchmark evaluates 10 interpreter setups across Arabic, Bengali, Indonesian, and Korean from 5,624 OpenSubtitles-derived scenarios spanning 12 translation directions, and our multi-turn study covers all 6 language pairs in scripted and live modes. Results show a consistent decline from semantic to pragmatic and cultural-social success, while conventional MT metrics overlook failures among stronger interpreters, and prompt ablations show that scenario context, structured instructions, and cultural context improve communicative success, although gains vary across setups. Our work thus provides an evaluation framework and benchmark for interpreter agents in conversation, and highlights the importance of communicative success alongside existing translation metrics. 
+
+1 Introduction 
+
+Machine translation (MT) has advanced rapidly, and conversational agents built on it now mediate live interaction between people who do not share a language, from chat and voice modes to real-time interpreting features shipping on ordinary devices. That role has long depended on human interpreters, who understand conversational context beyond words and deliver the intended communicative purpose while adapting the translation for the target user. This aligns with Skopos translation theory [Vermeer, 1989], where the purpose of a translation drives the translation process, and general-purpose LLMs and dedicated MT models are now being tried in exactly this interpreter role [Sperber and Paulik, 2020, Robinson et al., 2023]. However, in complex and dynamic settings like conversation, where implicit aspects such as intent, tone, naturalness, and cultural appropriateness matter most, these MT models often fail. Existing MT metrics such as BLEU [Papineni et al., 2002], chrF [Popovi´ c, 2015], model-based metrics like BERTScore [Zhang et al., 2020] and COMET/CometKiwi [Rei et al., 2020, 2022], and MQM-based metrics [Lommel et al., 2013, Freitag et al., 2021, Kocmi and Federmann, 2023a,b, Lu et al., 2024] are not built to capture these implicit aspects in fine-grained detail. Figure 1 shows a real case from our data, where one of the most popular translation applications fails to deliver a proper translation while scoring highly on CometKiwi. In conversation, translation accuracy and communicative success are 
+
+> Preprint. arXiv:2609.19885v1 [cs.CL] 17 Sep 2026
+
+Figure 1: Translation sample (ind → kor) that fails our checklist while scoring highly on CometKiwi. highly related, and the gap between them is exactly where a translation system is most likely to fail [Moghe et al., 2023]. This is more pronounced for lower-resource languages and for pairs that are not from or to English, where direct translation remains underexplored. This paper studies MT models in that interpreter role and builds an evaluation framework around the resulting gap. Each translated turn is evaluated against a scenario-specific 3-layer checklist covering semantic, pragmatic function, and cultural-social constraints, decomposing communicative success into small, checkable claims [Ribeiro et al., 2020]. Multi-turn conversation adds cross-turn consistency and conversation-level checklists. We validate the judge and all other LLM-generated components extensively, and apply the framework to 10 models, 4 languages (Arabic, Bengali, Indonesian, Korean), 6 pairs, and 12 directions over 5,624 retained OpenSubtitles dialogue scenarios [Lison and Tiedemann, 2016]. Our evaluation is text-level and does not model latency, prosody, or turn-taking, although it scores conversation turn by turn and is built to sit inside a live interpreting pipeline. We also propose a one-time, pair-specific cultural context that holds linguistic and cultural information about each language and across each pair, and use it to ground LLMs with verifiable information and improve overall generation. We make three contributions. First, a 3-layer checklist framework for evaluating translated conversa-tion, with a validated LLM judge covering single- and multi-turn scenarios, and empirical results showing it captures aspects orthogonal to other MT metrics. Second, a reusable data-to-evaluation pipeline, with an augmented dataset of 5,624 conversation scenarios and 56,240 evaluated system outputs from real OpenSubtitles dialogue across 6 language pairs. Third, a pair-specific cultural context that improves checklist quality and judge reliability, and improves interpreter translation when used in the translation brief. 
+
+2 Related Work 
+
+MT Metrics. Reference-based metrics such as BLEU [Papineni et al., 2002], chrF [Popovi´ c, 2015], and BERTScore [Zhang et al., 2020] measure translation similarity, while learned quality-estimation metrics such as COMET and CometKiwi [Rei et al., 2020, 2022] predict human judgments without a reference. MQM structures human error annotation [Lommel et al., 2013] at scale [Freitag et al., 2021], and LLM evaluators such as GEMBA, GEMBA-MQM, MQM-APE, and RATE extend these with generated judgments or rubrics [Kocmi and Federmann, 2023a,b, Lu et al., 2024, Tian et al., 2026]. All still assess translation quality rather than from communication perspective. That distinction motivates extrinsic MT evaluation [Moghe et al., 2023] and matters most in speech and real-time settings, where an interpreter agent has to keep a conversation moving [Sperber and Paulik, 2020]. We evaluate what an interpreter agent conveys using a granular checklist as a proxy for communicative success. 
+
+LLM-as-Judge Reliability and Checklist-Based Evaluation. Using an LLM to grade generated text is common [Zheng et al., 2023, Liu et al., 2023b], but documented failure modes include position and self-preference bias [Wang et al., 2023, Panickssery et al., 2024], preference for longer or more confidently styled responses [Wu and Aji, 2023], and acquiescence to surface wording [Hwang et al., 2026]. Mitigations include panels of diverse judges [Verga et al., 2024] and decomposing one scalar judgment into small, independently checkable claims. That decomposition has precedents in behavioral NLP testing [Ribeiro et al., 2020] and factuality evaluation [Min et al., 2023, Wei et al., 2024], and was recently shown to be among the most reliable ways to use an LLM as a judge [Cho et al., 2026]. We extend these ideas to translation evaluation while extensively validating the judge and other LLM-generated components. 2OpenSubtitles 
+
+> Dialogue
+> User-provided
+> Conversation Data
+> support
+> Speaker Roles
+> Setting
+> Relationship
+> Goal
+> contains
+> results
+
+Data Construction 
+
+Interpreter 
+
+Agent 
+
+Interpreter-Mediated Conversation 
+
+User A 
+
+> (Language A Only)
+
+User B    
+
+> (Language B Only)
+> User can be a human or simulated by a local LLM
+> No direct communication between A<-> B
+
+1 Single-turn 
+
+A → B  B → A 
+
+2 Multi-turn 
+
+Checklist Evaluation & Analysis Pair-specific 
+
+> Cultural Context Ref.
+> Translation &
+> Filter &
+> Select
+> Add Context
+> Checklist
+> Deduplication
+> Generate Checklist
+
+L1 Semantic 
+
+3-Layer Checklist Maintain linguistic fidelity and preserve what the speaker means 
+
+L2 Pragmatic Preserve what the utterance is trying to do (intent, tone, speech act) 
+
+L3 Cultural-social Preserve how it should function socially (norms, politeness, culture) 
+
+1
+
+> Message
+> In A
+> Translation
+> In A
+> Translation
+> In B
+> Message
+> In B
+
+2
+
+> Translated Conversation History
+> (available in multi-turn as context
+
+or 
+
+Setup   
+
+> Scripted Dynamic-guided Dynamic-free
+> Fixed
+> transcript
+> Guide user
+> into a specific
+> intent
+> Conversation
+> develops
+> freely
+
+3
+
+> Context
+> Source
+> Translation
+> Response
+> Cheklists
+
+Evaluation 
+
+Package 
+
+LLM Judge       
+
+> Language Identifier
+> Answer checklists
+> L1-1 Yes No
+> L2-1 Yes No
+> L3-1 Yes No
+
++
+
+Aggregation & Metrics  
+
+> Turn-level Evaluation Multi-turn Evaluation
+> Scenario-level
+> pass-rate
+> Layer-level
+> pass-rate
+> Function-level
+> analysis
+> Cross turn
+> consistency
+> Cumulative
+> meaning
+> Goal
+> Completion
+
+Analysis 
+
+> Compare
+> interpreter
+> models
+> Identify
+> specific
+> failures
+> Measure
+> converastional
+> success
+
+Figure 2: Overview of the conversational evaluation framework, with full data-to-evaluation pipeline. 
+
+Low-Resource, Culturally-Grounded, and Non-Literal MT. Resource inequality shapes NLP research [Joshi et al., 2020, Ranathunga et al., 2023], motivating participatory MT [Nekoto et al., 2020] and multilingual benchmarks [Goyal et al., 2022, Ahuja et al., 2023], while culturally grounded NLP shows how systems encode one viewpoint as a default [Hershcovich et al., 2022, Naous et al., 2024]. Work on politeness and register control [Sennrich et al., 2016, Rao and Tetreault, 2018, Madaan et al., 2020, Hwang et al., 2021] and on idiomatic language [Dankers et al., 2022, Baziotis et al., 2022, Liu et al., 2023a, Wu et al., 2026] shows the difficulty of translating meaning beyond literal content, and Skopos theory gives purpose a central role in translational action [Vermeer, 1989], which specification-aware translation makes explicit [Kayano and Sugawara, 2025]. Our framework connects these by measuring semantic, pragmatic, and cultural-social success from conversational context. 
+
+3 Conversational Evaluation Framework 
+
+3.1 Data Construction 
+
+Our framework covers a complete data-to-evaluation pipeline for interpreter-mediated conversa-tion (Figure 2). We build it from OpenSubtitles [Lison and Tiedemann, 2016], a movie- and television-subtitle corpus under the ODC-By 1.0 license, using 4 languages (Arabic ARB , Bengali 
+
+BEN , Indonesian IND , and Korean KOR ). A bilingual alignment check and heuristics based on LaBSE similarity [Feng et al., 2022], length ratio, and word coverage yield segments that are cleaner, lower-risk, aligned, and challenging enough to separate literal fidelity from communicative success. Heuristic features come from each language’s linguistic characteristics and cultural context, plus language-agnostic ones such as script, length, and pronoun asymmetries. Manually weighting these, we select the top 500 aligned segments per unordered pair. Bidirectional augmentation yields 6,000 candidate scenarios, of which the post-hoc safety filter of Appendix D.5 retains 5,624. We then augment each scenario with conversation context such as speaker roles, setting, relationship, and communicative purpose, drawn from a window of up to 15 preceding and 2 following segments (Appendix D). 33.2 Communicative-Goal Checklists 
+
+At the core of the evaluation, we generate checklists as a proxy for communicative success. A checklist generator first analyzes the setting, speech act, speaker relationship, register, and pair-specific cultural context, which describes linguistic and cultural information for each language and across pairs, then writes scenario-specific criteria with access to the source text, conversational context, and reference translation if available. Each scenario has binary criteria at three scored layers. 
+
+L1 semantic checks propositions, entities, quantities, and grammatical distinctions when they alter source meaning. L2 pragmatic checks whether the intended speech act, tone, and interactional purpose are preserved while feeling natural. L3 cultural-social checks register, honorifics, face management, relational stance, and other context-dependent expectations. Criteria across all three layers are concrete yes/no claims, with yes consistently denoting that the requirement is met. The generator produces 3 sets of criteria, deduplicated with LaBSE [Feng et al., 2022] at cosine similarity 0.80. Beyond individual scenarios, criteria testing the same recurring evaluation question (e.g. “uses polite Korean speech level”) are pooled across scenarios into a function ,the unit used later for function-level analysis and human calibration (Appendix C). We use Gemini 3.1 Pro [Google DeepMind, 2026] with high thinking effort as the generator. Prompts and examples are in Appendix K. 
+
+3.3 Interpreter-Mediated Conversation 
+
+The framework involves three actors. Two users each produce an utterance in one language and only observe translated messages from the other, and both can be actual humans or simulated by an LLM. An InterpreterAgent bridges them by translating and relaying messages according to a configurable translation brief. An LLM Judge observes the interaction and evaluates both each turn’s translation and the conversation overall, using the conversation context, original message, and recipient response against the provided checklists. 
+
+Setup. In single-turn evaluation, an utterance is translated once and the recipient replies in the target language using only the translation and its own role context. The multi-turn setup has 3 modes. 
+
+Scripted replays a fixed bilingual transcript where each turn’s response is fixed. Dynamic-guided 
+
+simulates users from a context while following a per-turn intent outline based on the user’s role context. 
+
+Dynamic-free removes the role context and lets users respond naturally. Multi-turn evaluation retains turn-level L1–L3 criteria and adds conversation-level criteria for cross-turn consistency, cumulative meaning, and goal completion. 
+
+3.4 Evaluation and Metrics 
+
+The judge receives the context, source text, translated text, recipient response, and L1–L3 checklist, and returns a structured yes/no verdict with a short rationale per criterion. For scenario s, we define 
+
+Cs = L1s ∪ L2s ∪ L3s,ps = |Cs|−1 X
+
+> c∈Cs
+
+1[c is met ].
+
+For the single-turn benchmark, the canonical pass rate is the unweighted mean of ps over all 5,624 directed scenarios, and layer rates use the same scenario-level averaging within each layer. Appendix E.4 provides results for a difficulty-weighted alternative. For multi-turn evaluation, the same calculation is applied per turn, while the conversation-level checklist is scored once against the complete transcript. We additionally run GlotLID [Kargaran et al., 2023] to validate the translation language. For Arabic and Indonesian targets, GlotLID output is checked against a curated set of accepted dialect/macrolan-guage codes (e.g. Egyptian and Moroccan for Arabic, Malay and Betawi for Indonesian) to avoid false negatives. A strict sensitivity analysis instead assigns zero pass rate when LID rejects a translation (Appendix E.4). 
+
+3.5 Experimental Setup Interpreters. The 10 interpreter setups are Gemini 3.1 Pro and Gemini 3.1 Flash Lite [Gemini Team, 2023, Google DeepMind, 2026], DeepSeek V4 Pro and Flash [DeepSeek-AI, 2026], GPT-5.4 Mini 40 25 50 75 100                                                                                 
+
+> Mean pass rate (%)
+> Gemini 3.1 Pro DeepSeek V4 Pro Qwen3.5 Flash Gemini 3.1 Flash Lite GPT-5.4 Mini DeepSeek V4 Flash Google Translate NLLB 3.3B Tiny Aya SeamlessM4T v2
+> 91.2 89
+> 82.9 81
+> 78.5 77
+> 78.2 77
+> 77.2 76
+> 75.8 74
+> 54.3 53
+> 52.1 51
+> 46.0 44
+> 24.2 24
+> Overall
+> Frontier Efficient Small MT Canonical Strict
+> Indonesian ( +7)
+> Arabic ( +4)
+> Korean ( -0)
+> Bengali ( -10)
+> 93 94 91 87 87 86 85 74 84 82 80 69 83 81 78 71 82 81 81 65 81 79 79 64 63 59 54 41 63 58 48 40 59 54 50 21 34 22 15 26
+> Source language
+> Indonesian ( +6)
+> Bengali ( +6)
+> Korean ( -2)
+> Arabic ( -10)
+> 94 95 92 83 89 88 83 72 87 82 79 66 85 81 80 67 84 85 75 65 83 82 75 63 64 59 49 45 58 62 46 43 51 55 37 42 31 26 21 19
+> Target language
+> L1 Semantic L2 Pragmatic L3 Cultural 98 93 87 93 86 76 89 81 72 91 79 72 91 80 69 91 79 67 79 56 43 70 53 44 62 46 40 43 23 17
+> Checklist layer
+
+Figure 3: Mean communicative-goal pass rates by interpreter setup, source language, target language, and checklist layer (easier to harder, left to right). In Overall , light/dark bar pairs give the canonical and strict (LID-gated) pass rate per system. In Source and target language , ∆ is a language’s mean deviation from each system’s own overall pass rate, averaged across all 10 systems (§4.1). [OpenAI, 2026b], Qwen3.5 Flash [Qwen Team, 2025a], Tiny Aya [Salamanca et al., 2026], Google Translate [Johnson et al., 2017], NLLB-200 3.3B [NLLB Team et al., 2022], and SeamlessM4T v2 Large [Seamless Communication, 2023], covering LLM and MT-specific models and both closed and open-source systems. By default the interpreter uses the cultural-context translation brief, which extends the specification-aware brief [Kayano and Sugawara, 2025] with the pair-specific cultural context, while the three MT-specific systems take only raw source text and language pair. 
+
+LLM Users and Judge. Recipient responses are simulated with one locally served model per target language, namely Qwen SEA-LION v4 8B VL [Qwen Team, 2025b, AI Singapore, 2026] for Indonesian, EXAONE 3.5 7.8B Instruct [An et al., 2024] for Korean, Command R7B Arabic [Alnumay et al., 2025] for Arabic, and TigerLLM 9B Instruct [Raihan and Zampieri, 2025] for Bengali. We use Gemini 3.1 Pro as the primary judge, and each setup produced one output per scenario. Confidence intervals use 10,000 direction-stratified paired scenario bootstrap resamples with a fixed seed, applying the same sampled indices to every system within a replicate (Appendix E). 
+
+Data. The single-turn study uses 5,624 directed scenarios, with checklists averaging 16.2 criteria per scenario (range 7–34) on all 10 setups. Multi-turn conversations come from the same pool, with scripted transcripts augmented by an LLM to n = 6 turns from the seeding context window and dynamic-mode transcripts produced live by the simulated users during evaluation (§3.3). Scripted multi-turn covers 5 interpreter configurations (Gemini 3.1 Flash-Lite with and without history, Qwen3.5 Flash, NLLB-200 3.3B, Tiny Aya) over 3,675 system-conversations, and dynamic mode covers 2 interpreters (Gemini 3.1 Flash-lite and Qwen3.5 Flash), guided vs. free, over 1,000. Multi-turn checklists are turn-level (5.5 criteria per turn, range 3–9) plus one conversation-level checklist (9.2 criteria, range 5–12). 
+
+4 Results 
+
+4.1 Conversation Success Across Systems 
+
+Figure 3 reports the single-turn scenario pass rate for all 10 interpreter setups by language and checklist layer. Most LLM interpreters, except the smallest, Tiny Aya, significantly outperform dedicated MT models, gaining both from raw capability and from their ability to use the translation brief (§6.2). Within LLMs the efficient flash/lite models are statistically indistinguishable, while frontier models are stronger but considerably more expensive. Language matters in both roles (target p < 0.001 , source p < 0.001 ). Indonesian is easiest in both and Korean stays near the middle, while Bengali is easy to translate into but hardest to translate from 
+
+and Arabic is the reverse, which we read as Arabic posing an adaptation problem and Bengali a comprehension one (Appendix H.2). 50 50 100 
+
+> Mean pass rate (%)
+> Flash-Lite +ctx Flash-Lite noctx Qwen3.5 Flash NLLB 3.3B Tiny Aya
+> 94.3 93.1 92.3 45.0 47.2
+
+(a) Scripted, turn-level. ar-bn ar-id ar-ko bn-id bn-ko id-ko 0.75 0.80 0.85 0.90 0.95 1.00   
+
+> Conversation-level success rate  Flash-Lite
+> ar-bn ar-id ar-ko bn-id bn-ko id-ko
+> Qwen3.5-Flash
+> guided free
+
+(b) Dynamic guided vs. free, conversation-level. 
+
+Figure 4: Multi-turn results (95% bootstrap CI). Per-pair scripted breakdown in Appendix I. 
+
+4.2 Layer and Function Findings 
+
+Every setup declines from L1 to L2 to L3, in the same order for all models. This persistent gap is the paper’s central empirical point. Preserving propositional content does not guarantee that an interpreted utterance also preserves its conversational function or social fit, and systems finishing close together overall can still get there through different layer profiles, which is why we treat the layer decomposition as the more informative unit of comparison. Per-function aggregation agrees in every target language, while individual functions expose language-specific weaknesses (Appendix H.1). 
+
+5 Interactive Multi-Turn Evaluation 
+
+Single-turn scoring judges each translation in isolation, but an interpreter agent is judged by whether a whole conversation arrives somewhere, so we run the framework over six-turn conversations in three modes (§3.3). Pooled across pairs (Figure 4a), the three LLM configurations cluster at 92–94% while NLLB and Tiny Aya sit at 45–47%. This separation holds for every pair, although the ordering of the two weaker systems varies. There is no decline across turn positions, although Tiny Aya declines significantly for Arabic–Bengali and Arabic–Korean. Relative to the matching single-turn grid, multi-turn scores rise for Flash-Lite and Qwen3.5-Flash ( +16 .1 and +15 .6 points) but fall for NLLB ( −4.5 points). A follow-up paired pilot (Appendix I.3) attributes most, though not all, of this gap to how the multi-turn checklist is generated. Conversation-level criteria are scored once against the finished transcript, covering cross-turn con-sistency, cumulative meaning, and goal completion. Every system lands below its own turn-level rate, at 93.1% against 94.3% for Flash-Lite with history, 91.4% against 93.1% without it, and 90.8% against 92.3% for Qwen3.5-Flash. The two floor systems lose more ground, at 40.7% against 45.0% for NLLB and 44.7% against 47.2% for Tiny Aya, so the cost of an inconsistent transcript rises as interpreter quality falls. 
+
+Conversation memory. Translated history is the one memory condition we can isolate cleanly, because the two Flash-Lite configurations differ only in whether earlier turns are visible to the interpreter. History improves Flash-Lite’s point estimate on all six pairs, but only three effects are significant, at +1 .3 to +2 .4 points. Access to conversation history therefore helps consistently but modestly at this scale, which suggests most of what the checklist rewards is already recoverable from the current turn and its scenario context. 
+
+Scripted against live conversation. Whether an interactive benchmark needs live conversation is largely a question of cost. In dynamic mode, Flash-Lite and Qwen3.5-Flash are evaluated on 73–89 retained conversations per system–pair, 50–60 guided and 23–30 free. Scripted and dynamic scores stay generally close, with only 4/12 comparisons significant and all favoring dynamic mode, so a replayed transcript recovers most of what live simulation measures at a fraction of the cost. Free conversations score higher than guided ones in 9/12 combinations (Figure 4b), with three significant 6Gemini Pro DS Pro Qwen Gemini Flash GPT Mini DS Flash Google NLLB Tiny Aya Seamless 
+
+> Higher- to lower-scoring interpreter setups
+> 0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7
+> Spearman correlation
+> CometKiwi (QE) GEMBA-MQM MQM-APE RATE
+
+Figure 5: Within-system correlation between MT metrics and communicative-goal pass rate. Table 1: Pass rate (%) by interpreter brief, pooled over seven setups on the difficult-scenario subset. Language columns are target languages. Appendix J gives the model-level breakdown. 
+
+Interpreter brief All Ar Bn Id Ko 
+
+Direct, no context 36.4 24.4 46.9 43.4 32.1 Direct + context 40.3 28.6 51.3 46.8 35.8 Specification-aware 49.0 32.2 58.8 57.4 49.1 Cultural-context 51.3 33.9 59.8 60.2 52.4 
+
+differences, all for Flash-Lite, on Arabic–Bengali, Arabic–Korean, and Bengali–Indonesian. That gap partly reflects checklist construction, since guided mode uses a fixed intent outline whereas free mode uses a checklist derived after the conversation, a design choice any interactive benchmark has to make. Per-pair results are in Appendix I. 
+
+6 Analysis 
+
+6.1 Relationship to MT Metrics 
+
+If our checklist only repackaged fidelity, standard MT metrics would closely track its scores. Figure 5 shows that within individual systems, the correlation between our pass rate and CometKiwi, GEMBA-MQM, MQM-APE, and RATE [Tian et al., 2026] collapses as interpreter capability rises (LLM-based metrics use the same judge as ours). These metrics separate gross translation failure well but miss the finer-grained failures our checklist is built to catch, and each within-system correlation carries a bootstrap 95% CI no wider than ±0.03 (Appendix J.2). Pooling across systems, which mixes strong and weak outputs, inflates every metric’s apparent alignment by rewarding it for gross failure rather than the failures that dominate once outputs are already fluent and plausible. This is visible in Table 10 (Appendix J.2). Among Gemini 3.1 Pro outputs each metric places in its top quartile, 10.3–12.2% still score at most 0.6 on our checklist, while 62.0–69.6% of a metric’s bottom quartile still reach at least 0.9. Our criteria therefore complement rather than replace fidelity metrics, since a top-rated failure creates deployment risk while a bottom-rated success rejects a useful, contextually adapted translation. 
+
+6.2 Context and Structured Prompting 
+
+We compare four interpreter briefs on 1,087–1,092 paired difficult scenarios per model for seven models. A direct instruction without context scores 36.4% pooled, scenario context raises this to 40.3%, a specification-aware brief reaches 49.0%, and the full cultural-context brief reaches 51.3% (Table 1). Scenario context alone adds about four points, structured pragmatic analysis roughly nine more, and pair-specific cultural elaboration about two, largest for the strongest setups. Measured interpreter performance therefore depends materially on context and elicitation rather than architecture alone, which is why we treat prompt design as part of the evaluated interpreter setup. 7Table 2: Judge validation summary. Polarity drops are measured in points. DeepSeek V4 Pro fails this test.                    
+
+> Judge Dropout Reword flip ↓Polarity drop ↓Planted sens. ↑
+> Gemini 3.1 Pro Pass 2.2% 6.1 0.81 GPT-5.4 Pass 3.0% 23.7 0.90 DeepSeek V4 Pro Pass 2.7% 58.0 0.81
+
+7 Checklist and Judge Validation 
+
+7.1 Checklist Validation 
+
+A further question is whether the generated criteria are themselves worth checking. As part of the human-annotation study (Appendix G.1), annotators rated every function’s Meaningfulness (1–5) with no translations shown. Inter-annotator agreement is only moderate (pairwise Spearman 0.22–0.57), but pooled mean Meaningfulness exceeds 3 for every target language (3.1–4.27), evidence that on average each criterion is worth checking. 
+
+7.2 Adversarial Judge Tests 
+
+We ran four tests to isolate different failure types. Input dropout measures whether a judge still answers yes when the evidence a criterion needs is removed. Meaning-preserving rewording 
+
+measures decision instability when only checklist wording changes. Polarity inversion reverses the expected answer while preserving content, testing acquiescence to surface form. Planted violations 
+
+alter one translation requirement while leaving untargeted criteria unchanged, measuring whether the judge detects localized failures without broadly changing unrelated verdicts. We apply these to 3 judge candidates, Gemini 3.1 Pro, GPT-5.4 [OpenAI, 2026a], and DeepSeek V4 Pro [DeepSeek-AI, 2026]. Table 2 combines the main outcomes. All judges respond to missing evidence and reword-only flip rates stay near 3%, but DeepSeek V4 Pro loses 58 points under polarity inversion, with accuracy falling from 96.6% to 38.6%, which disqualifies it as the primary judge. Gemini 3.1 Pro has the smallest polarity drop and planted-violation sensitivity close to GPT-5.4, which partly leads to its selection. Cross-judge agreement, planted-violation sensitivity, and human– judge agreement (§7.3) all decline from Layer 1 to Layer 3 for every judge, mirroring the main results’ layer ordering (§4.2). Full definitions, specificity, and layer-by-layer numbers are in Appendix F. 
+
+7.3 Judge Calibration and Uncertainty 
+
+We conducted human annotation across the four target languages (Appendix G). Pooled human– Gemini agreement is 75.4% ( κ = 0 .403 ) against GPT-5.4’s 69.2% ( κ = 0 .328 ) on identical items, supporting Gemini as the primary judge. We find this moderate κ expected and acceptable, because annotators are native speakers of the target language only and rate the translated text and checklist without seeing the source, consistent with the checklist-validation finding that 18–43% of functions need source-side knowledge the LLM judge can access but a target-language annotator cannot. Annotators also mark 8–17% of items Unsure, and in three of four languages those rows agree markedly less with the judge, so annotators recognize which items they cannot reliably judge. 
+
+8 Conclusion 
+
+We introduce a 3-layer checklist-and-judge framework decomposing communicative success in interpreter-mediated conversation into semantic, pragmatic, and cultural-social criteria, validated under adversarial perturbation, cross-judge agreement, and human calibration. Across 10 setups and 4 languages, every setup degrades from L1 to L3 and correlation with CometKiwi, GEMBA-MQM, MQM-APE, and RATE collapses as capability rises. Whole conversations score lower than their own turns, so turn-level accuracy alone does not carry a conversation. Our cultural-context brief recovers much of that ground. Explicit information about how the two languages and cultures interact produces better adjusted translations. 8References 
+
+Kabir Ahuja, Harshita Diddee, Rishav Hada, Millicent Ochieng, Krithika Ramesh, Prachi Jain, Akshay Nambi, Tanuja Ganu, Sameer Segal, Mohamed Ahmed, Kalika Bali, and Sunayana Sitaram. MEGA: Multilingual evaluation of generative AI. In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing , pages 4232–4267, 2023. URL https: //aclanthology.org/2023.emnlp-main.258/ .AI Singapore. Qwen-SEA-LION-v4-8B-VL. https://huggingface.co/aisingapore/ Qwen-SEA-LION-v4-8B-VL , 2026. Model card; SEA-LION v4 fine-tune of Qwen3-VL-8B-Instruct. Yazeed Alnumay, Alexandre Barbet, Anna Bialas, William Darling, et al. Command R7B Arabic: A small, enterprise focused, multilingual, and culturally aware Arabic LLM, 2025. Cohere. Soyoung An, Kyunghoon Bae, Eunbi Choi, et al. EXAONE 3.5: Series of large language models for real-world use cases, 2024. LG AI Research. Christos Baziotis, Prashant Mathur, and Eva Hasler. Automatic evaluation and analysis of idioms in neural machine translation, 2022. Shishir Bhattacharja. Benglish verbs: A case of code-mixing in Bengali. In Proceedings of the 24th Pacific Asia Conference on Language, Information and Computation (PACLIC) , pages 75–84, 2010. URL https://aclanthology.org/Y10-1011 .Sangwoo Cho, Kushal Chawla, Pengshan Cai, Zefang Liu, Chenyang Zhu, Shi-Xiong Zhang, and Sambit Sahu. Ask, don’t judge: Binary questions for interpretable llm evaluation and self-improvement, 2026. URL https://arxiv.org/abs/2606.27226 .Kyung-Sook Chung. Korean evidentials and assertion. Lingua , 120(4):932–952, 2010. doi: 10.1016/ j.lingua.2009.06.006. Verna Dankers, Christopher G. Lucas, and Ivan Titov. Can transformer be too compositional? Analysing idiom processing in neural machine translation. In Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics (ACL) , 2022. DeepSeek-AI. DeepSeek-V4: Towards highly efficient million-token context intelligence, 2026. Covers both DeepSeek-V4-Pro and DeepSeek-V4-Flash. Fangxiaoyu Feng, Yinfei Yang, Daniel Cer, Naveen Arivazhagan, and Wei Wang. Language-agnostic BERT sentence embedding. In Smaranda Muresan, Preslav Nakov, and Aline Villav-icencio, editors, Proceedings of the 60th Annual Meeting of the Association for Computa-tional Linguistics (Volume 1: Long Papers) , pages 878–891, Dublin, Ireland, May 2022. As-sociation for Computational Linguistics. doi: 10.18653/v1/2022.acl-long.62. URL https: //aclanthology.org/2022.acl-long.62/ .Charles A. Ferguson. Diglossia. Word , 15(2):325–340, 1959. Markus Freitag, George Foster, David Grangier, Viresh Ratnakar, Qijun Tan, and Wolfgang Macherey. Experts, errors, and context: A large-scale study of human evaluation for machine translation. 
+
+Transactions of the Association for Computational Linguistics , pages 1460–1474, 2021. Gemini Team. Gemini: A family of highly capable multimodal models, 2023. Google DeepMind. Gemini 3.1 model cards (pro, flash-lite). https://deepmind.google/models/ model-cards/ , 2026. Naman Goyal, Cynthia Gao, et al. The Flores-101 evaluation benchmark for low-resource and multilingual machine translation. Transactions of the Association for Computational Linguistics ,2022. Daniel Hershcovich, Stella Frank, Heather Lent, Miryam de Lhoneux, Mostafa Abdou, Stephanie Brandl, Emanuele Bugliarello, Laura Cabello Piqueras, Ilias Chalkidis, Ruixiang Cui, Constanza Fierro, Katerina Margatina, Phillip Rust, and Anders Søgaard. Challenges and strategies in cross-cultural NLP. In Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics , 2022. 9Yerin Hwang, Dongryeol Lee, Taegwan Kang, Minwoo Lee, and Kyomin Jung. When wording steers the evaluation: Framing bias in LLM judges. 2026. unpublished preprint. Yongkeun Hwang, Yanghoon Kim, and Kyomin Jung. Context-aware neural machine translation for Korean honorific expressions. Electronics , 10(13):1589, 2021. doi: 10.3390/electronics10131589. Melvin Johnson, Mike Schuster, Quoc V. Le, Maxim Krikun, Yonghui Wu, Zhifeng Chen, Nikhil Thorat, Fernanda Viégas, Martin Wattenberg, Greg Corrado, Macduff Hughes, and Jeffrey Dean. Google’s multilingual neural machine translation system: Enabling zero-shot translation. Transac-tions of the Association for Computational Linguistics , 5:339–351, 2017. Pratik Joshi, Sebastin Santy, Amar Budhiraja, Kalika Bali, and Monojit Choudhury. The state and fate of linguistic diversity and inclusion in the NLP world. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics , 2020. Amir Hossein Kargaran, Ayyoob Imani, François Yvon, and Hinrich Schütze. GlotLID: Language identification for low-resource languages. In Findings of the Association for Computational Linguistics: EMNLP 2023 , pages 6155–6218, 2023. doi: 10.18653/v1/2023.findings-emnlp.410. URL https://aclanthology.org/2023.findings-emnlp.410/ .Yuto Kayano and Saku Sugawara. Specification-aware machine translation and evaluation for purpose alignment. In Proceedings of the Tenth Conference on Machine Translation (WMT) , 2025. Tae Soo Kim, Heechan Lee, Yoonjoo Lee, Joseph Seering, and Juho Kim. Evalet: Evaluating large language models by fragmenting outputs into functions. 2025. arXiv:2509.11206; to appear at CHI 2026. Tom Kocmi and Christian Federmann. Large language models are state-of-the-art evaluators of translation quality. In Proceedings of the 24th Annual Conference of the European Association for Machine Translation (EAMT) , 2023a. Tom Kocmi and Christian Federmann. GEMBA-MQM: Detecting translation quality error spans with GPT-4. In Proceedings of the Eighth Conference on Machine Translation (WMT) , 2023b. Pierre Lison and Jörg Tiedemann. OpenSubtitles2016: Extracting large parallel corpora from movie and TV subtitles. In Proceedings of the Tenth International Conference on Language Resources and Evaluation (LREC’16) , 2016. URL https://aclanthology.org/L16-1147/ .Chen Liu, Fajri Koto, Timothy Baldwin, and Iryna Gurevych. Are multilingual LLMs culturally-diverse reasoners? An investigation into multicultural proverbs and sayings. 2023a. Yang Liu, Dan Iter, Yichong Xu, Shuohang Wang, Ruochen Xu, and Chenguang Zhu. G-eval: NLG evaluation using GPT-4 with better human alignment. In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing (EMNLP) , 2023b. Arle Richard Lommel, Aljoscha Burchardt, and Hans Uszkoreit. Multidimensional quality metrics: A flexible system for assessing translation quality. In Proceedings of Translating and the Computer 35 , London, UK, 2013. Aslib. URL https://aclanthology.org/2013.tc-1.6/ .Qingyu Lu, Liang Ding, Kanjian Zhang, Jinxia Zhang, and Dacheng Tao. MQM-APE: Toward high-quality error annotation predictors with automatic post-editing in LLM translation evaluators, 2024. Aman Madaan, Amrith Setlur, Tanmay Parekh, Barnabás Póczos, Graham Neubig, Yiming Yang, Ruslan Salakhutdinov, Alan W. Black, and Shrimai Prabhumoye. Politeness transfer: A tag and generate approach. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics , 2020. Sewon Min, Kalpesh Krishna, Xinxi Lyu, Mike Lewis, Wen-tau Yih, Pang Wei Koh, Mohit Iyyer, Luke Zettlemoyer, and Hannaneh Hajishirzi. FActScore: Fine-grained atomic evaluation of factual precision in long form text generation. In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing (EMNLP) , 2023. 10 Meladel Mistica, I Wayan Arka, Timothy Baldwin, and Avery Andrews. Double double, morphology and trouble: Looking into reduplication in Indonesian. In Proceedings of the Australasian Language Technology Association Workshop (ALTA) , pages 44–52, 2009. URL https://aclanthology. org/U09-1007 .Nikita Moghe, Tom Sherborne, Mark Steedman, and Alexandra Birch. Extrinsic evaluation of machine translation metrics. In Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics , 2023. ACL 2023 Best Paper Award. Sibanshu Mukhopadhayay, Tirthankar Dasgupta, Manjira Sinha, and Anupam Basu. Automatic extraction of compound verbs from Bangla corpora. In Proceedings of the 3rd Workshop on South and Southeast Asian Natural Language Processing (WILDRE), COLING , 2012. URL 
+
+https://aclanthology.org/W12-5013 .Tarek Naous, Michael J. Ryan, Alan Ritter, and Wei Xu. Having beer after prayer? measuring cultural bias in large language models. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics , 2024. ACL 2024 Best Social Impact Paper Award. Wilhelmina Nekoto, Vukosi Marivate, Tshinondiwa Matsila, Timi Fasubaa, Taiwo Fagbohungbe, Solomon Oluwole Akinola, Shamsuddeen Muhammad, Salomon Kabongo Kabenamualu, Salomey Osei, Freshia Sackey, et al. Participatory research for low-resourced machine translation: A case study in African languages. In Findings of the Association for Computational Linguistics: EMNLP 2020 , 2020. NLLB Team, Marta R. Costa-jussà, et al. No language left behind: Scaling human-centered machine translation, 2022. OpenAI. GPT-5.4 thinking system card. https://openai.com/index/ gpt-5-4-thinking-system-card/ , 2026a. System card, non-arXiv. OpenAI. Introducing GPT-5.4 mini and nano. https://openai.com/index/ introducing-gpt-5-4-mini-and-nano/ , 2026b. Blog post; no dedicated system card exists for the mini variant. Arjun Panickssery, Samuel R. Bowman, and Shi Feng. LLM evaluators recognize and favor their own generations, 2024. Kishore Papineni, Salim Roukos, Todd Ward, and Wei-Jing Zhu. BLEU: a method for automatic evaluation of machine translation. In Proceedings of the 40th Annual Meeting of the Association for Computational Linguistics , 2002. URL https://aclanthology.org/P02-1040 .Maja Popovi´ c. chrF: character n-gram F-score for automatic MT evaluation. In Proceedings of the Tenth Workshop on Statistical Machine Translation , 2015. doi: 10.18653/v1/W15-3049. Qwen Team. Qwen3 technical report, 2025a. Qwen Team. Qwen3-VL technical report, 2025b. Base architecture for Qwen-SEA-LION-v4-8B-VL; no dedicated SEA-LION v4 technical report exists, so we cite the base model report alongside the model card. Nishat Raihan and Marcos Zampieri. TigerLLM – a family of bangla large language models. In 
+
+Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (ACL, Short Papers) , 2025. Surangika Ranathunga, En-Shiun Annie Lee, Marjana Prifti Skenduli, Ravi Shekhar, Mehreen Alam, and Rishemjit Kaur. Neural machine translation for low-resource languages: A survey. ACM Computing Surveys , 55(11), 2023. Sudha Rao and Joel Tetreault. Dear sir or madam, may I introduce the GYAFC dataset: Corpus, benchmarks and metrics for formality style transfer. In Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics , 2018. Ricardo Rei, Craig Stewart, Ana C. Farinha, and Alon Lavie. COMET: A neural framework for MT evaluation. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP) , 2020. 11 Ricardo Rei, Marcos Treviso, Nuno M. Guerreiro, Chrysoula Zerva, Ana C. Farinha, Christine Maroti, José G. C. de Souza, Taisiya Glushkova, Duarte Alves, Luisa Coheur, Alon Lavie, and André F. T. Martins. CometKiwi: IST-unbabel 2022 submission for the quality estimation shared task. In 
+
+Proceedings of the Seventh Conference on Machine Translation (WMT) , 2022. Marco Tulio Ribeiro, Tongshuang Wu, Carlos Guestrin, and Sameer Singh. Beyond accuracy: Behavioral testing of NLP models with CheckList. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics , 2020. ACL 2020 Best Paper Award. Nathaniel R. Robinson, Perez Ogayo, David R. Mortensen, and Graham Neubig. ChatGPT MT: Competitive for high- (but not low-) resource languages. In Proceedings of the Eighth Conference on Machine Translation , 2023. Alejandro R. Salamanca, Diana Abagyan, Daniel D’souza, Ammar Khairi, David Mora, Saurabh Dash, Viraat Aryabumi, Sara Rajaee, Mehrnaz Mofakhami, Ananya Sahu, Thomas Euyang, Brittawnya Prince, Madeline Smith, Hangyu Lin, Acyr Locatelli, Sara Hooker, Tom Kocmi, Aidan Gomez, Ivan Zhang, Phil Blunsom, Nick Frosst, Joelle Pineau, Beyza Ermis, Ahmet Üstün, Julia Kreutzer, and Marzieh Fadaee. Tiny aya: Bridging scale and multilingual depth, 2026. URL 
+
+https://arxiv.org/abs/2603.11510 .Seamless Communication. SeamlessM4T: Massively multilingual & multimodal machine translation, 2023. Rico Sennrich, Barry Haddow, and Alexandra Birch. Controlling politeness in neural machine translation via side constraints. In Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics , 2016. URL https://aclanthology. org/N16-1005 .Kyung-An Song. Various evidentials in Korean. In Proceedings of the 24th Pacific Asia Conference on Language, Information and Computation (PACLIC) , 2010. URL https://aclanthology. org/Y10-1101 .Abdelhadi Soudi, Ali Farghaly, Günter Neumann, and Rabih Zbib, editors. Challenges for Arabic Machine Translation . John Benjamins, 2012. Matthias Sperber and Matthias Paulik. Speech translation and the end-to-end promise: Taking stock of where we are. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics , pages 7409–7421, 2020. URL https://aclanthology.org/2020.acl-main.661/ .Yanzhi Tian et al. Beyond literal mapping: Benchmarking and improving non-literal translation evaluation. 2026. arXiv:2601.07338; introduces RATE (Reflective Agentic Translation Evaluation). Pat Verga, Sebastian Hofstätter, Sophia Althammer, Yixuan Su, Aleksandra Piktus, Arkady Arkhang-orodsky, Minjie Xu, Naomi White, and Patrick Lewis. Replacing judges with juries: Evaluating LLM generations with a panel of diverse models. 2024. Hans J. Vermeer. Skopos and commission in translational action. In Andrew Chesterman, editor, 
+
+Readings in Translation Theory , pages 173–200. Finn Lectura, Helsinki, 1989. Peiyi Wang, Lei Li, Liang Chen, Zefan Cai, Dawei Zhu, Binghuai Lin, Yunbo Cao, Qi Liu, Tianyu Liu, and Zhifang Sui. Large language models are not fair evaluators, 2023. Jerry Wei, Chengrun Yang, Xinying Song, Yifeng Lu, Nathan Hu, Jie Huang, Dustin Tran, Daiyi Peng, Ruibo Liu, Da Huang, Cosmo Du, and Quoc V. Le. Long-form factuality in large language models. In Advances in Neural Information Processing Systems (NeurIPS) , 2024. Juliana Wijaya. Beyond mirativity and mutual understanding: The functions of turn-initial and turn-final loh in Colloquial Indonesian. Journal of Pragmatics , 197:55–68, 2022. doi: 10.1016/j. pragma.2022.05.005. Linjuan Wu, Ruiqi Zhang, Xinze Lyu, Ye Guo, Daoxin Zhang, Zhe Xu, Yao Hu, Yixin Cao, Yongliang Shen, and Weiming Lu. Beyond literal translation: Evaluating cultural effectiveness in social media ugc, 2026. URL https://arxiv.org/abs/2605.25626 .12 Minghao Wu and Alham Fikri Aji. Style over substance: Evaluation biases for large language models, 2023. xAI. Grok 4.1 model card. https://data.x.ai/2025-11-17-grok-4-1-model-card.pdf , 2025. Nearest verified official model card; no card exists for the exact “Grok 4.3” build used as a secondary judge in this paper. Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q. Weinberger, and Yoav Artzi. BERTScore: Evaluating text generation with BERT. In International Conference on Learning Representations (ICLR) , 2020. Lianmin Zheng, Wei-Lin Chiang, Ying Sheng, Siyuan Zhuang, Zhanghao Wu, Yonghao Zhuang, Zi Lin, Zhuohan Li, Dacheng Li, Eric P. Xing, Hao Zhang, Joseph E. Gonzalez, and Ion Stoica. Judging LLM-as-a-judge with MT-bench and Chatbot Arena. In Advances in Neural Information Processing Systems (NeurIPS), Datasets and Benchmarks Track , 2023. 13 A Limitations 
+
+Human calibration. Our main limitation is the human calibration. Across 4 languages and all 12 directions, we could not find annotators fluent in both source and target language who could evaluate holistically. Therefore, we restricted annotation to the checklist and target language only, which made human-human and human-LLM agreement is not very high. Furthermore, although all of our extensive reference-free validation test showed that our main LLM judge is reliable enough, the human-calibration shows this reliability is relative. Cascading human–judge agreement to the full dataset shows the judge under-scores by up to 18.8 points in three of four languages (Appendix G.4). Despite this limitation, we still take the calibration as a useful, if partial, validation alongside our other checks. 
+
+Data contamination. OpenSubtitles is a common component of LLM pretraining corpora, so every models including the judge may have seen this exact corpus during pretraining. A system could therefore score well partly because it memorized subtitle translation patterns rather than because it genuinely reasons about pragmatics or culture. However, since our approach does not rely on a single reference translation and instead decomposes the evaluation into criterias, we expect the contamination effect to be limited. 
+
+Scripted OpenSubtitles dialogue. Scripted OpenSubtitles dialogue is another limitation. Despite our alignment checks and filtering heuristics, some segments remain imperfectly aligned, and since most films originate outside these 4 languages, many subtitles are themselves third-language translations, making dialogue less natural than spontaneous speech. We take this as the best available data for this work, but do not claim our results generalize beyond scripted dialogue to natural conversation. 
+
+Context asymmetry. Our experimental design also does not isolate architecture from context access. The three MT-specific systems, Google Translate, NLLB-200, and SeamlessM4T v2, receive only the raw source text, while every LLM interpreter receives all information by default. Since our L2 and L3 criteria specifically test tone, register, and honorifics, criteria that are difficult to satisfy without exactly the context the MT systems do not receive. Part of the gap we attribute to capability, and part of the layer-wise degradation pattern, could instead reflect this context asymmetry rather than a purely architectural difference. We do not run a matched condition that gives the MT systems comparable context or restricts the LLMs to raw source text, so this confound remains open. 
+
+B Ethical Considerations 
+
+All human-annotation was approved by an institutional review board, and conducted with appro-priate compensation and informed consent. The released results of the study contain no personally identifiable information. The corpus is text only. It carries no audio, video, or likeness data, so no consent for voice or likeness is implicated and the released artifacts pose no deepfake or voice-cloning risk. On provenance, all source material comes from OpenSubtitles [Lison and Tiedemann, 2016], redistributed under the ODC-By 1.0 license, and we release only derived scenarios, system outputs, and the scripts that produce them. The OpenSubtitles-derived data may contain offensive content and, although less likely in scripted movie and television dialogue, personally identifiable information. We therefore apply a rule-based post-hoc filter to the source and reference data, system translations, and simulated-recipient responses. Because the filter relies on heuristics, some instances may re-main undetected in the released artifacts. Regarding our evaluation results, they are still limited to scripted dialogue and should not be generalized to other domains, particularly real-world use. We acknowledge the use of some AI Assistants, specifically Claude Code and Codex for writing and coding assistance. 
+
+C Terminology 
+
+The paper uses five related but distinct terms for the units the framework operates on. • Segment. One bilingual (source + target) unit selected from OpenSubtitles by the difficul-ty/alignment scoring in §3.1, giving 500 segments per unordered language pair, 2,812 total across the six pairs after post-hoc safety filtering. A segment is direction-agnostic, so it is not yet assigned a translation direction. 14 • Scenario. One directed instantiation of a segment (source → target), augmented with conversation context and an L1–L3 checklist. Each segment yields 2 directed scenarios (forward and reverse), giving 5,624 scenarios total. This is the s already used in §3.4’s 
+
+ps/Cs definitions. • Turn. One utterance-exchange within a conversation. The single-turn benchmark scores exactly one turn per scenario. Multi-turn evaluation (§3.3) scores each turn of a longer conversation plus a separate conversation-level checklist. • Criterion. One atomic yes/no checklist item, the unit the judge returns a verdict for. Cs is the set of criteria scored for scenario s.• Function. A cross-scenario cluster of criteria that test the same recurring evaluation question (e.g. “uses polite Korean speech level”), constructed by the embedding-based pooling described in Appendix F.3. 
+
+D Dataset Construction, Filtering, and Attrition 
+
+D.1 Worthiness Formula 
+
+Each candidate OpenSubtitles segment receives a source-side complexity score src _complexity 
+
+(sum of fired per-language feature weights, described below, plus universal surface signals such as question marks, exclamations, ellipsis, and multi-clause structure), an alignment-quality score quality 
+
+(length-ratio and script-ratio checks against a per-language target, penalized by an alignment-risk heuristic based on punctuation/digit mismatch and length asymmetry between source and target lines), and a combined worthiness score used to rank and select the hardest 500 segments per direction. 
+
+w = 0 .65 · c + 0 .35 · q
+
+where w is the worthiness score used for ranking, c is the source-side complexity score, and q is the alignment-quality score. Feature weights are manually-set and each is grounded in a specific citation about why that linguistic phenomenon is translation-critical for its language. 
+
+D.2 Representative Per-Language Features 
+
+Arabic has diglossia and clitic negation [Ferguson, 1959, Soudi et al., 2012], Korean has honorifics and evidentiality [Song, 2010, Hwang et al., 2021], Indonesian has discourse particles and voice morphology [Mistica et al., 2009, Wijaya, 2022], and Bengali has echo reduplication and compound verbs [Bhattacharja, 2010, Mukhopadhayay et al., 2012]. Table 3 gives one representative fired feature per language with its weight and grounding citation. The full feature set (roughly 15–20 features per language, covering honorifics, evidentiality, diglossia, reduplication, compound verbs, register, and morphological ambiguity) is in available in the released scoring code. Table 3: Representative difficulty-scoring features. Korean honorific weighting is grounded in Hwang et al. [2021], the evidential feature in Chung [2010] and Song [2010], and Arabic diglossia/negation grounding in Ferguson [1959] and Soudi et al. [2012].                   
+
+> Lang. Feature Weight
+> Korean honorific/social marker 1.00 Korean retrospective evidential -deo-0.75 Indonesian meN-prefix complexity 0.50 Arabic clitic negation ( m¯ a-. . . -š )1.00 Arabic broken plural 0.75 Bengali honorific marker 0.75 Bengali Sadhu (elevated) register 0.50
+
+D.3 Worthiness Score as a Predictor of Pass Rate 
+
+The feature weights above are grounded in linguistics literature describing what makes a construction hard for a human, but not in any measurement of what is hard for an LLM or MT system. Matching 15 the 500 selected segments per pair back to their worthiness score and correlating against mean pass rate across all 10 systems, within-pair Spearman correlations are weak and inconsistent in sign (from 
+
+−0.15 to +0 .26 across the 6 pairs), so the score should not be read as a validated predictor of system difficulty. We take this as an expected consequence of the score’s grounding. 
+
+D.4 Alignment-Risk and Quality Heuristics 
+
+The quality variable penalizes candidate pairs for length-ratio deviation from a per-language expected ratio, script-ratio mismatches (e.g. unexpected Latin-script fraction in an Arabic-script target), and an alignment-risk term computed from punctuation/digit-count mismatch between source and target lines, a cheap proxy for a misaligned subtitle pair. A separate refiltering pass uses LaBSE cross-lingual embedding similarity, calibrated against a labeled aligned/misaligned reference distribution, to drop badly misaligned TMX pairs before the worthiness ranking is computed. 
+
+D.5 PII and Offensive-Content Filter 
+
+A rule-based post-hoc filter scans source and reference text, translations, and simulated-recipient responses for high-confidence PII and offensive content, including ordinary profanity, insults, and slurs in the four study languages and English. Blocking matches remove both directions of a single-turn base example from every system. For multi-turn data, a match removes the entire conversation from every system. The filter removes 188 single-turn base examples (185 offensive-content, 3 PII), 15 scripted conversations, and 40 dynamic conversations. As a heuristic, it may still miss indirect or novel expressions and may overflag context-dependent usage. Table 4 gives the retained evaluation units per language pair. Table 4: Retained evaluation units by language pair after content filtering.                                
+
+> Pair Single/ dir. Scripted Dyn. guided Dyn. free Dyn. total
+> Arabic–Bengali 470 124 56 29 85 Arabic–Indonesian 480 123 59 29 88 Arabic–Korean 499 125 59 30 89 Bengali–Indonesian 440 118 50 23 73 Bengali–Korean 451 122 52 24 76 Indonesian–Korean 472 123 60 29 89
+
+E Models and Scoring Protocol 
+
+E.1 Interpreter, Generator, and Judge Access 
+
+Below we list the canonical access names used when calling a model, grouped by access method. All models listed here were verified accessible during the evaluation and paper submission window. 
+
+Google AI Studio     
+
+> • Gemini 3.1 Pro: gemini-3.1-pro-preview – thinking effort: minimal as an interpreter, low as the judge, and high as the checklist generator • Gemini 3.1 Flash Lite: gemini-3.1-flash-lite-preview – thinking effort: minimal
+
+OpenAI API     
+
+> • GPT-5.4: gpt-5.4-2026-03-05 – reasoning effort: high • GPT-5.4 Mini: gpt-5.4-mini-2026-03-17 – reasoning effort: minimal
+
+OpenRouter       
+
+> • DeepSeek V4 Pro: deepseek/deepseek-v4-pro – reasoning effort: minimal • DeepSeek V4 Flash: deepseek/deepseek-v4-flash – reasoning effort: minimal • Qwen3.5 Flash: qwen/qwen3.5-flash-02-23 – reasoning effort: minimal
+
+16 • Grok 4.3 [xAI, 2025]: xai/grok-4.3 – reasoning effort: medium 
+
+Unless otherwise specified, API models use their provider-default generation settings. 
+
+Local (Transformers, fp16, CUDA)         
+
+> • Tiny Aya: CohereLabs/tiny-aya-global – greedy decoding, max 256 new tokens • NLLB-200 3.3B: facebook/nllb-200-3.3B – beam search k=4 , max 512 new tokens • SeamlessM4T v2 Large: facebook/seamless-m4t-v2-large – beam search k=4 , max 512 new tokens
+
+Google Cloud API 
+
+• Google Translate 
+
+E.2 Simulated Recipients 
+
+Target-language recipients are locally served through a llama.cpp, one model per language. All models use the 4-bit quantized version Q4_K_M , and ran on a single NVIDIA RTX 4060 Ti GPU with 16GB of VRAM. The recipient model is prompted to reply in the target language, and reject any translation not in its language. The translated utterance is the user message and recipient context is the system message. An overlong single-turn context is retried once after truncation to approximately 200 characters. 
+
+Local (llama.cpp, OpenAI-compatible)         
+
+> • Indonesian: qwen-sea-lion-v4-8b-vl – context length: 32,768 tokens, default • Korean: exaone-3.5-7.8b-instruct – context length: 16,384 tokens, default • Arabic: c4ai-command-r7b-arabic-02-2025 – context length: 16,384 tokens, default • Bengali: tigerllm-9b-it – context length: 16,384 tokens, default
+
+“default” means use the model default generation parameter. 
+
+E.3 Recipient Simulation Validation 
+
+Since the user is simulated, we validate this design against all 60,000 single-turn user_b_response 
+
+records across the 10 interpreter setups before the post-hoc safety filter. 
+
+Model choice. Each of the four recipient models above is a monolingual or regional specialist rather than a broad multilingual generalist, and this is deliberate. User B only ever receives already-translated target-language text and replies in that same language, never sees the source text, and never translates, so cross-lingual capability is not part of the role. A genuine specialist is also structurally immune to the source-language leakage a broad multilingual generalist could otherwise introduce into an ostensibly native-speaker reply. 
+
+Language fidelity. Running GlotLID [Kargaran et al., 2023] on these responses, reusing the same dialect/variety acceptance tables as §3.4, finds a genuine failure rate at or near 0% for Arabic, Bengali, and Korean (all ≤3.7% across the 10 interpreter setups). Indonesian’s higher apparent 7.6–12.9% flagged rate is a GlotLID confidence-threshold artifact on casual/slang register, correctly identified as 
+
+ind_Latn but just under the 0.9 confidence cutoff, rather than a real language failure. 
+
+Safety-refusal character breaks (open). A heuristic multilingual keyword scan for in-character refusals (“I’m sorry, I cannot...” and translated equivalents) finds a real, non-trivial rate that is worst for Bengali, at 0.9–2.5% of Indonesian turns, 3.3–6.3% of Korean, 4.9–6.7% of Arabic, and 6.7–12.6% of Bengali turns (ranges across the 10 interpreter setups). Spot-checking confirms these are genuine in-character breaks (“my programming forbids...”, “I cannot discuss illegal activity...”) . Recomputing the canonical pass rate with refusal-flagged turns excluded leaves every system’s score effectively unchanged. The pooled shift is +0 .30 points, and the largest per-language shift, for Bengali, the worst-affected language, is +0 .82 points. Per system, every shift falls between +0 .08 
+
+and +0 .31 points, all in the same direction. The character breaks are a genuine representativeness gap, but they do not measurably bias the headline pass rates. 17 Context-adherence check. An embedding check using LaBSE compares each response’s cosine similarity to its own conversation context against a shuffled-null baseline, per (model, target-language) group. The matched-minus-null gap is positive in all 40 groups ( +0 .14 to +0 .21 ), with a low generic-response flag rate (0.5–8%) and near-zero semantic near-duplicate/template collapse (0% in 38 of 40 groups, with only seamless-m4t-v2-large , the weakest translation system in the roster, shows any, at 1–1.5%, plausibly downstream of its own weaker translations rather than the recipient model). This supports the simulated recipients being genuinely persona-conditioned rather than templated. 
+
+E.4 Language Identification (LID) Diagnostics 
+
+GlotLID [Kargaran et al., 2023] runs on every translation as a diagnostic. Because automatic LID can misidentify a genuinely correct translation as a related dialect or macrolanguage, an exact-code match is not required for every target. For an Arabic target, detection is accepted if it lands in a curated set of ISO 639-3 codes covering the Arabic macrolanguage, Modern Standard Arabic, and its regional dialects (Egyptian, Levantine, Gulf, Moroccan, Najdi, Iraqi, Tunisian, and others). For an Indonesian target, a “Malay-cluster” set (standard Malay, Betawi, and several Malay varieties) is accepted outright, since these are mutually intelligible with Indonesian. Bengali and Korean targets use a single-code match, since they do not have the same macrolanguage/dialect ambiguity in GlotLID’s label set. 
+
+Failure handling. All systems retain the same 5,624-scenario denominator. The canonical outputs contain 58 upstream translation failures, represented as synthetic zero-scored placeholders rather than dropped. Seven Gemini judge calls blocked for prohibited content were evaluated by GPT-5.4 as a fallback. No record was removed solely for either failure type. 
+
+Criteria-weighting sensitivity. The canonical statistic (§3.4) treats every criterion in Cs as equally important. Since every system is judged against the identical checklist for a given scenario, we can instead pool each criterion’s verdict across all 10 systems to get an empirical difficulty score, then recompute each system’s headline number as a difficulty-weighted rather than flat mean of 
+
+Cs. Absolute scores drop substantially under weighting, since hard criteria now count for more (e.g. Gemini 3.1 Pro 89.76% to 83.51%, Tiny Aya 44.09% to 29.31%), but the 10-system ranking is identical position for position under both statistics, including the close Gemini 3.1 Flash Lite and Qwen3.5 Flash pair the main text calls statistically indistinguishable (76.67 vs. 76.40 flat, 66.66 vs. 66.01 weighted). 
+
+Checklist size by layer. The layers are not equally sized to begin with, since the checklist generator is instructed to focus more on higher layers, because L1 and some L2 already covered by existing metrics. The checklist therefore spends its criterion budget on L2 and especially L3. Total criteria split 17,358 L1 / 37,150 L2 / 42,798 L3, or 17.8% / 38.2% / 44.0%, roughly 2.9 / 6.2 / 7.1 criteria per scenario on average. Table 5 breaks this down by target language, where the skew toward L3 is consistent across all four (42.6–45.8%), most pronounced for Korean, whose honorific and register criteria inflate L3 further. Table 5: Mean criteria per scenario by layer and target language, pooled over the 6,000-scenario canonical grid. L3 is 42.6–45.8% of every language’s checklist by count (overall 44.0%, with the L1/L2 shares given in the text).                         
+
+> Target L1 L2 L3 Total
+> Arabic 2.90 6.13 7.02 16.05 Bengali 2.82 5.93 6.84 15.59 Indonesian 2.98 6.65 7.13 16.76 Korean 2.87 6.06 7.54 16.47 Overall 2.89 6.19 7.13 16.22
+
+18 F Complete Judge Validation 
+
+F.1 Checklist Coherence and Cross-Judge Checks 
+
+Functions pool criteria within each target language via embedding similarity, and are the unit human calibration propagates over. Mean within-function cohesion is 0.73–0.79, and near-duplicate criteria (cosine ≥ 0.85 ) show zero verdict disagreement. We also checked whether the Gemini judge inflates scores for its own translations. Scoring identical gemini-flash-lite/qwen3.5-flash translations with all three judges, Gemini’s own gap ( +0 .6 points, 95% CI [−1.3, +2 .7] , p = 0 .53 ) is smaller and non-significant compared with GPT-5.4’s ( +2 .7, p = 0 .006 ) or DeepSeek’s ( +2 .8, p = 0 .003 ). The same test on Gemini 3.1 Pro against two further neutral judges (Grok 4.3 [xAI, 2025], DeepSeek V4 Pro) gives ∆ = +0 .3 (p = 0 .67 ) and ∆ = −2.4 (p = 0 .03 , Gemini stricter on its own output), while weaker baselines under the same neutral judges score ∆ = −10 to −22 points lower . Neither Gemini model shows self-preference, and §F.4 gives the full breakdown. 
+
+F.2 Adversarial Judge Tests by Layer L1 semantic L2 pragmatic L3 cultural    
+
+> 020 40 60 80 100
+> Planted-violation sensitivity (%)
+> 92 78 70 95 86 85 98 67 76
+> Judge sensitivity to planted violations, by layer
+> Gemini 3.1 Pro GPT-5.4 DeepSeek V4 Pro
+
+Figure 6: Sensitivity to planted violations by judge and checklist layer (value on each bar). Figure 6 gives per-judge, per-layer planted-violation sensitivity directly. The drop from L1 to L3 is largest for Gemini and DeepSeek, while GPT-5.4 degrades more gently but not on L2, where DeepSeek is instead the weakest of the three. Cross-judge κ (2,800 shared records) shows the same shape from a different angle, with DeepSeek–Gemini κ = 0 .602 , GPT-5.4–Gemini κ = 0 .595 ,DeepSeek–GPT-5.4 κ = 0 .462 overall, versus κ ≈ 0.92 –0.96 on Layer 1 and only κ ≈ 0.80 –0.85 
+
+on Layer 3 for every pair. Together with human–judge agreement (Appendix G), all three reliability measures decline from Layer 1 to Layer 3, matching the main results’ own layer-difficulty ordering. 
+
+F.3 Checklist Function Construction and Coherence 
+
+Annotating individual scenarios does not generalize since each scenario’s checklist is unique, so. Instead, following Evalet [Kim et al., 2025], we pool every (record, model, criterion) instance the judge scored, per target language, embed with LaBSE, and cluster with spherical k-means (separately per layer, using 10/18/24 clusters for L1/L2/L3, plus one residual cluster). Each cluster is LLM-labeled as one yes/no question (a function ), yielding 53 functions per target language. A cohesion diagnostic flags ∼14 functions per target for extra sampling. This is the unit §F.1 above reports cohesion for, and the unit the human-calibration sampling in Appendix G.1 draws from. We separately validated the function unit against two alternatives, flat (no clustering) and per-scenario clustering. Function clustering is the only granularity whose units recur usefully across records (median 461 records/function, up to 1,308, vs. 1 for the other two by construction). It barely moves the score itself (mean shift 1.38 points from flat scoring, vs. 3.88, up to 9, for per-scenario clustering), since its value is enabling the cross-record generalization the cascade depends on, not changing the score. Within-function judge disagreement is concentrated in loosely-cohesive clusters (cosine 19 < 0.85 between members). At cosine ≥ 0.85 , disagreement is near zero, so criterion-level “judge noise” is substantially a clustering-resolution artifact and not judge inconsistency. 
+
+F.4 Self-Preference Check 
+
+Figure 7: Gemini-judge score advantage over neutral judges, by translator model. There is no significant advantage when Gemini 3.1 Pro (the judge model itself) is the translator. There is a significant penalty for weak baselines instead. We provide an additional self-preference check beyond §F.1 (Figure 7), this time isolating Gemini 3.1 Pro specifically, the exact same model that also serves as the judge, which makes this the true circular (judge-scores-itself) case. The same paired-bootstrap protocol ( 5,000 × resamples, Holm-style CIs) also splits by translator strength. On Gemini-3.1-Pro-produced translations, the Gemini judge’s score relative to two neutral judges (Grok 4.3 [xAI, 2025], with access settings in Appendix E, and DeepSeek V4 Pro) is ∆ = +0 .3 points vs. Grok ( p = 0 .67 ) and ∆ = −2.4 vs. DeepSeek ( p = 0 .03 ,Gemini stricter on its own output, the opposite of self-preference). On weak-baseline translations, meaning Gemini 3.1 Flash-Lite and Qwen3.5 Flash, neither of which is the judge model itself, Gemini scores ∆ = −10 to −22 points lower than the neutral judges (all p < 0.001 ). 
+
+G Complete Human Calibration 
+
+G.1 Annotation Protocol 
+
+For each (function, verdict) cell (met/not-met scored separately), we sample K exemplars round-robin across source direction and all 10 interpreter models, with adaptive extra sampling on cohesion-flagged functions (Appendix F.3). Indonesian, Bengali, and Korean each have 3 native-speaker annotators, and Arabic has 2. Participants were recruited through an open call circulated primarily within academic communities. The protocol received institutional review board approval. Participation was voluntary, informed consent was documented through agreement and consent forms, participants could withdraw at any time, and compensation followed the applicable national minimum hourly wage. Each per-target pool ( ∼540–580 rows) splits into a shared overlap subset ( ∼35%, rated by every annotator, giving Fleiss’/Cohen’s κ) and a disjoint remainder split across annotators. Every annotator completes two sheets. Task A (checklist quality) rates each function’s Meaningfulness (1–5) and 
+
+Answerability (from target text + English gloss alone, vs. needing the source) with no translations shown, so nothing anchors on judge output. Task B (judge calibration) rates Satisfied (yes/no) and 
+
+Confidence on sampled exemplars, with model identity and the judge’s own verdict hidden until after the annotator answers. The complete instructions require Task A before Task B, treat the reference as an aid rather than ground truth, reserve Unsure for cases requiring the source, and hide model/judge fields until after each answer. 
+
+G.2 Checklist Meaningfulness 
+
+We report the full numbers for checklist Meaningfulness rating per target language. Per-annotator means are Arabic 3.91/3.91 (2 annotators), Bengali 4.77/3.51/4.53, Indonesian 3.26/3.79/4.89, and Korean 3.68/3.23/2.40. Pairwise Spearman correlation between annotators on the same 53 functions 20 is Arabic 0.22, Bengali 0.36–0.57, Indonesian 0.34–0.48, and Korean 0.25–0.45. Pearson correlation on the same pairs is frequently much weaker or negative (e.g. Bengali’s userA–userB pair at Pearson 
+
+0.01 vs. Spearman 0.37 ), which is why we report Spearman as the headline IAA figure, since it is robust to one annotator using the 1–5 scale at a different average severity, which is what drives the raw-correlation gap here rather than genuine disagreement about which functions matter. Korean’s third annotator is the most severe of any language’s roster (mean 2.40, vs. 3.68/3.23 for the other two), which is why Korean’s pooled mean (3.1) is the lowest of the four despite its Spearman range overlapping the others. Therefore, we take this as a preference of one rater, not that Korean’s checklist functions are less meaningful. 
+
+G.3 Human–Judge Agreement by Language and Layer 
+
+Table 6: Human–Gemini 3.1 Pro agreement in the current Task B exports. Some exported records use an unrecognized layer label, so layer counts need not sum to the overall count.                                                     
+
+> Target lang. Layer nAgreement Annotators
+> Arabic L1 104 0.885 2Arabic L2 193 0.896 Arabic L3 308 0.883 Arabic Overall 624 0.885 Bengali L1 179 0.844 3Bengali L2 289 0.696 Bengali L3 462 0.695 Bengali Overall 954 0.725 Indonesian L1 195 0.759 3Indonesian L2 302 0.692 Indonesian L3 460 0.670 Indonesian Overall 995 0.696 Korean L1 171 0.725 3Korean L2 286 0.727 Korean L3 421 0.789 Korean Overall 912 0.757
+
+Table 6 breaks §7.3’s pooled 75.4% agreement figure down by target language and layer (3,485 valid Task B verdicts, 11 annotators). The same per-language pattern holds against GPT-5.4 on the identical 3,372 pairable items (Arabic 88.7% vs. 74.7%, Bengali 72.5% vs. 66.9%, Indonesian 69.5% vs. 65.6%, Korean 75.5% vs. 71.8%, Gemini ahead throughout). 
+
+Human–human agreement. On the shared overlap subset (Appendix G.1), raw pairwise human– human agreement is 68–77% (Indonesian 70.0%, Bengali 68.6%, Korean 77.2%, mean over all annotator pairs), comparable to the human–judge figures above. Fleiss’ κ is much lower (Indonesian 0.093, Bengali 0.125, Korean 0.280), because with 79–80% of Task B items receiving a “Satisfied: yes” verdict from most annotators, chance agreement itself is already high ( pe ≈ 0.67 –0.68 ), so κ is deflated even though raw agreement is reasonable, the same kappa-paradox shape noted elsewhere in this appendix, not evidence that annotators are working at random. 
+
+Why agreement is not higher. Two further splits explain most of the gap referenced in §7.3. Splitting by the annotator’s own stated Confidence, annotators mark Unsure on 8.4% of Indonesian ratings (n = 84 /995 ), 11.3% of Korean ( n = 103 /912 ), 13.7% of Bengali ( n = 131 /954 ), and 17.0% of Arabic ( n = 106 /624 ). Unsure rows agree with Gemini noticeably less than Sure rows in three of four languages (Indonesian 61.9% vs. 70.4%, Bengali 58.8% vs. 74.7%, Korean 63.1% vs. 77.3%), and Arabic is the exception, where Unsure rows agree more than Sure rows (89.6% vs. 88.2%, on a much smaller Unsure sample). Splitting by the Task A answerability flag, Indonesian and Korean show the expected pattern (Indonesian 71.9% on “Target only” functions vs. 66.9% on “Mixed”, and Korean 83.1% vs. 70.5% on “Needs source”), but the effect is small-to-absent for Bengali and Arabic. Per-annotator severity differences in the underlying Task A ratings (§G.2) are a further contributing factor. 21 G.4 Cascade to the Full Dataset 
+
+The calibration design propagates each (function, verdict) agreement rate to every instance of that function dataset-wide, including scenarios no annotator ever read, as ˆptrue met = a(f, met )
+
+if the judge said met, else 1 − a(f, ¬met ), with an empirical-Bayes Beta-Binomial fit shrinking small-n functions toward their layer mean. Cell coverage (of 106 function ×verdict cells) is 106/106 (Indonesian), 98/106 (Korean), 96/106 (Bengali), 78/106 (Arabic). Table 7: Real cascade coverage and calibration shift, by target language. 
+
+Lang. Cells (n ≥2) Judge Calib. ( ∆)
+
+Indonesian 106/106 (100%) 0.700 0.838 (+0.138) Korean 98/106 (92%) 0.612 0.800 (+0.188) Bengali 96/106 (91%) 0.696 0.814 (+0.118) Arabic 78/106 (74%) 0.545 0.562 (+0.017) 
+
+Table 7 shows the judge under-scores relative to human calibration by 11.8–18.8 points in Indonesian, Korean, and Bengali, and by only 1.7 points in Arabic, where raw human–judge agreement is already highest (Table 6). Layer 1 shows the smallest calibration shift in every language (Arabic’s is slightly negative, −5.2 points), and Layers 2/3 carry the larger shifts referenced in §7.3 (Figure 8). Indonesian Korean Bengali Arabic 0.05   
+
+> 0.00 0.05 0.10 0.15 0.20 Calibrated  judge pass rate  Layer L1 L2 L3
+
+Figure 8: Judge-vs.-cascaded calibration shift, by target language and checklist layer. A leave-one-out holdout check gives MAE 0.259 /0.218 /0.217 /0.116 for Indonesian/Korean/Ben-gali/Arabic, between a simulated no-noise bookend ( ≈0) and default-noise bookend ( ≈0.30–0.32), so the cascade assumption is moderately supported by real annotation. 
+
+H Function, Language, and LID-Gating Diagnostics 
+
+H.1 Function-Level Results 
+
+To show what the layer averages hide, we pool retained criteria by target-language function. For each function, we calculate its criterion pass rate within each system and then macro-average equally across the 10 systems, giving diagnostic rates for 159 active canonical functions. Mean function pass rates decline from L1 to L2 to L3 in every target language, at Arabic 69.9/56.8/51.4, Bengali 85.3/71.7/67.9, Indonesian 84.4/75.1/66.0, and Korean 83.2/66.8/55.6. Figure 9 ranks all 39–41 functions per target language by pass rate and colors them by layer, exposing language-specific weaknesses beyond the layer averages, such as casual/informal register in Arabic and emotion-marking endings and non-literal phrasing in Korean. Function labels are short diagnostic tags, not universal linguistic categories. 
+
+H.2 Target- and Source-Language Significance Language effects. Pooling all four languages in one test per role (Friedman test over the 10 systems’ per-language mean canonical pass rate, one block per system). Target language is significant 22 0.0 0.2 0.4 0.6 0.8 1.0 
+
+mean pass rate (macro-avg., 10 systems) 
+
+Casual Register Informal Register Cultural Appropriateness Peer Relationship Cultural Phrasing Pragmatic Intent Cultural Tone Speaker Attitude Emotional Resonance Natural Phrasing Gendered Grammar Tone Appropriateness Emotional Tone Rhetorical Challenge Cultural Adaptation Narrative Flow Situational Tone Face Management Speech Act Direct Response Discourse Markers Emphasis Nuance Argument Logic Claims Denials Contextual Coherence Intended Meaning Reported Thought Contextual Pivot Feelings Situation Conversational Flow Logical Transitions Role Identification Explanatory Meaning Understanding Level Outcome Conclusion Contrastive Connectives Conditions Disclaimers Directness Level Negative Contrast 
+
+Arabic (39 functions) 
+
+0.0 0.2 0.4 0.6 0.8 1.0 
+
+mean pass rate (macro-avg., 10 systems) 
+
+Spontaneous Speech Idiomatic Phrasing Situational Tone Expressive Confrontation Formal Address Cultural Appropriateness Emotional State Connecting Word Interpretation Speaker Intent Natural Discourse Markers Situational Formality Cultural Expressions Emotional Tone Face-Saving Balance Informal Pronouns Underlying Intent Relationship Formality Rhetorical Challenge Event Connectivity Bluntness & Directness Conversational Flow Interpersonal Attitude Natural Phrasing Logical Structure Semantic Nuance Contextual Coherence Contextual Connection Informal Tone Intended Action Action Conditions Situational Role State of Mind Referent Identification Logical Meaning Understanding Status Negative Tone Specific Intentions Connecting Words Entity Identification 
+
+Bengali (39 functions) 
+
+0.0 0.2 0.4 0.6 0.8 1.0 
+
+mean pass rate (macro-avg., 10 systems) 
+
+Softening Markers Natural Phrasing Cultural Appropriateness Social Awkwardness Face Preservation Casual Tone Harmony Balance Clarity & Harmony Offense Avoidance Formality Level Professional Tone Conversational Fillers Natural Emotion Social Pronouns Intent Framing Informal Register Logical Consistency Emotional Tone Natural Phrasing Mocking Tone Conversational Tags Informal Pronouns Underlying Attitude Contextual Coherence Formal Intent Emotional Intent Logical Consequences Contextual Linking Logical Relationships Conversational Flow Emotional State Situational Details Rejection of Blame Final Stance Identity & Action Conditions & Outcomes Logical Connections Intended Meaning Refusal & Denial Lack of Knowledge Stated Intentions 
+
+Indonesian (41 functions) 
+
+0.0 0.2 0.4 0.6 0.8 1.0 
+
+mean pass rate (macro-avg., 10 systems) 
+
+Emotional Endings Natural Phrasing Intensity Adjustment Indirect Phrasing Face Preservation Atmosphere Preservation Relational Tone Cultural Expressions Pronoun Avoidance Natural Phrasing Natural Language Polite Speech Level Emotional State Intimate Flow Inquiry vs Challenge Firmness & Politeness Message & Challenge Intimate Atmosphere Formality Level Speaker Purpose Contextual Coherence Connective Phrasing Natural Meaning Logical Presentation Unfinished Thoughts Conversational Flow Contextual Flow Logical Relationships Emphasis & Logic Attitude & Situation Confusion & Emotion Speech Level Intent & Situation Meaning & Actions Listener Assumptions Knowledge & Feeling Logic & Intent Denial Nuance Logical Connections Specific Requests Tone & Mindset 
+
+Korean (41 functions) 
+
+L1 · Meaning L2 · Tone & Intent L3 · Social & Cultural Figure 9: Every function’s macro-averaged pass rate, ranked within each target language and colored by layer. Dashed line marks that language’s mean. 23 (χ2(3) = 26 .04 , p < 0.001 , Kendall’s W = 0 .87 , 95% CI [0 .82 , 0.96] , 5,000-resample bootstrap over systems) and so is source language ( χ2(3) = 24 .36 , p < 0.001 , W = 0 .81 , 95% CI [0 .66 , 1.00] ). Both effects are large ( W close to 1 indicates near-total agreement across systems on the language ranking). 
+
+Per-language deviation. Reporting each language’s per-system deviation from that system’s own overall mean (bootstrap over the 10 systems, 5,000 resamples). Arabic ( −9.62 [−11 .2,−7.8]), Bengali ( +5 .67 [4.2,7.2]), and Indonesian ( +6 .46 [5.4,7.5]) all have the same sign in all 10 systems, while Korean is mixed (3/10 positive, −2.52 [−4.7,−0.6]). As source , Arabic ( +3 .64 [+2 .1,+5 .1]), Bengali ( −10 .56 [−14 .9,−6.6]), and Indonesian ( +6 .91 [+5 .0,+9 .0]) are significant, Korean is not (+0 .02 [−2.5,+2 .1]), confirming the target/source sign reversal for Arabic and Bengali that §4.1 discusses. 
+
+H.3 LID-Gating Significance 
+
+Strict LID gating lowers system scores by 0.7–2.3 points, significant for every system (paired bootstrap, 2,000 resamples per model, same protocol as the headline interval). Every one of the 10 systems has a 95% CI that excludes zero, from 0.67 [0.55 ,0.80 ] (SeamlessM4T v2) up to 2.29 
+
+[1.92 ,2.69 ] (DeepSeek V4 Pro). The drop does not track the raw flag rate (§E.4), because it is the product of flag rate and the system’s own pass rate, so SeamlessM4T v2 and Tiny Aya have the highest raw flag rates but two of the smallest drops. By target language, the mean reduction is 5.26 points for Indonesian (a confidence-threshold artifact, not a dialect-coverage gap) versus 0.04–0.45 for the other three. 
+
+I Multi-Turn Conversation Study 
+
+I.1 Part A, Scripted Mode Across All 6 Pairs ar-bn ar-id ar-ko bn-id bn-ko id-ko 0.0 0.2 0.4 0.6 0.8 1.0     
+
+> Mean turn-level success rate
+> Flash-Lite +ctx Flash-Lite no-ctx Qwen3.5-Flash NLLB-200 3.3B Tiny Aya +ctx
+
+Figure 10: Scripted-mode mean turn-level success rate by pair and system, canonical roster. Figure 10 shows a consistent separation across the six pairs. The three LLM interpreter configurations score 0.87–0.97, well above NLLB and Tiny Aya. The ordering between the two floor systems varies by pair. Tiny Aya exceeds NLLB for Arabic–Indonesian, Arabic–Korean, and Indonesian–Korean, while NLLB leads on the other three pairs. Translated history improves Flash-Lite’s performance for every pair. The improvement is significant for Arabic–Indonesian (+2.44 points), Bengali–Indonesian (+1.52), and Arabic–Bengali (+1.27). The remaining three effects are smaller or not distinguishable from zero under the corrected test. Table 8 gives the per-pair values. 
+
+I.2 Part B, Dynamic Mode Across All 6 Pairs 
+
+We evaluate Flash-Lite and Qwen3.5-Flash with full transcript context. Each system–pair retains 73–89 conversations, of which 50–60 are guided conversations with a per-turn intent outline and 24 Table 8: Effect of translated history in scripted mode (Flash-Lite with history − without history). p
+
+values use paired bootstrap by conversation and Holm correction across the six pairs ( n=118 –125 
+
+conversations per pair).                 
+
+> Pair ∆turn succ. p(Holm)
+> Arabic–Indonesian +2.44 pts <0.001 Bengali–Indonesian +1.52 pts 0.014 Arabic–Bengali +1.27 pts 0.014 Arabic–Korean +1.05 pts 0.238 Bengali–Korean +0.74 pts 0.261 Indonesian–Korean +0.16 pts 0.671
+
+23–30 are free conversations scored with a post-hoc checklist. Scripted and dynamic scores are close for most system–pair combinations (Figure 11). Four of twelve unpaired comparisons are Holm-significant, all favoring dynamic mode, namely Flash-Lite on Arabic–Indonesian and Qwen3.5-Flash on Arabic–Indonesian, Bengali–Indonesian, and Indonesian–Korean. ar-bn ar-id ar-ko bn-id bn-ko id-ko 0.850 0.875 0.900 0.925 0.950 0.975 1.000 
+
+> Mean turn-level success rate
+> Flash-Lite +ctx, scripted Flash-Lite +ctx, dynamic Qwen3.5-Flash, scripted Qwen3.5-Flash, dynamic
+
+Figure 11: Scripted vs. dynamic turn-level success, all system ×pair combinations. Note the truncated 
+
+y-axis (0.85–1.0). 
+
+I.3 Single-Turn vs. Multi-Turn Gap 
+
+We ran a follow-up pilot on Indonesian–Korean to test how much of the gap the checklist procedure itself explains. We built matched conversations from real OpenSubtitles transcripts Turn 0 of each conversation is the same segment as an existing single-turn record. Group A scores every turn with the standard multi-turn checklist procedure. Group B instead reuses that record’s published single-turn checklist verbatim for turn 0, so turn 0 gives a directly paired comparison against the same record’s published single-turn score. On 5 conversations per system, Group A’s turn 0 scores +22 to +24 points above the paired single-turn record for both Flash-Lite and Qwen3.5-Flash. Group B’s turn 0, scored with the single-turn checklist on the identical transcript, lands within a few points of the published single-turn score for both systems. We then tested whether a deeper multi-turn checklist prompt (adding the forced pragmatic-analysis step and difficulty tagging that the single-turn procedure already has, still generated in one pass) narrows the gap at scale. Across 125 real Indonesian–Korean conversations for Flash-Lite and 124 for Qwen3.5-Flash, reduce the gap to about 6 to 9 points for both tested LLM interpreters. We hypothesize the remainder reflects turn difficulty rather than checklist depth, supported by less checklists being generated. Our worthiness score only targets the seed turn, so the proceeding turns could be easier, although separated analysis on our worthiness score (Appendix D.3) showed its not correlated with performance. 25 J Prompt-Ablation and Metric-Correlation Detail 
+
+J.1 Prompt-Ablation Details 
+
+The ablation evaluates seven systems on 1,087–1,092 paired difficult scenarios under four interpreter briefs. It changes only the translation brief and available context. Checklist generation and judging remain fixed. The four briefs also grow progressively longer alongside their added content, so the reported gains are not length matched against a same length control. Table 9: Full 7-model × 4-condition success rate (%), 1,087–1,092 paired records per model. Bold marks each row’s best condition. Gemini 3.1 Flash Lite and Qwen3.5 Flash score higher under specification-aware than the production cultural-context brief, and for Gemini Flash Lite this reverses once the hardest-100 sampling artifact (main text, §6.2) is accounted for.                                 
+
+> Model Direct, no ctx. Direct + ctx. Spec-aware Cultural-context
+> Gemini 3.1 Pro 40.3 44.9 64.1 75.2
+> DeepSeek V4 Pro 39.4 43.4 53.4 61.2
+> GPT-5.4 Mini 39.8 45.1 51.0 53.7
+> DeepSeek V4 Flash 35.7 39.2 46.6 50.5
+> Gemini 3.1 Flash Lite 41.0 46.2 55.1 45.9 Qwen3.5 Flash 32.4 34.3 44.8 41.9 Tiny Aya 25.9 28.7 28.1 30.2
+
+The capability-dependent benefit described in §6.2 holds across the full grid of Table 9, with two apparent exceptions where a model scores higher under the specification-aware condition than the production cultural-context brief (Gemini 3.1 Flash Lite, Qwen3.5 Flash). For Gemini 3.1 Flash Lite this reverses once we account for a sampling artifact, because the hardest subset was partly curated from failures of Gemini 3.1 Flash Lite itself, inflating the apparent difficulty of exactly the segments where it is evaluated. Its per-model comparison therefore contains a selection effect and should not be interpreted as a clean population estimate. The pooled comparison in the main text is retained as an intervention study, not as a replacement ranking. 
+
+J.2 Power of the MT-Metric Correlations 
+
+Table 10 reports the quartile disagreement behind §6.1, whose Spearman correlations each carry a bootstrap 95% CI no wider than ±0.03 at the pooled level and ±0.02 –0.03 per system over the 10-system MT-metric grid. The near-zero within-system correlations for the two strongest interpreters are therefore precise estimates of a near-null relationship, not an underpowered read on a small sample, since about 5,600 paired scenario scores per system is enough to rule out a moderate correlation rather than just fail to detect one. Table 10: Disagreement on 5,624 Gemini 3.1 Pro outputs. The middle column is the percentage of each metric’s top quartile with communicative score at most 0.6. The final column is the percentage of its bottom quartile with communicative score at least 0.9.           
+
+> Metric Top-rated outputs that fail Bottom-rated outputs that pass
+> CometKiwi (QE) 10.7% 62.0% GEMBA-MQM 11.7% 67.5% MQM-APE 12.2% 69.6% RATE 10.3% 62.2%
+
+Pooled correlation. Mixing all 10 systems’ outputs together ( n ≈ 56 ,000 ) gives a higher, but misleading, read of CometKiwi ρ = 0 .321 [0.314, 0.329], GEMBA-MQM ρ = 0 .436 [0.428, 0.442], MQM-APE ρ = 0 .301 [0.293, 0.309], RATE ρ = 0 .529 [0.523, 0.535]. Every one of these pooled values exceeds every within-system value for the two strongest interpreters (§6.1), so the pooled correlation is driven almost entirely by between-system variation (a metric correctly ranking a weak MT baseline below a strong LLM interpreter), not by within-system sensitivity to the finer-grained failures our checklist targets. 26 K Full Prompts 
+
+These templates follow the released code. Placeholders appear in {braces} , and lines beginning 
+
+[EDITORIAL] distinguish combined variants and were not sent to a model. Pair-specific cultural context and function taxonomies remain as placeholders. Unsupported non-Latin examples use Unicode escapes, and Unicode punctuation is rendered in ASCII. Both checklist pipelines default to one generation and LaBSE deduplication at cosine similarity 0.80. 
+
+K.1 Interpreter Translation Prompts 
+
+The cultural-context condition uses the production brief below. Specification-aware and direct conditions replace only that system instruction, while multi-turn combines the production brief with the multi-turn task variant. System Prompt: Cultural-Context Brief 
+
+You are an expert translator and interpreter facilitating communication between two users. - User A Language: {user_a_language} - User B Language: {user_b_language} - Conversation Context: {conversation_context} Note: You are only provided with the languages of the users. Do not assume any additional user background. ## Core Instructions 1. **Sole Intermediary**: The users communicate exclusively through you. You are their only bridge. 2. **Liberal Adaptation**: You are encouraged to translate liberally to achieve naturalness and cultural relevance. Do not translate literally (word-for-word). Your priority is to convey the *intent* and * impact* of the message, limiting structural changes to what is necessary for naturalness. 3. **Explicate the Implicit**: If the source text contains implicit cultural context (e.g., social hierarchy, religious norms, gender distinctions) that is critical for the target user to understand, you must make it clear. 4. **Preserve Communicative Goal**: While the phrasing should be adapted, the core message and the speaker's intent must remain faithful to the source. ## Guidelines 1. **Necessary Adaptation**: Translate the situation, not just the words. Adapt idioms, honorifics, and cultural references to feel native to the target user, but ensure adaptations form a bridge, not a barrier. Do not over-localize. 2. **Contextual Clarity**: If a concept in the source language implies specific needs or rules that are not obvious in the target language, you must clarify them. 3. **Tone and Style**: Adjust the tone (formal/casual) to match the target culture's norms for the given situation. 4. **Bracketed Clarifications**: Any additional clarification or context needed for understanding MUST be placed inside brackets () and written in the **target language** -- never in English or any other language. Do not add translator's notes, headings, or meta-commentary in any language other than the target language. ## Quality Standards - **Naturalness**: The translation should sound like it was originally spoken in the target language. - **Cultural Intelligence**: The target user should understand the full implication of the message. - **Faithfulness**: The underlying intent of the speaker is preserved. 
+
+System Prompt: Specification-Aware Brief 
+
+You are a professional translator working from an explicit translation specification (Kayano & Sugawara, 2025). - User A Language: {user_a_language} - User B Language: {user_b_language} - Conversation Context: {conversation_context} ## Translation Specification 1. **Purpose of Translation**: The communicative goal of the message -- the two users share no common language and communicate solely through your translation. 2. **Target Audience**: The intended reader's language background and expectations -- a {user_b_language} speaker, with no assumed background beyond what the conversation context provides. 3. **Style, Register, and Tone**: The formality, style, and tone appropriate for the target context; match the source message's register as closely as the target language permits. 4. **Terminology and Reference Resources**: Preserve names, numbers, and domain-specific terms exactly, consistent with prior usage in the conversation. 5. **Domain and Legal Requirements**: Follow the norms appropriate to the message's domain and any applicable compliance considerations. 6. **Cultural Adaptation**: Make adjustments for cultural norms or sensitivities where appropriate. 
+
+27 System Prompt: Specification-Aware Brief (continued) 
+
+7. **Length and Formatting**: Constraints on text length, layout, or structure -- keep the translation close to the source in length and structure. 8. **Localization Needs**: Regional or language-variant customization appropriate to the target audience. Output ONLY the translation in {user_b_language}. 
+
+The two direct conditions are identical except for the marked context line. System Prompt: Direct Brief (With and Without Context) 
+
+You are a translator facilitating communication between two users. - User A Language: {user_a_language} - User B Language: {user_b_language} [EDITORIAL -- direct-with-context only: - Conversation Context: {conversation_context}] Translate the message directly and literally from one language to the other. Do not add clarifications, adapt tone or register, or localize cultural references -- preserve the source phrasing as closely as target-language grammar allows. 
+
+The output instruction is shared. The marked phrases and transcript block appear only in the multi-turn task. User Prompt: Translation Task (Single- and Multi-Turn) 
+
+[EDITORIAL -- choose the applicable opening line] [SINGLE-TURN] Task: Translate the following message from {from_language} to {to_language}. [MULTI-TURN] Task: Translate the following message from {from_language} to {to_language}, as part of an ongoing two-party conversation mediated by you, the interpreter. {context} [EDITORIAL -- multi-turn only: insert {transcript_block} here] [EDITORIAL -- choose the applicable message line] [SINGLE-TURN] Message to translate: {message} [MULTI-TURN] Message to translate ({speaker}, turn {turn_index}): {message} Output ONLY the translation in {to_language}. Any bracketed clarifications must also be in {to_language}. Do not include English headings, notes, or meta-commentary. Translation: 
+
+K.2 Single-Turn Data Augmentation and Checklist Generation 
+
+Single-turn augmentation and checklist generation are one implemented call. The prompt below constructs pragmatic metadata and role-play contexts as well as the three checklist layers and the flattened verification prompt. Single-Turn Data Augmentation and Checklist Generation Prompt 
+
+You are an expert evaluation data designer for cross-cultural interpreter-mediated communication. Your task: convert a bilingual subtitle segment into structured evaluation metadata for a one-turn interpretation simulation. Direction: {source_language} ({source_language_code}) -> {target_language} ({target_language_code}) {cultural_context_block}Source turn (what the interpreter receives): {source_text} Reference target turn (pragmatic reference only -- not ground truth): {reference_target_text} {reference_alignment_note} Detected linguistic features and their evaluation implications: {reason_tags_block} Context digest (must be reflected in outputs): {context_digest} Previous context window: {prev_context} ==================================================== 
+
+28 Single-Turn Data Augmentation and Checklist Generation Prompt (continued) 
+
+STEP 1 -- Pragmatic analysis (reason before generating) ==================================================== Analyze the source turn and produce a compact analysis covering ALL of: A. Speech act: primary communicative act (request / refusal / apology / assertion / question / complaint / promise / greeting / challenge / other) B. Social relationship: power/solidarity dynamic presupposed (superior->subordinate / peer / subordinate-> superior / stranger / intimate / etc.) C. Face stakes: is there a face-threatening act? What mitigation does the source culture use, and what does the target culture expect instead? D. Cultural failure points: given the pair-specific asymmetries above, name 2-3 concrete ways this specific utterance could fail in translation -- grounded in the actual cultural gap, not generic errors. E. Required target form: what register, honorific level, and grammatical form must the target use? Output this as "pragmatic_analysis": a 3-5 sentence paragraph that a human judge could use to evaluate the translation. ==================================================== STEP 2 -- Generate all output fields ==================================================== Using your Step 1 analysis, generate all fields below. CHECKLIST FORMAT RULE -- mandatory for every item: Every checklist item must be a yes/no question starting with "Does the" targeting: - "Does the translation ..." -- Layer 1: fidelity and semantic accuracy - "Does the interpreter's response ..." -- Layers 2 & 3: pragmatic function and communicative goal The distinction matters: Layer 1 checks whether the translation is *accurate*. Layers 2-3 check whether the interpreter's *response achieves its communicative goal* in the target cultural context -- which may require culturally-adapted choices beyond word-for-word accuracy. TASK REQUIREMENTS: 1) Infer speech_act_intent (<=8 words) and semantic_core from source + context. 2) Produce mandatory_cultural_constraints grounded in Step 1 cultural failure points (D). 3) Build roleplay-ready contexts while de-identifying movie specifics. 4) Do not include actor names, film titles, or scene-specific lore. 5) user_a_context must be in source language. user_b_context must be in target language. 6) Checklist items must use the "Does the translation/interpreter's response ..." format (YES = success). 7) Enforce checklist priority: layer_3 count >= layer_2 count >= layer_1 count. 8) conversation_context must be grounded in previous context window only; no transcript-style turn history. 9) Do not include the current source turn in conversation_context, context_window_summary, or user contexts. 10) context_window_summary: 2-4 English sentences about previous context only. 11) Both user contexts: rich role/situation grounding in each user's language without exposing past utterances. 12) user_a_context must explicitly identify User A (source-side); user_b_context must identify User B (target-side). 13) Do not include guidance phrasing: "Saya harus/akan", "I must/will", "\uD574\uC57C", "\uD560 \uAC70". 14) Do not include target-side plans, expected replies, or strategy hints in user_b_context. 15) verification_prompt: numbered lines (1., 2., ...). 16) Checklist must include at least one criterion for contextual coherence with surrounding turns. 17) layer_3 must include at least one criterion grounded in the Step 1 cultural failure points (D). Output JSON only with this schema: {"pragmatic_analysis": "string", "speech_act_intent": "string", "semantic_core": "string", "mandatory_cultural_constraints": ["string"], "context_window_summary": "string", "conversation_context": "string", "user_a_context": "string", "user_b_context": "string", "checklist": { "layer_1_semantic_core": ["Does the translation ..."], "layer_2_pragmatic_function": ["Does the interpreter's response ..."], "layer_3_cultural_social_constraints": ["Does the interpreter's response ..."] }, "verification_prompt": "string" }
+
+K.3 Multi-Turn Checklist Generation 
+
+Turn- and conversation-level checklists use the same template. The caller changes scope_noun and inserts one of the two scope blocks shown before the prompt. 29 Multi-Turn Checklist Scope Variants 
+
+[EDITORIAL -- turn scope_content] Prior turns: {history_text} Current utterance (speaker {speaker}): {source_text} [EDITORIAL -- conversation scope_content] Basis for cross-turn evaluation: {basis_text} 
+
+Multi-Turn Checklist Generation Prompt 
+
+You are grounding an evaluation checklist for an interpreted two-party dialogue in a taxonomy of communicative functions, used to judge whether an interpreter successfully conveyed meaning across languages. Target language: {target_language} ({target_lang_code}) Evaluation-function taxonomy (function_id | layer | label): {taxonomy_listing} {cultural_context_block}Conversation context: {conversation_context} {scope_content} Task: 1. Select ONLY the taxonomy functions genuinely applicable to this {scope_noun} -- do not force-fit functions that don't apply, and do not select a function the {scope_noun} above gives no concrete basis to check. Use the cultural-asymmetry notes above (where given) to recognize functions a surface reading of the { scope_noun} would miss -- a term, register choice, or implicit norm that looks unremarkable in the source language may be exactly the kind of gap the taxonomy is meant to catch. 2. For each selected function, write ONE specific yes/no checklist item grounded in the actual content above ( not the generic taxonomy label) -- reference concrete words, names, or content from the {scope_noun} above, phrased so that "Yes" means the interpreter succeeded. 3. Each of layer_1, layer_2, and layer_3 must have at least 1 item -- pick at least one applicable function from each layer, even if only one clearly applies. Beyond that minimum, there is no fixed number: let the count follow honestly from the content, decided in step 1, and never padded or trimmed to look " about right". A simple {scope_noun} (a greeting, a short factual exchange) may honestly yield just 1 item per layer; an unusually dense {scope_noun} -- layered cultural constraints, idioms, honorifics, multiple pragmatic moves -- may honestly need many more. 4. There is no upper limit either -- if many functions genuinely apply, write one item for each. Never merge two distinct concerns into one item to keep the count low, and never pad with a function that doesn't genuinely apply.{grounding_note} 5. Ensure item counts satisfy layer_3 count >= layer_2 count >= layer_1 count -- layer_3 covers the broadest cultural/social concerns and should never be outnumbered by layer_1. Never pad a layer artificially to satisfy this; if the content only supports fewer layer_3 functions, keep layer_1/layer_2 equally lean. Output a JSON object with one field, "items": a list of objects, each with exactly these keys: - "function_id": the taxonomy id you selected (or null if ungrounded) - "layer": the layer of that function ("layer_1", "layer_2", or "layer_3") - "text": the concrete yes/no checklist item text Output ONLY the JSON object. 
+
+K.4 Judge Prompt 
+
+Judge Prompt 
+
+You are an expert linguistic and cultural evaluator. Your task is to evaluate the quality of a translation given the conversation context, source text, the translation, and the target recipient's response. Conversation Context: {conversation_context} Source Text: "{source_text}" Translated Text: "{translated_text}" Target Recipient Response: "{target_response}" Language Verification Results: {language_verification_info} Verification Checklist: {verification_prompt} 
+
+30 Judge Prompt (continued) 
+
+> For each item in the verification checklist, determine if the translation successfully meets the criteria (Yes /No). Also provide a brief reasoning for your decision. IMPORTANT: If the language verification indicates that the target recipient's response is in the wrong language, this typically means the communication has failed. Any criteria that depend on the appropriateness or correctness of the target's response should likely be marked as "not met" since responding in the wrong language is a critical failure. Evaluate each criterion carefully based on: 1. Translation Accuracy: Did the interpreter correctly handle the linguistic/cultural challenge? 2. Pragmatic Outcome: Did the communication succeed based on User B's response (considering language issues)? Format your output as a JSON object with a "results" array only (do not include completion_rate). Each result should have: id (number), criteria (string), met (boolean), and reasoning (string).
+
+L Qualitative Examples 
+
+Table 10 in §6.1 reports that 10.3–12.2% of Gemini 3.1 Pro outputs placed in a metric’s top quartile still fail our communicative checklist. Table 11 makes four such cases concrete, drawn from the single-system correlation study (6,000 segments, §6.1). In each row CometKiwi places the output in its top quartile and both GEMBA-MQM and MQM-APE annotate zero errors (norm = 1 .0), while our checklist scores the same output 0.15–0.39. Each source utterance is rendered fluently and semantically accurately (exactly what the reference-free metrics reward). What is wrong is a register, honorific, or face-management expectation specific to the target language and relationship, a category none of the three metrics has a slot for. The four rows were chosen to span four distinct mechanisms, namely Korean hierarchical speech level, Bengali honorific pronoun choice, Indonesian face-preserving formality, and Arabic register together with grammatical gender agreement. All four sit inside the 131 segments (2.2% of the 6,000-segment grid) where CometKiwi’s top quartile coincides with both MQM metrics reporting zero errors and our strict score falling at or below 0.5. 31 Table 11: Four Gemini 3.1 Pro segments where CometKiwi ranks the output in its top quartile and GEMBA-MQM / MQM-APE annotate zero errors, yet our checklist only the fraction shown in Chk. 
+
+(criteria met / total). Full checklists and per-criterion judge reasoning are available in the released data. 
+
+Pair Source Translation Metrics Chk. What the metrics miss 
+
+ben 
+
+→kor উহা খুব জ �ঢ � ল হ েব , তাই না? – Senior official’s rhetorical to a junior officer 그건 아주 복잡할 텐데요, 그렇지 않습니까? 
+
+– polite endings, reads as a genuine question 
+
+CometKiwi 0.89 GEMBA-MQM: 0 err MQM-APE: 0err 4/26 Uses upward-polite end-ings instead of the down-ward speech level a su-perior owes a subordi-nate in Korean, losing the power dynamic and sarcas-tic nunchi pressure. ind 
+
+→ben Kau bukan tahanan. Kau bebas bergabung dengan District 13. 
+
+– coordinator reassur-ing a rescued, distrust-ful defector তু �ম  �ক োেন ো ব �� দ� নও।  �ড ��� ���� ১৩-এ  �য োগ  �দ ওয় োর ব্য  োপোের  তু �ম  সম্পূ  ণ�  স�� োধীন। 
+
+– informal, flat admin-istrative phrasing 
+
+CometKiwi 0.91 GEMBA-MQM: 0 err MQM-APE: 0err 8/23 Keeps informal where the vulnerable guest is owed re-spectful, and renders the in-vitation as an administra-tive fact rather than a warm one, risking relational mis-expectation. The listener’s reply comes back confused, not reassured. ben 
+
+→ind ও, আ �ম  �ত োম োেক  ১০  �ম িন েট র �ব শী সম য়  িদ েত  পোরব ন ো – executive to afirst-time student interviewer, informal pronoun 
+
+Oh ya, saya tidak bisa memberikan kamu waktu lebih dari 10 menit. 
+
+– informal, unmiti-gated direct refusal 
+
+CometKiwi 0.90 GEMBA-MQM: 0 err MQM-APE: 0err 9/23 Carries the informal regis-ter, and keeps the blunt re-fusal frame instead of a sit-uational boundary. kor 
+
+→arb 미안, 난 그런 거 안 믿어 – informal, to a close friend, refusing a sug-gestion ، Ġ ﺍٓﺳࢻ Ņ ﻰĠٮĠ لا ﻟﻜٮ Ġ ﻞ ﺍٔﻭٔﻣں ī  ﻩ ٮŃﻤٮ Ġ ٮŅﺎﺀ. ﻫﺪ īﺍلأﺳ 
+
+– formal Modern Stan-dard Arabic, mascu-line agreement 
+
+CometKiwi 0.90 GEMBA-MQM: 0 err MQM-APE: 0err 10/27 Renders informal Korean peer speech as formal Mod-ern Standard Arabic, eras-ing the closeness between friends, and uses masculine agreement where the con-text (and the recipient’s re-ply) establishes a female speaker. 
+
+32
