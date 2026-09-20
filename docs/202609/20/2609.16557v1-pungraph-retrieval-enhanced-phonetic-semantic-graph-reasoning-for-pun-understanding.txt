@@ -1,0 +1,468 @@
+Title: PunGraph: Retrieval-Enhanced Phonetic-Semantic Graph Reasoning for Pun Understanding
+
+URL Source: https://arxiv.org/pdf/2609.16557v1
+
+Published Time: Wed, 16 Sep 2026 00:34:13 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+## PunGraph: Retrieval-Enhanced Phonetic-Semantic Graph Reasoning for Pun Understanding 
+
+Yuchen Su 1, Zijian Huang 1, Yaotian Shi 1, Shaoxin Zhong 1, Ruofan Wang 1,Mengze Li 1, Yonghua Zhu 2*, Diana Benavides-Prado 3, Michael Witbrock 1,
+
+> 1
+
+School of Computer Science, University of Auckland, New Zealand 
+
+> 2
+
+School of Computer and Information Technology, Shanxi University 
+
+> 3
+
+School of Electronic Engineering and Computer Science, Queen Mary University of London 
+
+{ysu132,zhua764}@aucklanduni.ac.nz, zhuyonghua@sxu.edu.cn d.benavidesprado@qmul.ac.uk, m.witbrock@auckland.ac.nz 
+
+Abstract 
+
+Puns are a challenging form of figurative lan-guage that exploit phonetic similarity and se-mantic ambiguity to convey multiple mean-ings. Although large language models (LLMs) demonstrate strong language understanding ca-pabilities, they still struggle with pun reasoning due to limited phonetic modeling and uncon-trolled end-to-end generation. We propose Pun-Graph , a retrieval-enhanced knowledge graph framework for pun understanding. PunGraph constructs a phonetic-semantic lexical graph using the Unisyn phonetic dictionary, IPA and G2P representations, and WordNet definitions, and retrieves candidate words or senses to con-strain LLM reasoning within a structured can-didate space. We further introduce WebPun ,a new large-scale dataset containing 5,730 an-notated heterographic and homographic puns. Experiments on SemEval-2017 and WebPun show that PunGraph consistently improves the performance of small-scale LLMs and achieves competitive results against strong proprietary models. Further analysis shows that retrieval-guided phonetic and semantic constraints ef-fectively reduce common reasoning errors in pun interpretation, highlighting the benefits of integrating structured knowledge with LLMs. We release our code and dataset at https: //github.com/ysu132/PunGraph .
+
+1 Introduction 
+
+Puns are a linguistic phenomenon that exploit lexi-cal polysemy or phonetic similarity to evoke mul-tiple meanings within a single utterance, thereby creating a humorous effect (Partington, 2009; Kao et al., 2016). As illustrated in Figure 1, puns are generally categorized into two main types (Xu et al., 2024): homographic puns and heterographic puns, corresponding to semantic ambiguity and phonetic similarity, respectively. This effect arises from the interaction between phonological resemblance and 
+
+> *
+
+Corresponding author 
+
+contextual semantic reasoning, resulting in a hu-morous interpretation (Attardo, 2018). Pun Types      
+
+> Definition
+> Example
+> Key Property
+> Homographic Puns
+> （Same spelling with different meanings)
+> I used to be a banker, but I lost interest .
+> A pun in which a word has the same spelling but different meanings.
+> Semantic Conflict
+> (e.g., Financial gain vs. Personal enthusiasm)
+> Definition
+> Example
+> Key Property
+> Heterographic Puns
+> （Different spelling with similar sound)
+> Dentists don't like a hard day at the orifice .
+> A pun in which different words have similar pronunciation but different meanings.
+> Phonetic Similarity
+> (e.g., orifice /ˈɒɹɪ fɪs/ vs. office /ˈɒ f. ɪs/)
+
+Figure 1: The types of puns. 
+
+Pun reasoning plays a central role in computa-tional humor understanding and remains an im-portant challenge in natural language processing (Kao et al., 2016). It underlies a broad range of pun-related tasks, including detection (Miller et al., 2017; Zou and Lu, 2019), generation (Yu et al., 2018; Sun et al., 2022; Tian et al., 2022), and inter-pretation (Prnjak et al., 2023; Zangari et al., 2025). Among these, pun reasoning serves as a critical intermediate step, requiring accurate semantic anal-ysis of the pun word to enable coherent interpre-tation of the entire sentence. While LLMs (Hurst et al., 2024) have demonstrated strong reasoning capabilities across a wide range of NLP tasks (Liu et al., 2023), they remain limited in handling com-plex linguistic phenomena such as puns (Xu et al., 2024; Sravanthi et al., 2024; Mi et al., 2025). This limitation is largely attributed to the scarcity of high-quality training data and the difficulty of in-tegrating multimodal cues (e.g., phonetic informa-tion) (Su et al., 2025), which are essential for cap-turing both phonological similarity and implicit semantic shifts. While state-of-the-art proprietary LLMs exhibit some capability in processing humor, open-source small-scale LLMs face exacerbated challenges when tasked with pun reasoning. Constrained by 1arXiv:2609.16557v1 [cs.CL] 15 Sep 2026 their limited parameter capacity and the scale of training data, these smaller models struggle to inter-nally map the complex interactions between orthog-raphy, phonology, and polysemy without explicit structural guidance. Based on our empirical analy-sis, the severe degradation of small-scale LLMs in pun comprehension primarily stems from two core limitations: (1) phonological reasoning deficiency ,where models struggle to accurately capture the phonetic relationship between a pun word and its latent alternative word; and (2) unconstrained se-mantic generation , where generated interpretations tend to deviate from the linguistic structure and intended semantic space of the pun. To address these limitations, we propose Pun-Graph , a retrieval-enhanced knowledge graph framework for pun understanding. PunGraph con-structs a structured lexical knowledge graph that explicitly models phonological associations and se-mantic relationships between words. This provides critical external knowledge to support pun reason-ing, thereby addressing the phonological reasoning deficiency ( Limitation 1 ). Unlike conventional end-to-end approaches, PunGraph introduces a retrieval-guided selection mechanism that retrieves candi-date words or sense interpretations from the graph. By presenting these as explicit reasoning options, it guides model reasoning within a constrained can-didate space, effectively mitigating the issue of unconstrained semantic generation ( Limitation 2 ). In addition, to address the scarcity of high-quality training data, we introduce WebPun , a new large-scale pun dataset collected and annotated from publicly available pun websites, enriching exist-ing benchmarks with more diverse and up-to-date examples. We evaluate PunGraph on both public pun benchmarks and WebPun, and experimental results show that it consistently outperforms strong baselines and achieves competitive performance against large-scale models. In summary, our contributions are: • We analyze the limitations of current small-scale models in pun reasoning tasks and ex-plore reasons for these limitations in the con-text of both heterographic and homographic pun reasoning. • We propose PunGraph, the first knowledge graph reasoning-enhanced LLM framework for pun understanding tasks, promoting better reasoning accuracy based on the actual mean-ing of pun words. • We construct a new pun reasoning dataset to supplement previously existing resources on pun understanding and further promote com-munity interest in pun tasks. 
+
+2 Problem Analysis 
+
+The input to our system consists of a pun sentence 
+
+p and its corresponding pun word wp.
+
+p = {w1, w 2, . . . , w p, . . . , w n} (1) where wn represents the words of the pun sentence. For heterographic puns, the task objective is to gen-erate an alternative word wa that shares the same or similar pronunciation as the pun word while conveying a different meaning. In contrast, for ho-mographic puns, the goal is to infer multiple senses of the same word within a given context, which can be represented as [s1, s 2, ..., s n]. For simplicity, we restrict our formulation to the case where the pun involves two senses [s1, s 2].Existing LLMs, particularly small-scale models, struggle to capture the complex interplay between phonology and multiple semantic senses required for pun comprehension. To quantify this limita-tion, we systematically evaluate the performance of current LLMs on pun reasoning tasks. 
+
+For heterographic puns , we examine the ability of small-scale models, using Qwen-2.5-7B (Qwen et al., 2024) as a representative case study, to di-rectly generate alternative words. As formulated below, performance is evaluated based on the In-ternational Phonetic Alphabet (IPA) (International Phonetic Association, 1999) similarity score be-tween the original pun word and the generated al-ternative word: 
+
+Sipa (pw, w a) = 1 − dedit (ϕ(pw), ϕ (wa)) max( |ϕ(pw)|, |ϕ(wa)|) (2) where ϕ(·) denotes the IPA phonetic representa-tion of a word, and dedit denotes the edit distance between two phonetic sequences. We define the similarity threshold as τ . Furthermore, we define the number of erroneous samples whose similar-ity scores are below the threshold as N<(τ ), and the number of erroneous samples whose similarity scores are greater than or equal to the threshold as 
+
+N≥(τ ), as formulated below. 
+
+N<(τ ) = X
+
+> wa∈W
+
+I Sipa (pw, w a) < τ  (3) 
+
+N≥(τ ) = X
+
+> wa∈W
+
+I Sipa (pw, w a) ≥ τ  (4) 20.3 0.4 0.5 0.6 0.7 0.8  
+
+> Threshold
+> 100 200 300 400 500 600
+> Count
+> Performance vs Threshold
+> Wrong (< threshold) Wrong ( threshold)
+
+Figure 2: Performance of Qwen2.5-7B on the hetero-graphic pun replacement task under varying IPA sim-ilarity thresholds. The x-axis represents the IPA simi-larity threshold, and the y-axis denotes the number of erroneous samples. The increase in erroneous samples below the threshold suggests that most generation errors stem from insufficient phonetic similarity. 
+
+where I(·) is the indicator function. As shown in Figure 2, as the threshold τ in-creases, N<(τ ) steadily rises, while N≥(τ ) cor-respondingly decreases. This trend indicates that a substantial proportion of erroneous predictions generated by LLMs have low phonological simi-larity to the target pun words, suggesting that the predicted alternative words often deviate consider-ably from the phonological form required by the original pun. We thereby have: 
+
+Limitation 1 : LLMs lack explicit constraints on phonetic similarity during the reasoning process, causing the generated alternative words to fail to satisfy the fundamental phonetic requirements of heterographic puns. 
+
+For homographic puns , we analyze the ability of the open-source model to generate polysemous explanations of synonyms. We define the set of word sense explanations generated by the model as 
+
+G, and the set of dictionary sense definitions as D,as shown below. 
+
+G(pw) = {s1, s 2} (5) 
+
+D(pw) = {d1, d 2, · · · , d m} (6) As shown in the formula, we evaluate the model’s generated results by combining definitions from the open-source dictionary, specifically by calculating the cosine similarity score Ssem (·) be-tween the generated definition and the dictionary definition. 
+
+Ssem (si, d j ) = cos  e(si), e (dj ) (7) 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 
+
+> Threshold
+> 020 40 60 80 100
+> Percentage
+> Performance vs Threshold
+> Positive In Positive Out Negative In Negative Out
+
+Figure 3: Performance of LLM-generated homographic pun words interpretation under varying semantic sim-ilarity thresholds with WordNet . The horizontal axis represents the semantic similarity threshold, and the vertical axis represents the number of samples with sim-ilarity greater than the threshold. 
+
+M (si) = max    
+
+> dj∈D(pw)
+
+Ssem (si, d j ) (8) 
+
+ˆy = I (M (s1) ≥ τsem ∧ M (s2) ≥ τsem ) (9) where M (si) denotes the maximum matching sim-ilarity between a model-generated sense interpreta-tion and the corresponding dictionary definitions. The model is considered to have correctly gener-ated the two meanings of the pun only when both 
+
+M (s1) and M (s2) exceed the predefined threshold. In addition, we define the proportion of positive samples Pin (τ ) that successfully match the dictio-nary definitions, as formulated below: 
+
+Pin (τ ) = 
+
+P 
+
+> i∈P
+
+ˆyi
+
+|P | (10) 
+
+Pout (τ ) = 1 − Pin (τ ) (11) And the proportions of negative samples Nin (τ ):
+
+Nin (τ ) = 
+
+P 
+
+> i∈N
+
+ˆyi
+
+|N | (12) 
+
+Nout (τ ) = 1 − Nin (τ ) (13) where Pout (τ ) and Nout (τ ) denote the propor-tions of positive and negative samples, respectively, whose generated sense explanations fail to match the dictionary definitions. As shown in Figure 3, within the dictionary definition space, correct predictions consistently achieve higher matching scores than incorrect pre-dictions. This indicates that erroneous predictions are less likely to align with the dictionary-defined senses of the target pun word, suggesting that the 3generated sense explanations often deviate from the intended semantic space, so we thus have: 
+
+Limitation 2: LLMs are prone to uncontrolled generation during reasoning, resulting in generated sense explanations that fail to establish meaningful semantic associations with the original pun words. In summary, the underperformance of small-scale LLMs in pun comprehension primarily stems from phonological reasoning deficiency and uncon-strained semantic generation, which are two core limitations that we address in PunGraph. 
+
+3 PunGraph 
+
+This section introduces PunGraph, a framework specifically designed for pun reasoning that ad-dresses the two core limitations identified above: insufficient phonological reasoning and uncon-strained semantic generation. PunGraph constructs a lexical-level knowledge graph from a pronunci-ation dictionary to model phonological relation-ships between pun words, and further integrates dictionary-based sense definitions to retrieve can-didate interpretations, providing LLMs with a con-strained reasoning space, as illustrated in Figure 4. Through this retrieval-enhanced reasoning process, PunGraph alleviates the weaknesses of small-scale LLMs in phonological modeling and semantic con-trol, improving both the accuracy and controllabil-ity of pun reasoning. 
+
+3.1 Pun Graph Construction 
+
+To construct the knowledge graph, Inspired by (Ma-nurung et al., 2008), we generate word triples based on phonetic similarity relations derived from the Unisyn phonetic dictionary (Fitt and Isard, 1999). We further incorporate IPA-based similarity mod-eling and grapheme-to-phoneme (G2P) (Bisani and Ney, 2008) augmentation to enhance phonetic asso-ciations between words, building upon the original phonetic representations provided by the dictionary. Specifically, we compute the cosine similarity be-tween the IPA representations of word pairs and establish connections between pairs whose simi-larity scores exceed a threshold, thereby construct-ing triples in the standard form of source, relation, target. Furthermore, we integrate the large-scale English lexical dictionary WordNet (Miller, 1995) to supplement semantic information for words that can be matched within the graph. The formulation of the knowledge graph is defined as follows:              
+
+> G={(wi, r phon , w j,S(wi),S(wj)) |
+> e ϕ(wi), ϕ (wj)>0.75 }
+
+(14) where wi and wj denote word entities, rphon rep-resents the phonetic similarity relation, and S(wi)
+
+and S(wj ) denote the corresponding semantic in-terpretations derived from the dictionary. The func-tion e(·) denotes the phonetic similarity computa-tion, with implementation details provided in Ap-pendix D. In addition, we import the constructed graph into the Neo4j graph database 1 for storage and visualization, thereby facilitating subsequent structural analysis and retrieval operations. 
+
+3.2 Pun reasoning 
+
+After constructing the knowledge graph, we de-sign the corresponding reasoning tasks for hetero-graphic and homographic puns, respectively. For each sample, given a pun p and its pun words pw,we first use prompts to guide the LLMs for pre-liminary reasoning to get alternative words aw and interpretation [s1, s 2], and then classify the results into two categories: correct predictions and incor-rect predictions. For incorrect cases, we further in-troduce a graph retrieval enhancement mechanism to utilize external structured knowledge to assist the model in completing subsequent reasoning. 
+
+Heterographic Puns In this stage, we introduce a reasoning enhancement mechanism for hetero-graphic puns. Specifically, as shown in Figure 2, based on the performance trend of IPA similarity, we set 0.6 as the key threshold. When the similarity is below this threshold, the proportion of incorrect predictions increases significantly, indicating that the model has difficulty generating reasonable re-placement words that are phonetically consistent with the pun within this range. Therefore, we fo-cus on screening and processing samples with IPA similarity below 0.6. We retrieve one-hop adjacent near-homophones and semantically related words from the phonetic-semantic knowledge graph given apun word and construct a constrained candidate set [a1, a 2, a 3..., a n]. Specifically, the retrieval process traverses pronunciation similarity links and semantic association edges in the graph, where the average number of retrieved candidates is reported using the Candidate Retrieval Number (CRN) de-scribed in Appendix B.1. The retrieved candidates 
+
+> 1https://neo4j.com/
+
+4Pun K nowledge Graph Construction        
+
+> Unisyn Dictionary
+> (Pronunciation Lexicon)
+> Word to IPA / G2P Sense Definitions (WordNet)
+> 2. Initial LLM Inference 3. Phonetic / Semantic Verification
+> LLM
+> 1. Input
+> Phone tic Similarity Check
+> (IPA) Score
+> < r
+> 5. Final Output
+> Heterographic Puns
+> (P hone tic
+> Similarity)
+> Alternative Word Prediction
+> Homographic Puns
+> (semantic ambiguity)
+> Sense Prediction
+> WordNet
+> Phonetic Similarity (IPA / G2P)
+> /ɒɹɪfɪs //ɒfɪs /
+> > Threshold
+> Yes
+> No
+> 4. Knowledge Graph Retrieval
+> Retrieve Candidates (related words/ senses)
+> Candidate List
+> Candidate Re-ranking and selection
+> LLM Multiple Sense / Alternative words
+> Final Pun Interpretation
+
+Pun Inference  
+
+> Pun Sentence
+> Semantic Similarity Check
+> (Definitions)
+> Pun
+> word
+> Phonetic-Semantic Knowledge Graph
+
+Figure 4: The Overview of PunGraph Framework 
+
+are subsequently formatted as explicit answer options and incorporated into the prompt, enabling the LLM to perform reasoning within a constrained candidate space and select the candidate that best fits the contextual semantics. Detailed prompt templates and candidate formatting strategies are provided in Appendix C. 
+
+Homographic Puns We also consider the rea-soning task for homographic puns. In the initial classification stage, we set the similarity threshold to 0.5, as Figure 3 shows that this value yields the largest gap between positive and negative cases in terms of dictionary coverage. Specifically, when the similarity exceeds 0.5, a larger proportion of positive instances fall within the dictionary-defined sense space, whereas when the similarity is below 0.5, negative instances are more likely to fall out-side this space. Based on this observation, we select error cases with similarity below 0.5 for subsequent knowledge graph enhancement. Given a pun word pw we retrieve its associated entity attributes from the knowledge graph to ob-tain a set of candidate senses [s1, s 2], which are then formulated as multiple-choice options. Sim-ilar to the heterographic puns, we guide LLMs to select the most appropriate option within this con-strained candidate space, thereby producing the final sense prediction for the pun word. 
+
+4 WebPun Dataset 
+
+We proposed a new benchmark to address the scarcity of high-quality data in pun reasoning. 
+
+4.1 Data Preparation 
+
+Existing work on pun understanding mainly relies on the SemEval-2017 benchmark, which is limited in scale and diversity, making it insufficient for evaluating modern LLMs on pun reasoning. To ad-dress this gap, we construct WebPun which is a new pun dataset collected from public pun websites, in-cluding Pun.me 2 and Punpedia 3, and collect a total of 24,880 samples. We filter the dataset to retain pun sentences containing more than five words, while removing non-English samples and entries that do not form complete sentences. In addition, we remove rare pun words, as well as phrasal puns. Ultimately, a total of 5,730 samples are retained in the final dataset. Since some pun sentences do not provide an-notations for heterographic and homographic cat-egories, we design a novel automated classifica-tion method. Specifically, we first employ the latest closed-source large model, GPT-5.5 (Ope-nAI, 2026), to perform initial classification. To fur-ther improve annotation accuracy, we additionally introduce Gemini-3.5-flash (Google DeepMind, 2025b) and Claude-Opus-4-1 (Anthropic, 2025) as auxiliary classification models and conduct cross-comparisons among the outputs of the three LLMs. When inconsistencies arise across model predic-tions, the corresponding samples are further sub-mitted for manual review to determine the final classification labels. Further data annotation and classification prompt details can be shown at Ap-pendix A.1. 
+
+> 2
+
+https://pun.me/ 
+
+> 3
+
+https://punpedia.org/ 
+
+566.3%         
+
+> 20.3%
+> 12.5%
+> 27.1%
+> 52.5%
+> 9.3% 7.6%
+> WebPun Semeval
+> Noun Verb Adj. Adv. Num. Unmatched Other Figure 5: Part-of-speech distribution of pun words in the WebPun and SemEval datasets.
+
+4.2 Data Analysis 
+
+After completing the annotation process, we further analyze the statistical characteristics of the dataset, as presented in Appendix B.1. WebPun contains 5,730 annotated pun instances, including 5,061 het-erographic puns and 679 homographic puns. In addition, we conduct a part-of-speech analysis of the pun words in WebPun and compared the results with those of the SemEval dataset, as illustrated in Figure 5. The results show that nouns account for more than half of the puns in the WebPun dataset, fol-lowed by verbs and adjectives. Together, these three categories constitute 95.9% of all puns in WebPun. This distribution is consistent with that of the SemEval-2017 dataset, where the proportion of nouns is 92.1%, suggesting that puns rely primarily on nouns, verbs, and adjectives to convey seman-tic ambiguity and humorous effects. Meanwhile, compared with existing pun datasets, WebPun fur-ther strengthens the coverage of the most common noun-based pun category, resulting in richer lexical diversity and semantic ambiguity. This characteris-tic makes WebPun a more challenging and effective benchmark for evaluating the pun understanding and reasoning capabilities of LLMs. 
+
+5 Experiments 
+
+5.1 Dataset 
+
+To verify the effectiveness of our method, we conducted experiments on SemEval 2017 Dataset (Augenstein et al., 2017) and WebPun, respec-tively. Table 2 shows the data statistics of the two datasets. For the phonetic-semantic knowledge graph, we construct a total of 46,208 word entities and 760,312 phonetic similarity relations. We em-pirically set the threshold for establishing phonetic similarity links to 0.75. 
+
+5.2 Baselines 
+
+We select a diverse set of baseline models for com-parison with our method, which are categorized into three groups: large-scale LLMs, small-scale LLMs, and specialized reasoning methods. The large-scale LLMs include GPT-4o (Hurst et al., 2024), Gemini 2.0 Flash (Google DeepMind, 2025a), and DeepSeek-V3.2 (DeepSeek-AI, 2025). The small-scale LLMs consist of MiniCPM-8.7B (Hu et al., 2024), Qwen-2.5-7B, Qwen-2.5-70B (Qwen et al., 2024), Qwen-3.5-27B (Qwen Team, 2026) and Llama4-maverick (Meta, 2025). For specialized reasoning methods, we reproduce the PunIntended framework (Zeng et al., 2024), while also considering the graph-based reasoning meth-ods, GCR (Luo et al., 2024) and ReKG-MCTS (Song et al., 2025), for further comparison. 
+
+5.3 Evaluation Metrics 
+
+We conduct separate evaluations for heterographic and homographic puns. For heterographic puns, we first normalize word forms to reduce the impact of surface-level variations such as capitalization, sin-gular/plural inflections, and tense changes. Inspired by (Su et al., 2026), we perform exact matching on the alternative words predicted by the model and adopt precision, recall, and F1 score as evaluation metrics. For homographic puns, we compute pair-wise semantic similarity between the gold-standard sense explanations and the sense explanations gen-erated by the model on both the SemEval 2017 Dataset (Augenstein et al., 2017; Su et al., 2026) and WebPun, and use accuracy and F1 score to evaluate the overall performance. A prediction is regarded as correct only when the similarity scores of the corresponding sense explanations both ex-ceed a predefined threshold. In addition, we further define a Partial Matching Accuracy (PMA) met-ric, which is counted as correct under PMA when at least one of the two generated sense explana-tions achieves a similarity score higher than the predefined threshold with the corresponding gold-standard explanation. 
+
+6 Results and Discussion 
+
+6.1 Main Results 
+
+Table 1 presents the comparative results of Pun-Graph against different categories of baseline meth-ods and table 3 reports the relative F1-score im-provement of backbone small-scale LLMs. First, compared with direct reasoning using the same 6Model Semeval 2017 Dataset WebPun Dataset Heterographic Puns Homographic Puns Heterographic Puns Homographic Puns                                                                                                                                                                        
+
+> Pre ( ↑)Rec ( ↑)F1 ( ↑)Acc ( ↑)PMA ( ↑)F1 ( ↑)Pre ( ↑)Rec ( ↑)F1 ( ↑)Acc ( ↑)PMA ( ↑)F1 ( ↑)
+> Large-scale LLMs
+> GPT-4o (Hurst et al., 2024) 76.95 82.11 79.45 76.27 98.54 87.35 86.86 88.39 87.62 70.85 98.65 84.75 Gemini-2.0 Flash (Google DeepMind, 2025a) 72.67 82.69 77.36 71.08 98.69 84.56 61.26 69.78 65.24 68.74 98.51 83.06 DeepSeek-V3.2 (DeepSeek-AI, 2025) 76.68 84.28 80.31 66.26 98.15 82.12 67.86 75.01 71.26 66.77 97.31 82.02
+> Small-scale LLMs
+> MiniCPM-8.7B (Hu et al., 2024) 31.32 47.84 37.86 40.71 93.07 66.64 22.20 30.63 25.74 40.51 94.92 67.61 Qwen-2.5-7B (Qwen et al., 2024) 35.06 40.22 37.47 34.65 90.80 62.42 30.33 35.27 32.61 36.83 92.07 64.42 Qwen-3.5-27B (Qwen Team, 2026) 69.31 79.51 74.06 68.95 97.61 83.20 63.86 71.97 67.68 69.66 96.71 83.18 Llama4-Maverick (Meta, 2025) 69.94 78.04 73.77 66.26 97.84 82.00 72.06 76.88 74.39 67.56 97.61 82.59
+> Specialized Reasoning Methods
+> PunIntended (Zeng et al., 2024) 15.84 17.54 16.65 26.35 85.25 50.98 13.73 14.87 14.27 29.66 83.63 51.60 GCR (Luo et al., 2024) 40.89 68.44 51.19 43.04 93.12 37.19 36.86 42.65 39.54 45.32 94.26 39.74 ReKG-MCTS (Song et al., 2025) 61.74 78.11 68.97 22.11 78.04 48.41 57.46 72.61 64.15 21.46 82.93 52.17
+> Ours
+> PunGraph-Qwen-2.5-7B 53.68 65.94 59.18 45.71 93.38 65.11 38.53 47.49 42.54 45.44 95.81 67.45
+> PunGraph-Qwen-3.5-27B 74.40 86.18 79.86 76.18 98.84 85.71 65.66 76.06 70.48 78.33 98.06 86.07 PunGraph-Llama4-Maverick 78.48 88.99 83.41 71.80 97.46 83.43 75.86 83.43 79.47 69.51 98.36 82.62
+
+Table 1: Results of pun reasoning on the SemEval and WebPun datasets. Boldface indicates the best performance, while underlined values indicate the second-best performance among different methods. The models are categorized into Large-scale LLMs, Small-scale LLMs, Specialized Reasoning Methods, and Ours. Pre., Rec., F1, Acc., and PMA denote the evaluation metrics of precision, recall, F1-score, accuracy and partial matching accuracy, respectively. 
+
+Model Semeval WebPun 
+
+Homographic 1,298 668 Heterographic 1,098 5,061 
+
+Table 2: The statistics of Semeval-2017 dataset and WebPun dataset. 
+
+Model SemEval SemEval WebPun WebPun Het. Hom. Het. Hom. 
+
+Qwen-2.5-7B +57.95% +4.31% +30.45% +4.70% Qwen-3.5-27B +7.83% +3.02% +4.14% +3.47% Llama4-Maverick +13.06% +1.74% +6.83% +0.04% 
+
+Table 3: Relative F1-score improvement of PunGraph over the corresponding small-scale LLMs across dif-ferent datasets and pun types. Het. and Hom. denote heterographic and homographic puns, respectively. 
+
+backbone models, PunGraph consistently improves performance across both datasets and both pun rea-soning tasks, demonstrating the effectiveness of retrieval-enhanced structured knowledge augmen-tation. For example, with Qwen-2.5-7B, PunGraph achieves relative F1 improvements of 57.95% on SemEval and 30.45% on WebPun for heterographic puns. For homographic puns, it further yields gains of 4.31% and 4.70%, respectively. Similar im-provements are observed on Qwen-3.5-27B and Llama4-Maverick, indicating that PunGraph is not tied to a specific backbone model, but serves as a general and effective external knowledge augmen-tation framework for pun reasoning. In addition, PunGraph remains highly competitive when com-pared with large-scale proprietary LLMs. Notably, on the SemEval heterographic pun task, PunGraph-Llama4-Maverick achieves an F1 score of 83.41, outperforming GPT-4o, Gemini-2.0 Flash, and DeepSeek-V3.2. These results suggest explicitly modeling phonological similarity and constraining reasoning within a structured semantic candidate space can effectively compensate for the limitations of smaller models in data coverage, implicit phono-logical reasoning, and controllable generation. Finally, PunGraph consistently outperforms spe-cialized reasoning baselines across both datasets. On SemEval, PunGraph-Llama4-Maverick sur-passes ReKG-MCTS by 14.44 F1 on heterographic puns, while on WebPun it further achieves gains of +15.32 and +33.90 F1 on heterographic and homographic puns, respectively. These results highlight the advantage of PunGraph in modeling phonological-semantic interactions through task-specific retrieval-enhanced reasoning. 
+
+6.2 Ablation Study 
+
+To evaluate the effectiveness of different pronunci-ation link construction methods in the knowledge graph, we conduct an ablation study to compare the impact of different phonetic connection strategies on model performance. Specifically, (1) w/o IPA removes only the IPA-based similarity modeling relations; (2) w/o G2P removes only the pronuncia-tion association relations introduced through G2P augmentation; and (3) w/o Unisyn removes the similarity links constructed from the Unisyn pro-7Model SemEval 2017 Dataset WebPun Dataset                                                      
+
+> Pre ( ↑)Rec ( ↑)F1 ( ↑)Pre ( ↑)Rec ( ↑)F1 ( ↑)Qwen2.5-7B PunGraph 53.68 65.94 59.18 38.53 47.49 42.54
+> w/o IPA 46.28 55.73 50.57 29.60 37.69 33.16 w/o G2P 48.78 60.46 53.99 29.73 38.82 33.67 w/o Unisyn 42.58 51.85 46.76 26.20 32.67 29.07 Llama4-Maverick PunGraph 78.48 88.99 83.41 75.86 83.43 79.47
+> w/o IPA 71.49 82.98 76.81 73.26 81.34 77.09 w/o G2P 72.67 83.82 77.85 73.40 81.25 77.12 w/o Unisyn 70.67 80.58 75.30 70.80 77.80 74.13
+
+Table 4: Ablation results of different phonetic knowl-edge components in PunGraph using Qwen2.5-7B and Llama4-Maverick, including IPA-based similarity mod-eling, G2P augmentation, and the Unisyn pronunciation dictionary. 
+
+nunciation dictionary. Through these experiments, we aim to investigate the contribution of different phonetic modeling methods to the construction of pronunciation-aware graph connections and their influence on pun reasoning performance. Table 4 reports the ablation results for differ-ent pronunciation knowledge components in Pun-Graph. The results demonstrate that integrating multiple pronunciation modeling strategies consis-tently improves performance across datasets and backbone models. For instance, on the SemEval-2017 dataset with Qwen2.5-7B as the backbone, removing IPA-based similarity modeling, G2P aug-mentation, and the Unisyn pronunciation dictio-nary leads to F1-score drops of 8.61%, 5.19%, and 12.42%, respectively. Notably, across both Qwen2.5-7B and Llama4-Maverick backbones and on both the SemEval-2017 and WebPun datasets, removing G2P consistently results in the smallest performance degradation, whereas removing the Unisyn pronunciation dictionary causes the most substantial decline. These findings suggest that pro-nunciation similarity relations derived from Unisyn play a central role in PunGraph’s pronunciation association modeling, while G2P augmentation pri-marily serves as a complementary mechanism that enhances pronunciation coverage and improves the robustness of the constructed graph. 
+
+6.3 Error Analysis 
+
+We conduct an error analysis to investigate the per-formance of the proposed method on the pun rea-soning task and categorize the error types for both homographic and heterographic puns. Specifically, the errors can be grouped into three main cate-gories: (1) missing phonetic similarity links in the graph or the failure of the dictionary to provide 79.2% 
+
+> 19.0%
+> 1.8%
+> Heterographic
+> 91.5%
+> 5.9%
+> 2.6%
+> Homographic
+> Invalid Output Missing KG Incorrect Selection
+
+Figure 6: Error cases of heterographic and homographic puns in the SemEval-2017 dataset. Selection Error, Missing KG, and Invalid Output denote cases where LLMs select incorrect candidates, the knowledge graph retrieval misses the ground-truth answer, and the model fails to follow the required output format, respectively. 
+
+the corresponding definitions, which prevents the model from retrieving valid word or definition can-didates; (2) incorrect selection among the retrieved candidate words or definition options; and (3) gen-eration errors produced by the model itself, such as failing to follow the prompt instructions. We present the corresponding error statistics for Qwen-2.5-7B as a representative example according to homographic and heterographic puns. As shown in the Figure 6, the primary source of errors in our method is the model’s tendency to confuse the correct answer with other candidate options, thereby leading to reasoning failures. This issue is particularly pronounced for homographic puns, where such errors account for 91.5% of all failures. In contrast, errors caused by knowledge graph retrieval account for only 19% and 5.9% in heterographic and homographic puns, respectively. These results indicate that the constructed phonetic similarity links and dictionary definitions provide effective coverage of the pun datasets. 
+
+7 Related Works 
+
+7.1 Pun Interpretation 
+
+Existing work on pun interpretation mainly fol-lows two directions: semantics-based methods and pronunciation-aware methods. SemEval-2017 Task 7 formalized English pun processing into detec-tion, location, and interpretation subtasks, provid-ing a standard benchmark for later studies (Miller et al., 2017). Subsequent work extended this set-ting to joint detection and location, multilingual pun interpretation, and task-specific pun model-ing (Zou and Lu, 2019; Prnjak et al., 2023; Chen et al., 2024). Semantics-based methods use lexi-8cal resources such as WordNet or distributed rep-resentations to model word senses and semantic relatedness (Miller, 1995; Miller et al., 2017; Zhou et al., 2020). They are suitable for homographic puns, but are less reliable for heterographic puns that depend on latent pronunciation-based alterna-tives. Pronunciation-aware methods address this issue by using pronunciation dictionaries, phono-logical resources, phoneme-level representations, or pronunciation-aware attention mechanisms (Ma-nurung et al., 2008; Zhou et al., 2020). Pun genera-tion studies further highlight the interaction among the pun word, the alternative word, and context (Yu et al., 2018; He et al., 2019; Sun et al., 2022; Mittal et al., 2022; Tian et al., 2022). However, seman-tic and phonological methods operate in different spaces, and LLMs may still miss alternative words or phonetic links (Xu et al., 2024; Zangari et al., 2025). 
+
+7.2 Retrieval-Augmented Reasoning 
+
+Retrieval-augmented generation (RAG) enhances LLMs by combining parametric model memory with non-parametric knowledge retrieved from external corpora, improving knowledge access and generation quality in knowledge-intensive tasks (Lewis et al., 2020). Conventional RAG mainly retrieves unstructured text passages, while GraphRAG introduces structured graph informa-tion, such as nodes, triples, paths, or subgraphs, into retrieval and generation (Peng et al., 2024). In knowledge graph reasoning, recent work re-trieves graph paths or subgraphs as evidence for LLM reasoning (Luo et al., 2024; Song et al., 2025; Liu et al., 2025); GNN-RAG further uses graph neural networks to score candidate answers and retrieve connecting paths (Mavromatis and Karypis, 2025). These methods mainly focus on factual or entity-relation reasoning, rather than the joint phonological-semantic structure required for pun interpretation. PunGraph adapts retrieval-augmented reasoning to this setting by retrieving candidate words or senses from a task-specific lexi-cal graph. 
+
+8 Conclusion 
+
+In this paper, we proposed PunGraph, a retrieval-enhanced knowledge graph framework for pun un-derstanding. By integrating phonetic similarity and semantic knowledge into a structured lexical graph, PunGraph enables LLMs to perform more controllable and accurate reasoning for both het-erographic and homographic puns. We further in-troduced WebPun, a new large-scale pun reasoning dataset containing 5,730 annotated samples col-lected from online pun resources. Experimental results on SemEval-2017 and WebPun demonstrate that PunGraph consistently improves the perfor-mance of small-scale LLMs and achieves competi-tive results compared with strong proprietary mod-els. Further analysis shows that retrieval-guided phonetic and semantic constraints effectively re-duce common errors in pun reasoning. 
+
+Limitations 
+
+Despite the promising performance of PunGraph, our work has several limitations. First, our frame-work is designed primarily for English and relies on English-specific lexical resources such as Unisyn and WordNet, which may limit its direct applica-bility to other languages. Second, the effectiveness of PunGraph depends on the coverage of the con-structed phonetic-semantic knowledge graph; rare words, creative expressions, or unseen pun patterns may not be well represented in the graph, leading to retrieval failures. In addition, although retrieval constrains the reasoning space of LLMs, the final prediction still depends on the model’s ability to se-lect the correct candidate, and incorrect candidate selection remains a major source of errors. Finally, WebPun is collected from online written pun re-sources and may not fully capture broader forms of humor such as spoken, multimodal, or culturally specific puns. We leave multilingual and multi-modal extensions of PunGraph for future work. 
+
+Ethical Considerations 
+
+The human-participant study presented in this pa-per was approved by the appropriate ethics commit-tee of Shanxi University. All procedures involving human participants were conducted in accordance with the relevant ethical guidelines and regulations. 
+
+Acknowledgments 
+
+This research is supported by the Strong AI Lab and the Natural, Artificial, and Organisation Intelli-gence Institute at the University of Auckland. The first author of this research is funded by the China Scholarship Council (CSC). 9References 
+
+Anthropic. 2025. System card: Claude opus 4 & claude sonnet 4. https://www-cdn.anthropic.com/ 4263b940cabb546aa0e3283f35b686f4f3b2ff47. pdf .International Phonetic Association. 1999. Handbook of the International Phonetic Association: A guide to the use of the International Phonetic Alphabet .Cambridge University Press. Salvatore Attardo. 2018. Universals in puns and humor-ous wordplay. Cultures and traditions of wordplay and wordplay research , pages 89–110. Isabelle Augenstein, Mrinal Das, Sebastian Riedel, Lakshmi Vikraman, and Andrew McCallum. 2017. Semeval 2017 task 10: Scienceie - extracting keyphrases and relations from scientific publications. 
+
+CoRR , abs/1704.02853. Maximilian Bisani and Hermann Ney. 2008. Joint-sequence models for grapheme-to-phoneme conver-sion. Speech Communication , 50(5):434–451. Yang Chen, Chong Yang, Tu Hu, Xinhao Chen, Man Lan, Li Cai, Xinlin Zhuang, Xuan Lin, Xin Lu, and Aimin Zhou. 2024. Are u a joke master? pun gener-ation via multi-stage curriculum learning towards a humor llm. In Findings of the Association for Com-putational Linguistics: ACL 2024 , pages 878–890. DeepSeek-AI. 2025. Deepseek-v3.2: Pushing the fron-tier of open large language models. Sue Fitt and Steve Isard. 1999. Synthesis of regional english using a keyword lexicon. In Proceedings of Eurospeech 1999 .Joseph L Fleiss and Jacob Cohen. 1973. The equiva-lence of weighted kappa and the intraclass correlation coefficient as measures of reliability. Educational and psychological measurement , 33(3):613–619. Google DeepMind. 2025a. Gemini 2.0 flash model card. Technical report, Google DeepMind. Google DeepMind. 2025b. Gemini 3 flash model card. Technical report, Google DeepMind. He He, Nanyun Peng, and Percy Liang. 2019. Pun generation with surprise. In Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies , pages 1734–1744. Shengding Hu, Yuge Tu, Xu Han, Chaoqun He, Ganqu Cui, Xiang Long, Zhi Zheng, Yewei Fang, Yuxi-ang Huang, Weilin Zhao, et al. 2024. Minicpm: Unveiling the potential of small language models with scalable training strategies. arXiv preprint arXiv:2404.06395 .Aaron Hurst, Adam Lerer, Adam P Goucher, Adam Perelman, Aditya Ramesh, Aidan Clark, AJ Os-trow, Akila Welihinda, Alan Hayes, Alec Radford, et al. 2024. Gpt-4o system card. arXiv preprint arXiv:2410.21276 .International Phonetic Association. 1999. Handbook of the International Phonetic Association: A Guide to the Use of the International Phonetic Alphabet .Cambridge University Press. Justine T Kao, Roger Levy, and Noah D Goodman. 2016. A computational model of linguistic humor in puns. 
+
+Cognitive science , 40(5):1270–1285. Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Hein-rich Küttler, Mike Lewis, Wen-tau Yih, Tim Rock-täschel, Sebastian Riedel, and Douwe Kiela. 2020. Retrieval-augmented generation for knowledge-intensive nlp tasks. In Advances in Neural Infor-mation Processing Systems , volume 33, pages 9459– 9474. Chenghao Liu, Qian Liu, Ziqin Zhu, Hao Fei, and Aniket Mahanti. 2025. David vs. goliath: Cost-efficient financial QA via cascaded multi-agent rea-soning. In Findings of the Association for Compu-tational Linguistics: EMNLP 2025 , Suzhou, China. Association for Computational Linguistics. Yixin Liu, Alexander Richard Fabbri, Yilun Zhao, Pengfei Liu, Shafiq Joty, Chien-Sheng Wu, Caim-ing Xiong, and Dragomir Radev. 2023. Towards interpretable and efficient automatic reference-based summarization evaluation. In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing , pages 16360–16368. Linhao Luo, Zicheng Zhao, Gholamreza Haffari, Yuan-Fang Li, Chen Gong, and Shirui Pan. 2024. Graph-constrained reasoning: Faithful reasoning on knowl-edge graphs with large language models. arXiv preprint arXiv:2410.13080 .Ruli Manurung, Graeme Ritchie, Helen Pain, Annalu Waller, Rolf Black, and Dave O’Mara. 2008. Adding phonetic similarity data to a lexical database. Lan-guage Resources and Evaluation , 42(3):319–324. Costas Mavromatis and George Karypis. 2025. GNN-RAG: Graph neural retrieval for efficient large lan-guage model reasoning on knowledge graphs. In 
+
+Findings of the Association for Computational Lin-guistics: ACL 2025 , pages 16682–16699. Meta. 2025. Llama 4 model card. https: //github.com/meta-llama/llama-models/ blob/main/models/llama4/MODEL_CARD.md .Official model card for the Llama 4 model family, including Llama 4 Maverick. Maggie Mi, Aline Villavicencio, and Nafise Sadat Moosavi. 2025. Rolling the dice on idiomaticity: How llms fail to grasp context. In Proceedings of the 
+
+10 63rd Annual Meeting of the Association for Compu-tational Linguistics (Volume 1: Long Papers) , pages 7314–7332. George A Miller. 1995. Wordnet: a lexical database for english. Communications of the ACM , 38(11):39–41. Tristan Miller, Christian F Hempelmann, and Iryna Gurevych. 2017. Semeval-2017 task 7: Detection and interpretation of english puns. In Proceedings of the 11th international workshop on semantic evalua-tion (SemEval-2017) , pages 58–68. Anirudh Mittal, Yufei Tian, and Nanyun Peng. 2022. AMBIPUN: Generating puns with ambiguous con-text. In Proceedings of the 2022 Conference of the North American Chapter of the Association for Com-putational Linguistics: Human Language Technolo-gies , pages 1053–1062. OpenAI. 2026. Gpt-5.5 system card. Technical report, OpenAI. Alan Scott Partington. 2009. A linguistic account of wordplay: The lexical grammar of punning. Journal of Pragmatics , 41(9):1794–1809. Boci Peng, Yun Zhu, Yongchao Liu, Xiaohe Bo, Haizhou Shi, Chuntao Hong, Yan Zhang, and Siliang Tang. 2024. Graph retrieval-augmented generation: A survey. arXiv preprint arXiv:2408.08921 .Antonela Prnjak, Dennis R Davari, and Kristina Schmitt. 2023. Clef 2023 joker task 1, 2, 3: Pun detection, pun interpretation, and pun translation. In CLEF (Working Notes) , pages 1909–1917. Qwen, An Yang, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chengyuan Li, Dayiheng Liu, Fei Huang, et al. 2024. Qwen2.5 technical report. arXiv preprint arXiv:2412.15115 .Qwen Team. 2026. Qwen3.5: Towards native multi-modal agents. Xiaozhuang Song, Shufei Zhang, and Tianshu Yu. 2025. Rekg-mcts: Reinforcing llm reasoning on knowledge graphs via training-free monte carlo tree search. In 
+
+Findings of the Association for Computational Lin-guistics: ACL 2025 , pages 9288–9306. Settaluri Sravanthi, Meet Doshi, Pavan Tankala, Rudra Murthy, Raj Dabre, and Pushpak Bhattacharyya. 2024. Pub: A pragmatics understanding benchmark for assessing llms’ pragmatics capabilities. In Find-ings of the Association for Computational Linguistics: ACL 2024 , pages 12075–12097. Yuchen Su, Shaoxin Zhong, Yonghua Zhu, Ruofan Wang, Zijian Huang, Qiqi Wang, Na Zhao, Di-ana Benavides-Prado, and Michael Witbrock. 2026. Words at play: Benchmarking audio pun understand-ing in large audio-language models. arXiv preprint arXiv:2603.18678 .Yuchen Su, Yonghua Zhu, Ruofan Wang, Zijian Huang, Diana Benavides-Prado, and Michael Witbrock. 2025. A survey of pun generation: Datasets, evaluations and methodologies. Findings of the Association for Com-putational Linguistics: EMNLP 2025 , pages 7375– 7395. Jiao Sun, Anjali Narayan-Chen, Shereen Oraby, Shuyang Gao, Tagyoung Chung, Jing Huang, Yang Liu, and Nanyun Peng. 2022. Context-situated pun generation. In Proceedings of the 2022 Conference on Empirical Methods in Natural Language Process-ing , pages 4635–4648. Yufei Tian, Divyanshu Sheth, and Nanyun Peng. 2022. A unified framework for pun generation with humor principles. In Findings of the Association for Com-putational Linguistics: EMNLP 2022 , pages 3253– 3261. Zhijun Xu, Siyu Yuan, Lingjie Chen, and Deqing Yang. 2024. “a good pun is its own reword”: Can large language models understand puns? In Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing , pages 11766–11782. Zhiwei Yu, Jiwei Tan, and Xiaojun Wan. 2018. A neural approach to pun generation. In Proceedings of the 56th Annual Meeting of the Association for Compu-tational Linguistics (Volume 1: Long Papers) , pages 1650–1660. Alessandro Zangari, Matteo Marcuzzo, Andrea Al-barelli, Mohammad Taher Pilehvar, and Jose Camacho-Collados. 2025. Pun unintended: Llms and the illusion of humor understanding. In Proceed-ings of the 2025 Conference on Empirical Methods in Natural Language Processing , pages 27924–27959. JingJie Zeng, Liang Yang, Jiahao Kang, Yufeng Diao, Zhihao Yang, and Hongfei Lin. 2024. “barking up the right tree”, a gan-based pun generation model through semantic pruning. In Proceedings of the 2024 Joint International Conference on Computa-tional Linguistics, Language Resources and Evalua-tion (LREC-COLING 2024) , pages 2119–2131. Yichao Zhou, Jyun-yu Jiang, Jieyu Zhao, Kai-Wei Chang, and Wei Wang. 2020. “The Boating Store Had Its Best Sail Ever”: Pronunciation-attentive Con-textualized Pun Recognition. In Proceedings of the 58th Annual Meeting of the Association for Compu-tational Linguistics , pages 813–822. Yanyan Zou and Wei Lu. 2019. Joint detection and location of english puns. In Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers) , pages 2117–2123. 
+
+A Annotation Details 
+
+A.1 Classification Prompts 
+
+We report the prompt of LLMs for classifying pun types, as follows: 11 Prompt for Pun Type Classification          
+
+> System Prompt:
+> You are an expert in English pun analysis. Your task is to classify the following sentence as either a homographic pun or a heterographic pun.
+> Definitions:
+> 1. Homographic pun: A pun in which the same written word carries two or more different meanings within the sentence. Example: “I used to be a banker, but I lost interest.”
+> →“interest” has multiple meanings. 2. Heterographic pun: A pun in which two different words or phrases have different spellings but similar pronunciation, creating humorous ambiguity. Example: “Dentists don’t like a hard day at the ori-fice.” →“orifice” sounds similar to “office”.
+> Instructions:
+> Read the sentence carefully. Identify the main pun word. Determine whether the humor is created pri-marily through semantic ambiguity of the same word, corresponding to a homographic pun, or phonetic similarity between different words, corresponding to a heterographic pun. Return valid JSON only in the following format: {" p u n _ t y p e " : " h o m o g r a p h i c pun " o r " h e t e r o g r a p h i c pun " }
+> Rules:
+> Return only one label. The pun word must be the exact word appearing in the sentence. Do not include explanations. Output JSON only.
+> User Input:
+> sentence: {sentence}
+
+A.2 Data Annotation 
+
+Inspired by (Chen et al., 2024), we adopt a few-shot prompting strategy to perform preliminary anno-tation with large language models. Specifically, we first select three homographic and three hetero-graphic pun examples from the SemEval dataset, and combine these examples together with their corresponding annotations and prompt instructions to guide the models in subsequent annotation tasks. Notably, for heterographic puns, the annotation target is the corresponding ground-truth replace-ment word, while for homographic puns, the anno-tation consists of the two sense interpretations of the pun word, uniformly represented in the format of [s1, s 2].Similar to the pun type classification process, we also employ three closed-source large language models for collaborative annotation. Samples with consistent annotations across all three models are further reviewed by an expert annotator for quality assurance. In addition, we place particular empha-sis on cases where the three models produce in-consistent annotations. For such samples, three expert annotators 4 jointly conduct manual cor-rections, and the final annotation is determined through majority voting. Furthermore, we evaluate inter-annotator agreement by randomly sampling 150 annotated instances and measuring consistency using Fleiss’ Kappa (Fleiss and Cohen, 1973). The final agreement score is 0.54, indicating a moderate level of agreement among annotators and provid-ing reasonable support for the consistency of the annotations. 
+
+B Dataset details 
+
+B.1 Data Statistics 
+
+We further conduct a statistical analysis of the Se-mEval and WebPun datasets, as shown in Table 6. Specifically, we report the average sentence length, total number of words, and number of unique pun words for each dataset. The results show that although WebPun contains substantially more heterographic pun samples than SemEval, the increase in the number of unique pun words is rel-atively limited. This suggests a noticeable reuse of high-frequency pun words in real-world online puns, where multiple pun expressions are often con-structed around the same or semantically related core pun words. In addition, we analyze the number of candidate items retrieved for each pun word in PunGraph, denoted as the Candidate Retrieve Number (CRN). For heterographic puns, CRN refers to the number of candidate words retrieved through one-hop pho-netic relation search in the graph; for homographic puns, it refers to the number of candidate sense definitions retrieved based on lexical semantic en-tries. The statistics show that PunGraph produces a relatively large retrieval space on the SemEval 2017 dataset, with an average of 30.55 candidate words for each heterographic pun and 9.76 candi-date sense definitions for each homographic pun. It is worth noting that a larger candidate space does not necessarily lead to better reasoning per-formance, as excessive candidates may introduce additional noise and increase the difficulty of can-didate selection. Therefore, CRN is mainly used to characterize the coverage of the graph retrieval space, rather than as a direct indicator of down-stream reasoning performance. 
+
+> 4The expert annotators were volunteers from diverse re-gional backgrounds, including former educated youth partici-pants.
+
+12 Pun Sentence Pun Word Label Reasoning            
+
+> I used to be a banker, but I lost interest. interest Homographic financial interest earned from money, personal interest or enthusiasm. When I grow up I wanna be a cup so I can fight crime. cup Heterographic cop Time flies like an arrow; fruit flies like a banana. flies Homographic to move through the air, producing dual meanings in context. The interrogators soon got a confection out of him. confection Heterographic confession
+
+Table 5: Examples of annotated pun types in the WebPun dataset.                          
+
+> Type Total Sentence Words OnePun CRN
+> SemEval 2017 Dataset
+> Heterographic 1,098 11.79 12,949 896 30.55 Homographic 1,298 11.71 15,194 928 9.76
+> WebPun Dataset
+> Heterographic 5,061 6.95 35,190 1,663 22.50 Homographic 669 11.98 8,015 483 11.37
+
+Table 6: Additional statistics of the SemEval-2017 and WebPun datasets. Total, Sentence, and Words denote the number of samples, average sentence length, and total number of words, respectively. OnePun refers to the number of unique pun words, while CRN denotes the Candidate Retrieve Number obtained from PunGraph.       
+
+> WebPun SemEval Het. (895) SemEval Hom. (928)
+> Heterographic 170 (18.99%) 205 (22.09%) Homographic 22 (2.46%) 144 (15.52%)
+
+Table 7: Overlap of unique pun words between WebPun and SemEval-2017. SemEval-2017 is used as the de-nominator. Values indicate the number and percentage of overlapping unique pun words. 
+
+B.2 Dataset Sample 
+
+Table 5 presents representative examples from WebPun with their corresponding pun words, types, and explanations. 
+
+B.3 Dataset Novelty and Knowledge Coverage 
+
+To further examine the novelty of WebPun with respect to existing pun benchmarks, we analyze the overlap of unique pun words between WebPun and SemEval-2017. Using SemEval-2017 as the de-nominator, the overlap is 18.99% for heterographic puns and 15.52% for homographic puns, as shown in Table 7. The relatively limited overlap indicates that WebPun provides substantial complementary lexical coverage beyond SemEval-2017, despite the reuse of some high-frequency pun words across the two datasets. We further evaluate the coverage of the con-structed phonetic-semantic knowledge graph on both datasets. As shown in Table 8, the graph achieves 99.84% and 85.95% coverage for het-erographic and homographic puns in WebPun, re-spectively, compared with 99.45% and 86.67% Dataset Heterographic Homographic Average WebPun 99.84% 85.95% 98.22% SemEval-2017 99.45% 86.67% 92.53% 
+
+Table 8: Knowledge-graph coverage on WebPun and SemEval-2017. 
+
+on SemEval-2017. Overall, the knowledge graph maintains consistently high coverage across both datasets, suggesting that the additional lexical di-versity introduced by WebPun remains well sup-ported by the phonetic and semantic resources used in PunGraph. Together, the relatively low overlap in unique pun words and the high knowledge-graph cover-age suggest that WebPun complements SemEval-2017 with additional lexical and contextual diver-sity while remaining well supported by the struc-tured knowledge used in PunGraph. 
+
+C Retrieval Strategy 
+
+Regarding Section 3.2, we also provide the prompt template used to guide LLMs to process the re-trieved candidate words according to the hetero-graphic and homographic puns, as shown below: Prompt for Heterographic Pun reasoning 
+
+System Prompt: 
+
+You are a linguist specializing in puns. Given a pun “{sentence}” and the pun word “{word}”, please choose the most likely intended real word in the orig-inal pun sentence. Output only the option word of dictionary, with no additional text. If there is no suitable candidate, please generate the most likely real word based on your linguistic knowl-edge and the context of the sentence, without being limited to the candidate list. 
+
+User Input: 
+
+Sentence: The key to changing your performance ability is by tuning out criticism and staying musi-cally octave. Pun word: octave Choices: {’artiste’, ’octant’, ’argive’, ’octet’, ’optics’, ’arctic’, ’octal’, ’fictive’, ’optic’, ’octavo’, ’active’} 
+
+13 Category Phoneme Group Similarity Basis                               
+
+> Consonant {p, b, m} bilabial; voicing / nasal variation Consonant {t, d, n} alveolar; voicing / nasal variation Consonant {s, z} alveolar fricatives; voicing contrast Consonant {k, g} velar; voicing contrast Consonant {f, v} labiodental fricatives; voicing contrast Consonant {l, r} liquid consonants; approximant similarity Vowel {i, I}front vowels with adjacent height Vowel {e, E,æ}front vowels with similar tongue height Vowel {u, U}back rounded vowels with adjacent height Vowel {O,A}back vowels with similar openness Vowel {@,V}central vowels with similar tongue position Vowel {O, o U, u} back rounded vowel cluster
+
+Table 9: Phonetically similar phoneme groups used for phonetic neighbor retrieval in PunGraph. Phoneme similarity is modeled as an undirected relation based on shared articulatory features. 
+
+Prompt for Homographic Pun Sense Selec-tion 
+
+System Prompt: 
+
+You are an expert in multiple-choice question answer-ing focused on explaining puns. Select the two most appropriate definition numbers that best explain the pun word in the given sentence. If suitable definitions are available, respond only with an array of two option numbers, for example [1, 3]. If there are no suitable candidate definitions, infer its two distinct meanings and output two replacement words or phrases, each representing one meaning. In that case, provide only the two items, separated by a comma, with no additional text. 
+
+User Input: 
+
+pun sentence: {Old math profs never die, they just can’t differentiate.} pun word: {differentiate} definitions: {1. the case expressing ownership; 2. serving to express or indicate possession; 3. desirous of owning; 4. having or showing a desire to control or dominate.} 
+
+D Phonetic Similarity 
+
+We first compute edit distance based on the IPA rep-resentations of words to determine their phonetic similarity. However, phonetic similarity is not uni-form across phonemes. For example, the vowel /i/ is phonetically closer to /e/ than to /u/. To bet-ter capture these graded phonetic relationships, we construct a phoneme similarity table based on artic-ulatory phonetic features 5 following (Association, 1999), as shown in Table 9. This allows phoneme-level similarity to be modeled at a finer granularity. During edit distance computation, phonemes be-longing to the same similarity group are treated as equivalent matches. 
+
+> 5
+
+https://www.internationalphoneticassociation.org/content/chart 
+
+14
