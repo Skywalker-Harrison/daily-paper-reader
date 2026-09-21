@@ -6,43 +6,50 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-20
-- 运行时间：2026-09-20 22:14:49 UTC
+- 最新运行日期：2026-09-21
+- 运行时间：2026-09-21 23:13:47 UTC
 - 运行状态：成功
-- 本次总论文数：6
-- 精读区：0
-- 速读区：6
+- 本次总论文数：10
+- 精读区：1
+- 速读区：9
 
 ### 今日简报（AI）
-今天共筛出6篇论文，全部速读、0篇精读，重点落在可控语音生成、跨语言采样与智能体沟通成本。
-
-最值得看两个方向：用非语言发声优化可控语音生成，以及在线语言自适应采样提升分布式跨语言收益；已列出的三篇均为6.0/10。
-
-普通读者建议先扫这两类速读摘要，若只挑一篇，可从“可控语音生成”或“跨语言增益”切入。
-- 详情：[/202609/20/README](/202609/20/README)
+今日精选 10 篇 AI 安全与生成前沿论文，其中《CASCADE Against Jailbreaks》以 8.0 分领跑精读。最值得关注的是越狱攻防新思路：CASCADE 用分阶段组合攻击配合可控防御评估，HE-Guardrail 则把护栏搬进同态加密推理。普通读者可优先读这两篇，理解大模型安全为何正从"单点拦截"走向"全流程加密防护"。
+- 详情：[/202609/21/README](/202609/21/README)
 
 ### 精读区论文标签
-- 本次无精读推荐。
+1. [CASCADE Against Jailbreaks: Combination Across Stages with Controlled Attack-Defense Evaluation](/202609/21/2609.21793v1-cascade-against-jailbreaks-combination-across-stages-with-controlled-attack-defense-evaluation)  
+   标签：评分：8.0/10、query:llm-attack
+   evidence：大模型越狱防御的系统研究
 
 ### 速读区论文标签
-1. [Modeling, Scaling, and Decoding: Optimizing Controllable Speech Generation with Nonverbal Vocalizations](/202609/20/2609.14231v1-modeling-scaling-and-decoding-optimizing-controllable-speech-generation-with-nonverbal-vocalizations)  
+1. [HE-Guardrail: A Homomorphic Guardrail Against Jailbreak Attacks for Encrypted Large Language Model Inference](/202609/21/2609.21484v1-he-guardrail-a-homomorphic-guardrail-against-jailbreak-attacks-for-encrypted-large-language-model-inference)  
+   标签：评分：7.0/10、query:llm-attack
+   evidence：针对加密大模型推理越狱攻击的防护栏
+2. [Modeling, Scaling, and Decoding: Optimizing Controllable Speech Generation with Nonverbal Vocalizations](/202609/21/2609.14231v1-modeling-scaling-and-decoding-optimizing-controllable-speech-generation-with-nonverbal-vocalizations)  
    标签：评分：6.0/10、query:qwen-tts
-   evidence：带专用可控标记的可控语音生成
-2. [Online Language Adaptive Sampling for Better Distributed Cross-lingual Gains](/202609/20/2609.14969v1-online-language-adaptive-sampling-for-better-distributed-cross-lingual-gains)  
+   evidence：可控语音生成，面向非言语发声类别建模
+3. [Can We Triage LLM Translation Errors in Classical Texts Without Human References? Source Novelty, GEMBA Scoring, and Budgeted Review through Pali-to-English Translation](/202609/21/2609.14963v1-can-we-triage-llm-translation-errors-in-classical-texts-without-human-references-source-novelty-gemba-scoring-and-budgeted-review-through-pali-to-english-translation)  
    标签：评分：6.0/10、query:cross-lang
-   evidence：多语言模型的跨语言迁移
-3. [Translating the Translator: Decomposing the Cost of English-Forced Inter-Agent Communication](/202609/20/2609.15079v1-translating-the-translator-decomposing-the-cost-of-english-forced-inter-agent-communication)  
-   标签：评分：6.0/10、query:cross-lang
-   evidence：跨语言翻译流程与回译代价评估
-4. [PunGraph: Retrieval-Enhanced Phonetic-Semantic Graph Reasoning for Pun Understanding](/202609/20/2609.16557v1-pungraph-retrieval-enhanced-phonetic-semantic-graph-reasoning-for-pun-understanding)  
-   标签：评分：6.0/10、query:fie-rag
-   evidence：结合语言学特征的检索增强图推理
-5. [GrainSpeech: Less Context, More Detail for Compact Speech Synthesis](/202609/20/2609.18856v1-grainspeech-less-context-more-detail-for-compact-speech-synthesis)  
-   标签：评分：6.0/10、query:qwen-tts
-   evidence：紧凑语音合成与时长预测
-6. [Multimodal Conversational Context for LLM-Based ASR: Data Construction, Training, and Benchmark](/202609/20/2609.19765v1-multimodal-conversational-context-for-llm-based-asr-data-construction-training-and-benchmark)  
+   evidence：无人工参考的LLM翻译质量筛查
+4. [Language Orthogonalization for Zero-Shot Cross-Lingual Audio Deepfake Detection](/202609/21/2609.16458v1-language-orthogonalization-for-zero-shot-cross-lingual-audio-deepfake-detection)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：面向大模型语音识别的多模态对话上下文框架与基准
+   evidence：跨语言语音表征与多语言语音合成
+5. [ORDER: Task-Conditioned Routing for Retrieval-Augmented Generation](/202609/21/2609.17012v1-order-task-conditioned-routing-for-retrieval-augmented-generation)  
+   标签：评分：6.0/10、query:fie-rag
+   evidence：查询条件化的检索增强生成
+6. [Self-Distilled Pronunciation and Accent Control for Neural Text-to-Speech](/202609/21/2609.17234v2-self-distilled-pronunciation-and-accent-control-for-neural-text-to-speech)  
+   标签：评分：6.0/10、query:qwen-tts
+   evidence：可控神经语音合成发音与口音
+7. [Dictionary-Constrained Grapheme-to-Phoneme for Unsegmented Languages from LLM-Annotated Data](/202609/21/2609.19805v1-dictionary-constrained-grapheme-to-phoneme-for-unsegmented-languages-from-llm-annotated-data)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：面向TTS/ASR的无分词语言G2P，用LLM标注数据缓解稀缺
+8. [Evaluating Communicative Success in Machine-Translated Conversation](/202609/21/2609.19885v1-evaluating-communicative-success-in-machine-translated-conversation)  
+   标签：评分：6.0/10、query:cross-lang
+   evidence：从语义、语用、文化维度评估跨语言机器翻译对话
+9. [Evaluating In-Context Learning and Retrieval Strategies for Devanagari Post-OCR Correction](/202609/21/2609.21595v1-evaluating-in-context-learning-and-retrieval-strategies-for-devanagari-post-ocr-correction)  
+   标签：评分：6.0/10、query:fie-rag
+   evidence：非拉丁天城文上的检索式少样本上下文学习策略
 
 
 <div class="dpr-home-promo-card">

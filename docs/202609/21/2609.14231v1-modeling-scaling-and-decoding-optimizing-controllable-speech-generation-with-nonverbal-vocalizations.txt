@@ -1,0 +1,173 @@
+Title: Modeling, Scaling, and Decoding: Optimizing Controllable Speech Generation with Nonverbal Vocalizations
+
+URL Source: https://arxiv.org/pdf/2609.14231v1
+
+Published Time: Tue, 15 Sep 2026 01:04:19 GMT
+
+Number of Pages: 5
+
+Markdown Content:
+# Modeling, Scaling, and Decoding: Optimizing Controllable Speech Generation with Nonverbal Vocalizations 
+
+# Ziyu Zhang, Yun Chen, Taihui Wang, Hanzhao Li, Qicong Xie, Rilin Chen, Zhixian Zhao, Lei Xie 
+
+# Tencent HY Speech Team 
+
+# Abstract 
+
+Controllable synthesis of nonverbal vocalizations (NVVs) is es-sential for natural and expressive speech, but remains challeng-ing due to their acoustic diversity and imbalanced distribution in existing corpora. To address these challenges, we develop an NVV-aware DiTAR system that models continuous speech latents, encodes the 16 target NVV categories as dedicated to-kens, and adapts stop prediction to distinguish mid-utterance vocalizations from utterance boundaries. Training begins with large-scale bilingual pre-training on diverse NVV speech, fol-lowed by continued supervised fine-tuning on a corpus en-hanced through targeted synthetic augmentation and frequency-aware rebalancing. At inference time, we select the acoustic prompt, tune the LM-guidance and noise-injection scales, and apply Best-of-N sampling with multi-metric selection to re-duce generation failures. The final system achieves an official weighted bilingual score of 62 .786 , ranking first in Mandarin, second in English, and first overall among participating systems in Track 2 of the ISCSLP 2026 NVVSpeech Challenge. Ab-lation studies show that targeted augmentation benefits under-represented NVV categories the most, while robust candidate selection requires balancing NVV correctness, lexical fidelity, and perceptual quality. 
+
+Index Terms : nonverbal vocalizations, diffusion autoregressive models, data augmentation, best-of-N sampling. 
+
+# 1. Introduction 
+
+Spoken communication is not carried by words alone. Speak-ers laugh, sigh, breathe audibly, clear their throats, and gasp. These nonverbal vocalizations (NVVs) convey affect, attitude, turn-taking cues, and even physiological state [1, 2, 3, 4]. Con-ventional text-to-speech (TTS) systems, however, are optimized primarily for fluent lexical content, and such events are often filtered out during data curation. Recent zero-shot TTS sys-tems have achieved substantial improvements in naturalness and speaker similarity through codec language modeling and large-scale autoregressive generation [5, 6, 7, 8]. Continu-ous generative approaches based on diffusion or flow match-ing further improve acoustic fidelity and generation flexibility [9, 10, 11, 12, 13]. Despite this progress, existing systems still cannot reliably place a requested NVV at a specified position with a convincing acoustic realization [14, 15]. The NVVSpeech Challenge at ISCSLP 2026 establishes a benchmark for this capability. In Track 2, systems synthesize speech from transcripts annotated with one or more of 16 NVV tags, aiming to realize the specified events naturally while main-taining intelligibility, naturalness, audio quality, and expressive-ness. The revised official protocol combines a Gemini-based LALM evaluation with subjective listening in Mandarin and En-glish. The language-specific weighted scores are fused from these two components, and the overall bilingual score is the av-erage of the Mandarin and English scores. The lack of an official training set makes NVV data con-struction a central challenge, while the substantial acoustic vari-ation within each category calls for fine-grained modeling. We therefore develop our system along three dimensions: NVV-aware modeling, data-centric training, and inference-time de-coding. For model architecture, we adopt DiTAR [13], which uses a local diffusion transformer to autoregressively predict continuous speech latents. Its patch-wise design builds on advances in diffusion transformers, continuous autoregressive modeling, and latent generative models [16, 17, 18, 19, 20]. Unlike approaches based on quantized codec tokens [21, 22, 23], DiTAR better preserves the fine-grained acoustic details of NVVs. We introduce the 16 canonical NVV labels as dedicated special tokens and adapt the stop predictor to distinguish mid-utterance NVV events from utterance boundaries. To address NVV data scarcity and imbalance, we first pre-train the model on bilingual speech containing diverse NVV events. We then perform continued SFT on a corpus enhanced through targeted synthetic augmentation and tag-frequency-aware rebalancing, increasing exposure to underrepresented categories [24]. At in-ference time, we jointly select the acoustic prompt and tune the guidance and noise-injection scales using multiple metrics. We further apply Best-of-N sampling with multi-metric candidate selection to reduce generation failures. Experiments show that targeted augmentation provides the largest gains for severely underrepresented NVV categories. Robust candidate selection also requires balancing NVV correctness, lexical fidelity, and perceptual quality rather than optimizing a single metric. Our contributions are threefold: (1) we develop an NVV-aware DiTAR with dedicated NVV tokens and adapted stop prediction for controllable NVV synthesis; (2) we propose a bilingual training recipe combining NVV pre-training, tar-geted augmentation, frequency-aware rebalancing, and contin-ued SFT; and (3) we combine decoding-configuration selection with Best-of-N sampling and multi-metric candidate selection to improve generation robustness. The resulting system ranks first in Mandarin and second in English, achieving first place overall among participating systems in Track 2 of the ISCSLP 2026 NVVSpeech Challenge. 
+
+# 2. System description 
+
+2.1. System overview 
+
+Figure 1 summarizes our system. We first pre-train a DiTAR backbone on a large-scale bilingual corpus containing both lex-ical speech and NVV-annotated speech. We then construct a long-tail-aware trainset by synthesizing under-represented NVV events, balancing the tag and language distributions, and continuing supervised fine-tuning (SFT) from the pre-trained checkpoint. At inference time, we search the best decoding configuration on the development set and apply best-of-N sam-arXiv:2609.14231v1 [eess.AS] 13 Sep 2026 Figure 1: Overview of our NVV-aware speech generation system. (a) NVV-aware DiTAR, where dedicated NVV tokens condition patch-wise continuous speech generation through causal self-attention. (b) The training and inference pipeline, including bilingual pre-training, long-tail augmentation, continued SFT, decoding-configuration search, and Best-of-N sampling. 
+
+pling. The following subsections describe each component. 
+
+2.2. NVV-aware DiTAR Architecture DiTAR backbone. As shown in Figure 1(a), our system builds on an in-house 1.5B-parameter DiTAR model [13]. DiTAR groups continuous VAE latents [25] into acoustic patches, sum-marizes each patch into one embedding, and uses a causal lan-guage model to provide patch-level conditions for LocDiT to generate the next continuous speech patch. This continuous representation preserves the fine-grained acoustic variations es-sential for expressive NVV synthesis. DiTAR also provides the LM-guidance scale w, noise-injection scale τ , and acous-tic prompt as native inference controls. We retain these mech-anisms and systematically optimize their configuration on the development subset, as described in Section 2.4. 
+
+NVV special-token conditioning. Our primary architec-tural adaptation is to register all 16 NVV labels as dedicated special tokens in the text vocabulary. Each label, such as 
+
+[laugh] , is mapped to exactly one token id and a learnable embedding, rather than being divided into multiple subwords. The LM input is 
+
+X = [ e1, . . . , eM , eaudio , a0, . . . , aK−1], (1) where e1: M contains both ordinary text tokens and NVV spe-cial tokens, eaudio denotes the start of speech, and ai is an ag-gregated history-patch embedding. NVV and ordinary text to-kens share the same embedding space and self-attention param-eters [26, 27]. Therefore, each speech-position query attends to the complete text/NVV prefix, and the effect of an NVV to-ken is incorporated into hi through the standard attention con-tribution αi, NVV vNVV . No separate NVV encoder or explicit event-position input is required. The retained speech-position states H = [ h0, . . . , hK−1]
+
+provide the conditions for next-patch generation. Specifically, 
+
+h0 is produced at the audio-start position, while hi for i > 0
+
+is produced at the preceding patch position ai−1. Each hi is then passed to LocDiT to generate the next P continuous speech latents. 
+
+NVV-aware stop prediction. Mid-utterance NVVs often introduce pauses or abrupt acoustic changes that may be con-fused with the end of an utterance. We therefore adapt the Di-TAR stopping mechanism for NVV generation. We retain its scalar-quantization bottleneck [28] and two-class linear head, but supervise only the final valid patch as stop , while all inter-mediate patches, including those containing NVVs, are labelled 
+
+continue . We further use a fixed positive-class weight, label smoothing, and an un-detached LM hidden state, allowing the stop loss to shape the semantic representation and distinguish an interrupting NVV from a true utterance boundary. 
+
+2.3. Bilingual pre-training and long-tail-aware SFT 
+
+We pre-train the backbone on a large-scale bilingual speech corpus. Its NVV-containing portion includes public En-glish and Mandarin resources such as NVSpeech-170K [1], NonVerbalSpeech-38K [2], and other NVV-annotated cor-pora [3, 4]. All NVV annotations are normalized to the 16 chal-lenge categories. This bilingual corpus jointly trains the newly introduced NVV embeddings and the continuous speech gener-ator while preserving general TTS capability. Development-set analysis reveals a highly imbalanced tag distribution, with limited coverage for events such as cry , snore ,
+
+sneeze , yawn , and burp . We therefore use expressive com-mercial TTS systems to synthesize English and Mandarin ut-terances for these weak categories. NVV tags are placed at sentence-initial, medial, and final positions, with diverse short contexts and multiple voices to reduce positional and lexical bi-ases and improve speaker diversity. We construct the continued-SFT mixture using tag-frequency-aware resampling. For an utterance whose rarest tag has frequency fi, its repetition factor is 
+
+ri = clip 
+
+s
+
+fmax 
+
+fi
+
+bi, 1, r max 
+
+!
+
+, (2) where bi gives an additional boost to empirically weak tags and 
+
+rmax prevents excessive duplication. We also upsample En-glish examples to reach the target English-to-Mandarin ratio. To avoid overrepresenting a few synthetic speakers or repeated samples, we cap per-speaker contributions and utterance repe-titions and filter excessively long samples. Starting from the bilingual pre-trained checkpoint, we continue SFT on the rebal-anced mixture and select checkpoints using the local objective metrics described in Section 3.1, rather than training loss alone. 
+
+2.4. Inference-time optimization 
+
+We optimize inference in two stages: global decoding-configuration search and sample-level Best-of-N selection. 
+
+Decoding-configuration search. The stochastic local dif-fusion decoder is sensitive to inference settings even when the model parameters remain unchanged. We therefore evaluate four selected combinations of the LM-guidance scale w and noise-injection scale τ , as reported in Table 3 [29, 30]. We use the same high-quality reference acoustic prompt for all con-figurations. We rank these configurations on the development subset using the local intelligibility, NVV-detection, and audio-quality metrics of Section 3.1, and use feedback from 12 offi-cial submissions only to confirm that this ranking transfers to the official metric. Because the search covers four coarse set-tings with no per-sample tuning, the risk of overfitting to the evaluation server is limited. 
+
+Best-of-N selection. The selected decoding configuration provides a strong global setting, but individual generations still vary because of diffusion randomness. For each tagged tran-script, we generate N = 5 candidates under the same config-uration and rank them automatically using a local multi-metric selector. For each metric, we apply candidate-wise min–max normalization to [0 , 1] , with a small ϵ for numerical stability, so that higher values indicate better candidates. The ASR term is computed from the negative CER or WER. Let Li denote the normalized local LALM aggregate using our predefined five-dimension weights, Di the normalized score from the fixed NVV detector for realizing the requested event at the intended position, Ri the normalized ASR-based lexical-fidelity score, and Qi the normalized DNSMOS score. We compute 
+
+Ci = 0 .40 Li + 0 .30 Di + 0 .20 Ri + 0 .10 Qi, (3) and select the candidate with the highest Ci as the final wave-form. This sample-level selector uses only local automatic eval-uation and does not use official test feedback to rank individual candidates. This two-stage strategy first determines a robust global de-coding configuration and then compensates for sample-level generation variance through repeated sampling. It improves NVV generation reliability without changing the model param-eters, at the cost of additional inference-time computation. 
+
+# 3. Experiments and results 
+
+3.1. Training and evaluation setup Training setup. The NVV-aware DiTAR backbone is pre-trained on 100,000 hours of bilingual speech data. We train the model using the Adam optimizer [31] with a learning rate Table 1: Objective metrics for progressive system variants. CER and WER are reported for Mandarin and English, respectively. DNS denotes DNSMOS, and P, R, and F1 denote precision, re-call, and CA-F1.                            
+
+> System CER ↓WER ↓DNS ↑P↑R↑F1 ↑NTD ↓
+> Official baseline 6.267 3.159 3.026 0.769 0.251 0.569 0.073 NVV-aware DiTAR 5.603 2.949 3.126 0.816 0.263 0.570 0.071 + Long-tail SFT 5.211 2.711 3.172 0.878 0.275 0.574 0.069 + Decoding search 5.098 2.597 3.183 0.863 0.265 0.582 0.068 + BoN (final) 5.012 2.194 3.221 0.870 0.271 0.589 0.069
+
+of 5 × 10 −5 and a per-GPU batch size of 4 on 32 NVIDIA H20 GPUs, corresponding to a global batch size of 128. The patch size is set to P = 10 .
+
+Evaluation setup. We evaluate all systems using local ob-jective metrics and official scores. Unless otherwise stated, local comparisons use the same evaluation subset, acoustic prompt, random seed, and decoding configuration. Local eval-uation covers lexical fidelity, NVV realization and localization, and audio quality. Mandarin CER and English WER are com-puted using Paraformer-zh [32] and Whisper-large-v3 [33], re-spectively. A fixed BEATs-based NVV detector [34] reports precision, recall, coverage-adjusted F1 (CA-F1), and normal-ized tag distance (NTD), while DNSMOS [35] evaluates audio quality. These metrics are used for model diagnosis, checkpoint selection, and decoding-configuration search. For sample-level Best-of-N selection, we additionally use a local LALM judge with the same five-dimensional rubric and our predefined di-mension weights; its aggregate is combined with the objective metrics as defined in Eq. (3). The revised official protocol combines a Gemini-based LALM evaluation with subjective listening. Both components assess NVV accuracy, NVV perceptual effect, naturalness, au-dio quality, and expression in Mandarin (ZH) and English (EN). The official language-specific scores are weighted combinations of the two evaluation components, and the bilingual score is their arithmetic mean. 
+
+3.2. Overall results 
+
+Table 1 summarizes the progressive development of our sys-tem using local objective metrics. Compared with the official baseline, the NVV-aware DiTAR reduces Mandarin CER from 
+
+6.267% to 5.603% and English WER from 3.159% to 2.949% ,while improving DNSMOS from 3.026 to 3.126 and detector precision from 0.769 to 0.816 .Long-tail-aware SFT further reduces CER and WER to 
+
+5.211% and 2.711% , respectively, while achieving the highest detector precision and recall of 0.878 and 0.275 . Decoding-configuration search provides additional improvements in lex-ical fidelity and NVV realization, reducing CER and WER to 
+
+5.098% and 2.597% and increasing CA-F1 to 0.582 . It also achieves the lowest NTD of 0.068 , indicating more accurate NVV localization. Best-of-N selection achieves the best CER ( 5.012% ), WER (2.194% ), DNSMOS ( 3.221 ), and CA-F1 ( 0.589 ) among the evaluated variants. Although its NTD slightly increases from 
+
+0.068 to 0.069 , the overall results show that multi-metric can-didate selection provides a favorable balance among lexical fi-delity, audio quality, and NVV realization. 
+
+3.3. Long-tail and per-tag analysis 
+
+We target categories with either limited training coverage or poor source-data quality. Cry and yawn are primarily con-Table 2: Targeted augmentation for weak NVV categories. Original/Added denote the numbers of initial/synthesized utter-ances, and ∆S denotes the change from NVV-aware DiTAR to long-tail-aware SFT.                                            
+
+> Tag ZH utterances EN utterances ∆SZH /EN
+> Original Added Original Added
+> cry 5,424 500 37 1,000 +4 .63 /+ 23 .30
+> snore 3,728 200 1,023 400 +1 .50 /+ 0 .78
+> sneeze 3,657 500 1,024 400 −1.15 /−1.98
+> yawn 252 1,000 17 1,000 +3 .35 /+ 2 .95
+> burp 4,328 400 1,726 400 +7 .30 /+ 2 .30
+> laugh 29,077 500 3,329 500 +3 .80 /+ 7 .00
+
+Table 3: Decoding-configuration ablation on the development subset. All rows use the same checkpoint.                                 
+
+> wτCER ZH ↓WER EN ↓DNSMOS ↑CA-F1 ↑NTD ↓
+> 2.5 0.7 6.217 3.017 3.161 0.569 0.058
+> 1.5 0.7 5.998 2.614 3.177 0.543 0.062 2.0 0.7 5.741 2.661 3.188 0.558 0.065 2.0 0.9 5.098 2.597 3.183 0.582 0.068
+
+strained by data scarcity. This problem is particularly severe for English cry , for which few usable open-source samples are available. In contrast, categories such as burp and laugh have more training samples, but many exhibit limited acoustic diver-sity or noticeable synthetic artifacts. We therefore supplement these weak categories with targeted synthetic data and increase their exposure during continued SFT through frequency-aware resampling. As shown in Table 2, English cry achieves the largest gain of 23 .30 points, while Mandarin cry improves by 4.63 points. The English improvement is mainly driven by higher NVV accuracy and perceptual effect, suggesting that the later sys-tem produces NVV events more reliably and makes them more clearly perceptible. Similarly, yawn , laugh , and burp improve in both Mandarin and English, with the Mandarin burp cate-gory exhibiting a particularly substantial gain of 7.30 points. However, the changes are not uniformly positive. Snore re-mains nearly unchanged, while sneeze degrades in both lan-guages. These results indicate that increasing sample count is most effective when missing coverage is the main bottleneck. When the synthesized samples lack naturalness, speaker diver-sity, or acoustic variation, additional data may introduce source-specific biases rather than improve generalization. 
+
+3.4. Ablation Study Decoding configuration. Table 3 examines the effects of the LM-guidance scale w and noise-injection scale τ using a fixed model checkpoint. Among the evaluated configurations, 
+
+w = 2 .0 and τ = 0 .9 achieves the best lexical fidelity, re-ducing CER and WER to 5.098% and 2.597% , respectively. It also obtains the highest CA-F1 of 0.582 , while maintaining a DNSMOS score close to the best result. This suggests that a higher noise-injection scale improves both content generation and NVV realization under a moderate guidance scale. The different metrics nevertheless reveal a trade-off. The configuration w = 2 .5, τ = 0 .7 achieves the lowest NTD, in-dicating more accurate event placement, but performs worse in CER, WER, and DNSMOS. Similarly, the highest DNS-MOS is obtained with w = 2 .0, τ = 0 .7, although the dif-ference from w = 2 .0, τ = 0 .9 is small. We therefore select 
+
+w = 2 .0, τ = 0 .9 as the most balanced configuration rather than optimizing any single metric. 
+
+BoN candidate selection. Table 4 compares candidate-Table 4: BoN selection ablation with five candidates.                                 
+
+> Selection strategy CER ZH ↓WER EN ↓DNSMOS ↑CA-F1 ↑NTD ↓
+> Single sample 5.743 3.148 3.157 0.542 0.059
+> Random selection 6.311 3.277 3.161 0.581 0.067 DNSMOS only 6.012 3.480 3.229 0.543 0.061 NVV detector only 5.977 2.792 3.102 0.591 0.068 Multi-metric 5.012 2.194 3.221 0.589 0.069
+
+Table 5: Official Track 2 results. 
+
+> System LALM ZH / EN / Bi. Subjective ZH / EN / Bi. Final ZH / EN / Bi.
+> Ours 76.22 69.66 72.94 2.838 ±0.096 3.156 ±0.099 2.997 ±0.070 61.775 63.797 62.786 Official baseline 77.62 70.30 73.96 2.714 ±0.089 3.072 ±0.091 2.893 ±0.066 59.700 63.163 61.431
+
+selection strategies using the same pool of five samples. The results show that single-metric selectors exhibit clear metric-specific biases. DNSMOS-only selection achieves the highest audio quality, but substantially degrades CER and WER. In con-trast, NVV-detector-only selection obtains the highest CA-F1, but produces the lowest DNSMOS and a larger position error. Random selection also fails to improve lexical fidelity consis-tently, confirming that the benefit of BoN does not arise merely from generating more candidates. The multi-metric selector achieves the lowest CER and WER, while improving CA-F1 and DNSMOS over single-sample generation. Although its CA-F1 is slightly lower than that of the detector-only selector, it avoids the pronounced loss in audio quality and lexical fidelity caused by optimizing the detector score alone. These results demonstrate that jointly con-sidering lexical fidelity, NVV realization, and audio quality pro-vides a better overall trade-off than selecting candidates accord-ing to any individual metric. Table 5 reports the revised official results. Our system obtains bilingual averages of 72 .94 in LALM evaluation and 
+
+2.997 ± 0.070 in subjective listening. Their combination yields final scores of 61 .775 for Mandarin, 63 .797 for English, and 
+
+62 .786 overall, exceeding the baseline by 2.075 , 0.634 , and 
+
+1.355 points, respectively. It ranks first in Mandarin, second in English, and first overall among participating systems, confirm-ing the complementary value of automatic and human evalua-tion. 
+
+3.5. Discussion 
+
+Three findings emerge. First, objective, LALM-based, and sub-jective metrics provide complementary evidence. Second, tar-geted augmentation is most effective for data-scarce categories, whereas low-diversity synthetic data yields inconsistent gains. Third, decoding optimization and multi-metric BoN improve performance without model updates, albeit with extra inference cost. The second-place English rank and lower English LALM score indicate that English NVV control remains an important direction. 
+
+# 4. Conclusion 
+
+We presented an NVV-aware DiTAR system combining continuous-latent modeling, long-tail-aware training, decoding search, and multi-metric Best-of-N selection. It achieved an of-ficial weighted bilingual score of 62 .786 and ranked first overall among participating Track 2 systems. Future work will improve English NVV data and event-level selection metrics. 5. References 
+
+[1] H. Liao, Q. Ni, Y. Wang, Y. Lu, H. Zhan, P. Xie, Q. Zhang, and Z. Wu, “NVSpeech: An integrated and scalable pipeline for human-like speech modeling with paralinguistic vocalizations,” 
+
+arXiv preprint arXiv:2508.04195 , 2025. [2] R. Ye, Y. Zhou, R. Yu, Z. Lin, K. Li, X. Li, X. Liu, G. Zeng, and Z. Wu, “A scalable pipeline for enabling non-verbal speech generation and understanding,” arXiv preprint arXiv:2508.05385 ,2025. [3] M. Borisov, E. Spirin, and D. Diatlova, “NonverbalTTS: A public english corpus of text-aligned nonverbal vocalizations with emo-tion annotations for text-to-speech,” in Proc. Speech Synthesis Workshop (SSW) , 2025, pp. 104–109. [4] H. Wang, J. Kang, Y. Yin, J. Xu, C. Zhang, Y. Cheng, Z. Fan, and X. Zhou, “CapSpeech: Enabling downstream applications in style-captioned text-to-speech,” arXiv preprint arXiv:2506.02863 , 2025. [5] C. Wang, S. Chen, Y. Wu, Z. Zhang, L. Zhou, S. Liu, Z. Chen, Y. Liu, H. Wang, J. Li, L. He, S. Zhao, and F. Wei, “Neural codec language models are zero-shot text to speech synthesizers,” arXiv preprint arXiv:2301.02111 , 2023. [6] P. Anastassiou, J. Chen, J. Chen, Y. Chen, Z. Chen, Z. Chen, J. Cong, L. Deng, C. Ding, L. Gao et al. , “Seed-TTS: A family of high-quality versatile speech generation models,” arXiv preprint arXiv:2406.02430 , 2024. [7] Z. Du, Y. Wang, Q. Chen, X. Shi, X. Lv, T. Zhao, Z. Gao, Y. Yang, C. Gao, H. Wang, F. Yu, H. Liu, Z. Sheng, Y. Gu, C. Deng, W. Wang, S. Zhang, Z. Yan, and J. Zhou, “CosyVoice 2: Scalable streaming speech synthesis with large language models,” arXiv preprint arXiv:2412.10117 , 2024. [8] S. Zhou, Y. Zhou, Y. He, X. Zhou, J. Wang, W. Deng, and J. Shu, “IndexTTS2: A breakthrough in emotionally expressive and duration-controlled auto-regressive zero-shot text-to-speech,” 
+
+arXiv preprint arXiv:2506.21619 , 2025. [9] M. Le, A. Vyas, B. Shi, B. Karrer, L. Sari, R. Moritz, M. Williamson, V. Manohar, Y. Adi, J. Mahadeokar et al. , “Voice-box: Text-guided multilingual universal speech generation at scale,” arXiv preprint arXiv:2306.15687 , 2023. [10] Y. Chen, Z. Niu, Z. Ma, K. Deng, C. Wang, J. Zhao, K. Yu, and X. Chen, “F5-TTS: A fairytaler that fakes fluent and faith-ful speech with flow matching,” arXiv preprint arXiv:2410.06885 ,2024. [11] K. Shen, Z. Ju, X. Tan, E. Liu, Y. Leng, L. He, T. Qin, S. Zhao, and J. Bian, “NaturalSpeech 2: Latent diffusion models are natural and zero-shot speech and singing synthesizers,” in Proc. ICLR ,2024. [12] Z. Ju, Y. Wang, K. Shen, X. Tan, D. Xin, D. Yang, Y. Liu, Y. Leng, K. Song, S. Tang, Z. Wu, T. Qin, X.-Y. Li, W. Ye, S. Zhang, J. Bian, L. He, J. Li, and S. Zhao, “NaturalSpeech 3: Zero-shot speech synthesis with factorized codec and diffusion models,” 
+
+arXiv preprint arXiv:2403.03100 , 2024. [13] D. Jia, Z. Chen, J. Chen, C. Du, J. Wu, J. Cong, X. Zhuang, C. Li, Z. Wei, Y. Wang, and Y. Wang, “DiTAR: Diffusion transformer autoregressive modeling for speech generation,” arXiv preprint arXiv:2502.03930 , 2025. [14] Y. Zhou, G. Zeng, X. Liu, X. Li, R. Yu, Z. Wang, R. Ye, W. Sun, J. Gui, K. Li, Z. Wu, and Z. Liu, “VoxCPM: Tokenizer-free TTS for context-aware speech generation and true-to-life voice cloning,” arXiv preprint arXiv:2509.24650 , 2025. [15] Z. Du, C. Wang, Q. Chen, Y. Wang, S. Zhang, and J. Zhou, “CosyVoice 3: Towards in-the-wild speech generation via scaling-up and post-training,” arXiv preprint arXiv:2505.17589 , 2025. [16] W. Peebles and S. Xie, “Scalable diffusion models with transform-ers,” in Proc. ICCV , 2023, pp. 4195–4205. [17] T. Li, Y. Tian, H. Li, M. Deng, and K. He, “Autoregressive image generation without vector quantization,” in Proc. NeurIPS , 2024. [18] Y. Lipman, R. T. Q. Chen, H. Ben-Hamu, M. Nickel, and M. Le, “Flow matching for generative modeling,” in Proc. ICLR , 2023. [19] J. Song, C. Meng, and S. Ermon, “Denoising diffusion implicit models,” in Proc. ICLR , 2021. [20] R. Rombach, A. Blattmann, D. Lorenz, P. Esser, and B. Ommer, “High-resolution image synthesis with latent diffusion models,” in Proc. CVPR , 2022, pp. 10 684–10 695. [21] Z. Borsos, R. Marinier, D. Vincent, E. Kharitonov, O. Pietquin, M. Sharifi, D. Roblek, O. Teboul, D. Grangier, M. Tagliasacchi, and N. Zeghidour, “AudioLM: A language modeling approach to audio generation,” arXiv preprint arXiv:2209.03143 , 2022. [22] A. D´ efossez, J. Copet, G. Synnaeve, and Y. Adi, “High fidelity neural audio compression,” Transactions on Machine Learning Research , 2023. [23] X. Zhang, D. Zhang, S. Li, Y. Zhou, and X. Qiu, “SpeechTok-enizer: Unified speech tokenizer for speech language models,” in 
+
+Proc. ICLR , 2024. [24] Y. Cui, M. Jia, T.-Y. Lin, Y. Song, and S. Belongie, “Class-balanced loss based on effective number of samples,” in Proc. CVPR , 2019, pp. 9268–9277. [25] D. P. Kingma and M. Welling, “Auto-encoding variational bayes,” in Proc. ICLR , 2014. [26] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, L. Kaiser, and I. Polosukhin, “Attention is all you need,” in Proc. NeurIPS , 2017. [27] A. Yang, B. Yang, B. Hui, B. Zheng, B. Yu, C. Zhou et al. ,“Qwen2 technical report,” arXiv preprint arXiv:2407.10671 ,2024. [28] F. Mentzer, D. Minnen, E. Agustsson, and M. Tschannen, “Finite scalar quantization: VQ-VAE made simple,” in Proc. ICLR , 2024. [29] J. Ho and T. Salimans, “Classifier-free diffusion guidance,” arXiv preprint arXiv:2207.12598 , 2022. [30] G. Sanchez, H. Fan, A. Spangher, E. Levi, P. S. Ammanamanchi, and S. Biderman, “Stay on topic with classifier-free guidance,” 
+
+arXiv preprint arXiv:2306.17806 , 2023. [31] D. P. Kingma and J. Ba, “Adam: A method for stochastic opti-mization,” in Proc. ICLR , 2015. [32] Z. Gao, S. Zhang, I. McLoughlin, and Z. Yan, “Paraformer: Fast and accurate parallel transformer for non-autoregressive end-to-end speech recognition,” in Proc. Interspeech , 2022, pp. 2063– 2067. [33] A. Radford, J. W. Kim, T. Xu, G. Brockman, C. McLeavey, and I. Sutskever, “Robust speech recognition via large-scale weak su-pervision,” in Proc. ICML , 2023, pp. 28 492–28 518. [34] S. Chen, Y. Wu, C. Wang, S. Liu, D. Tompkins, Z. Chen, and F. Wei, “BEATs: Audio pre-training with acoustic tokenizers,” in 
+
+Proc. ICML , 2023. [35] C. K. A. Reddy, V. Gopal, and R. Cutler, “DNSMOS: A non-intrusive perceptual objective speech quality metric to evaluate noise suppressors,” in Proc. ICASSP , 2021, pp. 6493–6497.
