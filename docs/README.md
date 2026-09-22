@@ -6,50 +6,72 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-21
-- 运行时间：2026-09-21 23:13:47 UTC
+- 最新运行日期：2026-09-22
+- 运行时间：2026-09-22 22:29:08 UTC
 - 运行状态：成功
-- 本次总论文数：10
-- 精读区：1
-- 速读区：9
+- 本次总论文数：16
+- 精读区：4
+- 速读区：12
 
 ### 今日简报（AI）
-今日精选 10 篇 AI 安全与生成前沿论文，其中《CASCADE Against Jailbreaks》以 8.0 分领跑精读。最值得关注的是越狱攻防新思路：CASCADE 用分阶段组合攻击配合可控防御评估，HE-Guardrail 则把护栏搬进同态加密推理。普通读者可优先读这两篇，理解大模型安全为何正从"单点拦截"走向"全流程加密防护"。
-- 详情：[/202609/21/README](/202609/21/README)
+今天从 16 篇语音方向论文中筛出 4 篇精读、12 篇速读。
+
+最值得看的是两篇 8.0 分精读：用强化学习做指令跟随语音合成自我精炼的《Listen, Critique, and Refine》，以及关注印度语言、人群多样性与拼写变体的忠实 ASR 评测《Vimarsha》。
+
+普通读者可先读这两篇精读，再按兴趣延伸到速读中的低资源跨模态语音表征（Yemba 案例）和联邦多语言语音 LLM 架构基准。
+- 详情：[/202609/22/README](/202609/22/README)
 
 ### 精读区论文标签
-1. [CASCADE Against Jailbreaks: Combination Across Stages with Controlled Attack-Defense Evaluation](/202609/21/2609.21793v1-cascade-against-jailbreaks-combination-across-stages-with-controlled-attack-defense-evaluation)  
-   标签：评分：8.0/10、query:llm-attack
-   evidence：大模型越狱防御的系统研究
+1. [Listen, Critique, and Refine: RL-Based Self-Refinement for Instruction-Following Speech Synthesis](/202609/22/2609.24163v1-listen-critique-and-refine-rl-based-self-refinement-for-instruction-following-speech-synthesis)  
+   标签：评分：8.0/10、query:qwen-tts
+   evidence：基于强化学习自精炼、可控语速与韵律的语音合成
+2. [Vimarsha: Faithful ASR Evaluation for Indian Languages with Demographic Diversity, In-the-Wild Audio and Spelling Variations](/202609/22/2609.24199v1-vimarsha-faithful-asr-evaluation-for-indian-languages-with-demographic-diversity-in-the-wild-audio-and-spelling-variations)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：覆盖22种印度语言的多语种ASR基准
+3. [Morpho-VITS: Variational Inference with Morphological Modeling for End-to-End Speech Synthesis of a Tonal Bantu Language](/202609/22/2609.24310v1-morpho-vits-variational-inference-with-morphological-modeling-for-end-to-end-speech-synthesis-of-a-tonal-bantu-language)  
+   标签：评分：8.0/10、query:low-res-tts
+   evidence：面向低资源声调班图语的端到端语音合成
+4. [End-to-end Jordanian dialect speech-to-text self-supervised learning framework](/202609/22/2609.24410v1-end-to-end-jordanian-dialect-speech-to-text-self-supervised-learning-framework)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：方言与低资源语音转文本，采用自监督学习
 
 ### 速读区论文标签
-1. [HE-Guardrail: A Homomorphic Guardrail Against Jailbreak Attacks for Encrypted Large Language Model Inference](/202609/21/2609.21484v1-he-guardrail-a-homomorphic-guardrail-against-jailbreak-attacks-for-encrypted-large-language-model-inference)  
-   标签：评分：7.0/10、query:llm-attack
-   evidence：针对加密大模型推理越狱攻击的防护栏
-2. [Modeling, Scaling, and Decoding: Optimizing Controllable Speech Generation with Nonverbal Vocalizations](/202609/21/2609.14231v1-modeling-scaling-and-decoding-optimizing-controllable-speech-generation-with-nonverbal-vocalizations)  
-   标签：评分：6.0/10、query:qwen-tts
-   evidence：可控语音生成，面向非言语发声类别建模
-3. [Can We Triage LLM Translation Errors in Classical Texts Without Human References? Source Novelty, GEMBA Scoring, and Budgeted Review through Pali-to-English Translation](/202609/21/2609.14963v1-can-we-triage-llm-translation-errors-in-classical-texts-without-human-references-source-novelty-gemba-scoring-and-budgeted-review-through-pali-to-english-translation)  
-   标签：评分：6.0/10、query:cross-lang
-   evidence：无人工参考的LLM翻译质量筛查
-4. [Language Orthogonalization for Zero-Shot Cross-Lingual Audio Deepfake Detection](/202609/21/2609.16458v1-language-orthogonalization-for-zero-shot-cross-lingual-audio-deepfake-detection)  
+1. [Enhancing speech representation learning with cross-modal knowledge transfer with HGNN under low resource settings: the case study of Yemba](/202609/22/2609.23194v1-enhancing-speech-representation-learning-with-cross-modal-knowledge-transfer-with-hgnn-under-low-resource-settings-the-case-study-of-yemba)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：低资源语言语音表示学习
+2. [Federated Multilingual Speech-LLMs: Architecture and Aggregation Strategy Benchmarking](/202609/22/2609.23825v1-federated-multilingual-speech-llms-architecture-and-aggregation-strategy-benchmarking)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：多语言自动语音识别基准评测
+3. [CycleSpeech: Reciprocal Alignment for Instruction-Controlled Speech Synthesis and Paralinguistic Understanding](/202609/22/2609.24771v1-cyclespeech-reciprocal-alignment-for-instruction-controlled-speech-synthesis-and-paralinguistic-understanding)  
+   标签：评分：7.0/10、query:speech-tech
+   evidence：指令控制的多语言语音合成与互惠对齐
+4. [Semantic Fibers and Cross-Gram Interference: A Calculus of Safety Drift in Overcomplete Representations](/202609/22/2609.14861v1-semantic-fibers-and-cross-gram-interference-a-calculus-of-safety-drift-in-overcomplete-representations)  
+   标签：评分：6.0/10、query:llm-attack
+   evidence：跨语言安全失效与越狱式遵从
+5. [HearInContext: A Benchmark for Implicit Context in Speech Recognition](/202609/22/2609.18680v2-hearincontext-a-benchmark-for-implicit-context-in-speech-recognition)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：跨语言语音表征与多语言语音合成
-5. [ORDER: Task-Conditioned Routing for Retrieval-Augmented Generation](/202609/21/2609.17012v1-order-task-conditioned-routing-for-retrieval-augmented-generation)  
-   标签：评分：6.0/10、query:fie-rag
-   evidence：查询条件化的检索增强生成
-6. [Self-Distilled Pronunciation and Accent Control for Neural Text-to-Speech](/202609/21/2609.17234v2-self-distilled-pronunciation-and-accent-control-for-neural-text-to-speech)  
+   evidence：中英双语上下文语音识别基准
+6. [COT-TTS: Audio Context-Aware Text-to-Speech with Chain-of-Thought Reasoning](/202609/22/2609.22697v1-cot-tts-audio-context-aware-text-to-speech-with-chain-of-thought-reasoning)  
    标签：评分：6.0/10、query:qwen-tts
-   evidence：可控神经语音合成发音与口音
-7. [Dictionary-Constrained Grapheme-to-Phoneme for Unsegmented Languages from LLM-Annotated Data](/202609/21/2609.19805v1-dictionary-constrained-grapheme-to-phoneme-for-unsegmented-languages-from-llm-annotated-data)  
+   evidence：可控文本到语音，基于推理的风格控制
+7. [Planning and Rendering in Concert: DeepFusion of Autoregressive Layouts and Diffusion for Visual Text Generation](/202609/22/2609.22916v1-planning-and-rendering-in-concert-deepfusion-of-autoregressive-layouts-and-diffusion-for-visual-text-generation)  
+   标签：评分：6.0/10、query:mtg-bench
+   evidence：文字丰富图像生成中的文本渲染保真
+8. [Low resource cross-modal alignment using HGNN to enhance speech representation](/202609/22/2609.23191v1-low-resource-cross-modal-alignment-using-hgnn-to-enhance-speech-representation)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：面向TTS/ASR的无分词语言G2P，用LLM标注数据缓解稀缺
-8. [Evaluating Communicative Success in Machine-Translated Conversation](/202609/21/2609.19885v1-evaluating-communicative-success-in-machine-translated-conversation)  
-   标签：评分：6.0/10、query:cross-lang
-   evidence：从语义、语用、文化维度评估跨语言机器翻译对话
-9. [Evaluating In-Context Learning and Retrieval Strategies for Devanagari Post-OCR Correction](/202609/21/2609.21595v1-evaluating-in-context-learning-and-retrieval-strategies-for-devanagari-post-ocr-correction)  
+   evidence：低资源语言的语音表示
+9. [Synthetic speech detection in Brazilian Portuguese through accent-related features](/202609/22/2609.23807v1-synthetic-speech-detection-in-brazilian-portuguese-through-accent-related-features)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：巴西葡萄牙语方言合成语音的口音特征检测
+10. [URA-NER: A Unified Retrieval-Augmented Framework with Retrieval Alignment and Uncertainty Reduction for Low-Resource NER](/202609/22/2609.24372v1-ura-ner-a-unified-retrieval-augmented-framework-with-retrieval-alignment-and-uncertainty-reduction-for-low-resource-ner)  
    标签：评分：6.0/10、query:fie-rag
-   evidence：非拉丁天城文上的检索式少样本上下文学习策略
+   evidence：检索增强的少样本框架
+11. [Decoding Guardrails: XAI-Guided Perturbation Analysis of Prompt Injection Detection](/202609/22/2609.24801v1-decoding-guardrails-xai-guided-perturbation-analysis-of-prompt-injection-detection)  
+   标签：评分：6.0/10、query:llm-attack
+   evidence：越狱攻击与提示注入防御护栏
+12. [ToneCL: Contrastive Learning for Few-Shot Syllable-Level Tone Classification](/202609/22/2609.24903v1-tonecl-contrastive-learning-for-few-shot-syllable-level-tone-classification)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：面向低资源声调语言的少样本声调分类
 
 
 <div class="dpr-home-promo-card">
