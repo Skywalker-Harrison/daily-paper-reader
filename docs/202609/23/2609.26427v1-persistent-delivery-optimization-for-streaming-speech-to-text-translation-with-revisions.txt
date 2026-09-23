@@ -1,0 +1,317 @@
+Title: Persistent Delivery Optimization for Streaming Speech-to-Text Translation with Revisions
+
+URL Source: https://arxiv.org/pdf/2609.26427v1
+
+Published Time: Wed, 23 Sep 2026 01:23:23 GMT
+
+Number of Pages: 5
+
+Markdown Content:
+# PERSISTENT DELIVERY OPTIMIZATION FOR STREAMING SPEECH-TO-TEXT TRANSLATION WITH REVISIONS 
+
+# Zixiang Wan 1, Delin Chen 1, Wei Shi 2, Haihua Xu 2, Youxi Xie 2, Yuexian Zou 1∗
+
+> 1
+
+# Peking University, Shenzhen, China 
+
+> 2
+
+# Timekettle AI Lab, Shenzhen, China 
+
+# zxwan25@stu.pku.edu.cn , zouyx@pku.edu.cn 
+
+ABSTRACT 
+
+Revision-capable streaming speech-to-text translation (S2TT) can correct earlier drafts, but process rewards based on visible text may credit content later withdrawn. Persistent Delivery Optimization (PDO) assigns intermediate reward only to content that survives revisions while scoring final quality separately. With 7.49 h of task-specific FLEURS adaptation, PDO achieves the best BLEU on four of five directions and higher COMET than every external streaming baseline in all five directions. Relative to its History-SFT initialization, PDO reduces mean/P90 finalization-aware latency by 10.8%/11.3% and normalized erasure by 15.8%, while emitting at the first permitted 2-s update and improving macro BLEU. Zero-shot evaluation on Europarl-ST and CoVoST 2 confirms that these gains are not confined to the FLEURS training domain. 1
+
+Index Terms — streaming speech translation, revision-capable translation, persistent delivery, reinforcement learning, latency 
+
+1. INTRODUCTION 
+
+End-to-end streaming speech-to-text translation (S2TT) directly generates target-language text from incoming source speech and must balance translation quality against latency. Emitting early relies on incomplete source context and can increase translation un-certainty, whereas waiting provides more source evidence at the cost of higher latency. In conventional monotonic streaming systems, emitted target tokens are irrevocable, so early translation errors cannot be corrected. Allowing revisions relaxes this constraint by letting the system update previously visible drafts as more source speech becomes available [1, 2]. Revision separates first appearance from finalization. In mono-tonic streaming translation, emitted content is irrevocable, so the cur-rent visible draft reflects content that has already been committed. With revision, previously displayed text may later be changed or re-moved. A process reward computed on the current visible draft can therefore reward temporary content that does not persist in the final translation. To avoid assigning early-output credit to temporary content, we reward only the content that appears early and remains unchanged through subsequent revisions. For each intermediate visible draft, we identify the longest prefix preserved in all later drafts and accu-mulate a reference-coverage score for this persistent content over time, while evaluating final translation quality separately. Con-tent that becomes stable earlier therefore receives greater reward, whereas text that is later revised or removed does not retain the same benefit from its early appearance. Our contributions are summarized as follows: • We identify a mismatch between visibility and delivery in streaming translation with revisions. Process rewards based 
+
+> ∗Corresponding author.
+> 1Training code and model weights: github.com/ggiggit/PDO S2TT
+
+on the current visible draft may assign early-output credit to content that is later withdrawn. • We propose Persistent Delivery Optimization (PDO), atrajectory-level objective that accumulates the reference cov-erage of content retained through subsequent revisions and combines it with final translation quality. Full-trajectory returns allow later revisions to affect the credit assigned to earlier outputs. • We instantiate PDO in a history-conditioned end-to-end streaming S2TT system without an intermediate source tran-script. Controlled reward comparisons isolate the benefit of persistent-content credit. Zero-shot evaluation on two out-of-domain corpora shows that the gains over History-SFT are not confined to FLEURS or obtained by delaying the first response. 
+
+2. RELATED WORK 2.1. End-to-End Streaming Speech-to-Text Translation 
+
+End-to-end streaming S2TT generates target-language text directly from speech. Early monotonic systems include SimulSpeech [3], which combines online segmentation with wait-k decoding, and SimulMT-to-SimulST [4], which applies SimulMT policies through pre-decision mechanisms. Adaptive approaches such as EDAtt [5] and AlignAtt [6] use audio–translation attention to decide when to emit, while SimulSeamless [7] scales such policies to large pre-trained speech translation models. Policy-learning methods further optimize quality and latency. Hibiki-Zero [8] uses intermediate translation-quality rewards with-out word-level alignment, while HPO [9] jointly optimizes both objectives on unbounded speech. PDO instead targets a revision-specific failure: visible-text credit may remain after that text is withdrawn. 
+
+2.2. Revision and Information Delivery 
+
+Revision-based translation updates visible drafts as source context arrives. Prior work stabilizes re-translation through masking and biased decoding [2, 1], self-training for reduced flicker [10], and constraints on the revision range [2]. Finalization and erasure met-rics measure when output stabilizes [11] and how much displayed content is later withdrawn [2]. Stability, however, is not the objective by itself. Delaying emis-sion can make a system appear stable, while a necessary revision may reduce stability yet improve the information shown to the user. PDO therefore studies when translated information becomes both available and persistent under subsequent revisions, rather than sim-ply minimizing changes. arXiv:2609.26427v1 [eess.AS] 22 Sep 2026 3. METHOD 
+
+We adapt Qwen3-ASR-1.7B [12] into a history-conditioned stream-ing S2TT policy, then optimize persistent delivery with PDO. 
+
+3.1. Streaming S2TT Policy 
+
+We initialize from Qwen3-ASR-1.7B and freeze its pretrained back-bone. Let x, xtxt , and y(ℓ) denote source speech, its training tran-script, and the reference in target language ℓ. We train target-task LoRA [13] ϕ followed by history module η, without an additional ASR stage or intermediate source transcripts at inference. Supervised adaptation proceeds through text translation, full-audio S2TT, source-text conditioning reduction, and streaming SFT. To reduce reliance on training transcripts, the source-text condition-ing reduction stage mixes full, corrupted, prefix, and empty source-text conditions with weights (0 .4, 0.3, 0.2, 0.1) ; the empty condition provides direct speech-to-target supervision. On the update grid 0 < u 1 < · · · < u T = U , streaming SFT combines a complete-translation anchor with cumulative drafts from Hibiki-style contextual alignment [8] using Qwen3-ASR forced word times [12]. Token-normalized complete and streaming super-vision receive equal weight; draft events are averaged within each target direction, and directions sharing a recording are weighted equally. Alignment-derived drafts are re-tokenized with the model tokenizer. Source–target alignments and source-word timing are used only to construct streaming supervision, not at inference. Empty early drafts supervise only EOS. 
+
+History-conditioned SFT. We freeze the trained streaming SFT pol-icy and perform a closed-loop rollout over the training set to cache model-generated histories. Let d0 = ∅. At update t, its previ-ous visible draft dt−1, rather than a reference prefix, supplies the history. These cached histories provide the supervised states for History-SFT: the backbone and target-task LoRA remain frozen, and only η is trained. History is injected into the upper decoder layers through zero-initialized gated cross-attention. History-SFT applies a first-order projection that prevents the history-module update from increasing the frozen parent policy’s continuation loss. The resulting policy πhist operates on st = ( x≤ut , d t−1, ℓ ) and generates token sequence zt ∼ πhist (· | st). Each update decodes zt into a com-plete target draft dt that replaces the previous visible draft. PDO initializes from πhist and updates θ = ( ϕ, η ).
+
+3.2. Persistent Delivery Optimization Persistent-delivery utility. For target language ℓ, write y = y(ℓ)
+
+and let ¯dt = νℓ(dt) and ¯y = νℓ(y) denote case-folded text-unit se-quences after discarding surrounding punctuation but retaining intra-word apostrophes and hyphens. Units are Han/kana characters plus contiguous non-CJK alphanumeric spans for Chinese/Japanese and Unicode words otherwise. For τ = ( d1, . . . , d T ), the content visible at update t that survives all subsequent revisions is 
+
+pt = LCP( ¯dt, ¯dt+1 , . . . , ¯dT ). (1) By construction, pt ⪯ pt+1 , where ⪯ denotes the prefix relation. With ∆t = ut+1 − ut, we define 
+
+JPD (τ ) =  
+
+> T−1
+
+X
+
+> t=1
+
+∆tqp(pt, ¯y) + Hq s( ¯dT , ¯y), (2) where qp(pt, ¯y) = | LCS( pt, ¯y)|/|¯y| is persistent-prefix lexical cov-erage (ROUGE-L recall [14]), and qs is normalized effective-order sentence BLEU [15]; H > 0 weights terminal quality. Earlier-persistent content accrues more source-time credit, whereas with-drawn text receives no such early-display benefit; monotonic output has pt = ¯dt.
+
+Trajectory credit. To let later revisions affect the credit assigned to earlier drafts, we define 
+
+Φt =
+
+> t−1
+
+X
+
+> k=1
+
+∆k qp
+
+ LCP( ¯dk , . . . , ¯dt), ¯y
+
++ Hq s( ¯dt, ¯y),Gt = Φ T − Φt−1,
+
+(3) with Φ0 = 0 and ΦT = JPD (τ ). Equivalently, Gt = PTt′=t rt′ for 
+
+rt = Φ t − Φt−1. Returns are computed after a complete rollout, while inference remains causal. 
+
+Policy update. PDO proceeds in rollout rounds using PPO-style clipped updates [16] with group-relative standardized returns [17]. Each round freezes the current policy as the proximal snapshot 
+
+πprox . A temperature-adjusted behavior distribution πb, induced by the same round-start policy, samples K fresh closed-loop trajec-tories per utterance: every generated draft supplies the history for the next speech update. After all trajectories finish, we compute returns and standardize them within each utterance and update as 
+
+w(i) 
+
+> t
+
+= ( G(i) 
+
+> t
+
+− μt)/(σt + εnum ). Here, μt and σt are the group mean and standard deviation, and εnum is a numerical stabilizer; near-zero-variance groups receive zero weight. The trajectories and πprox remain fixed during the round’s op-timizer updates to πθ . The updated policy starts the next round, re-freshing both the snapshot and trajectories. For token z(i) 
+
+> t,j
+
+under gen-eration context h(i) 
+
+> t,j
+
+, define ρ(i) 
+
+> t,j
+
+= πθ /π prox and c(i) 
+
+> t,j
+
+= min( cmax ,πprox /π b), with all probabilities evaluated at (z(i) 
+
+> t,j
+
+| h(i) 
+
+> t,j
+
+). The ra-tio ρ constrains updates relative to the round-start snapshot, while c
+
+gives a truncated correction for temperature-adjusted sampling. For trajectory minibatch B, we optimize 
+
+LPDO = − 1
+
+|B| 
+
+X
+
+> i,t,j
+
+c(i)
+
+> t,j
+
+× min 
+
+h
+
+ρ(i) 
+
+> t,j
+
+w(i) 
+
+> t
+
+,
+
+clip  ρ(i) 
+
+> t,j
+
+, 1 − εclip , 1 + εclip 
+
+w(i)
+
+> t
+
+i
+
+.
+
+(4) All tokens in a draft share its event weight w(i) 
+
+> t
+
+, while the sampling correction and policy ratio are token-specific. The loss is normalized by the number of trajectories rather than the number of generated tokens. PDO updates ϕ and η while the pretrained backbone remains frozen. 
+
+4. EXPERIMENTS 4.1. Experimental Setup Table 1 . Streaming-system profiles and training resources [18]–[23]. 
+
+System Yr. Mode Params Resources 
+
+SeamlessStreaming 2023 Direct 2.50 351K+145K h SimulStreaming 2025 Src-text 3.20 pretr. ASR+MT EASiST 2026 Direct 8.36 MuST-C SimulST Hikari-medium 2026 Direct 0.80 62.3K h AlignAtt4LLM 2026 Src-text 11 .26 ASR+align.+MT SimulS2ST-Omni 2026 Direct 4.04 24.4K h+aux. 
+
+PDO — Direct 2.35 7.49 h adapt.    
+
+> Mode: Direct = no source transcript at inference; Src-text = with one. Params are in B; PDO updates 15.9M. Hours: Seamless = S2TT/ASR+S2ST; Hikari = S2TT+ASR; Omni = S2TT+aux.; PDO = S2TT adaptation. Aux. includes ASR/MT/TTS/S2ST.
+
+Data. We train only on FLEURS [24] En →Zh/De/Es/Ja/Fr. TRAIN, DEV, and TEST contain 2,602/394/647 shared English recordings (7.49/1.05/1.77 h); targets come from the n-way-parallel references for the same sentence IDs. Streaming stages use the 2,600 TRAIN Table 2 . In-domain FLEURS TEST results. Latency columns are first-token latency (FTL), final-response delay (FRD), finalization-aware computation-unaware length-adaptive average lagging ( LAAL CU ; mean/P90), and real-time factor (RTF). Bold/underline mark best/second-best per language or macro block; ties share formatting. Each LAAL CU pair shares one rank; RTF and the full-context reference are unranked. History-SFT/PDO are three-seed means. 
+
+Translation Quality Latency (s) Dir. System BLEU ↑ COMET ↑ chrF++ ↑ FTL ↓ FRD ↓ LAAL CU ↓ RTF Zh SeamlessStreaming 26.85 76.79 18.08 2.48 2.60 2.36 / 3.42 .14 SimulS2ST-Omni 34.13 80.83 25.31 2.25 2.97 1.70 / 2.74 .33 SimulStreaming 12.60 72.83 14.59 1.89 2.45 2.38 / 4.04 .57 AlignAtt4LLM 27.14 75.69 22.32 3.01 3.54 1.24 / 2.09 .38 History-SFT 37.60 86.72 26.98 2.00 2.36 4.03 / 7.47 .43 
+
+PDO 38.16 86.31 26.92 2.00 2.33 3.53 / 6.61 .39 De SeamlessStreaming 28.30 81.85 55.97 2.53 2.66 1.93 / 2.80 .15 Hikari-medium 19.49 68.02 48.83 2.10 2.10 0.90 / 1.76 1.43 SimulStreaming 16.00 75.68 49.24 1.42 1.64 2.01 / 3.03 .30 EASiST 24.21 76.54 53.20 5.70 6.06 4.35 / 9.52 .16 AlignAtt4LLM 25.34 74.18 56.67 3.01 3.57 1.50 / 2.27 .41 History-SFT 28.10 84.48 55.85 2.00 2.47 3.26 / 6.00 .62 
+
+PDO 29.57 84.22 57.03 2.00 2.42 3.08 / 5.65 .57 Es SeamlessStreaming 22.67 81.60 50.10 2.80 2.98 1.78 / 2.61 .14 SimulStreaming 17.80 76.83 46.45 1.56 1.75 2.06 / 3.16 .27 EASiST 19.86 75.35 46.92 4.44 4.71 3.10 / 5.63 .15 History-SFT 22.88 83.56 50.30 2.00 2.46 3.13 / 6.06 .58 
+
+PDO 23.35 83.57 50.88 2.00 2.44 2.51 / 4.44 .57 Ja SeamlessStreaming 16.01 80.56 20.13 3.01 3.19 3.55 / 5.34 .15 Hikari-medium 20.26 76.96 21.24 2.43 2.43 2.12 / 3.67 1.41 SimulStreaming 9.55 73.47 16.67 1.24 1.97 1.62 / 3.10 .65 History-SFT 28.30 88.55 26.24 2.00 2.49 3.98 / 7.02 .58 
+
+PDO 28.66 88.50 26.47 2.00 2.47 3.67 / 6.23 .57 Fr SeamlessStreaming 38.95 82.77 61.56 2.54 2.69 1.69 / 2.52 .15 SimulStreaming 26.26 76.77 55.86 1.48 1.66 1.92 / 2.89 .28 History-SFT 36.95 84.72 60.97 2.00 2.46 2.70 / 5.18 .61 
+
+PDO 38.16 84.26 62.06 2.00 2.45 2.46 / 4.93 .59 
+
+Five-direction macro 
+
+SeamlessStreaming 26.56 80.71 41.17 2.67 2.82 2.26 / 3.34 .15 SimulStreaming 16.44 75.12 36.56 1.52 1.90 2.00 / 3.24 .41 History-SFT 30.77 85.61 44.07 2.00 2.45 3.42 / 6.38 .56 
+
+PDO 31.58 85.37 44.67 2.00 2.42 3.05 / 5.66 .54 
+
+Full-context reference 
+
+Qwen3-ASR →Hy-MT2 30.79 82.90 44.64 full context .13 SimulStreaming En →Zh: quality coverage 94.6%; FTL/FRD and LAAL CU use 96.3%/94.3% valid subsets. recordings with valid timing supervision; models are selected on DEV and evaluated on TEST. For zero-shot cross-domain evalua-tion, the same checkpoints are tested on the official Europarl-ST v1.1 [25] TEST sets for En →De/Es/Fr with original segmentation, and CoVoST 2 [26] for En →Zh/De/Ja. History-SFT and PDO use the same 2-s update grid, with no target-domain adaptation. 
+
+Baselines. We compare with SeamlessStreaming [18], EASiST [20], Hikari-medium [21], and the text path of SimulS2ST-Omni [23] as direct streaming systems, and with SimulStreaming [19] and Alig-nAtt4LLM [22] as transcription-mediated controls. We additionally use Qwen3-ASR-1.7B [12] → Hy-MT2-1.8B [27] as a matched-backbone full-context cascade. We evaluate EASiST Stage-3, SimulStreaming with Whisper large-v3 [28] + EuroLLM-1.7B [29], and the canonical AlignAtt4LLM-Gemma configuration. 
+
+Controlled RL baselines. All variants start from History-SFT and share the state/action space, rollout and update budget, sampling configuration, updater, and trainable parameters. Current-draft RL uses current-draft rather than persistent-prefix coverage throughout return construction; Hibiki-Zero-style [8] uses intermediate-plus-final BLEU ( α = .5); HPO-style [9] uses quality-gated final-BLEU/ LAAL CU with threshold .33 and latency weight .5. 
+
+Metrics. We report SacreBLEU 2.6.0 [15] ( zh for Chinese, 
+
+ja-mecab with MeCab 0.996 and ipadic for Japanese, and 13a 
+
+otherwise), chrF++ [30] (word order 2), and WMT22-COMET-DA [31], with COMET scaled by 100; macros are unweighted direc-tion averages. First-token latency (FTL) is source audio consumed until the first non-empty output; final-response delay (FRD) adds 
+
+Table 3 . Controlled FLEURS TEST reward ablation (five-direction macro). RL variants share History-SFT initialization and update framework; all entries are three-seed means. Method BLEU COMET FRD LAAL CU Erase History-SFT 30.77 85.61 2.45 3.42 / 6.38 1.112 Current-draft RL 31.32 85.72 5.07 3.40 / 6.48 4.514 Hibiki-Zero-style 30.05 85.63 2.43 3.56 / 6.65 1.110 HPO-style 31.34 85.50 2.41 3.26 / 6.01 1.020 
+
+PDO 31.58 85.37 2.42 3.05 / 5.66 .936 
+
+inference and queueing time. Our finalization-aware, computation-unaware length-adaptive average lagging ( LAAL CU ) [11] times-tamps each final unit at the earliest source-consumption time af-ter which its final prefix never changes. Unless stated otherwise, 
+
+LAAL CU is in seconds, written as mean / P90. For LAAL CU and revision metrics, target units are characters for Chinese/Japanese and words otherwise. Normalized erasure is erased target units per final-output unit [2]; age-weighted erasure weights each erased unit by its display age. Real-time factor (RTF) is inference time divided by source duration. 
+
+Training. We freeze Qwen3-ASR-1.7B throughout adaptation. Target-task LoRA uses rank 16 ( α = 32 , dropout .05) on decoder 
+
+q/k/v/o projections; the history module applies 256-dimensional four-head cross-attention to the top four decoder layers with at most 128 history tokens. All streaming stages use a 2-s grid and proceed Table 4 . Zero-shot cross-domain evaluation of the FLEURS-trained checkpoints without target-domain adaptation. Macro reports BLEU, COMET, first-token latency (FTL), final-response delay (FRD), finalization-aware computation-unaware length-adaptive average lagging (LAAL CU ; mean/P90), and normalized erasure. Bold/underline mark best/second-best streaming results; LAAL CU mean/P90 are ranked separately. Erasure is shown only for revision-capable systems. 
+
+(a) Europarl-ST v1.1 System En →De En →Es En →Fr Macro 
+
+BLEU COMET BLEU COMET BLEU COMET BLEU COMET FTL FRD LAAL CU Erase SeamlessStreaming 21.33 76.89 32.22 81.36 24.12 78.24 25.89 78.83 2.33 2.47 1.83/2.68 –History-SFT 26.08 84.32 35.23 86.06 26.38 83.18 29.23 84.52 1.98 2.54 2.77/5.07 .735 
+
+PDO 27.37 84.44 36.64 85.82 27.07 83.04 30.36 84.44 1.98 2.52 2.52/4.59 .595 (b) CoVoST 2 System En →Zh En →De En →Ja Macro 
+
+BLEU COMET BLEU COMET BLEU COMET BLEU COMET FTL FRD LAAL CU Erase SeamlessStreaming 31.46 79.04 30.56 81.63 21.49 83.03 27.84 81.23 2.88 3.07 2.19/3.51 –History-SFT 39.30 84.47 28.39 82.04 29.84 86.31 32.51 84.28 2.00 2.41 2.56/4.56 .824 
+
+PDO 41.03 84.51 30.17 82.08 30.34 86.36 33.85 84.32 2.00 2.41 2.41/4.21 .753 
+
+through text translation, full-audio S2TT, source-text conditioning reduction, streaming SFT, and History-SFT. History-SFT trains only 
+
+η from cached frozen-parent histories. PDO updates ϕ and η (15.9M parameters) with K = 4 , temperature .2, H = 2 s, εclip = .2, and 
+
+cmax = 2 .
+
+4.2. In-Domain Results 
+
+Table 2 establishes in-domain competitiveness. Among external streaming systems, PDO has the best BLEU in four of five direc-tions and higher COMET in all five; on En →De/Es, it also exceeds direct EASiST in BLEU, COMET, and chrF++ while lowering FTL and FRD. The matched History-SFT comparison isolates the effect of PDO: macro BLEU increases while mean/P90 LAAL CU and nor-malized erasure decrease. Because both systems emit at the first permitted 2-s update, the finalization-aware latency gain reflects earlier stabilization rather than delayed first output. Table 1 contextualizes scale: PDO adapts 15.9M parameters on 7.49 h of task-specific S2TT. It also exceeds the matched-backbone full-context cascade on all three reported quality metrics, showing that direct streaming operation need not sacrifice final translation quality or introduce an ASR-to-MT error-propagation interface. 
+
+4.3. Ablation Study 
+
+Table 3 tests persistent-content credit against matched current-draft, intermediate-plus-final-BLEU, and quality-gated BLEU/ LAAL CU 
+
+rewards. Current-draft RL retains quality but sharply increases FRD and erasure, showing that visible-content reward can favor temporary output. HPO-style is the strongest alternative, yet PDO has lower mean/P90 LAAL CU and erasure with comparable FRD. This controlled comparison attributes the delivery gains to persistent credit. 
+
+4.4. Persistent Delivery Analysis 
+
+Figure 1 tests the proposed visibility–delivery mechanism on FLEURS TEST. For normalized source progress s, set t(s) =max( {t : ut/U ≤ s} ∪ { 0}) and p0 = ∅. We plot the persistent fraction f (s) = |pt(s)|/| ¯dT |, averaged over 3,235 direction-records on s ∈ { 0, . 05 , . . . , 1}. We define the transient-credit gap as excess current-draft coverage credit: 
+
+g(τ ) =  
+
+> T−1
+
+X
+
+> t=1
+
+∆t
+
+q( ¯dt, ¯y) − q(pt, ¯y) ,
+
+where q(a, ¯y) = | LCS( a, ¯y)|/|¯y|; terminal rewards cancel in g.Figure 1(a) shows that PDO makes more final content stably avail-able earlier, whereas Current-draft RL remains near History-SFT. Figure 1(b) shows non-zero transient credit in 88.5% of 3,235 PDO trajectories and strong correlation with age-weighted erasure ( ρ =
+
+.927 ). Together, these patterns show that current-draft rewards of-ten credit temporary content and that this mismatch tracks revision instability. 0.0 0.2 0.4 0.6 0.8 1.0        
+
+> Persistent fraction of final content
+> (a) Persistent delivery
+> History-SFT PDO
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Normalized source progress
+> 024
+> Change (pp)
+> Current-draft RL PDO
+> 0.0 0.5 1.0 1.5 2.0 2.5 3.0 3.5 4.0
+> Transient-credit gap
+> 012345678
+> Age-weighted erasure  Spearman ρ= 0.927 Non-zero gap: 88.5%
+> (b) Visibility–delivery mismatch
+> 10 0
+> 10 1
+> 10 2
+> Count (log scale)
+
+Fig. 1 . FLEURS TEST persistent-delivery analysis. (a) Final-content fraction and change from History-SFT (ending at zero by construction). (b) Transient-credit gap versus age-weighted erasure (ρ = .927 ). 
+
+4.5. Zero-Shot Cross-Domain Evaluation 
+
+Because Table 2 evaluates FLEURS-adapted models on FLEURS, Table 4 tests domain specificity using the same checkpoints without target-domain adaptation. History-SFT isolates PDO’s effect; Seam-lessStreaming is a multilingual direct external reference covering all six directions. PDO improves BLEU over History-SFT in every di-rection and reduces finalization-aware latency and erasure with un-changed first-update timing. Its higher macro BLEU and COMET than SeamlessStreaming on both corpora confirm that PDO’s advan-tages are not artifacts of in-domain FLEURS evaluation but general-ize zero-shot to unseen domains. 
+
+5. CONCLUSION 
+
+Revision-capable streaming S2TT may reward early text later with-drawn. PDO corrects this mismatch by crediting reference-matching content only if it survives later revisions, while scoring final qual-ity separately. Controlled ablations and trajectory analysis show that persistence-aware credit—not generic RL—enables earlier sta-ble delivery with less revision instability. Across five FLEURS di-rections, PDO improves macro BLEU while reducing finalization-aware latency and erasure relative to History-SFT, without delaying first emission. Zero-shot gains on Europarl-ST and CoVoST 2 show that the benefit generalizes beyond the training domain. Together, these results support optimizing persistent information rather than transient visibility in revision-capable streaming translation. 6. REFERENCES 
+
+[1] N. Arivazhagan et al. , “Re-translation versus streaming for si-multaneous translation,” in Proc. IWSLT , 2020, pp. 220–227. [2] N. Arivazhagan et al. , “Re-translation strategies for long form, simultaneous, spoken language translation,” in Proc. IEEE ICASSP , 2020, pp. 7919–7923. [3] Y. Ren, J. Liu, X. Tan et al. , “SimulSpeech: End-to-end si-multaneous speech to text translation,” in Proc. ACL , 2020, pp. 3787–3796. [4] X. Ma, J. Pino, and P. Koehn, “SimulMT to SimulST: Adapt-ing simultaneous text translation to end-to-end simultaneous speech translation,” in Proc. AACL , 2020, pp. 582–587. [5] S. Papi, M. Negri, and M. Turchi, “Attention as a guide for simultaneous speech translation,” in Proc. ACL , 2023, pp. 13 340–13 356. [6] S. Papi et al. , “AlignAtt: Using attention-based audio-translation alignments as a guide for simultaneous speech translation,” in Proc. Interspeech , 2023, pp. 3974–3978. [7] S. Papi et al. , “SimulSeamless: FBK at IWSLT 2024 simulta-neous speech translation,” in Proc. IWSLT , 2024, pp. 120–127. [8] T. Labiausse, R. Fabre, Y. Est` eve et al. , “Simultaneous speech-to-speech translation without aligned data,” in Proc. ICML , ser. Proc. Mach. Learn. Res., vol. 306, 2026. [9] S. Ouyang, S. Ding, O. Hrinchuk et al. , “Hierarchical pol-icy optimization for simultaneous translation of unbounded speech,” in Proc. ACL , 2026, pp. 1772–1787. [10] S. Sen et al. , “Self-training reduces flicker in retranslation-based simultaneous translation,” in Proc. EACL , 2023, pp. 3734–3744. [11] S. Papi et al. , “Over-generation cannot be rewarded: Length-adaptive average lagging for simultaneous speech translation,” in Proc. AutoSimTrans , 2022, pp. 12–17. [12] X. Shi, X. Wang, Z. Guo et al. , “Qwen3-ASR technical report,” 
+
+arXiv:2601.21337 , 2026. [13] E. J. Hu, Y. Shen, P. Wallis et al. , “LoRA: Low-rank adaptation of large language models,” in Proc. ICLR , 2022. [14] C.-Y. Lin, “ROUGE: A package for automatic evaluation of summaries,” in Text Summarization Branches Out , 2004, pp. 74–81. [15] M. Post, “A call for clarity in reporting BLEU scores,” in Proc. WMT , 2018, pp. 186–191. [16] J. Schulman et al. , “Proximal policy optimization algorithms,” 
+
+arXiv:1707.06347 , 2017. [17] Z. Shao et al. , “DeepSeekMath: Pushing the lim-its of mathematical reasoning in open language models,” 
+
+arXiv:2402.03300 , 2024. [18] Seamless Communication et al. , “Seamless: Multilingual ex-pressive and streaming speech translation,” arXiv:2312.05187 ,2023. [19] D. Mach´ aˇ cek and P. Pol´ ak, “Simultaneous translation with of-fline speech and LLM models in CUNI submission to IWSLT 2025,” in Proc. IWSLT , 2025, pp. 389–398. [20] B. Fu, D. Yu, M. Liao et al. , “Efficient and adaptive simultane-ous speech translation with fully unidirectional architecture,” 
+
+Proc. AAAI , vol. 40, no. 36, pp. 30 735–30 743, 2026. [21] R. Koshkin et al. , “Streaming translation and transcription through speech-to-text causal alignment,” arXiv:2603.11578 ,2026. [22] Q. Fuxa and D. Mach´ aˇ cek, “AlignAtt4LLM: Fast AlignAtt for decoder-only LLMs at IWSLT 2026 simultaneous speech translation task,” in Proc. IWSLT , 2026, pp. 284–295. [23] R. He, X. Liang, D. Chen et al. , “SimulS2ST-Omni: Data-efficient streaming speech-to-speech translation via explicit trajectory supervision,” arXiv:2607.19810 , 2026. [24] A. Conneau et al. , “FLEURS: Few-shot learning evaluation of universal representations of speech,” in Proc. IEEE SLT , 2023, pp. 798–805. [25] J. Iranzo-S´ anchez et al. , “Europarl-ST: A multilingual corpus for speech translation of parliamentary debates,” in Proc. IEEE ICASSP , 2020, pp. 8229–8233. [26] C. Wang, A. Wu, J. Gu et al. , “CoVoST 2 and massively mul-tilingual speech translation,” in Proc. Interspeech , 2021, pp. 2247–2251. [27] M. Zheng, Z. Li, T. Chen et al. , “Hy-MT2: A family of fast, efficient and powerful multilingual translation models in the wild,” arXiv:2605.22064 , 2026. [28] A. Radford, J. W. Kim, T. Xu et al. , “Robust speech recognition via large-scale weak supervision,” in Proc. ICML , ser. Proc. Mach. Learn. Res., vol. 202, 2023, pp. 28 492–28 518. [29] P. H. Martins et al. , “EuroLLM: Multilingual language models for Europe,” Procedia Comput. Sci. , vol. 255, pp. 53–62, 2025. [30] M. Popovi´ c, “chrF++: Words helping character n-grams,” in 
+
+Proc. WMT , 2017, pp. 612–618. [31] R. Rei et al. , “COMET-22: Unbabel-IST 2022 submission for the metrics shared task,” in Proc. WMT , 2022, pp. 578–585.

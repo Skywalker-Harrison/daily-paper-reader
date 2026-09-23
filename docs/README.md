@@ -6,72 +6,54 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-22
-- 运行时间：2026-09-22 22:29:08 UTC
+- 最新运行日期：2026-09-23
+- 运行时间：2026-09-23 22:55:31 UTC
 - 运行状态：成功
-- 本次总论文数：16
-- 精读区：4
-- 速读区：12
+- 本次总论文数：10
+- 精读区：1
+- 速读区：9
 
 ### 今日简报（AI）
-今天从 16 篇语音方向论文中筛出 4 篇精读、12 篇速读。
+今天完成10篇语音与翻译方向论文的筛选，其中1篇精读、9篇速读，重点落在低资源语音合成与配音同步。
 
-最值得看的是两篇 8.0 分精读：用强化学习做指令跟随语音合成自我精炼的《Listen, Critique, and Refine》，以及关注印度语言、人群多样性与拼写变体的忠实 ASR 评测《Vimarsha》。
+最值得看的是9.0分的《From Reliable Text to Real Voices: Trust-Aware Progressive Adaptation for Low-Resource TTS》，其“可信度感知+渐进式适配”思路对低资源TTS落地有直接参考价值，另可顺带关注7.0分的社区感知核心集选择与语音活动感知配音同步两篇。
 
-普通读者可先读这两篇精读，再按兴趣延伸到速读中的低资源跨模态语音表征（Yemba 案例）和联邦多语言语音 LLM 架构基准。
-- 详情：[/202609/22/README](/202609/22/README)
+普通读者建议先读这篇精读了解低资源语音合成的适配范式，再按需浏览速读中的数据处理与口型同步方法。
+- 详情：[/202609/23/README](/202609/23/README)
 
 ### 精读区论文标签
-1. [Listen, Critique, and Refine: RL-Based Self-Refinement for Instruction-Following Speech Synthesis](/202609/22/2609.24163v1-listen-critique-and-refine-rl-based-self-refinement-for-instruction-following-speech-synthesis)  
-   标签：评分：8.0/10、query:qwen-tts
-   evidence：基于强化学习自精炼、可控语速与韵律的语音合成
-2. [Vimarsha: Faithful ASR Evaluation for Indian Languages with Demographic Diversity, In-the-Wild Audio and Spelling Variations](/202609/22/2609.24199v1-vimarsha-faithful-asr-evaluation-for-indian-languages-with-demographic-diversity-in-the-wild-audio-and-spelling-variations)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：覆盖22种印度语言的多语种ASR基准
-3. [Morpho-VITS: Variational Inference with Morphological Modeling for End-to-End Speech Synthesis of a Tonal Bantu Language](/202609/22/2609.24310v1-morpho-vits-variational-inference-with-morphological-modeling-for-end-to-end-speech-synthesis-of-a-tonal-bantu-language)  
-   标签：评分：8.0/10、query:low-res-tts
-   evidence：面向低资源声调班图语的端到端语音合成
-4. [End-to-end Jordanian dialect speech-to-text self-supervised learning framework](/202609/22/2609.24410v1-end-to-end-jordanian-dialect-speech-to-text-self-supervised-learning-framework)  
-   标签：评分：8.0/10、query:speech-tech
-   evidence：方言与低资源语音转文本，采用自监督学习
+1. [From Reliable Text to Real Voices: Trust-Aware Progressive Adaptation for Low-Resource TTS](/202609/23/2609.25951v1-from-reliable-text-to-real-voices-trust-aware-progressive-adaptation-for-low-resource-tts)  
+   标签：评分：9.0/10、query:low-res-tts
+   evidence：面向低资源TTS的可信渐进式自适应
 
 ### 速读区论文标签
-1. [Enhancing speech representation learning with cross-modal knowledge transfer with HGNN under low resource settings: the case study of Yemba](/202609/22/2609.23194v1-enhancing-speech-representation-learning-with-cross-modal-knowledge-transfer-with-hgnn-under-low-resource-settings-the-case-study-of-yemba)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：低资源语言语音表示学习
-2. [Federated Multilingual Speech-LLMs: Architecture and Aggregation Strategy Benchmarking](/202609/22/2609.23825v1-federated-multilingual-speech-llms-architecture-and-aggregation-strategy-benchmarking)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：多语言自动语音识别基准评测
-3. [CycleSpeech: Reciprocal Alignment for Instruction-Controlled Speech Synthesis and Paralinguistic Understanding](/202609/22/2609.24771v1-cyclespeech-reciprocal-alignment-for-instruction-controlled-speech-synthesis-and-paralinguistic-understanding)  
-   标签：评分：7.0/10、query:speech-tech
-   evidence：指令控制的多语言语音合成与互惠对齐
-4. [Semantic Fibers and Cross-Gram Interference: A Calculus of Safety Drift in Overcomplete Representations](/202609/22/2609.14861v1-semantic-fibers-and-cross-gram-interference-a-calculus-of-safety-drift-in-overcomplete-representations)  
-   标签：评分：6.0/10、query:llm-attack
-   evidence：跨语言安全失效与越狱式遵从
-5. [HearInContext: A Benchmark for Implicit Context in Speech Recognition](/202609/22/2609.18680v2-hearincontext-a-benchmark-for-implicit-context-in-speech-recognition)  
+1. [Structure Before Sampling: Community-Aware Core-Set Selection for Data-Efficient Text-to-Speech](/202609/23/2609.24275v1-structure-before-sampling-community-aware-core-set-selection-for-data-efficient-text-to-speech)  
+   标签：评分：7.0/10、query:low-res-tts
+   evidence：面向低资源孟加拉语的数据高效TTS语料选择
+2. [Not Quite My Tempo: Voice Activity-aware Speech Synthesis for Lip-Synchronous Dubbing](/202609/23/2609.26486v1-not-quite-my-tempo-voice-activity-aware-speech-synthesis-for-lip-synchronous-dubbing)  
+   标签：评分：7.0/10、query:qwen-tts
+   evidence：语音活动信号控制语音时序与时长
+3. [Machine Translation between English and Syriac (East Syriac Dialect) using Statistical Machine Learning](/202609/23/2609.18529v1-machine-translation-between-english-and-syriac-east-syriac-dialect-using-statistical-machine-learning)  
+   标签：评分：6.0/10、query:lowres-bible
+   evidence：面向濒危低资源叙利亚语的机器翻译并自建语料
+4. [Decaf: A privacy preserving speech codec using speaker disentanglement and canonical voice conversion](/202609/23/2609.19304v1-decaf-a-privacy-preserving-speech-codec-using-speaker-disentanglement-and-canonical-voice-conversion)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：中英双语上下文语音识别基准
-6. [COT-TTS: Audio Context-Aware Text-to-Speech with Chain-of-Thought Reasoning](/202609/22/2609.22697v1-cot-tts-audio-context-aware-text-to-speech-with-chain-of-thought-reasoning)  
-   标签：评分：6.0/10、query:qwen-tts
-   evidence：可控文本到语音，基于推理的风格控制
-7. [Planning and Rendering in Concert: DeepFusion of Autoregressive Layouts and Diffusion for Visual Text Generation](/202609/22/2609.22916v1-planning-and-rendering-in-concert-deepfusion-of-autoregressive-layouts-and-diffusion-for-visual-text-generation)  
-   标签：评分：6.0/10、query:mtg-bench
-   evidence：文字丰富图像生成中的文本渲染保真
-8. [Low resource cross-modal alignment using HGNN to enhance speech representation](/202609/22/2609.23191v1-low-resource-cross-modal-alignment-using-hgnn-to-enhance-speech-representation)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：低资源语言的语音表示
-9. [Synthetic speech detection in Brazilian Portuguese through accent-related features](/202609/22/2609.23807v1-synthetic-speech-detection-in-brazilian-portuguese-through-accent-related-features)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：巴西葡萄牙语方言合成语音的口音特征检测
-10. [URA-NER: A Unified Retrieval-Augmented Framework with Retrieval Alignment and Uncertainty Reduction for Low-Resource NER](/202609/22/2609.24372v1-ura-ner-a-unified-retrieval-augmented-framework-with-retrieval-alignment-and-uncertainty-reduction-for-low-resource-ner)  
+   evidence：说话人解耦与规范语音转换编解码器
+5. [AlexandriaX 2026: The First Shared Task on Dialectal Arabic Machine Translation](/202609/23/2609.22796v1-alexandriax-2026-the-first-shared-task-on-dialectal-arabic-machine-translation)  
+   标签：评分：6.0/10、query:cross-lang
+   evidence：含社会语言变异的方言阿拉伯语机器翻译共享任务
+6. [Linguistic Features for Interpretable Textual Entailment](/202609/23/2609.24932v1-linguistic-features-for-interpretable-textual-entailment)  
    标签：评分：6.0/10、query:fie-rag
-   evidence：检索增强的少样本框架
-11. [Decoding Guardrails: XAI-Guided Perturbation Analysis of Prompt Injection Detection](/202609/22/2609.24801v1-decoding-guardrails-xai-guided-perturbation-analysis-of-prompt-injection-detection)  
-   标签：评分：6.0/10、query:llm-attack
-   evidence：越狱攻击与提示注入防御护栏
-12. [ToneCL: Contrastive Learning for Few-Shot Syllable-Level Tone Classification](/202609/22/2609.24903v1-tonecl-contrastive-learning-for-few-shot-syllable-level-tone-classification)  
+   evidence：面向可解释推理的语言学特征与语义分析
+7. [Learnable Classifier-Free Guidance Null Embeddings for Enhanced Controllable Speech Synthesis](/202609/23/2609.25411v1-learnable-classifier-free-guidance-null-embeddings-for-enhanced-controllable-speech-synthesis)  
+   标签：评分：6.0/10、query:qwen-tts
+   evidence：面向可控语音合成的可学习空嵌入
+8. [Persistent Delivery Optimization for Streaming Speech-to-Text Translation with Revisions](/202609/23/2609.26427v1-persistent-delivery-optimization-for-streaming-speech-to-text-translation-with-revisions)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：面向低资源声调语言的少样本声调分类
+   evidence：可修订的流式语音到文本翻译，多语言方向
+9. [Transcribe, Translate, and Optimize: Joint Reward Learning for Speech Translation](/202609/23/2609.26536v1-transcribe-translate-and-optimize-joint-reward-learning-for-speech-translation)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：多语言语音翻译与识别，使用Qwen模型
 
 
 <div class="dpr-home-promo-card">
