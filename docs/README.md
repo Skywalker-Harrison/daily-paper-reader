@@ -6,54 +6,48 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-23
-- 运行时间：2026-09-23 22:55:31 UTC
+- 最新运行日期：2026-09-24
+- 运行时间：2026-09-24 22:26:48 UTC
 - 运行状态：成功
-- 本次总论文数：10
-- 精读区：1
-- 速读区：9
+- 本次总论文数：8
+- 精读区：2
+- 速读区：6
 
 ### 今日简报（AI）
-今天完成10篇语音与翻译方向论文的筛选，其中1篇精读、9篇速读，重点落在低资源语音合成与配音同步。
+今天筛出8篇语音语言处理论文，精读2篇、速读6篇，重点集中在多方言/多语种语音评测与对话理解。
 
-最值得看的是9.0分的《From Reliable Text to Real Voices: Trust-Aware Progressive Adaptation for Low-Resource TTS》，其“可信度感知+渐进式适配”思路对低资源TTS落地有直接参考价值，另可顺带关注7.0分的社区感知核心集选择与语音活动感知配音同步两篇。
+最值得看的是9.0分的NADI 2026多方言阿拉伯语语音处理共享任务，以及8.0分的第二届MLC-SLM多语种对话说话人日志、识别与理解挑战。
 
-普通读者建议先读这篇精读了解低资源语音合成的适配范式，再按需浏览速读中的数据处理与口型同步方法。
-- 详情：[/202609/23/README](/202609/23/README)
+普通读者可先读这两篇精读，再按兴趣补看速读中的全双工语音对话鲁棒性、强调控制TTS和G2P方向。
+- 详情：[/202609/24/README](/202609/24/README)
 
 ### 精读区论文标签
-1. [From Reliable Text to Real Voices: Trust-Aware Progressive Adaptation for Low-Resource TTS](/202609/23/2609.25951v1-from-reliable-text-to-real-voices-trust-aware-progressive-adaptation-for-low-resource-tts)  
-   标签：评分：9.0/10、query:low-res-tts
-   evidence：面向低资源TTS的可信渐进式自适应
+1. [NADI 2026: The Second Multidialectal Arabic Speech Processing Shared Task](/202609/24/2609.27086v1-nadi-2026-the-second-multidialectal-arabic-speech-processing-shared-task)  
+   标签：评分：9.0/10、query:speech-tech
+   evidence：多方言阿拉伯语ASR、TTS等语音任务共享评测
+2. [The Second MLC-SLM Challenge: Multilingual Conversational Speech Diarization, Recognition, and Understanding](/202609/24/2609.27514v1-the-second-mlc-slm-challenge-multilingual-conversational-speech-diarization-recognition-and-understanding)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：多语言对话语音识别与理解评测挑战
 
 ### 速读区论文标签
-1. [Structure Before Sampling: Community-Aware Core-Set Selection for Data-Efficient Text-to-Speech](/202609/23/2609.24275v1-structure-before-sampling-community-aware-core-set-selection-for-data-efficient-text-to-speech)  
-   标签：评分：7.0/10、query:low-res-tts
-   evidence：面向低资源孟加拉语的数据高效TTS语料选择
-2. [Not Quite My Tempo: Voice Activity-aware Speech Synthesis for Lip-Synchronous Dubbing](/202609/23/2609.26486v1-not-quite-my-tempo-voice-activity-aware-speech-synthesis-for-lip-synchronous-dubbing)  
+1. [Psychoacoustically Aligned Latent Smoothing for Adversarial Robustness of Full-Duplex Speech-to-Speech Dialogue Models](/202609/24/2609.27378v1-psychoacoustically-aligned-latent-smoothing-for-adversarial-robustness-of-full-duplex-speech-to-speech-dialogue-models)  
+   标签：评分：7.0/10、query:llm-attack
+   evidence：语音对话模型的对抗攻击与策略越狱
+2. [EmphTTS: an emphasis-control TTS with reinforcement learning](/202609/24/2609.27599v1-emphtts-an-emphasis-control-tts-with-reinforcement-learning)  
    标签：评分：7.0/10、query:qwen-tts
-   evidence：语音活动信号控制语音时序与时长
-3. [Machine Translation between English and Syriac (East Syriac Dialect) using Statistical Machine Learning](/202609/23/2609.18529v1-machine-translation-between-english-and-syriac-east-syriac-dialect-using-statistical-machine-learning)  
-   标签：评分：6.0/10、query:lowres-bible
-   evidence：面向濒危低资源叙利亚语的机器翻译并自建语料
-4. [Decaf: A privacy preserving speech codec using speaker disentanglement and canonical voice conversion](/202609/23/2609.19304v1-decaf-a-privacy-preserving-speech-codec-using-speaker-disentanglement-and-canonical-voice-conversion)  
+   evidence：TTS中的时长预测器控制
+3. [Dictionary-Constrained Grapheme-to-Phoneme for Unsegmented Languages from LLM-Annotated Data](/202609/24/2609.19805v2-dictionary-constrained-grapheme-to-phoneme-for-unsegmented-languages-from-llm-annotated-data)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：说话人解耦与规范语音转换编解码器
-5. [AlexandriaX 2026: The First Shared Task on Dialectal Arabic Machine Translation](/202609/23/2609.22796v1-alexandriax-2026-the-first-shared-task-on-dialectal-arabic-machine-translation)  
-   标签：评分：6.0/10、query:cross-lang
-   evidence：含社会语言变异的方言阿拉伯语机器翻译共享任务
-6. [Linguistic Features for Interpretable Textual Entailment](/202609/23/2609.24932v1-linguistic-features-for-interpretable-textual-entailment)  
-   标签：评分：6.0/10、query:fie-rag
-   evidence：面向可解释推理的语言学特征与语义分析
-7. [Learnable Classifier-Free Guidance Null Embeddings for Enhanced Controllable Speech Synthesis](/202609/23/2609.25411v1-learnable-classifier-free-guidance-null-embeddings-for-enhanced-controllable-speech-synthesis)  
-   标签：评分：6.0/10、query:qwen-tts
-   evidence：面向可控语音合成的可学习空嵌入
-8. [Persistent Delivery Optimization for Streaming Speech-to-Text Translation with Revisions](/202609/23/2609.26427v1-persistent-delivery-optimization-for-streaming-speech-to-text-translation-with-revisions)  
+   evidence：面向无分词语言TTS与ASR的字形到音素转换
+4. [Partial Accent-Control Editing in Frozen Speech Representations for Accent Conversion](/202609/24/2609.22031v1-partial-accent-control-editing-in-frozen-speech-representations-for-accent-conversion)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：可修订的流式语音到文本翻译，多语言方向
-9. [Transcribe, Translate, and Optimize: Joint Reward Learning for Speech Translation](/202609/23/2609.26536v1-transcribe-translate-and-optimize-joint-reward-learning-for-speech-translation)  
+   evidence：基于冻结语音表示的口音转换编辑
+5. [Understanding Hyperspherical Geometry of ECAPA-TDNN Embedding and Its Impact on Zero-Shot Voice Conversion](/202609/24/2609.24688v1-understanding-hyperspherical-geometry-of-ecapa-tdnn-embedding-and-its-impact-on-zero-shot-voice-conversion)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：多语言语音翻译与识别，使用Qwen模型
+   evidence：语音转换说话人编码器几何分析
+6. [OPBackdoor: Opportunistic Backdoors via Alibi-Aligned Reasoning](/202609/24/2609.24826v1-opbackdoor-opportunistic-backdoors-via-alibi-aligned-reasoning)  
+   标签：评分：6.0/10、query:llm-attack
+   evidence：对大语言模型的后门与对抗性操控攻击
 
 
 <div class="dpr-home-promo-card">
