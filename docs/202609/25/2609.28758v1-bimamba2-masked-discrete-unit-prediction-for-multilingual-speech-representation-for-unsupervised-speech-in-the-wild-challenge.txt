@@ -1,0 +1,176 @@
+Title: BiMamba2 Masked Discrete-Unit Prediction for Multilingual Speech Representation for Unsupervised Speech in the Wild Challenge
+
+URL Source: https://arxiv.org/pdf/2609.28758v1
+
+Published Time: Fri, 25 Sep 2026 00:21:41 GMT
+
+Number of Pages: 5
+
+Markdown Content:
+# BiMamba2 Masked Discrete-Unit Prediction for Multilingual Speech Representation for Unsupervised Speech in the Wild Challenge 
+
+# Prakriti Subedi 1, Howard Prioleau 1, Saurav Aryal 11 Howard University, Washington D.C., USA 
+
+prakriti.subedi@bison.howard.edu, howard.prioleau@bison.howard.edu, saurav.aryal@howard.edu 
+
+# Abstract 
+
+We describe our submission to the Unsupervised Speech in the Wild (UPS) Challenge at Interspeech 2026, a bidirectional Mamba-2 (BiMamba2) encoder trained with masked discrete-unit prediction following the HuBERT-style paradigm. The 47.88M-parameter model is trained on 250 hours of speech across 67 languages from the MLCommons Unsupervised Peo-ple’s Speech dataset, with no labeled data. The objective com-bines masked k-means pseudo-label prediction with language identification supervision and VICReg regularization. On of-ficial evaluation, the system achieves an Adjusted Rand Index of 0.735, exceeding four baselines on speaker clustering. Lan-guage identification macro-F1 (0.073) and character error rate (0.870) remain below supervised baselines. We analyze a lo-cal–official discrepancy in metric scale and checkpoint ranking, highlighting limitations of in-distribution diagnostics for pre-dicting Dynabench probe outcomes. 
+
+Index Terms : self-supervised learning, speech representation, state space models, multilingual speech, masked prediction 
+
+# 1. Introduction 
+
+Learning robust speech representations from unlabeled, acousti-cally diverse data remains a central challenge in the field. While supervised pretraining on large, carefully curated corpora has driven major advances in high-resource settings [1, 2], most of the world’s languages lack the labeled data required to bene-fit from such approaches [3, 4]. As a result, existing speech models exhibit stark performance disparities across languages and acoustic conditions, limiting their real-world applicability. This imbalance raises fundamental questions about how to build speech representations that generalize beyond a narrow set of well-resourced scenarios. Similar to text, self-supervised meth-ods that learn directly from raw audio offer a more scalable path toward broad-coverage multilingual representation [5, 6, 7]. The Unsupervised Speech in the Wild (UPS) Challenge [8] formalizes this setting: models are trained entirely without labels on the MLCommons Unsupervised People’s Speech dataset [9, 10] and evaluated on three probe tasks — language identification (macro-F1), automatic speech recognition (CER), and speaker clustering (ARI) — applied to held-out audio with-out task-specific fine-tuning. Our submission applies masked discrete-unit prediction in the HuBERT style [2] to a bidirectional adaptation of the Mamba2 state-space model (BiMamba2) [11] for the Open Fil-tering Sub-Track. We chose Mamba for its linear-time mod-eling of sequential signals [12], and adopted a bidirectional formulation because the challenge evaluates frozen represen-tations where access to both past and future context yields richer embeddings for non-causal probes. BiMamba2 was pre-ferred over bidirectional alternatives such as Hydra [13] and Vi-sion Mamba [14] for its leaner design; eliminating sequence shifting and leveraging the optimized Mamba2 kernel [11] for faster throughput. The masked objective predicts discrete cluster targets [15] at masked positions following the BERT paradigm [16] adapted for speech [2, 17], supplemented by VICReg regularization [18] and a language identification loss. The model is trained on a curated ∼250-hour, 67-language subset of the MLCommons UPS dataset using a shard-based pipeline with precomputed log-mel features, VAD filtering, and language-aware sampling. The contributions of this paper are: (i) a BiMamba2-based masked discrete-unit model for multilingual unsuper-vised speech representation; (ii) a shard-based multilingual training pipeline with VAD filtering and language-aware sam-pling and (iii) a bidirectional evaluation mismatch analysis with reproducibility implications for future challenge participants. 
+
+# 2. Data and Preprocessing 
+
+2.1. Dataset 
+
+All training data is drawn from the MLCommons Unsuper-vised People’s Speech dataset [9, 10], the official challenge source [8]. No external data is used. After filtering, the cor-pus comprises approximately 87,400 utterance chunks across 438 precomputed shards, covering roughly 250 hours (approx-imately 100 hours English, 150 hours non-English) in 67 lan-guages (Table 1). VAD timestamps and language labels are consumed directly from MLCommons precomputed metadata (vad results.jsonl , lang id results.jsonl ); no local VAD or LID inference is run. Table 1: Training corpus languages (67 total, language codes from UPS metadata), ordered by utterance count descending. 
+
+en, es, de, pt, ar, fr, it, gl, ne, id, pl, zh, nl, ca, sv, am, ru, hu, hi, eu, ur, jw, ms, tr, ko, el, kn, sa, cy, ta, sw, uk, bs, ro, si, fa, te, sr, so, hr, ja, nn, la, da, tl, hy, vi, sq, pa, sk, ka, yo, be, bn, he, bg, km, br, af, sd, lt, sn, cs, mr, ps, th, ml 
+
+2.2. Filtering and Feature Extraction 
+
+Clips are retained if: (i) the VAD speech-to-clip ratio is ≥ 0.30 ;(ii) the longest VAD segment is ≥ 10 s; (iii) total extractable speech across 10 s-aligned chunks is ≥ 30 s. Entries flagged 
+
+nospeech , missing timestamps, or exceeding 200 clips per tar archive are discarded. At dataloader time, an additional filter arXiv:2609.28758v1 [cs.SD] 23 Sep 2026 requires speech ratio ≥ 0.25 and at least one VAD segment long enough for a full 10 s chunk at 16 kHz. Log-mel spectrograms are computed offline into precom-puted shards (up to 200 examples each, stored as .pt files), decoupling feature extraction from model training. Features use 
+
+nmels = 80 , FFT size 400, hop length 160 samples (10 ms frame shift), 16 kHz sample rate; each chunk is fixed at 10 s (1001 frames). 
+
+2.3. Language-Aware Batch Sampling 
+
+English comprises approximately 40% of utterances after fil-tering. To mitigate this dominance, a hybrid sampling strategy draws 70% of each batch from a language-balanced sampler and 30% from uniform shard sampling, with a hard cap of 10% En-glish per batch. Shards and within-shard order are reshuffled each epoch. 
+
+# 3. Model Architecture 
+
+3.1. Overview 
+
+The model follows a masked discrete-unit prediction framework inspired by HuBERT [2], chosen for its ability to learn strong speech representations without labeled data by predicting self-discovered discrete targets. A stack of BiMamba2 layers [11] serves as the encoder backbone, providing bidirectional con-text with linear-time complexity. k-means cluster pseudo-labels (k = 200 , computed from raw log-mel frames) provide the pre-diction targets at masked positions [15, 19], removing the need for an external tokenizer. Two auxiliary objectives supplement the masked prediction loss: VICReg regularization [18] encour-ages informative, decorrelated embeddings, while a language identification loss injects multilingual structure into the repre-sentation space. Both operate on mean-pooled hidden states. No separate decoder is used; a linear head projects encoder out-puts directly to pseudo-label logits. 
+
+3.2. BiMamba2 Encoder Layer 
+
+Figure 1: BiMamba2 encoder layer (repeated n times). Given x ∈ RB×S×D , the layer computes y = SS( x) + flip(SS(flip( x))) + Dx, where SS is the Mamba2 state-space model and flip reverses the sequence. The forward and back-ward SS paths provide a bidirectional representation, while Dx
+
+acts as a linear skip connection. 
+
+Each BiMamba2 layer processes an input x ∈ RB×S×D
+
+through three parallel paths whose outputs are summed element-wise. The forward path applies the Mamba2 state-space model SS directly to the input sequence, capturing left-to-right temporal dependencies. The backward path first reverses the sequence along the time axis via flip , applies the same SS 
+
+operator, and reverses the output back to the original ordering, thereby capturing right-to-left context. The skip path applies a learnable diagonal matrix D to the input, providing a direct linear residual that preserves the original signal and stabilizes gradient flow. Together, these three paths yield the layer output: 
+
+y = SS( x) + flip  SS(flip( x))  + Dx. (1) The Mamba2 state-space model SS within each path fol-lows the structured state-space duality (SSD) framework [11]. The input is first linearly projected from dmodel to an expanded inner dimension dinner , then passed through a short 1-D depth-wise convolution of width dconv to inject local context. Adiscretized state-space recurrence with state dimension dstate 
+
+then selectively compresses and propagates information along the sequence. The recurrence output is normalized with RM-SNorm [20], modulated by a multiplicative gate z, and pro-jected back to dmodel . Each full block wraps this computation with pre-layer normalization and an additive residual connec-tion around the entire BiMamba2 layer. The submitted model uses dmodel = 768 , 12 layers, dstate =16 , dconv = 7 , expand = 2 (dinner = 1536 ): 47.88M parame-ters .
+
+3.3. Masking and Pseudo-Labels 
+
+Masking is applied only to valid (non-padding) frames. A total of max(1 , ⌊0.75 · Lvalid ⌋) frames are masked using 3–5 con-tiguous block spans; masked frames are replaced with a learned embedding. Pseudo-labels are obtained by offline MiniBatchK-Means [21] ( k = 200 , default initialization) applied to per-dimension scaled 80-bin log-mel frame vectors; no pretrained model is used in this step. 
+
+3.4. Training Objectives 
+
+The primary loss is cross-entropy over k-means pseudo-labels at masked positions [2, 16]: 
+
+Lmask = − 1
+
+|M| 
+
+X
+
+> t∈M
+
+log pθ (ct | ˜x), (2) where M is the masked frame set, ct the pseudo-label at frame 
+
+t, and ˜x the masked input. VICReg variance ( λvar = 5 .0) and covariance ( λcov = 1 .0) penalties [18, 22] on mean-pooled hid-den states prevent representation collapse. An auxiliary LID cross-entropy loss on mean-pooled states, using precomputed UPS language labels, contributes a language-discriminative sig-nal with weight λlid = 0 .05 . The total loss is: 
+
+L = Lmask + LVICReg + λlid Llid . (3) 
+
+# 4. Training 
+
+The model is optimized with AdamW [23] (lr = 10 −4, gradi-ent clip max-norm 0.5). The schedule uses linear warmup over 2,000 steps then cosine decay to 0.1 × base lr. Training uses bfloat16 mixed precision, batch size 128, and seed 42, with no gradient accumulation. Training resumed from a step-10,500 checkpoint of the same configuration and ran to step 48,000, with checkpoints and holdout validation every 1,500 steps. Hardware: single NVIDIA RTX A6000 GPU. Input frames are clamped to [−20 , 20] ; hidden states pass through nan to num ;pooled VICReg embeddings are clamped to [−100 , 100] for nu-merical stability. 
+
+# 5. Challenge Submission 
+
+The submission implements the Dynabench 
+
+ModelController API [8]. Frame-level encoder out-puts [T, d model ] from the post-final-LN encoder are averaged over three non-overlapping temporal segments (start, middle, end) and L2-normalized for embedding generation. The audio frontend resamples to 16 kHz, extracts 80-bin log-mel features (FFT 400, hop 160), and pads or crops to a fixed 10 s window. Checkpoint loading uses conservative fallbacks for compatibility across training and evaluation runtimes. The BiMamba2 backbone requires its CUDA backend for inference. 
+
+# 6. Experimental Setup 
+
+6.1. Official evaluation. 
+
+The UPS Challenge evaluates submitted embeddings on three downstream probe tasks via Dynabench [8] without participant access to probe training details or test labels: language identifi-cation (macro-F1, ↑), speech recognition (CER, ↓), and speaker clustering (ARI, ↑). All official scores are from the final patched submissions. Challenge baselines are Whisper [24], HuBERT-large [2], XLSR [4], and wav2vec 2.0 [1]. 
+
+6.2. Smaller model configuration. 
+
+To examine the effect of scale, we also submitted a smaller model ( dmodel = 512 , 8 layers, batch size 64, step 49,000) using the same training objectives and pipeline as the primary model. 
+
+6.3. Local evaluation. 
+
+Two local evaluation protocols were used during development, both on a 45-language split drawn from the same UPS source as the training data. Holdout validation (6,646 samples) was run at each checkpoint interval. Linear-probe evaluation was run post-hoc on precomputed embeddings using a trained probe [21]. The local evaluation split was formed by holding out entire tar shards that were excluded from the training tar list. Be-cause recordings are uniquely assigned to a single tar shard in UPS, this shard-level exclusion guarantees zero recording over-lap between training and evaluation; therefore, no additional recording-level deduplication was necessary. Both metrics are reported for analysis in Section 8.3 and are not valid proxies for official challenge performance. 
+
+# 7. Results 
+
+7.1. Official Challenge Results 
+
+Table 2 reports official Dynabench results. We submitted two checkpoints for the larger model: step 19,500, submitted during training as an intermediate evaluation, and step 48,000, submit-ted after training completion. Official evaluation showed step 19,500 to be superior on all three metrics, and it is designated as our primary result. The step-19,500 checkpoint achieves ARI 0.735 , macro-F1 0.073, and CER 0.870. ARI exceeds all four baselines, by 0.105 over wav2vec 2.0 and 0.635 over XLSR. Macro-F1 is substan-tially below Whisper (0.950) and HuBERT-large (0.690), and CER falls between XLSR (0.900) and HuBERT-large (0.570). The step-48,000 checkpoint yields similar macro-F1 (0.070) and ARI (0.710) but markedly higher CER (0.998), in-dicating late-stage degradation in phonetic generalization (Sec-tion 8.2). The smaller model (d=512, 8L, step 49,000) performs substantially below the primary model on all three tasks. Table 2: Official UPS Challenge results (Dynabench). ↑: higher is better; ↓: lower is better. Best per metric in bold . †: d=512 ,8 layers, batch 64, step 49,000. 
+
+System Macro-F1 ↑ CER ↓ ARI ↑
+
+Whisper [24] 0.950 0.790 0.560 HuBERT-large [2] 0.690 0.570 0.600 XLSR [4] 0.260 0.900 0.100 wav2vec 2.0 [1] 0.250 0.980 0.630 Ours (d=512, 8L) † 0.052 0.996 0.291 Ours (d=768, 12L, step 48k) 0.070 0.998 0.710 
+
+Ours (d=768, 12L, step 19.5k) 0.073 0.870 0.735 7.2. Local Diagnostic Evaluation 
+
+Table 3 reports holdout validation scores at both checkpoints. These are not official challenge results and are reported here to contextualize the local-vs-official mismatch analyzed in Sec-tion 8.3. Table 3: Local holdout validation (45 languages, 6,646 sam-ples). Not official challenge scores. Intra/inter-class similarity computed as mean cosine similarity over mean-pooled embed-dings per language. Separability ratio = intra-class sim. ÷
+
+inter-class sim.; negative value at step 48k arises from negative mean inter-class cosine similarity. 
+
+Metric Step 19.5k Step 48k 
+
+Macro-F1 0.342 0.395 ARI 0.225 0.232 Intra-class sim. 0.786 0.747 Inter-class sim. 0.004 −0.002 Separability ratio 208.98 −366.84 Locally, step 48,000 appears marginally stronger than step 19,500 on macro-F1 (0.395 vs. 0.342) and ARI (0.232 vs. 0.225), yet official evaluation shows the reverse: step 19,500 substantially outperforms step 48,000, particularly on CER (0.870 vs. 0.998). This illustrates that local holdout validation did not reliably predict which checkpoint would generalize bet-ter to the official evaluation distribution. At step 48,000, mean inter-class cosine similarity is slightly negative ( −0.002), making the separability ratio negative and large in magnitude ( −366.84). This indicates that at late-stage training, embeddings from different language groups are on av-erage weakly anti-correlated in the learned space. In contrast, at step 19,500, inter-class similarity is small but positive (0.004), producing a well-defined positive separability ratio (208.98). We discuss this geometric shift in Section 8.2. A separate post-hoc linear-probe evaluation on the same 45-language split produced macro-F1 of 0.915, further inflated by the expressive capacity of a trained probe on in-distribution data. 8. Discussion 
+
+8.1. Speaker Clustering vs. LID and ASR 
+
+The primary model exceeds all ARI baselines while macro-F1 is 0.073 — a pattern that holds across both model sizes. One plau-sible account is that masked discrete-unit prediction encour-ages speaker-discriminative structure through within-utterance frame recovery: speaker prosody, vocal tract characteristics, and speaking style may be partially recoverable from local acoustic context. Reliable LID, by contrast, requires consis-tent coverage of each language’s phonological inventory in the training distribution. With approximately 250 hours across 67 languages, generalization to the challenge test set is unlikely for languages with limited or absent training representation. The auxiliary LID loss (weight 0.05) provides a weak supervi-sion signal but cannot compensate for this coverage gap. Sim-ilar coverage-performance relationships have been observed in large-scale SSL models trained on more balanced multilingual data [17, 25]. This account is a post-hoc interpretation; no ab-lation was conducted to confirm it. 
+
+8.2. Late-Stage Embedding Geometry and CER Degrada-tion 
+
+Official ARI is relatively stable across checkpoints (0.735 vs. 0.710), but CER degrades sharply from 0.870 to 0.998 between step 19,500 and step 48,000. The local holdout data adds a geometric perspective: at step 48,000, mean inter-class cosine similarity shifts from slightly positive (0.004) to slightly neg-ative ( −0.002), with intra-class similarity declining modestly (0.786 → 0.747). This suggests the embedding space under-goes a structural reorganization in late training: within-class embeddings remain coherent but between-class embeddings be-come weakly anti-correlated, producing a geometry that is well-separated locally but may not preserve the phonetic similarity structure required for downstream CER evaluation. A principled account is that late-stage training under cosine decay with fixed k-means targets progressively specializes the encoder toward pseudo-label cluster boundaries at the cost of broader phonetic generalization [2, 19]. As the learning rate approaches its minimum ( 10 −5), gradient updates increasingly refine fine-grained cluster distinctions derived from raw log-mel frames without phonetic annotation, which may not align with the phonetic similarities probed by CER. Iterative pseudo-label refinement [2, 19] could mitigate this effect in future work. We acknowledge this interpretation is a hypothesis; controlled ex-periments are needed to confirm it. 
+
+8.3. Bidirectional Local-vs-Official Mismatch 
+
+Local evaluation diverges from official scoring in both direc-tions. At step 19,500, local macro-F1 (0.342) and post-hoc probe macro-F1 (0.915) both substantially overestimate offi-cial macro-F1 (0.073), while local ARI (0.225) substantially underestimates official ARI (0.735). Moreover, the locally-better checkpoint (step 48,000, local macro-F1: 0.395) per-forms worse than step 19,500 on all three official metrics, in-dicating that local holdout validation is an unreliable predictor of official ranking. Three factors contribute. 
+
+Language overlap. All 45 local eval languages appear in the training corpus, including the most frequent training lan-guages (es, de, pt, fr, ar). LID evaluation on in-distribution languages produces optimistic scores that do not reflect gen-eralization. 
+
+Train–eval separation by construction. Local eval shards were constructed from tar archives excluded from the training tar list (tracked and retained), so recording overlap with training shards is not expected. 
+
+Probe methodology mismatch. The local ARI is com-puted using cosine-similarity-based clustering on mean-pooled embeddings, while the Dynabench speaker clustering probe uses a different methodology and evaluation set. The high local separability ratio at step 19,500 (208.98) indicates well-separated clusters in the local embedding space, but these clus-ters correspond to language groups rather than speakers, which explains the low local ARI and high local macro-F1 simultane-ously. The practical lesson is that valid local proxies for multilin-gual challenge evaluation require: (i) a held-out language set disjoint from training; (ii) an evaluation set disjoint from train-ing by construction (e.g., tar-level exclusion); and (iii) probe methodology matched to the official evaluation. 
+
+8.4. Effect of Model Scale 
+
+Scaling from d=512/8L to d=768/12L shows consistent of-ficial gains: most pronounced in ARI (0.291 →0.735) and CER (0.996 →0.870), with marginal improvement in macro-F1 (0.052 →0.073), consistent with LID being primarily limited by data coverage. We note that the two configurations differ in batch size (64 vs. 128) and total training steps, so gains cannot be attributed to model scale alone; controlled ablations were not conducted. 
+
+# 9. Conclusion 
+
+We presented a BiMamba2-based masked discrete-unit predic-tion model for the UPS Challenge, trained on approximately 250 hours of multilingual speech across 67 languages from the MLCommons UPS dataset. The system combines k-means pseudo-label prediction at masked frames with auxiliary LID supervision and VICReg regularization, trained via a shard-based precomputed pipeline with language-aware sampling. Our 47.88M-parameter primary checkpoint achieves an official ARI of 0.735, exceeding all four published baselines for speaker clustering, while macro-F1 (0.073) and CER (0.870) remain be-low supervised baselines due to training data scale and language coverage limitations. Comparing two submitted checkpoints re-veals late-stage CER degradation and an embedding geometry shift consistent with over-specialization toward fixed pseudo-label boundaries under a decayed learning rate, motivating it-erative target refinement in future work. We document a bidi-rectional mismatch between local diagnostic and official evalu-ation scores — local evaluation overestimates LID and under-estimates speaker clustering quality, and locally superior check-points do not reliably correspond to officially superior ones — offering this as a concrete evaluation protocol lesson for multi-lingual challenge settings. The study is limited by the absence of component ablations, single-run results without variance es-timates, a training corpus substantially smaller than those of the baselines, and pseudo-labels computed once without iterative refinement; addressing these gaps is a priority for future work. 
+
+# 10. Acknowledgments 
+
+This research was supported by the Office of Naval Research, Department of the Navy (FAIN N00014-22-1-2714), the NIH Common Fund under award 1OT2OD032581-01, and the Ama-zon Research Award. The views expressed are those of the au-thors and do not necessarily reflect those of the funders or affil-iated organizations. 
+
+# 11. References 
+
+[1] A. Baevski, H. Zhou, A. Mohamed, and M. Auli, “wav2vec 2.0: A framework for self-supervised learning of speech representations,” in Advances in Neural Information Processing Systems (NeurIPS) , 2020. [Online]. Available: https://arxiv.org/ abs/2006.11477 [2] W.-N. Hsu, B. Bolte, Y.-H. H. Tsai, K. Lakhotia, R. Salakhut-dinov, and A. Mohamed, “HuBERT: Self-supervised speech representation learning by masked prediction of hidden units,” 
+
+IEEE/ACM Transactions on Audio, Speech, and Language Pro-cessing , vol. 29, pp. 3451–3460, 2021. [3] R. Ardila, M. Branson, K. Davis, M. Henretty, M. Kohler, J. Meyer, R. Morais, L. Saunders, F. M. Tyers, and G. Weber, “Common voice: A massively-multilingual speech corpus,” in 
+
+Proceedings of the 12th Conference on Language Resources and Evaluation (LREC 2020) , 2020, pp. 4218–4222. [4] A. Conneau, A. Baevski, R. Collobert, A. Mohamed, and M. Auli, “Unsupervised cross-lingual representation learning for speech,” in Advances in Neural Information Processing Systems (NeurIPS) , 2020. [Online]. Available: https://arxiv.org/abs/2006. 13979 [5] S.-w. Yang, P.-H. Chi, Y.-S. Chuang, C.-I. J. Lai, K. Lakhotia, Y. Y. Lin, A. T. Liu, J. Shi, X. Chang, G.-T. Lin, T.-H. Huang, W.-C. Tseng, K.-t. Lee, D.-R. Liu, Z. Huang, S. Dong, S.-W. Li, S. Watanabe, A. Mohamed, and H.-y. Lee, “SUPERB: Speech processing Universal PERformance Benchmark,” in Proc. Inter-speech 2021 , 2021, pp. 1194–1198. [6] J. Shi, D. Berrebbi, W. Chen, E.-P. Hu, W.-P. Huang, H.-L. Chung, X. Chang, S.-W. Li, A. Mohamed, H. yi Lee, and S. Watan-abe, “ML-SUPERB: Multilingual Speech Universal PERfor-mance Benchmark,” in Interspeech 2023 , 2023, pp. 884–888. [7] A. Baevski, W.-N. Hsu, Q. Xu, A. Babu, J. Gu, and M. Auli, “data2vec: A general framework for self-supervised learning in speech, vision and language,” in Proceedings of the 39th International Conference on Machine Learning (ICML) , 2022, pp. 1298–1312. [Online]. Available: https://arxiv.org/abs/2202.03555 [8] “Unsupervised Speech in the Wild (UPS) Challenge,” https:// upschallenge.org/, 2026, accessed: 2026-02-24. [9] MLCommons, “Unsupervised People’s Speech Dataset,” https://huggingface.co/datasets/MLCommons/unsupervised peoples speech, 2024, accessed: 2026-02-24. [10] D. Galvez, G. Diamos, J. Ciro, J. F. Cer´ on, K. Achorn, A. Gopi, D. Kanter, M. Lam, M. Mazumder, and V. J. Reddi, “The People’s Speech: A large-scale diverse English speech recognition dataset for commercial usage,” in Proceedings of the Neural Information Processing Systems Track on Datasets and Benchmarks , 2021. [Online]. Available: https://arxiv.org/abs/2111.09344 [11] T. Dao and A. Gu, “Transformers are SSMs: Generalized models and efficient algorithms through structured state space duality,” in Proceedings of the 41st International Conference on Machine Learning (ICML) , 2024. [Online]. Available: https://arxiv.org/abs/2405.21060 [12] A. Gu and T. Dao, “Mamba: Linear-time sequence modeling with selective state spaces,” 2023, arXiv:2312.00752. [13] S. Hwang, A. Lahoti, R. Puduppully, T. Dao, and A. Gu, “Hydra: Bidirectional state space models through generalized matrix mix-ers,” Advances in Neural Information Processing Systems , vol. 37, pp. 110 876–110 908, 2024. [14] L. Zhu, B. Liao, Q. Zhang, X. Wang, W. Liu, and X. Wang, “Vi-sion mamba: Efficient visual representation learning with bidirec-tional state space model,” arXiv preprint arXiv:2401.09417 , 2024. [15] A. van den Oord, O. Vinyals, and K. Kavukcuoglu, “Neural dis-crete representation learning,” in Advances in Neural Information Processing Systems (NeurIPS) , 2017. [16] J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova, “BERT: Pre-training of deep bidirectional transformers for language under-standing,” in Proceedings of NAACL-HLT , 2019, pp. 4171–4186. [17] S. Chen, C. Wang, Z. Chen, Y. Wu, S. Liu, Z. Chen, J. Li, N. Kanda, T. Yoshioka, X. Xiao et al. , “WavLM: Large-scale self-supervised pre-training for full stack speech processing,” IEEE Journal of Selected Topics in Signal Processing , vol. 16, no. 6, pp. 1505–1518, 2022, arXiv:2110.13900. [Online]. Available: https://arxiv.org/abs/2110.13900 [18] A. Bardes, J. Ponce, and Y. LeCun, “VICReg: Variance-invariance-covariance regularization for self-supervised learning,” in International Conference on Learning Representations (ICLR) ,2022. [Online]. Available: https://arxiv.org/abs/2105.04906 [19] S. Chen, Y. Wu, C. Wang, S. Liu, D. Tompkins, Z. Chen, W. Che, X. Yu, and F. Wei, “BEATs: Audio pre-training with acoustic tokenizers,” in Proceedings of the 40th International Conference on Machine Learning (ICML) , 2023. [Online]. Available: https://arxiv.org/abs/2212.09058 [20] B. Zhang and R. Sennrich, “Root mean square layer normalization,” in Advances in Neural Information Pro-cessing Systems , vol. 32, 2019, arXiv:1910.07467. [On-line]. Available: https://papers.nips.cc/paper files/paper/2019/ hash/1e8a19426224ca89e83cef47f1e7f53b-Abstract.html [21] F. Pedregosa, G. Varoquaux, A. Gramfort, V. Michel, B. Thirion, O. Grisel, M. Blondel, P. Prettenhofer, R. Weiss, V. Dubourg, J. Vanderplas, A. Passos, D. Cournapeau, M. Brucher, M. Perrot, and ´ E. Duchesnay, “Scikit-learn: Machine learning in Python,” 
+
+Journal of Machine Learning Research , vol. 12, pp. 2825–2830, 2011. [22] J. Zbontar, L. Jing, I. Misra, Y. LeCun, and S. Deny, “Bar-low twins: Self-supervised learning via redundancy reduction,” in Proceedings of the 38th International Conference on Machine Learning (ICML) , 2021, arXiv:2103.03230. [23] I. Loshchilov and F. Hutter, “Decoupled weight de-cay regularization,” in International Conference on Learn-ing Representations (ICLR) , 2019. [Online]. Available: https://arxiv.org/abs/1711.05101 [24] A. Radford, J. W. Kim, T. Xu, G. Brockman, C. McLeavey, and I. Sutskever, “Robust speech recognition via large-scale weak su-pervision,” in Proceedings of the 40th International Conference on Machine Learning (ICML) , 2023, arXiv:2212.04356. [25] A. Conneau, M. Ma, S. Khanuja, Y. Zhang, V. Axelrod, S. Dalmia, J. Riesa, C. Rivera, and A. Bapna, “FLEURS: Few-shot learning evaluation of universal representations of speech,” in IEEE Spoken Language Technology Workshop, SLT 2022, Doha, Qatar, January 9–12, 2023 . IEEE, 2022, pp. 798–805, arXiv:2205.12446. [Online]. Available: https://arxiv.org/abs/2205.12446 
+
+# 12. Generative AI Use Disclosure 
+
+We used generative AI tools to assist with outlining and improv-ing readability of parts of the manuscript. The authors are fully responsible for the content; all claims, numbers, and citations were checked by the authors. Generative AI was not used to produce the experimental results.
