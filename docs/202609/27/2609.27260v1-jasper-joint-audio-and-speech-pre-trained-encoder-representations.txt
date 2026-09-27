@@ -1,0 +1,497 @@
+Title: JASPER: Joint Audio and Speech Pre-trained Encoder Representations
+
+URL Source: https://arxiv.org/pdf/2609.27260v1
+
+Published Time: Thu, 24 Sep 2026 00:29:06 GMT
+
+Number of Pages: 7
+
+Markdown Content:
+# JASPER: Joint Audio and Speech Pre-trained Encoder Representations 
+
+Geeth George *, Ameenudeen P E *, Hrishikesh H Pillai, Sriram Ganapathy 
+
+LEAP Laboratory, Electrical Engineering, Indian Institute of Science, Bangalore, India 
+
+geethgeorge@iisc.ac.in, ameenudeenp@iisc.ac.in 
+
+Abstract —Self-supervised learning (SSL) for speech and audio has largely progressed along separate tracks: speech models emphasize time-domain prediction, whereas audio representation learning has focused on time–frequency patterns. This separation creates a compatibility gap, limiting cross-domain generalization. In this work, we introduce JASPER, Joint Audio and Speech Pre-trained Encoder Representations, a framework that aug-ments speech-pretrained models with time–frequency objectives. Specifically, JASPER performs masked prediction of temporal and spectral targets over long audio segments, enabling spectro-temporal representation learning of speech and audio signals. The proposed method consistently outperforms multiple baselines and existing speech/audio encoders on diverse speech, audio, and music tasks, demonstrating the effectiveness of unified spectro-temporal modeling. 
+
+Index Terms —Time-frequency masking, Self-supervised learn-ing, Joint speech and audio representations. 
+
+I. I NTRODUCTION 
+
+Self-supervised learning (SSL) has emerged as a dominant paradigm for learning robust representations from unlabeled acoustic data. Existing SSL-based audio models can broadly be categorized into two families based on their input modality: raw waveform-based models and spectrogram-based mod-els. Waveform-based models operate directly on time-domain audio signals, learning hierarchical representations without relying on handcrafted acoustic features. Examples include contrastive predictive frameworks such as wav2vec 2.0 [1], clustering-based masked prediction methods such as HuBERT [2] and WavLM [3]. SSL methods based on the efficient masked autoencoder framework such as Dasheng [4], as well as large-scale weakly-supervised models such as Whisper [5] also provide alternative design choices for audio encoders. For example, the Qwen-audio model uses the Whisper encoder as the audio input processing framework which is fine-tuned for speech and audio tasks [6]. While such waveform-based en-coders achieve state-of-the-art performance on speech-centric tasks such as ASR, speaker verification, and speech translation, they fail to generalize to diverse non-speech audio tasks [7]. Spectrogram-based models, in contrast, operate on time– frequency representations such as log-Mel spectrograms. Mod-els such as the Audio Spectrogram Transformer (AST) [8] and Self-Supervised Audio Spectrogram Transformer (SSAST) [9] adopt patch-based tokenization and global self-attention mech-anisms to model long-range dependencies across time and 
+
+> *Equal contribution.
+
+frequency. Spectrogram-based encoders demonstrate strong performance on general audio tasks [10]. Despite their strong performance within their intended do-mains, the distinct design choices of speech and audio models limit their cross-domain applicability. Frame-level tokenizers used in speech models are less effective at representing com-plex environmental sounds, whereas patch-based audio models often fall short on speech tasks that depend on precise temporal and sequential information. While prior works [7] have shown that incorporating tem-poral learning into spectrogram transformers improves speech performance, the complementary direction remains underex-plored. To address these challenges, we propose JASPER -
+
+Joint Audio and Speech Pre-trained Encoder Representations. JASPER treats speech and audio pre-training as complemen-tary spectro-temporal objectives over a shared Transformer encoder, jointly predicting temporal targets and spectral patch targets over long audio contexts. To validate the embedding quality of JASPER and identify the factors contributing to performance gains, we introduce a comprehensive, multi-tiered evaluation framework. First, we apply the frozen representations to traditional intrinsic benchmarking using SUPERB-style [11] downstream linear evaluations, ensuring a direct assessment of acoustic and phonetic properties. Second, we evaluate the extrinsic utility of the embeddings using an encoder-centric evaluation with the X-ARES benchmark [12] and also by deploying JASPER as the unified front-end acoustic encoder for a Large Audio Language Model via the XARES-LLM [13] framework. In these experiments, we highlight the superior performance and generalization of JASPER compared to various other baseline representations. The main contributions of this work are summarized below:  
+
+> •
+
+We propose JASPER, a unified self-supervised audio encoder that combines waveform-based temporal learn-ing with spectrogram-based spectral learning to improve generalization across speech, environmental audio, and music tasks.  
+
+> •
+
+We introduce a long-context masking strategy over waveform-derived latent representations, where contigu-ous temporal segments are masked to encourage the encoder to infer missing acoustic content from broader temporal context.  
+
+> •
+
+We propose a spectral prediction objective for wave-form encoders by constructing time-aligned spectral arXiv:2609.27260v1 [eess.AS] 23 Sep 2026 Fig. 1. Block schematic of the proposed JASPER framework for joint spectro-temporal modeling of audio data. ( Nt = 400, F = 800, N = 50, R = 8). 
+
+patch targets from log-Mel representations. The model is trained to predict both temporal pseudo-labels and frequency-localized spectral targets, thereby injecting time-frequency supervision into a raw-waveform encoder without requiring spectrogram input at inference time.  
+
+> •
+
+We establish JASPER as a universal audio encoder through broad speech, audio, music, and audio-LLM evaluations, demonstrating robust representations for both discriminative and generative audio understanding. II. JASPER E NCODER FRAMEWORK 
+
+Figure 1 illustrates the workflow of JASPER consisting of a self-supervised audio encoder designed to learn unified representations for both speech and general audio signals. 
+
+A. Input Pre-Processing 
+
+Let X ∈ R16000 ·T ×1 denote a raw speech/audio recording of duration T seconds, sampled at 16 kHz. We process X
+
+using a convolutional feature encoder which has an overall stride of 320 , resulting in a sequence of latent temporal representations at 50 Hz: 
+
+X = [ x1, x2, . . . , xNt ], xi ∈ RDt , (1) where Nt = 50 T denotes the total number of temporal frames and Dt is the dimension of the convolutional encoder. 
+
+B. Temporal Segmentation 
+
+The raw speech utterance X is divided into non-overlapping temporal segments, each of duration τ seconds. This segmen-tation induces a corresponding division of the latent feature sequence X into non-overlapping windows of P frames, where 
+
+P = 50 τ . Let the windowed latent representation be denoted as 
+
+Z = [ Z1, Z2, . . . , ZK ].
+
+Here, Zk ∈ RP ×Dt represents the k-th windowed latent segment, and K = Tτ . Zk is constructed by grouping P
+
+consecutive latent vectors, i.e., 
+
+Zk = x(k−1) P +j
+
+Pj=1 , k = 1 , . . . , K. 
+
+C. Long-Context masking 
+
+To enable self-supervised learning, we apply a masked modeling strategy to the windowed latent representations Z.Each latent window is independently masked with probability 
+
+p. Furthermore, to encourage the model to capture longer temporal dependencies, if a window is selected for masking, its subsequent window is also masked with a fixed probability 
+
+p′.Let the resulting masked latent sequence be denoted as: 
+
+bZ = [ bZ1, bZ2, . . . , bZK ].
+
+The masking operation is defined as: 
+
+bZk =
+
+(
+
+[MASK ], if location k is selected for masking ,
+
+Zk, otherwise ,
+
+where [MASK ] ∈ RP ×Dt denotes a learnable mask em-bedding (or a zero mask of the same dimensionality). In our experiments, we use p = 0 .6 and p′ = 0 .2.
+
+D. Transformer Encoding of Temporal Frames 
+
+To retain temporal order information, a convolutional po-sitional embedding is added to the frame sequence within each segment. The resulting sequence is then passed to a transformer encoder, which produces contextualized temporal representations, each of dimension D′:
+
+bHk =
+
+hbh(1)  
+
+> k
+
+, bh(2)  
+
+> k
+
+, . . . , bh(P )
+
+> k
+
+i
+
+, k = 1 , . . . , K bh(i) 
+
+> k
+
+∈ RD′
+
+.
+
+E. Temporal Targets and Loss Function 
+
+For each xi, a discrete pseudo-label C(i) 
+
+> t,k
+
+is obtained by clustering the frame-level features xi using K-means cluster-ing. We define a temporal loss function Lt that encourages the transformer encoder of the JASPER model to predict these pseudo-labels. The loss is computed only on the masked frames. Specifically, a K-means quantizer Q is applied to frame-level embeddings to generate cluster assignments: 
+
+C(i) 
+
+> t,k
+
+= Q(xi), C(i) 
+
+> t,k
+
+∈ { 1, 2, . . . , V t}k = 1 , . . . , K i = 1 , . . . , P 
+
+where C(i) 
+
+> t,k
+
+denotes the cluster label corresponding to the 
+
+i-th frame in the k-th window and Vt denotes the number of clusters. Given the masked sequence ( bZ) as input, the transformer encoder produces contextualized representations for all temporal frames. Let bh(i) 
+
+> k
+
+∈ RD′
+
+denote the output corresponding to the i-th frame of the k-th window. Each frame representation is projected using a learnable feed-forward layer, with parameters Wt ∈ RVt×D′
+
+, followed by a softmax operation: 
+
+bp(i) 
+
+> k
+
+= softmax (Wt bh(i) 
+
+> k
+
+).
+
+The training objective is computed only over masked frame indices. The temporal loss is defined as: 
+
+Lt = 1
+
+|M| 
+
+X
+
+> k∈M
+> P
+
+X
+
+> i=1
+
+C.E. 
+
+bp(i) 
+
+> k
+
+, C(i)
+
+> t,k
+
+
+
+(2) where M denotes the set of masked window indices, and C.E. (·, ·) denotes the standard cross-entropy loss. 
+
+F. Spectral Targets and Loss 
+
+Let the log-Mel spectrogram of waveform X be 
+
+S = [ s1, . . . , sF ],
+
+where si ∈ RD , D = 128 , extracted using 128 -D Mel-filterbank features ( 25 ms window, 10 ms hop). The spectro-gram is divided into non-overlapping segments of Q consecu-tive spectral frames corresponding to the temporal duration τ
+
+seconds : 
+
+Y = [ Y1, . . . , YN ], Yn ∈ RQ×D , N = FQ .
+
+Each spectrogram segment Yn captures the spectral structure of the windowed signal of τ seconds duration. Each Yn is further split vertically into R non-overlapping Q × Q square patches: 
+
+Pn =
+
+h
+
+p(1)  
+
+> n
+
+p(2)  
+
+> n
+
+· · · p(R)
+
+> n
+
+i⊤
+
+, p(r) 
+
+> n
+
+∈ RQ×Q, R = DQ .
+
+Spectral targets are obtained by flattening each patch and quantizing via a K-means quantizer Qs:
+
+C(r) 
+
+> s,k
+
+= Qs
+
+ vec( p(r) 
+
+> n
+
+)
+
+C(r) 
+
+> s,k
+
+∈ { 1, . . . , V s}, n = 1 , . . . , N, r = 1 , . . . , R. 
+
+Here, Vs denotes the number of spectral K-means clusters. Consider a temporal segment-level representation for the trans-former embeddings via mean pooling ¯hk = 1
+
+> P
+
+PPi=1 bh(i) 
+
+> k
+
+.
+
+We design R independent feed-forward heads {W (r) 
+
+> s
+
+}Rr=1 to predict spectral cluster labels as: 
+
+p(r) 
+
+> s,k
+
+= softmax( W (r) 
+
+> s
+
+¯hk).
+
+The spectral loss is computed over masked windows: 
+
+Ls = 1
+
+|M |R
+
+X
+
+> k∈MR
+
+X
+
+> r=1
+
+C.E. p(r)
+
+> s,k
+
+, C (r)
+
+> s,k
+
+.
+
+where C.E. is the standard cross-entropy loss and |M | is the number of masked frames. 
+
+G. Combined Training Objective 
+
+The overall training objective of the model is the sum of spectral loss Ls and temporal loss Lt:
+
+Ltotal = λLt + (1 − λ)Ls (3) III. I MPLEMENTATION DETAILS 
+
+A. Model Architecture and Targets 
+
+Each input audio signal is truncated or zero-padded to 8
+
+s and the audio segment duration τ = 0 .16 s is chosen to match syllable-length units. The raw waveform is processed by a convolutional feature encoder with Dt = 512 and passed through a 12 -layer transformer encoder with 12 attention heads, and D′ = 768 . For self-supervised target construction, we use Vt = 500 and Vs = 500 .For the spectral processing, we have F = 800 and Q = 16 .This gives N = 50 non-overlapping windows. The number of vertical patches in each spectral segment is R = 8 .
+
+B. Pre-training Setup and Optimization 
+
+JASPER is pretrained under two data regimes: 200-hour and 2000-hour settings, each comprising equal amounts of speech and audio from LibriSpeech [14] and AudioSet [15]. The en-coder is first initialized using temporal-only targets, followed by joint predictive pre-training with combined temporal and spectral objectives for 1M steps. Training uses the AdamW optimizer with weight decay of 0.05 , a constant learning rate of 2 × 10 −5, and coefficients β = [0 .9, 0.98] .IV. E VALUATION SETUP 
+
+We evaluate the proposed audio encoder through a compre-hensive suite of downstream tasks and evaluation protocols. First, we assess the quality of the learned representations via a linear evaluation framework inspired by the SUPERB benchmark [11]. Under this protocol, the pre-trained encoder remains frozen and serves solely as a feature extractor. Repre-sentations across all transformer layers are aggregated using a learned weighted sum, and only the aggregation weights and a lightweight, task-specific prediction head are optimized during evaluation. This approach measures representation quality in-dependent of task-specific fine-tuning. We evaluate the model on diverse downstream tasks spanning speech, environmental sound, and music domains, covering both clip-level and frame-level prediction settings. Specifically, the model is evaluated on the ESC-50 [23], UrbanSound8K (US8k) [24], GTZAN [25], FMA Small [26], IEMOCAP [27], VoxCeleb1 (VoxC1) [28], Speech Commands V2 [29], CREMA-D [30], LibriCount [31], TIMIT [32] and LibriSpeech [14] datasets. Performance is reported using standard task-specific metrics, including clas-sification accuracy, Phoneme Error Rate (PER), Word Error Rate (WER), and Character Error Rate (CER). We further benchmark the effectiveness of the learned representations using two complementary evaluation settings: (i) encoder-centric evaluation using the X-ARES benchmark TABLE I DOWNSTREAM PERFORMANCE COMPARISON UNDER 200-HOUR AND 2000-HOUR PRE -TRAINING SETUPS . A LL MODELS ARE TRAINED USING THE SAME DATA AND NUMBER OF PRE -TRAINING STEPS . R ESULTS ARE REPORTED AS CLASSIFICATION ACCURACY (%). 
+
+Model Audio Tasks Speech Tasks ESC-50 US8k GTZAN FMA_SMALL IEMOCAP VoxC1 SPCV2 CREMA-D LibriC. 200 hour setup 
+
+SSAST [9]+MLM 77.65 78.46 80.08 53.75 60.49 32.19 78.89 54.60 68.77 
+
+HuBERT [2] 66.10 70.05 79.88 48.12 59.91 28.83 84.82 60.35 68.18 JASPER 83.55 78.84 89.69 52.5 65.02 53.93 92.80 70.01 66.91 
+
+2000 hour setup 
+
+SSAST [9]+MLM 85.50 84.27 91.29 49.11 62.05 47.95 82.03 70.49 70.73 HuBERT [2] 80.55 78.42 91.89 49.25 66.27 64.56 95.55 68.46 67.55 JASPER 88.05 83.66 91.99 53.75 68.76 91.18 94.78 76.89 72.13 
+
+US8k : UrbanSound8K; FMA : Free Music Archive; VoxC1 : VoxCeleb1; SPCV2 : Speech Commands V2; LibriC. : LibriCount TABLE II COMPARISON OF THE PROPOSED JASPER WITH BASELINE MODELS UNDER THE 2000-HOUR PRE -TRAINING SETUP . A LL RESULTS ARE REPORTED AS CLASSIFICATION ACCURACY (%). 
+
+Model #Params Data (hrs) Audio Speech Avg. ESC-50 US8k GTZAN FMA_SMALL IEMOCAP VoxC1 SPCV2 
+
+HuBERT [2] 95M 1k 77.45 77.61 74.00 42.25 68.30 86.68 96.10 74.63 SSAST [9] 89M 5.8k 37.85 54.87 77.10 49.38 55.21 15.62 37.87 46.84 BEATs [10] 91M 5.8k 92.45 83.21 89.01 58.13 67.61 56.84 92.30 77.08 EnCodecMAE [16] 86.6M 11k 88.25 85.42 87.10 56.20 67.80 71.65 97.30 79.10 USAD [17] 94M 161k 87.45 84.09 87.05 54.63 70.61 69.85 96.65 78.62 ATST [18] 86M 5.3k 92.90 87.60 90.01 55.25 67.79 68.29 92.53 79.20 ULTRAS [7] 89M 2k 91.15 86.07 92.59 55.62 67.78 73.55 95.10 80.27 JASPER 95M 2k 88.05 83.66 91.99 53.75 68.76 91.18 94.78 81.74 US8k : UrbanSound8K; FMA : Free Music Archive; VoxC1 : VoxCeleb1; SPCV2 : Speech Commands V2. TABLE III COMPARISON OF PHONEME RECOGNITION (PR) AND AUTOMATIC SPEECH RECOGNITION (ASR) PERFORMANCE . I N THE CASE OF HUBERT (O URS ), 
+
+> THE PRE
+
+-TRAINING DATA IS A MIXTURE OF SPEECH AND AUDIO (2000 H) 
+
+> SIMILAR TO THE
+
+JASPER, WHILE THE OFFICIAL IMPLEMENTATION USES ONLY 1000 H OF LIBRISPEECH DATA .
+
+Model TIMIT LibriSpeech PER (%) PER (%) CER (%) WER (%) 
+
+HuBERT (Official) 11.9 7.1 2.4 8.5 
+
+HuBERT (Ours) 13.0 7.8 3.7 12.4 JASPER 11.9 6.9 3.3 10.9 
+
+PER : Phoneme Error Rate; CER : Character Error Rate; WER : Word Error Rate 
+
+[12], and (ii) audio-LLM suitability evaluation using the XARES-LLM framework [13]. The X-ARES encoder-centric evaluation employs two distinct methodologies: Multi-Layer Perceptron (MLP) linear probing and k-Nearest Neighbors ( k-NN) non-parametric evaluation [12]. For the MLP evaluation, the encoder and task-specific components remain frozen, and only a single linear layer is trained to assess representation quality. Conversely, the k-NN evaluation is entirely non-parametric, classifying extracted embeddings based solely on their proximity within the feature space. The audio-LLM suitability evaluation is conducted by rout-ing the X-ARES pipeline through a Large Audio Language Model (LALM) backbone [13]. In this setting, the frozen encoder embeddings provide the acoustic representations that 
+
+TABLE IV WEIGHTED AVERAGE PERFORMANCE ACROSS TASKS UNDER MLP AND K-NN EVALUATION SETTINGS UNDER XARES EVALUATION BENCHMARK 
+
+(H IGHER VALUES INDICATE BETTER PERFORMANCE )
+
+Model MLP k-NN 
+
+ATST-Clip [18] 0.481 0.433 ATST-Frame [18] 0.622 0.437 BEATs [10] 0.451 0.361 BYOL-A [19] 0.487 0.239 BYOL-S [20] 0.391 0.259 CED [21] 0.496 0.548 
+
+Dasheng [4] 0.696 0.499 data2vec [22] 0.565 0.379 HuBERT [2] 0.602 0.207 MSM-MAE [19] 0.444 0.437 w2v2 [1] 0.384 0.254 WavLM [3] 0.525 0.437 Whisper [5] 0.646 0.301 JASPER 0.702 0.476 
+
+Results of standard models are tabulated from the official X-ARES benchmark [12] 
+
+are used to guide an autoregressive text generator across open-ended classification and captioning tasks. The language modeling core of the XARES-LLM pipeline is driven by SmolLM2-135M [33], a highly optimized, lightweight lan-guage model trained extensively on curated textual corpora. TABLE V COMPARISON OF JASPER ENCODER WITH OTHER BASELINE MODELS - T RACK A (H IGHER VALUE IS BETTER FOR ALL TASKS )                                                                                                                                                                         
+
+> Model Params Hrs Speech Tasks Audio Tasks Music Tasks Avg. SC LibriC. VoxL33 VoxC1 ASV15 FSC VocalS. CREMA-D ESC-50 FSD50k US8k FSD18 GTZAN NSynth FMA
+> (Acc) (Acc) (Acc) (Acc) (Acc) (Acc) (Acc) (Acc) (Acc) (mAP) (Acc) (mAP) (Acc) (Acc) (Acc)
+> HuBERT [2] 94.7M 1k 0.65 0.41 0.72 0.72 0.90 0.99 0.88 0.54 0.39 0.05 0.54 0.32 0.69 0.57 0.52 0.59 WavLM [3] 94.7M 60k 0.67 0.31 0.74 0.68 0.90 0.99 0.86 0.57 0.34 0.04 0.48 0.25 0.62 0.52 0.46 0.56 Whisper [5] 74.0M 680k 0.69 0.41 0.83 0.76 0.94 0.82 0.87 0.52 0.63 0.09 0.74 0.55 0.70 0.64 0.58 0.65 Dasheng [4] 86.4M 272k 0.65 0.39 0.31 0.97 0.94 0.98 0.85 0.62 0.75 0.06 0.83 0.41 0.32 0.67 0.43 0.61 w2v2 [1] 94.4M 1k 0.15 0.47 0.23 0.60 0.81 0.33 0.86 0.42 0.32 0.04 0.43 0.25 0.65 0.48 0.47 0.43 ULTRAS [7] 89M 2k 0.52 0.46 0.28 0.84 0.95 0.86 0.91 0.52 0.60 0.08 0.79 0.5 0.78 0.62 0.56 0.62 JASPER 95.0M 2k 0.69 0.45 0.79 0.74 0.95 0.99 0.90 0.55 0.56 0.07 0.76 0.43 0.80 0.63 0.57 0.66
+> SC : Speech Commands; LibriC. : LibriCount; VoxL33 : VoxLingual 33; VoxC1 : VoxCeleb1; ASV15 : ASVspoof 2015; FSC : Fluent Speech Commands; VocalS. : VocalSound; US8k : UrbanSound8K;
+> FMA : Free Music Archive; Acc : Accuracy; mAP : Mean Average Precision.
+
+TABLE VI COMPARISON OF JASPER ENCODER WITH OTHER BASELINE MODELS - T RACK B (H IGHER VALUE IS BETTER FOR ALL TASKS )
+
+Model Params Hrs AISHELL-1 
+
+(iWER) 
+
+Clotho 
+
+(FENSE) 
+
+LibriSpeech 
+
+(iWER) 
+
+MECAT 
+
+(DATE) 
+
+Song-Describer 
+
+(FENSE) Avg. 
+
+HuBERT [2] 94.7M 1k 0.14 0.27 0.78 0.58 0.42 0.44 WavLM [3] 94.7M 60k 0.19 0.21 0.84 0.58 0.45 0.45 Whisper [5] 74.0M 680k 0.36 0.36 0.38 0.62 0.45 0.40 Dasheng [4] 86.4M 272k 0.02 0.21 0.10 0.60 0.41 0.27 w2v2 [1] 94.4M 1k 0.0 0.26 0.0 0.54 0.43 0.25 JASPER 95.0M 2k 0.27 0.35 0.81 0.61 0.46 0.50 
+
+iWER : 1 - WER ; FENSE :Fluency-ENhanced Sentence-bert Evaluation; DATE : Discriminative-Enhanced Audio Text Evaluation 
+
+For the XARES-LLM evaluation, downstream performance is mapped across two distinct evaluation pathways: 
+
+A. Track A - Classification Tasks: 
+
+This track evaluates encoder representations on utterance-level classification tasks in domains including speech, envi-ronmental sounds, and music. Performance is measured using accuracy (Acc) and mean average precision (mAP). 
+
+B. Track B - Understanding Tasks: 
+
+This track assesses higher-level semantic understanding using generative and sequence prediction tasks like automatic speech recognition, audio captioning, and music caption-ing. Output quality is assessed using inverted Word Error Rate (iWER), Fluency-ENhanced Sentence-bert Evaluation (FENSE), and Discriminative-Enhanced Audio Text Evalua-tion (DATE). V. R ESULTS AND DISCUSSION 
+
+A. Linear Evaluation 1) Clip-level Classification: Table I reports the classifi-cation accuracy of different self-supervised audio models evaluated on nine diverse downstream tasks under the two pre-training data regimes: 200 hours and 2000 hours. All models are pretrained on the same dataset and follow the open-source pre-training recipes provided in their respective repositories. We compare HuBERT [2] which uses two-stage temporal prediction-based pre-training, SSAST [9] trained with a masked-language modeling (MLM) objective instead of the reconstruction and location-identification losses proposed in the original framework [9], and JASPER. The original loss framework for SSAST has been changed for ensuring a fair comparison with the other models. Results show that the JASPER framework consistently outperforms both spectral and temporal baselines across the 200 -hour and 2000 -hour pre-training regimes on the majority of audio and speech tasks. Table II compares JASPER with existing state-of-the-art audio self-supervised models. Although JASPER is pretrained with only 2000 hours of data, which is much lower than several high-compute baselines, it remains highly competitive across both audio and speech tasks and achieves the best overall average accuracy of 81 .74% . These results highlight that the proposed joint spectro-temporal masking strategy enables JASPER to learn efficient and transferable representations with substantially less pre-training data. 
+
+2) Frame-level Sequence Prediction: To evaluate whether the encoder preserves fine-grained temporal information, we test frozen representations on frame-level sequence-to-sequence tasks using a lightweight linear CTC head. Table III reports phoneme recognition (PR) on TIMIT and LibriSpeech under linear evaluation, and ASR on LibriSpeech-100 using a BiLSTM decoder, with CER and WER as metrics. The results show that JASPER retains detailed speech-level infor-mation despite adding spectral prediction and audio-domain pre-training objectives. 
+
+B. Encoder-Centric Benchmark Evaluation (X-ARES) 
+
+As presented in Table IV, JASPER achieves best perfor-mance under the parametric MLP probing setting. In the non-parametric k-NN setting, JASPER retains a highly robust TABLE VII RESULTS ON TRACK A TASKS UNDER THE XARES-LLM FRAMEWORK FOR MODELS PRE -TRAINED ON 200 HOUR AND 2000 HOUR SETUP . M ODELS ARE EVALUATED USING IDENTICAL DOWNSTREAM FINE -TUNING AND EVALUATION PROTOCOLS . (H IGHER VALUE IS BETTER FOR ALL TASKS )                                                                             
+
+> 200 hour setup Model Speech Tasks Audio Tasks Music Tasks Avg. SC
+> (Acc)
+> LibriC.
+> (Acc)
+> VoxL33
+> (Acc)
+> VoxC1
+> (Acc)
+> ASV15
+> (Acc)
+> FSC
+> (Acc)
+> VocalS.
+> (Acc)
+> CREMA-D
+> (Acc)
+> ESC-50
+> (Acc)
+> FSD50k
+> (mAP)
+> US8k
+> (Acc)
+> FSD18
+> (mAP)
+> GTZAN
+> (Acc)
+> NSynth
+> (Acc)
+> FMA
+> (Acc)
+> HuBERT [2] 0.43 0.44 0.21 0.68 0.89 0.63 0.87 0.50 0.52 0.05 0.65 0.38 0.75 0.61 0.52 0.54 JASPER 0.43 0.45 0.26 0.85 0.96 0.72 0.88 0.52 0.53 0.06 0.72 0.42 0.70 0.64 0.55 0.58 2000 hour setup
+> HuBERT [2] 0.70 0.43 0.78 0.51 0.96 0.99 0.89 0.52 0.51 0.07 0.72 0.39 0.82 0.63 0.59 0.63 JASPER 0.69 0.45 0.79 0.74 0.95 0.99 0.90 0.55 0.56 0.07 0.76 0.43 0.80 0.63 0.57 0.66 SC : Speech Commands; LibriC. : LibriCount; VoxL33 : VoxLingual 33; VoxC1 : VoxCeleb1; ASV15 : ASVspoof 2015; FSC : Fluent Speech Commands; VocalS. : VocalSound; US8k : UrbanSound8K;
+> FMA : Free Music Archive; Acc : Accuracy; mAP : Mean Average Precision.
+
+score, outperforming traditional speech baselines like Hu-BERT [2]. The competitive performance across the parametric and non-parametric evaluations demonstrates that our joint spectro-temporal objective yields a well-structured representa-tion space that naturally clusters by semantic similarity without relying on classifier training. 
+
+C. XARES-LLM Evaluation 
+
+Tables V and VI present the XARES-LLM results for tasks routed through the LALM backbone. In Track A, JASPER achieves the best average score of 0.66 , outperforming large-scale baselines such as Whisper [5] despite using far less pre-training data ( 2k vs. 680 k hours). While Dasheng [4] and Whisper show task-specific strengths, JASPER provides a more balanced cross-domain performance profile. In Track B, JASPER again leads with an average score of 0.50 , sur-passing WavLM [3] and HuBERT [2]. These results suggest that JASPER’s joint spectro-temporal representations provide strong and transferable features for speech and audio under-standing. VI. A BLATION STUDIES 
+
+A. Scaling Improvements 
+
+We study the effect of pre-training scale by training JASPER with 200 hours and 2000 hours of unlabeled speech-audio data under the same architecture and objective. Increasing the pre-training data consistently improves downstream performance across speech, environmental audio, and music tasks as shown in Table I. This confirms that the joint spectro-temporal objec-tive is scalable. We further analyze scaling under the XARES-LLM protocol in Table VII, where increasing JASPER pre-training from 200 hours to 2000 hours leads to consistent gains when the encoder is used as the acoustic front-end of an audio-language model. 
+
+B. Effect of Loss Weight λ
+
+To investigate the sensitivity of JASPER to the loss weight 
+
+λ in Eq. (3), we conduct an ablation study over different values of λ. As shown in Table VIII, the best performance is obtained at λ = 0 .01 , where the spectral component receives a stronger weight while retaining a small contribution from the temporal objective. This trend is consistent with our central hypothesis: adding spectral prediction to a waveform encoder provides 
+
+TABLE VIII PERFORMANCE OF JASPER FOR DIFFERENT λ VALUES IN THE 200 HR SETUP . R ESULTS ARE REPORTED AS CLASSIFICATION ACCURACY (%). 
+
+λ Audio Tasks Speech Tasks 
+
+ESC-50 US8k GTZAN IEMOCAP VoxC1 SPCV2 
+
+0.01 83.55 78.84 89.69 65.02 53.93 92.80 
+
+0.25 82.10 78.05 88.99 63.85 53.12 91.95 0.50 80.30 77.83 88.89 63.46 51.23 91.23 0.75 79.70 76.65 88.99 63.19 51.67 91.14 
+
+US8k : UrbanSound8K; VoxC1 : VoxCeleb1; SPCV2 : Speech Commands V2. 
+
+useful frequency-domain supervision, leading to stronger per-formance on audio tasks. At the same time, the temporal loss preserves speech-relevant sequential information, enabling competitive performance on speech tasks. VII. C ONCLUSION 
+
+We introduced JASPER, a unified self-supervised frame-work for joint audio-speech representation learning. By in-tegrating complementary time-frequency predictive objec-tives with temporal modeling, JASPER unifies speech and generic audio characteristics within a single raw-waveform encoder. Extensive benchmarking across a diverse suite of SUPERB-style diagnostic tasks and the XARES-LLM pipeline demonstrates that the continuous representations extracted by JASPER consistently outperform other established baselines across both frame-level and utterance-level tasks. These results highlight the benefits of unified spectro-temporal modeling for capturing the complex acoustic and semantic information required for large audio language models. Furthermore, all the improvements in the proposed framework are achieved with significantly smaller amounts of training data compared to several other baseline models. VIII. AI G ENERATED CONTENT DISCLOSURE 
+
+All the scientific content, methodology, analysis, results and conclusions were developed by the authors who take full responsibility of the work. Generative AI tools were used only for minor grammatical corrections to improve the readability of the manuscript. REFERENCES [1] A. Baevski, Y. Zhou, A. Mohamed, and M. Auli, “Wav2vec 2.0: A framework for self-supervised learning of speech representations,” 
+
+Advances in Neural Information Processing Systems (NeurIPS) , vol. 33, pp. 12 449–12 460, 2020. [2] W.-N. Hsu, B. Bolte, Y.-H. H. Tsai, K. Lakhotia, R. Salakhutdinov, and A. Mohamed, “Hubert: Self-supervised speech representation learning by masked prediction of hidden units,” IEEE/ACM Transactions on Audio, Speech, and Language Processing , vol. 29, pp. 3451–3460, 2021. [3] S. Chen, C. Wang, Z. Chen, Y. Wu, S. Liu, Z. Chen, J. Li, N. Kanda, T. Yoshioka, X. Xiao, J. Wu, L. Zhou, S. Ren, Y. Qian, Y. Qian, J. Wu, M. Zeng, X. Yu, and F. Wei, “Wavlm: Large-scale self-supervised pre-training for full stack speech processing,” IEEE Journal of Selected Topics in Signal Processing , vol. 16, no. 6, pp. 1505–1518, 2022. [4] H. Dinkel, Z. Yan, Y. Wang, J. Zhang, Y. Wang, and B. Wang, “Scaling up masked audio encoder learning for general audio classification,” arXiv preprint arXiv:2406.06992 , 2024. [5] A. Radford, J. W. Kim, T. Xu, G. Brockman, C. Mcleavey, and I. Sutskever, “Robust speech recognition via large-scale weak supervi-sion,” in Proceedings of the 40th International Conference on Machine Learning , ser. Proceedings of Machine Learning Research, vol. 202. PMLR, 23–29 Jul 2023, pp. 28 492–28 518. [6] Y. Chu, J. Xu, Q. Yang, H. Wei, X. Wei, Z. Guo, Y. Leng, Y. Lv, J. He, J. Lin, C. Zhou, and J. Zhou, “Qwen2-audio technical report,” arXiv preprint arXiv:2407.10759 , 2024. [7] P. E. Ameenudeen, C. Narayanan, and S. Ganapathy, “Ultras - unified learning of transformer representations for audio and speech signals,” in 
+
+2025 IEEE Automatic Speech Recognition and Understanding Workshop (ASRU) , 2025, pp. 1–7. [8] Y. Gong, Y.-A. Chung, and J. Glass, “AST: Audio spectrogram trans-former,” arXiv preprint arXiv:2104.01778 , 2021. [9] Y. Gong, C.-I. Lai, Y.-A. Chung, and J. Glass, “SSAST: Self-supervised audio spectrogram transformer,” in Proc. AAAI Conf. Artif. Intell. ,vol. 36, no. 10, 2022, pp. 10 699–10 709. [10] S. Chen, Y. Wu, C. Wang, S. Liu, D. Tompkins, Z. Chen, and F. Wei, “BEATs: Audio pre-training with acoustic tokenizers,” arXiv preprint arXiv:2212.09058 , 2022. [11] S. wen Yang, P.-H. Chi, Y.-S. Chuang, C.-I. J. Lai, K. Lakhotia, Y. Y. Lin, A. T. Liu, J. Shi, X. Chang, G.-T. Lin, T.-H. Huang, W.-C. Tseng, K. tik Lee, D.-R. Liu, Z. Huang, S. Dong, S.-W. Li, S. Watanabe, A. Mohamed, and H. yi Lee, “SUPERB: Speech processing universal performance benchmark,” arXiv preprint arXiv:2105.01051 , 2021. [12] J. Zhang, H. Dinkel, Y. Niu, C. Liu, S. Cheng, A. Zhao, and J. Luan, “X-ARES: A comprehensive framework for assessing audio encoder performance,” arXiv preprint arXiv:2505.16369 , 2025. [13] Xiaomi, University of Surrey, Tsinghua University, and Dataocean AI. (2026) The interspeech 2026 audio encoder capability challenge for large audio language models. [Online]. Available: https://dataoceanai. github.io/Interspeech2026-Audio-Encoder-Challenge/ [14] V. Panayotov, G. Chen, D. Povey, and S. Khudanpur, “LibriSpeech: An ASR corpus based on public domain audio books,” in Proc. IEEE Int. Conf. Acoust., Speech, Signal Process. (ICASSP) , 2015, pp. 5206–5210. [15] J. F. Gemmeke, D. P. W. Ellis, D. Freedman, A. Jansen, W. Lawrence, R. C. Moore, M. Plakal, and M. Ritter, “Audio set: An ontology and human-labeled dataset for audio events,” in 2017 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , 2017, pp. 776–780. [16] L. Pepino, P. Riera, and L. Ferrer, “EnCodecMAE: Leveraging neural codecs for universal audio representation learning,” in Proc. INTER-SPEECH , 2025. [17] H.-J. Chang, S. Bhati, J. Glass, and A. H. Liu, “USAD: Univer-sal speech and audio representation via distillation,” arXiv preprint arXiv:2506.18843 , 2025. [18] X. Li, N. Shao, and X. Li, “Self-supervised audio teacher-student transformer for both clip-level and frame-level tasks,” arXiv preprint arXiv:2306.04186 , 2023. [19] D. Niizumi, D. Takeuchi, Y. Ohishi, N. Harada, and K. Kashino, “Masked modeling duo: Learning representations by encouraging both networks to model the input,” in Proc. IEEE Int. Conf. Acoust., Speech, Signal Process. (ICASSP) . IEEE, 2023. [20] J. Turian, J. Shier, H. R. Khan, B. Raj, B. W. Schuller, C. J. Steinmetz, C. Malloy, G. Tzanetakis, G. Velarde, K. McNally et al. , “HEAR: Holis-tic evaluation of audio representations,” in Proc. NeurIPS Competitions and Demonstrations Track . PMLR, 2022, pp. 125–145. [21] H. Dinkel, Y. Wang, Z. Yan, J. Zhang, and Y. Wang, “CED: Consistent ensemble distillation for audio tagging,” in Proc. IEEE Int. Conf. Acoust., Speech, Signal Process. (ICASSP) . IEEE, 2024, pp. 291–295. [22] A. Baevski, W.-N. Hsu, Q. Xu, A. Babu, J. Gu, and M. Auli, “Data2vec: A general framework for self-supervised learning in speech, vision and language,” in Proc. ICML . PMLR, 2022, pp. 1298–1312. [23] K. J. Piczak, “ESC: Dataset for environmental sound classification,” in 
+
+Proc. ACM Int. Conf. Multimedia , 2015. [24] J. Salamon, C. Jacoby, and J. P. Bello, “A dataset and taxonomy for urban sound research,” in Proc. ACM Int. Conf. Multimedia , 2014. [25] G. Tzanetakis and P. Cook, “Musical genre classification of audio signals,” IEEE Transactions on Speech and Audio Processing , vol. 10, no. 5, pp. 293–302, 2002. [26] M. Defferrard, K. Benzi, P. Vandergheynst, and X. Bresson, “FMA: A dataset for music analysis,” arXiv preprint arXiv:1612.01840 , 2016. [27] C. Busso, M. Bulut, C.-C. Lee, A. Kazemzadeh, E. Mower, S. Kim, J. N. Chang, S. Lee, and S. S. Narayanan, “IEMOCAP: Interactive emotional dyadic motion capture database,” Lang. Resources & Evaluation , vol. 42, no. 4, pp. 335–359, 2008. [28] A. Nagrani, J. S. Chung, W. Xie, and A. Zisserman, “VoxCeleb: Large-scale speaker verification in the wild,” Computer Speech & Language ,vol. 60, p. 101027, 2020. [29] P. Warden, “Speech commands: A dataset for limited-vocabulary speech recognition,” arXiv preprint arXiv:1804.03209 , 2018. [30] H. Cao, D. G. Cooper, M. K. Keutmann, R. C. Gur, A. Nenkova, and R. Verma, “CREMA-D: Crowd-sourced emotional multimodal actors dataset,” IEEE Trans. Affect. Comput. , vol. 5, no. 4, pp. 377–390, 2014. [31] F.-R. Stöter, S. Chakrabarty, E. Habets, and B. Edler, “LibriCount, a dataset for speaker count estimation,” Zenodo, 2018. [Online]. Available: https://doi.org/10.5281/zenodo.1216072 [32] J. S. Garofolo, L. F. Lamel, W. M. Fisher, J. G. Fiscus, and D. S. Pallett, “TIMIT acoustic-phonetic continuous speech corpus,” Linguistic Data Consortium , vol. LDC93S1, pp. 1–4, 1993. [33] L. B. Allal, A. Lozhkov, E. Bakouch, G. M. Blázquez, G. Penedo, L. Tunstall, A. Marafioti, H. Kydlíˇ cek, A. P. Lajarín, V. Srivastav, J. Lochner, C. Fahlgren, X.-S. Nguyen, C. Fourrier, B. Burtenshaw, H. Larcher, H. Zhao, C. Zakka, M. Morlon, C. Raffel, L. von Werra, and T. Wolf, “SmolLM2: When smol goes big–data-centric training of a small language model,” arXiv preprint arXiv:2502.02737 , 2025.
