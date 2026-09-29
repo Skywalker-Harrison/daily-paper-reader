@@ -1,0 +1,583 @@
+Title: DuraS2ST: Chain-of-Thought and Reinforcement Learning for Duration-Aligned Speech-to-Speech Translation
+
+URL Source: https://arxiv.org/pdf/2609.33742v1
+
+Published Time: Tue, 29 Sep 2026 03:00:19 GMT
+
+Number of Pages: 20
+
+Markdown Content:
+# DuraS2ST: Chain-of-Thought and Reinforcement Learning for Duration-Aligned Speech-to-Speech Translation 
+
+Yayue Deng 1,2 *, Dingdong Wang 1, Yuxuan Hu 2, Jinyu Li 2, Yanqing Liu 2,Yuanyuan Wang 1, Weidong Chen 1, Helen M. Meng 1, Shujie Liu 2†, Xixin Wu 1†1The Chinese University of Hong Kong, China 
+
+> 2
+
+Microsoft Corporation 
+
+Abstract 
+
+Speech-to-speech translation (S2ST) in time-sensitive applications such as video dubbing requires not only semantic fidelity and speaker preservation, but also strict duration con-sistency to avoid audio-visual misalignment. However, existing S2ST systems largely gen-erate target speech without explicit temporal planning, making duration control an unre-solved challenge. We introduce DuraS2ST ,a duration-aligned reasoning framework that enables a single speech language model to first generate an explicit chain-of-thought (CoT) for planning target wording and phonetic length, and then synthesize the corresponding speech tokens. To support this paradigm, we con-struct DuraSet-440K , a high-quality duration-aligned CoT corpus for supervised initializa-tion. We further optimize the model with multi-modal multi-dimensional reinforcement learn-ing, using a Duration Margin Reward to bal-ance translation quality and duration consis-tency, and Modality-Aware Reward Attribu-tion to assign rewards to appropriate token spans. Experiments on CVSS-T show that DuraS2ST achieves a strong balance between translation quality and duration consistency, outperforming competitive open-source and commercial baselines. Project page: https: //github.com/Mia11939/DuraS2ST .
+
+1 Introduction 
+
+Speech-to-speech translation (S2ST) aims to trans-late speech across languages while preserving the speaker’s acoustic characteristics. Recent progress in end-to-end discrete unit modeling and large-scale Speech Language Models (SLMs) has sig-nificantly improved semantic fidelity and speaker preservation (Lee et al., 2022; Huang et al., 2023; Inaguma et al., 2023; Rubenstein et al., 2023; Com-munication et al., 2023b; Dong et al., 2023). How-ever, most existing systems generate target speech  
+
+> *Work done during an internship at Microsoft
+> †Corresponding Author
+
+Figure 1: Existing systems suffer from duration mis-match: “ 你说得对” can be translated as either “You’re right” or “I think you are absolutely right about that,” leading to different speech durations. See Appendix D. 
+
+without explicit temporal control. In time-sensitive scenarios such as video dubbing and simultaneous interpretation, duration mismatch can cause audio-visual desynchronization, overlapping speech, and degraded user experience (Wu et al., 2023). Prior work on isochronous S2ST mainly fol-lows two paradigms:cascaded and end-to-end sys-tems. Cascaded systems (Wahlster, 2000) often rely on post-hoc time-stretching, which may dis-tort prosody and speaker timbre. End-to-end sys-tems introduce speed tokens, length embeddings, or duration-conditioned generation (Wu et al., 2023; Le et al., 2024; Cheng et al., 2025a). While these methods improve temporal alignment, they typi-cally treat duration as a low-level acoustic con-straint: the decoder is encouraged to compress or expand speech to satisfy a target length. As shown in Figure 1, such black-box control lacks an explicit planning mechanism for balancing semantic con-tent with phonetic length. In contrast, human dub-bing often involves deliberate paraphrasing, where speakers adjust wording before articulation to fit the available time while preserving the core mean-ing. Motivated by this observation, we propose 
+
+DuraS2ST , a unified reasoning-based S2ST frame-work that formulates duration alignment as a planning problem rather than an acoustic post-processing problem. Built on a pre-trained SLM, arXiv:2609.33742v1 [cs.SD] 27 Sep 2026 DuraS2ST first generates an explicit reasoning tra-jectory that plans the target content and its phonetic footprint, and then produces the final interleaved text-acoustic sequence in a single autoregressive process. This allows semantic planning to directly guide subsequent speech generation. DuraS2ST is trained in two stages. First, we perform supervised fine-tuning on a duration-aligned reasoning corpus that we construct, named 
+
+DuraSet-440K . The model is supervised to plan, inside its chain-of-thought, both the target semantic content and its phonetic length before producing any acoustic token. This forces the model to ac-tively balance semantic density against phonetic footprint at the symbolic level, replacing the black-box length control of speed tokens and length em-beddings with explicit reasoning that drives subse-quent acoustic synthesis. Second, we adopt Group Relative Policy Optimization (Shao et al., 2024) for our multi-modal generation task with a multi-dimensional reward design. We propose the Du-ration Margin Reward (DMR) to balance trans-lation quality and duration consistency, and the 
+
+Modality-Aware Reward Attribution (MARA) to shield the textual chain-of-thought from cross-modality reward contamination. Our contributions are summarized as follows: • We propose DuraS2ST , the first unified frame-work that reformulates duration-aligned S2ST as a reasoning problem rather than an acoustic post-processing one. To support this paradigm, we further release DuraSet-440K , a large-scale duration-aligned reasoning corpus. • We introduce a multimodal RL optimization strategy for duration-aligned S2ST. Specifically, 
+
+DMR provides a smooth soft constraint for dura-tion consistency, while MARA attributes reward signals to modality-specific token spans, prevent-ing cross-modality reward contamination. • Experiments on CVSS-T show that DuraS2ST achieves a strong balance among translation qual-ity and duration consistency, outperforming com-petitive open-source and commercial baselines. Notably, we demonstrate that DuraS2ST achieves substantial gains even in a zero-shot RL setting. 
+
+2 DuraS2ST 
+
+To effectively resolve the duration mismatch in Speech-to-Speech Translation (S2ST), we propose 
+
+DuraS2ST , as shown in Figure 2, a unified frame-work built upon a single pre-trained multimodal language model. The central strength of DuraS2ST is its ability to explicitly negotiate the balance be-tween semantic fidelity and acoustic duration. Un-like conventional cascaded pipelines or standard modular methods that treat duration control as a disconnected post-processing step, our approach leverages the multimodal language model’s inher-ent reasoning capacity to formulate a rationale prior to acoustic execution, dynamically adjusting trans-lation vocabulary and explicitly planning the re-sulting phoneme-sequence lengths to satisfy the duration budget. 
+
+2.1 Phase I: SFT Training 
+
+As the first step of our training paradigm, we per-form an SFT procedure (Wei et al., 2022) to instruct the SLM, Step-Audio-2-mini-Think (Wu et al., 2025), to adhere to strict duration constraints and execute a reasoning process in S2ST tasks. Leveraging our constructed DuraSet-440K cor-pus (Section 3), denoted as Ddura , we conduct SFT to harness the model’s pre-trained capabili-ties. Specifically, the model is guided to explicitly balance semantic fidelity and duration constraints by selecting the optimal translation vocabulary un-der the premise of maintaining comparable lengths between the source and target speech. For a given training sample ( Xsrc , Y), with Xsrc represent-ing the source speech representation, the output sequence Y is structured as a concatenation ( ⊕) of two explicit phases:          
+
+> <think> ,yCoT ,</think>
+> |{z }
+> Reasoning Phase
+> ⊕<tts_start> ,yTA4 ,<tts_end>
+> |{z }
+> Response Phase
+
+, (1) where yCoT represents the reasoning trajectory in which the model could jointly optimize semantic correspondence and length alignment, determining appropriate target words and sentence structures to match the source speech duration. Conditioned on the reasoning results, the model generates yTA4 , an interleaved TA4 sequence in which each translated text (T) token is paired with four acoustic (A) to-kens within a unified stream, following Wu et al. (2025). During training, the model is optimized to mini-mize the negative log-likelihood of the entire for-matted target sequence Y given the source speech. Let Ddura = {(X(i)src , Y(i))}Ni=1 denote DuraSet-440K, where Y(i) = ( y(i)CoT , y(i)TA4 ) contains the CoT rationale and TA4 speech tokens. The SFT Figure 2: Overview of the DuraS2ST framework. DuraS2ST first generates a CoT rationale ( yCoT ) for explicit duration planning, then synthesizes target speech tokens ( yTA4 ). The model is trained via a two-phase paradigm: SFT on DuraSet-440K, followed by GRPO with a multi-dimensional reward design that integrates translation quality, duration (DMR), and format compliance, dynamically attributed via MARA. 
+
+objective is formulated as: 
+
+θ∗ = arg min 
+
+> θN
+
+X
+
+> i=1
+
+− log Pθ
+
+ Y(i) | X(i)src 
+
+, (2) where θ denotes the trainable parameters of the SLM. The objective trains the model to autoregres-sively generate the CoT rationale and final speech tokens in a unified sequence. This explicitly con-ditions the TA4 output yTA4 on both the source speech representation Xsrc and the generated ra-tionale yCoT , thereby linking semantic planning with acoustic generation before the multimodal re-inforcement learning phase. 
+
+2.2 Phase II: GRPO Training 
+
+Although SFT provides a strong initialization for reasoning and cross-modal alignment, it cannot di-rectly optimize non-differentiable sequence-level objectives such as duration consistency and transla-tion quality. We therefore introduce a multimodal reinforcement learning phase based on Group Rel-ative Policy Optimization (GRPO) (Shao et al., 2024). For each query q, we sample a group of 
+
+G rollouts {o1, . . . , o G} from the old policy πθold 
+
+and optimize them with translation-quality, dura-tion, and format signals. This RL stage faces two task-specific challenges. First, strict duration matching can over-penalize minor deviations, forcing the model to trade trans-lation fidelity and acoustic naturalness for length compliance. Second, because each trajectory inter-leaves textual CoT and acoustic tokens, sequence-level duration penalties may contaminate credit as-signment by incorrectly penalizing preceding rea-soning tokens. To address these issues, we first introduce Duration Margin Reward (DMR) as a soft duration objective, and then apply Modality-Aware Reward Attribution (MARA) to assign re-ward signals to appropriate token spans. We further incorporate translation-quality and format signals to preserve semantic fidelity and structural valid-ity during GRPO optimization. We next describe the multi-modal multi-dimensional reward design, which consists of translation-quality, duration, and format signals, followed by the MARA mechanism for modality-aware span-level credit assignment. 
+
+2.2.1 Multi-Modal Multi-Dimensional Reward Design 
+
+We use three complementary signals for GRPO: a translation-quality reward, a duration reward, and a format gate. The translation-quality reward en-courages semantic fidelity, the duration reward en-courages length consistency, and the format gate ensures that only structurally valid outputs receive positive optimization signals. 
+
+Translation Quality Reward. Let Y denote the raw generated multimodal sequence, ytext the text translation extracted from the TA4 stream by re-moving acoustic tokens, x the source text, and y∗
+
+the reference translation. The translation-quality reward combines reference-based BLEU and reference-free COMET Kiwi :     
+
+> Rqua =BLEU (ytext ,y∗) + COMET (x,ytext )
+
+, (3) where both scores are normalized to [0 , 1] .Duration Margin Reward. To address the trade-off between duration consistency and translation quality, we model duration alignment as a bounded feasible region rather than a hard regression target. We introduce the Duration Margin Reward (DMR), a non-linear soft constraint that rewards outputs close to the target duration while tolerating minor deviations. Let Lpred and Ltgt denote the predicted and tar-get sequence lengths in acoustic tokens. We first compute the relative duration gap δ = |Lpred −
+
+Ltgt |/L tgt , and map it to a signed margin m =(τ − δ)/s , where τ is the acceptable relative error bound and s controls the smoothing scale. The duration reward is then defined as:             
+
+> Rdur =σ κ·clip (m, −B, B )−σ(−κB )
+> σ(κB )−σ(−κB )∈[0 ,1]
+
+, (4) where σ(·) is the Log-Sigmoid function, κ controls the reward sharpness, and B bounds the margin range. The min–max normalization rescales the bounded output to [0 , 1] , providing GRPO with a stable reward signal. DMR is monotonically decreasing with the du-ration gap δ: outputs within the acceptable region receive high rewards, while large deviations are smoothly suppressed. This design avoids over-penalizing minor duration differences, reduces sen-sitivity to outliers, and concentrates the learning signal around recoverable duration mismatches, thereby encouraging duration consistency without sacrificing translation fidelity or acoustic natural-ness. 
+
+Format-Gated Aggregation. To ensure struc-tural validity, we further define a binary format gate g(Y) ∈ { 0, 1}, which equals 1 only when Y
+
+follows the required ordered control tags and termi-nates correctly. Instead of using format compliance as an additive reward, we use it to gate the raw quality and duration rewards before MARA: 
+
+##  r(i)
+
+> qua
+
+## , r (i)
+
+> dur
+
+##  = g(Y(i)) ·  R(i)
+
+> qua
+
+## , R (i)
+
+> dur
+
+## . (5) Thus, malformed rollouts receive zero credit for both quality and duration, preventing reward hack-ing through format violations. The gated rewards 
+
+r(i) 
+
+> qua
+
+and r(i) 
+
+> dur
+
+are then used by MARA for group normalization and span-level attribution. 
+
+2.2.2 Modality-Aware Reward Attribution 
+
+Standard GRPO collapses all rewards into a single scalar advantage and broadcasts it to every gener-ated token. This is suboptimal for our multimodal trajectories, where textual CoT tokens and acous-tic tokens are governed by different objectives. In particular, applying the speech-specific duration reward to preceding reasoning tokens may penalize correct semantic planning for downstream acous-tic length errors. We refer to this issue as Cross-Modality Reward Contamination. To address this, we propose Modality-Aware Re-ward Attribution (MARA), which computes group-relative advantages separately for each reward com-ponent and assigns them only to the tokens they directly supervise. Given a group of G rollouts 
+
+{Y(i)}Gi=1 , we split each output into a reasoning span P and an acoustic span A. For each reward component k ∈ { qua , dur }, where qua stands for translation quality and dur for duration, we normal-ize rewards within the group: 
+
+ˆA(i) 
+
+> k
+
+= r(i) 
+
+> k
+
+− μk
+
+σk + ε , μk = 1
+
+> G
+
+P 
+
+> j
+
+r(j) 
+
+> k
+
+, (6) where σk is the within-group standard deviation and ε is a small constant. The span-level advantage is then assigned as: 
+
+ˆA(i) 
+
+> t
+
+=
+
+( ˆA(i)
+
+> qua
+
+, t ∈ P ,
+
+ˆA(i) 
+
+> qua
+
++ ˆA(i)
+
+> dur
+
+, t ∈ A . (7) Here, ˆA(i) 
+
+> qua
+
+is applied to both spans ( P and A), as it reflects the translation quality of both text and speech, while the duration advantage ˆA(i) 
+
+> dur
+
+is ap-plied only to the acoustic span A, where length is manifested. MARA therefore preserves useful se-mantic feedback while preventing speech-specific penalties from contaminating textual reasoning. 
+
+3 DuraSet-440K 
+
+To mitigate duration mismatch in speech-to-speech translation, we construct DuraSet-440K , a large-scale duration-aligned bilingual S2ST corpus con-taining 440,705 parallel utterances and roughly 1,000 hours of speech. It is designed to pro-vide duration-aligned target speech that remains translation-faithful and speaker-consistent. We build the corpus from the English and Chinese sub-sets of LEMAS (Zhao et al., 2026), first selecting high-quality utterances with suitable durations as source speech. Instead of relying on post-hoc time-stretching, we use duration-controllable synthesis to generate target speech that naturally aligns with the source duration. Figure 3 summarizes the over-all construction pipeline, with detailed statistics and filtering settings provided in Appendix B. Figure 3: Overview of the DuraSet-440K construction pipeline. 
+
+The pipeline contains three main stages. First, in Source and Candidate Construction , we se-lect English and Chinese utterances from LEMAS and filter them by quality and duration. Each re-tained source utterance is transcribed, and an LLM is prompted to generate multiple translation can-didates with diverse styles and phonetic lengths. Second, in Duration-Aligned Synthesis and Selec-tion , each candidate is synthesized by a zero-shot duration-controllable TTS model conditioned on the source audio as a timbre prompt, and the best target pair is selected based on transcription accu-racy, duration alignment, and speaker similarity. Third, in Reasoning Annotation and Final Assem-bly , the retained pair is annotated with a phoneme-grounded reasoning trajectory and augmented by bidirectional source-target swapping, yielding the final duration-aligned bilingual S2ST corpus. 
+
+4 Experiments 
+
+4.1 Training Setup 
+
+We build DuraS2ST on top of Step-Audio-2-mini-Think (Wu et al., 2025) 1, a speech language model that natively interleaves text and discrete acoustic tokens. This makes it well suited for the structured CoT-to-speech format defined in Section 2.1, with-out requiring architectural modifications. Training proceeds in two phases. 
+
+Phase I: SFT. We perform full-parameter fine-tuning on DuraSet-440K for 4,000 steps using AdamW with a learning rate of 1e −5 and a global 
+
+> 1https://huggingface.co/stepfun-ai/ Step-Audio-2-mini-Think
+
+batch size of 128 . Each training trajectory follows the CoT-then-speech format in Eq. 1. 
+
+Phase II: GRPO. Starting from the SFT check-point, we further optimize the model with GRPO for 1,000 steps, using a learning rate of 1.5e −5
+
+and a KL coefficient of 0.001 . To reduce training cost, we attach LoRA (Hu et al., 2021) adapters to all linear projections and use vLLM (Kwon et al., 2023) for efficient rollout generation. The reward combines translation quality and du-ration consistency, with malformed outputs filtered by the format gate. Specifically, the quality reward combines BLEU and COMET Kiwi , while the du-ration reward uses the proposed margin-based for-mulation with tolerance τ =5% . These rewards are converted into independent group-relative advan-tages through MARA, and the format gate zeroes both rewards for malformed rollouts before attribu-tion. We also apply dynamic sampling (Yu et al., 2025) for training stability. Full hyperparameters and reward implementation details are provided in Appendix C.1 and Appendix C.2. 
+
+4.2 Evaluation Setup 4.2.1 Test Data 
+
+We evaluate on the Chinese (ZH) and English (EN) test splits of CVSS-T (Jia et al., 2022), comprising 4,897 utterance pairs, totaling 8.2 hours for Chinese and 6.3 hours for English. Since CVSS-T is disjoint from DuraSet-440K, it serves as an out-of-domain benchmark for evaluating translation quality and duration alignment. 4.2.2 Metrics 
+
+We evaluate S2ST performance from three as-pects: translation quality, voice/prosody preserva-tion, and duration consistency. Evaluator check-points and implementation details are provided in Appendix C.4. 
+
+Translation Quality. We report Text-BLEU on the intermediate text output and Speech-BLEU on the ASR transcription of the generated speech, both computed with SacreBLEU (Post, 2018). We also report reference-based COMET (Rei et al., 2020) and reference-free COMET Kiwi (Rei et al., 2022). 
+
+Voice and Prosody. We report A.PCP (Com-munication et al., 2023b) to measure prosodic con-sistency, and SECS to measure speaker similarity using WavLM (Chen et al., 2022) embeddings be-tween the source prompt and generated speech. 
+
+Duration Consistency. We report SLC-0.2 and 
+
+SLC-0.4 (Wu et al., 2023), which measure the frac-tion of samples whose target-to-source duration ratio falls within ±20% and ±40% , respectively. To capture fine-grained duration errors, we further report MADE , the mean absolute duration error in seconds, and MRDE , the mean relative duration error. 
+
+4.2.3 Baselines 
+
+We compare DuraS2ST with both open-source and commercial S2ST systems: • UniSS (Cheng et al., 2025b): a strong Chinese-English S2ST system with unified text-speech modeling and structured CoT prompting. We report both Quality and Performance modes, de-noted as UniSS (Q) and UniSS (P) .• Qwen2.5-Omni-7B (Xu et al., 2025) and 
+
+Kimi-Audio (KimiTeam et al., 2025): re-cent audio/omni-modal MLLMs with speech-to-speech generation capability. • Step-Audio-2-mini and Step-Audio-2-mini-Think (Wu et al., 2025): the non-reasoning and reasoning variants of our backbone model. • SeamlessM4T (Communication et al., 2023a): Meta’s multilingual S2ST system, including Medium, Large, and v2-Large variants. • GPT-4o : a closed-source commercial S2ST ref-erence. Checkpoint details and prompt templates for all baselines are provided in Appendix C.3. We further evaluate four variants based on our backbone to isolate the effects of SFT, CoT super-vision, and GRPO: • DuraS2ST-Baseline : the original Step-Audio-2-mini-Think backbone without additional training. • DuraS2ST-Instruct : SFT on DuraSet-440K without the <think> CoT. • DuraS2ST-Think : SFT on DuraSet-440K with the <think> CoT. • DuraS2ST-Think-RL : GRPO training initial-ized from DuraS2ST-Think. 
+
+4.2.4 Inference Configuration 
+
+We serve DuraS2ST with vLLM (Kwon et al., 2023) using the official Step-Audio-2 sampling configuration: temperature 0.7, top-p=0 .9, fre-quency penalty 0, and repetition penalty 1.05 .The generated acoustic tokens are converted to waveforms using Step-Audio-2’s token2wav mod-ule (Wu et al., 2025). All DuraS2ST variants use the same Step-Audio-2 prompt template as in data construction, with baseline-specific prompts listed in Appendix C.3. 
+
+4.3 Main Results 
+
+Tables 2 and 1 report the main results on CVSS-T. Overall, DuraS2ST achieves the strongest bal-ance across translation quality, acoustic preser-vation, and duration consistency. More impor-tantly, the stepwise improvements from Baseline to Instruct, Think, and Think-RL validate the ef-fectiveness of duration-aligned supervision, ex-plicit CoT planning, and reinforcement learning. 
+
+Translation quality. On EN-ZH, DuraS2ST-Think-RL improves AVG BLEU from 27.25 to 30.95 and achieves the best open-source COMET Kiwi . On ZH-EN, it obtains the best overall translation per-formance among all systems, reaching the highest Text-BLEU, Speech-BLEU, COMET, AVG BLEU ,and AVG COMET . This suggests that our DuraS2ST framework can achieve translation quality compa-rable to or even better than strong models with-out explicit duration control, while delivering sub-stantially stronger duration consistency. Qwen2.5-Omni occasionally appends assistant-like speech in direct S2ST generation, which lowers both trans-lation and duration scores. 
+
+Duration consistency. DuraS2ST-Think-RL brings substantial improvements in duration align-ment. Compared with the backbone, it raises SLC-0.2 from 0.487 to 0.997 on EN-ZH and from 0.305 to 0.934 on ZH-EN, while reducing MRDE to the Table 1: Main results on CVSS-T ( ZH-EN ). AVG BLEU and AVG COMET are means of (Text-BLEU, Speech-BLEU) and (COMET, COMET Kiwi ). Best / 2nd–3rd scores are highlighted. “–” indicates unavailable values. 
+
+Model Translation Quality Voice & Prosody Duration Consistency Text-BLEU ↑ Speech-BLEU ↑ COMET ↑ COMET Kiwi ↑ AVG BLEU ↑ AVG COMET ↑ A.PCP ↑ SECS ↑ SLC-0.2 ↑ SLC-0.4 ↑ MADE (s) ↓ MRDE ↓
+
+General Speech Large Language Models 
+
+GPT-4o – 23.13 0.710 0.692 – 0.701 2.49 0.018 0.442 0.836 1.59 0.246 Qwen2.5-Omni 10.86 10.82 0.638 0.611 10.84 0.625 1.75 0.142 0.190 0.355 7.85 1.310 Kimi-Audio 19.87 13.91 0.698 0.700 16.89 0.699 2.10 0.188 0.429 0.746 2.56 0.462 Step-Audio-2-mini 25.42 20.58 0.752 0.743 23.01 0.745 2.49 0.511 0.312 0.681 1.98 0.348 UniSS (Q) 25.86 24.54 0.780 0.699 25.20 0.740 2.73 0.309 0.913 0.983 0.74 0.125 UniSS (P) 26.04 24.00 0.769 0.683 25.02 0.726 2.74 0.310 0.893 0.986 0.74 0.123 
+
+Speech-to-Speech Translation Models 
+
+SeamlessM4T-Medium 19.02 15.65 0.673 0.663 17.34 0.668 2.26 0.041 0.260 0.649 2.26 0.331 SeamlessM4T-Large 22.20 19.52 0.682 0.677 20.86 0.680 2.24 0.039 0.365 0.768 1.97 0.294 SeamlessM4T-v2-Large 23.57 22.77 0.704 0.703 23.17 0.704 2.10 0.041 0.312 0.713 2.06 0.310 
+
+DuraS2ST-Baseline 24.14 23.09 0.740 0.740 23.62 0.740 2.49 0.453 0.305 0.680 2.22 0.396 
+
+DuraS2ST-Instruct 27.42 24.81 0.789 0.692 26.12 0.741 2.65 0.500 0.926 0.978 1.31 0.170 
+
+DuraS2ST-Think 25.99 23.76 0.790 0.699 24.88 0.745 2.71 0.499 0.930 0.977 0.48 0.079 
+
+DuraS2ST-Think-RL 28.71 25.88 0.794 0.700 27.30 0.747 2.70 0.518 0.934 0.979 0.42 0.068 
+
+Table 2: Main results on CVSS-T ( EN-ZH ). AVG BLEU and AVG COMET are means of (Text-BLEU, Speech-BLEU) and (COMET, COMET Kiwi ). Best / 2nd–3rd scores are highlighted. “–” indicates unavailable values. 
+
+Model Translation Quality Voice & Prosody Duration Consistency Text-BLEU ↑ Speech-BLEU ↑ COMET ↑ COMET Kiwi ↑ AVG BLEU ↑ AVG COMET ↑ A.PCP ↑ SECS ↑ SLC-0.2 ↑ SLC-0.4 ↑ MADE (s) ↓ MRDE ↓
+
+General Speech Large Language Models 
+
+GPT-4o – 31.46 0.845 0.780 – 0.812 2.59 0.051 0.565 0.858 1.09 0.253 Qwen2.5-Omni 15.72 15.47 0.706 0.693 15.60 0.700 2.17 0.082 0.272 0.414 4.78 1.259 Kimi-Audio 27.65 19.13 0.820 0.768 23.39 0.794 2.28 0.096 0.571 0.830 3.21 0.923 Step-Audio-2-mini 32.47 26.66 0.812 0.762 29.57 0.785 2.75 0.330 0.471 0.852 1.58 0.423 UniSS (Q) 33.03 32.16 0.828 0.773 32.60 0.801 2.72 0.315 0.984 0.996 0.34 0.067 UniSS (P) 30.69 29.93 0.817 0.766 30.31 0.792 2.73 0.316 0.990 0.997 0.33 0.065 
+
+Speech-to-Speech Translation Models 
+
+SeamlessM4T-Medium 24.80 15.84 0.757 0.744 20.32 0.751 2.31 0.033 0.561 0.849 1.52 0.310 SeamlessM4T-Large 27.33 19.57 0.775 0.763 23.45 0.769 2.29 0.030 0.618 0.846 1.52 0.275 SeamlessM4T-v2-Large 26.66 24.36 0.767 0.742 25.51 0.755 2.39 0.055 0.660 0.913 0.89 0.183 
+
+DuraS2ST-Baseline 27.57 26.92 0.821 0.773 27.25 0.797 2.75 0.333 0.487 0.851 2.04 0.629 
+
+DuraS2ST-Instruct 29.51 28.70 0.827 0.780 29.11 0.804 2.79 0.367 0.981 0.996 0.63 0.090 
+
+DuraS2ST-Think 30.46 29.39 0.828 0.782 29.93 0.805 2.79 0.370 0.993 0.999 0.18 0.039 
+
+DuraS2ST-Think-RL 31.47 30.43 0.834 0.783 30.95 0.808 2.79 0.379 0.997 0.999 0.23 0.038 
+
+lowest values in both directions. It achieves the best results on most duration metrics and remains highly competitive on the others, showing the effective-ness of our duration-aware training in improving source-target synchronization. 
+
+Effect of CoT planning. The comparison be-tween DuraS2ST-Instruct and DuraS2ST-Think highlights the role of explicit reasoning supervi-sion. Both models are trained on the same DuraSet-440K corpus, but only Think exposes the <think> 
+
+trajectory before acoustic generation. Introducing this reasoning stage leads to clear gains in duration alignment, reducing MADE from 0.63s to 0.18s on EN-ZH and from 1.31s to 0.48s on ZH-EN, with similar reductions in MRDE. These results sug-gest that structured CoT mainly benefits duration planning by providing a semantic-phonetic interme-diate step before acoustic token generation. While its effect on translation quality varies across direc-tions, the subsequent RL stage further improves translation performance and duration consistency, showing the complementary roles of CoT-based planning and reward-based optimization. 
+
+Effect of GRPO. The transition from DuraS2ST-Think to DuraS2ST-Think-RL demonstrates the benefit of reward-based optimization. GRPO con-sistently improves translation metrics in both di-rections, especially on ZH-EN, where AVG BLEU 
+
+increases from 24.88 to 27.30. Meanwhile, dura-tion consistency is largely preserved or further im-proved, with MRDE reduced from 0.039 to 0.038 on EN-ZH and from 0.079 to 0.068 on ZH-EN. These results show that the RL stage enhances se-mantic fidelity under duration-aligned generation, while DMR and MARA provide effective duration-aware reward attribution. 
+
+Acoustic preservation. DuraS2ST maintains strong prosody and speaker similarity while enforc-ing duration consistency. On EN-ZH, the trained DuraS2ST variants achieve the best A.PCP, and Think-RL obtains the highest SECS in both direc-tions. This is important because duration control (a) Duration Margin Reward (b) Text-BLEU Reward (c) COMET-Kiwi Reward (d) Total Reward 
+
+Figure 4: Zero-GRPO training dynamics on CVSS-T. Curves show duration, BLEU, COMET Kiwi , and total rewards over 1,000 GRPO steps without DuraSet-440K SFT. Table 3: Subjective MOS (1–5, higher is bet-ter) on CVSS-T. Each cell reports EN-ZH | ZH-EN .
+
+Best / 2nd–3rd per direction are highlighted.                                                                                 
+
+> Model Trans. ↑Natur. ↑SpkSim ↑Avg ↑
+> SeamlessM4T-v2-Large 2.87 |3.07 1.20 |3.93 1.13 |1.27 1.73 |2.76 Qwen2.5-Omni 3.87 |3.80 4.17 |4.03 1.00 |2.40 3.01 |3.41 Kimi-Audio 2.20 |2.40 3.80 |3.32 1.07 |1.13 2.36 |2.29 UniSS 3.80 |3.67 3.87 |3.33 3.87 |3.93 3.85 |3.64
+> DuraS2ST-Baseline 3.93 |3.53 4.10 |4.13 4.00 |4.33 4.01 |4.00
+> DuraS2ST-Instruct 4.00 |4.06 4.20 |4.08 4.13 |4.00 4.11 |4.05
+> DuraS2ST-Think 4.53 |4.13 4.27 |4.13 4.27 |4.20 4.36 |4.15
+> DuraS2ST-Think-RL 4.33 |4.73 4.17 |4.23 4.40 |4.33 4.30 |4.43
+
+Table 4: Zero-GRPO duration consistency on CVSS-T (EN-ZH | ZH-EN). Removing Rdur isolates the effect of Duration Margin Reward without DuraSet-440K SFT.                                        
+
+> Model SLC-0.2 ↑SLC-0.4 ↑MADE (s) ↓MRDE ↓
+> Baseline 0.487 |0.305 0.851 |0.680 2.04 |2.22 0.629 |0.396
+> + GRPO 0.455 |0.302 0.877 |0.691 1.15 |1.97 0.259 |0.346
+> w/o Rdur 0.448 |0.319 0.855 |0.641 1.83 |1.93 0.565 |0.385
+
+via post-hoc time-stretching can distort speaker identity or naturalness. In contrast, DuraS2ST learns to satisfy duration constraints during gen-eration, preserving acoustic characteristics while producing synchronized speech. 
+
+4.4 Subjective Evaluation 
+
+We conduct a human evaluation with six raters on 
+
+160 anonymized CVSS-T samples, covering eight systems and both translation directions. Each sam-ple is presented in a blinded and randomized order, and rated on a 1–5 Likert scale for translation ade-quacy, speech naturalness, and speaker similarity. Table 3 shows that the Think and Think-RL vari-ants are consistently preferred or remain highly competitive in subjective evaluation. DuraS2ST-Think-RL achieves the best overall performance on ZH-EN and remains competitive on EN-ZH. To-gether with the objective duration metrics, these results indicate that DuraS2ST improves synchro-nization without degrading speech quality. 
+
+4.5 Analysis 
+
+We examine whether the proposed reward design can guide duration-aware optimization without supervised duration-aligned training. We apply GRPO directly to the Step-Audio-2-mini-Think backbone without SFT on DuraSet-440K, denoted as Zero-GRPO. Table 4 shows that Zero-GRPO reduces duration errors over the backbone, particularly in MADE and MRDE. When the duration reward is removed, the gains become weaker, confirming that the Dura-tion Margin Reward is the main driver of duration alignment. Figure 4 further shows that GRPO im-proves the duration reward and aggregated reward during training. Together, these results indicate that duration consistency can be optimized as a sequence-level objective, even without supervised duration-aligned trajectories. 
+
+5 Conclusion 
+
+We presented DuraS2ST, a reasoning-based frame-work for duration-aligned speech-to-speech transla-tion. Instead of treating duration control as acoustic post-processing, DuraS2ST explicitly plans target wording and phonetic length before generating the final interleaved text-acoustic sequence. To support this paradigm, we constructed DuraSet-440K, a large-scale duration-aligned reasoning corpus, and trained the model in two phases of supervised fine-tuning followed by multi-modal GRPO. Within the RL phase, the Duration Margin Reward resolves the quality-duration trade-off through a saturated soft constraint, and the Modality-Aware Reward Attribution prevents cross-modality reward con-tamination by restricting the duration advantage to acoustic tokens. Experiments on CVSS-T show that DuraS2ST balances translation quality and du-ration consistency. A zero-SFT ablation further shows that our rewards substantially reduce MADE, highlighting their complementary contribution be-yond duration-aligned SFT. Limitations 
+
+We proposed DuraS2ST, a chain-of-thought and reinforcement learning framework for duration-aligned speech-to-speech translation, and con-structed DuraSet-440K to support its training. However, duration alignment in S2ST is more nu-anced than a single language pair can fully reveal, so our current evaluation has focused on bidirec-tional Chinese-English translation, a representative pair of structurally divergent languages, laying the groundwork for broader linguistic validation. In addition, the current think-then-speak architecture decodes the chain-of-thought rationale in full be-fore emitting any acoustic token, which fits offline applications such as video dubbing but does not yet support streaming or simultaneous interpreta-tion. Future work will both extend DuraS2ST and DuraSet-440K to additional language pairs and ex-plore streaming variants in which chain-of-thought reasoning and acoustic emission interleave at finer granularity. 
+
+Ethical Considerations 
+
+This work studies duration-aligned speech-to-speech translation with synthetic speech generation and speaker preservation. While such techniques can improve accessibility and cross-lingual commu-nication, they may also be misused for imperson-ation, unauthorized voice conversion, or misleading audio generation. We therefore emphasize that the proposed system should only be applied to speech data with proper consent, licensing, and appropriate safeguards. The datasets used in our experiments are public research datasets, and our evaluations are conducted on anonymized samples. We use pub-lic research datasets and existing models in accor-dance with their licenses and terms of use. Human evaluation participants are asked to assess transla-tion adequacy, naturalness, and speaker similarity, without being exposed to personally identifying information beyond the speech content available in the benchmark data. We also acknowledge that our experiments focus on English and Chinese, and the findings may not fully generalize to other lan-guages, accents, or sociolinguistic settings. 
+
+Acknowledgments 
+
+This work is partially supported by the General Research Fund from the Research Grants Coun-cil of Hong Kong SAR Government (Project No. 14202623). 
+
+References 
+
+Sanyuan Chen, Chengyi Wang, Zhengyang Chen, Yu Wu, Shujie Liu, Zhuo Chen, Jinyu Li, Naoyuki Kanda, Takuya Yoshioka, Xiong Xiao, Jian Wu, Long Zhou, Shuo Ren, Yanmin Qian, Yao Qian, Jian Wu, Michael Zeng, Xiangzhan Yu, and Furu Wei. 2022. Wavlm: Large-scale self-supervised pre-training for full stack speech processing. IEEE Journal of Se-lected Topics in Signal Processing , 16(6):1505–1518. Shanbo Cheng, Yu Bao, Zhichao Huang, Yu Lu, Ningxin Peng, Lu Xu, Runsheng Yu, Rong Cao, Yujiao Du, Ting Han, Yuxiang Hu, Zeyang Li, Sitong Liu, Shengtao Ma, Shiguang Pan, Jiongchen Xiao, Nuo Xu, Meng Yang, Rong Ye, and 9 others. 2025a. Seed liveinterpret 2.0: End-to-end simulta-neous speech-to-speech translation with your voice. 
+
+Preprint , arXiv:2507.17527. Sitong Cheng, Weizhen Bian, Xinsheng Wang, Ruibin Yuan, Jianyi Chen, Shunshun Yin, Yike Guo, and Wei Xue. 2025b. Uniss: Unified expressive speech-to-speech translation with your voice. Preprint ,arXiv:2509.21144. Seamless Communication, Loïc Barrault, Yu-An Chung, Mariano Cora Meglioli, David Dale, Ning Dong, Paul-Ambroise Duquenne, Hady Elsahar, Hongyu Gong, Kevin Heffernan, John Hoffman, Christopher Klaiber, Pengwei Li, Daniel Licht, Jean Maillard, Alice Rakotoarison, Kaushik Ram Sadagopan, Guil-laume Wenzek, Ethan Ye, and 49 others. 2023a. Seamlessm4t: Massively multilingual & multimodal machine translation. Preprint , arXiv:2308.11596. Seamless Communication, Loïc Barrault, Yu-An Chung, Mariano Coria Meglioli, David Dale, Ning Dong, Mark Duppenthaler, Paul-Ambroise Duquenne, Brian Ellis, Hady Elsahar, Justin Haaheim, John Hoff-man, Min-Jae Hwang, Hirofumi Inaguma, Christo-pher Klaiber, Ilia Kulikov, Pengwei Li, Daniel Licht, Jean Maillard, and 46 others. 2023b. Seamless: Mul-tilingual expressive and streaming speech translation. 
+
+Preprint , arXiv:2312.05187. Qianqian Dong, Zhiying Huang, Qiao Tian, Chen Xu, Tom Ko, Yunlong Zhao, Siyuan Feng, Tang Li, Kexin Wang, Xuxin Cheng, Fengpeng Yue, Ye Bai, Xi Chen, Lu Lu, Zejun Ma, Yuping Wang, Mingxuan Wang, and Yuxuan Wang. 2023. Polyvoice: Language models for speech to speech translation. Preprint ,arXiv:2306.02982. Zhifu Gao, Shiliang Zhang, Ian McLoughlin, and Zhijie Yan. 2023. Paraformer: Fast and accurate parallel transformer for non-autoregressive end-to-end speech recognition. Preprint , arXiv:2206.08317. Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. 2021. Lora: Low-rank adaptation of large language models. Preprint , arXiv:2106.09685. Rongjie Huang, Jinglin Liu, Huadai Liu, Yi Ren, Lichao Zhang, Jinzheng He, and Zhou Zhao. 2023. Transpeech: Speech-to-speech translation with bilat-eral perturbation. Preprint , arXiv:2205.12523. Hirofumi Inaguma, Sravya Popuri, Ilia Kulikov, Peng-Jen Chen, Changhan Wang, Yu-An Chung, Yun Tang, Ann Lee, Shinji Watanabe, and Juan Pino. 2023. Unity: Two-pass direct speech-to-speech translation with discrete units. Preprint , arXiv:2212.08055. Ye Jia, Michelle Tadmor Ramanovich, Quan Wang, and Heiga Zen. 2022. Cvss corpus and massively multilingual speech-to-speech translation. Preprint ,arXiv:2201.03713. KimiTeam, Ding Ding, Zeqian Ju, Yichong Leng, Songxiang Liu, Tong Liu, Zeyu Shang, Kai Shen, Wei Song, Xu Tan, Heyi Tang, Zhengtao Wang, Chu Wei, Yifei Xin, Xinran Xu, Jianwei Yu, Yutao Zhang, Xinyu Zhou, Y. Charles, and 21 others. 2025. Kimi-audio technical report. Preprint , arXiv:2504.18425. Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph E. Gonzalez, Hao Zhang, and Ion Stoica. 2023. Ef-ficient memory management for large language model serving with pagedattention. Preprint ,arXiv:2309.06180. Chenyang Le, Yao Qian, Dongmei Wang, Long Zhou, Shujie Liu, Xiaofei Wang, Midia Yousefi, Yanmin Qian, Jinyu Li, Sheng Zhao, and Michael Zeng. 2024. Transvip: Speech to speech translation sys-tem with voice and isochrony preservation. Preprint ,arXiv:2405.17809. Ann Lee, Peng-Jen Chen, Changhan Wang, Jiatao Gu, Sravya Popuri, Xutai Ma, Adam Polyak, Yossi Adi, Qing He, Yun Tang, Juan Pino, and Wei-Ning Hsu. 2022. Direct speech-to-speech translation with dis-crete units. Preprint , arXiv:2107.05604. Matt Post. 2018. A call for clarity in reporting bleu scores. Preprint , arXiv:1804.08771. Alec Radford, Jong Wook Kim, Tao Xu, Greg Brock-man, Christine McLeavey, and Ilya Sutskever. 2022. Robust speech recognition via large-scale weak su-pervision. Preprint , arXiv:2212.04356. Ricardo Rei, Craig Stewart, Ana C Farinha, and Alon Lavie. 2020. COMET: A neural framework for MT evaluation. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Process-ing (EMNLP) , pages 2685–2702, Online. Association for Computational Linguistics. Ricardo Rei, Marcos Treviso, Nuno M. Guerreiro, Chrysoula Zerva, Ana C Farinha, Christine Maroti, José G. C. de Souza, Taisiya Glushkova, Duarte Alves, Luisa Coheur, Alon Lavie, and André F. T. Martins. 2022. CometKiwi: IST-unbabel 2022 sub-mission for the quality estimation shared task. In 
+
+Proceedings of the Seventh Conference on Machine Translation (WMT) , pages 634–645, Abu Dhabi, United Arab Emirates (Hybrid). Association for Com-putational Linguistics. Paul K. Rubenstein, Chulayuth Asawaroengchai, Duc Dung Nguyen, Ankur Bapna, Zalán Borsos, Félix de Chaumont Quitry, Peter Chen, Dalia El Badawy, Wei Han, Eugene Kharitonov, Hannah Muckenhirn, Dirk Padfield, James Qin, Danny Rozen-berg, Tara Sainath, Johan Schalkwyk, Matt Shar-ifi, Michelle Tadmor Ramanovich, Marco Tagliasac-chi, and 11 others. 2023. Audiopalm: A large lan-guage model that can speak and listen. Preprint ,arXiv:2306.12925. Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, Xiao Bi, Haowei Zhang, Mingchuan Zhang, Y. K. Li, Y. Wu, and Daya Guo. 2024. Deepseekmath: Pushing the limits of mathemati-cal reasoning in open language models. Preprint ,arXiv:2402.03300. Wolfgang Wahlster. 2000. Verbmobil: foundations of speech-to-speech translation , volume 1. Springer Berlin. Jason Wei, Maarten Bosma, Vincent Y. Zhao, Kelvin Guu, Adams Wei Yu, Brian Lester, Nan Du, An-drew M. Dai, and Quoc V. Le. 2022. Finetuned language models are zero-shot learners. Preprint ,arXiv:2109.01652. Boyong Wu, Chao Yan, Chen Hu, Cheng Yi, Chengli Feng, Fei Tian, Feiyu Shen, Gang Yu, Haoyang Zhang, Jingbei Li, Mingrui Chen, Peng Liu, Wang You, Xiangyu Tony Zhang, Xingyuan Li, Xuerui Yang, Yayue Deng, Yechang Huang, Yuxin Li, and 90 others. 2025. Step-audio 2 technical report. Preprint ,arXiv:2507.16632. Yihan Wu, Junliang Guo, Xu Tan, Chen Zhang, Bohan Li, Ruihua Song, Lei He, Sheng Zhao, Arul Menezes, and Jiang Bian. 2023. Videodubber: Machine trans-lation with speech-aware length control for video dubbing. Preprint , arXiv:2211.16934. Jin Xu, Zhifang Guo, Jinzheng He, Hangrui Hu, Ting He, Shuai Bai, Keqin Chen, Jialin Wang, Yang Fan, Kai Dang, Bin Zhang, Xiong Wang, Yunfei Chu, and Junyang Lin. 2025. Qwen2.5-omni technical report. 
+
+Preprint , arXiv:2503.20215. Qiying Yu, Zheng Zhang, Ruofei Zhu, Yufeng Yuan, Xiaochen Zuo, Yu Yue, Weinan Dai, Tiantian Fan, Gaohong Liu, Lingjun Liu, Xin Liu, Haibin Lin, Zhiqi Lin, Bole Ma, Guangming Sheng, Yuxuan Tong, Chi Zhang, Mofan Zhang, Wang Zhang, and 16 others. 2025. Dapo: An open-source llm re-inforcement learning system at scale. Preprint ,arXiv:2503.14476. Zhiyuan Zhao, Lijian Lin, Ye Zhu, Kai Xie, Yunfei Liu, and Yu Li. 2026. Lemas: Large a 150k-hour large-scale extensible multilingual audio suite with genera-tive speech models. Preprint , arXiv:2601.04233. Supplementary Material 
+
+A Additional Experiments 
+
+This section reports auxiliary experiments that sup-port the training design choices of DuraS2ST. 
+
+A.1 Pre-Rollout Filtering 
+
+GRPO relies on within-group reward variation to estimate group-relative advantages. If all rollouts for a prompt receive nearly identical rewards, the prompt provides little useful gradient signal but still consumes rollout budget. To improve train-ing efficiency, we perform a one-time pre-rollout filtering step before GRPO. 
+
+Setup. For each candidate prompt, we sample 
+
+G = 8 rollouts from the SFT checkpoint using the same decoding configuration as GRPO. We discard prompts with near-zero reward variance, since they cannot provide informative group-relative advan-tages. The remaining prompts are bucketed into 
+
+easy , medium , and hard groups according to their mean total reward. The final GRPO training set uses all medium prompts and a small fraction of easy prompts, balancing learnability and stability. 
+
+Result. We compare two GRPO runs with identi-cal rewards, rollout budget, and hyperparameters, differing only in the training prompts: the origi-nal candidate pool and the pre-rollout-filtered set. Figure 5 shows the reward curves on ZH →EN. Pre-rollout filtering yields faster improvement and a higher reward plateau across duration, translation, and total rewards. This indicates that filtering out uninformative prompts makes GRPO more sample-efficient and stabilizes optimization. 
+
+B DuraSet-440K Details 
+
+This section provides the technical details of the DuraSet-440K construction pipeline, including model choices, hyperparameters, filtering crite-ria, and prompting templates. It complements the overview in Section 3. 
+
+B.1 Translation Candidate Construction 
+
+For each source utterance, we first construct a set of translation candidates with diverse lexical densities and phonetic lengths. This candidate set provides a search space for selecting translations that preserve the source meaning while better matching the target duration budget. We use GPT-4o to generate translation candi-dates with temperature T = 0 .7 and top -p = 0 .9.For each source utterance, we sample N = 5
+
+candidates using a structured prompt that encour-ages stylistic diversity. As shown in Figure 7, the prompt assigns distinct translation styles ranging from verbose to concise, encouraging the LLM to vary wording, syllable count, and phonetic foot-print while preserving the core semantics. 
+
+B.2 Target Speech Synthesis Configuration 
+
+We synthesize each translation candidate using an in-house TTS model with zero-shot duration con-trol at 24 kHz. The source audio serves as the tim-bre prompt, allowing the synthesized target speech to preserve the speaker characteristics of the source utterance. For each translation candidate Ti, we estimate its natural duration d(i)nat and compute a global frame scaling factor against the target duration bud-get dbudget :
+
+si = clip dbudget 
+
+d(i)nat 
+
+, 0.5, 2.0
+
+!
+
+. (8) The predicted acoustic frames are scaled by si
+
+before waveform generation. The clipping range 
+
+[0 .5, 2.0] prevents excessive compression or expan-sion, which could otherwise degrade speech quality. It also ensures that candidates with incompatible phonetic lengths retain measurable residual dura-tion errors, allowing the filtering stage to reject them. During synthesis, we use a classifier-free guid-ance (CFG) scale no larger than 10 for stable gen-eration. The source timbre prompt is trimmed and padded with a 0.2 s leading fade and a 0.5 s trailing fade to smooth conditioning transitions. 
+
+B.3 Multi-Dimensional Filtering 
+
+Each synthesized candidate is filtered by transcrip-tion fidelity, duration alignment, and speaker simi-larity. A candidate Yi is retained only if it satisfies: 
+
+WER( Yi, Ti) ≤ τwer ,
+
+|∆di| ≤ τabs ,
+
+|∆di|
+
+dsrc 
+
+≤ τrel ,
+
+cos( esrc , e(i)tgt ) ≥ τsim ,
+
+(9) (a) Duration Margin Reward (b) Text-BLEU Reward (c) COMET-Kiwi Reward (d) Total Reward 
+
+Figure 5: Pre-rollout difficulty filtering improves GRPO stability and efficiency. On ZH →EN, two GRPO runs share an identical reward composition, rollout budget, and hyperparameters, differing only in their training data. Across all four reward components, the pre-rollout-filtered run (green) climbs faster and reaches a higher plateau than the unfiltered baseline (red); the in-legend ∆ reports the improvement from the start of training to step 700. 
+
+Figure 6: Duration statistics of DuraSet-440K. (a) Source-duration histogram by direction. (b) Hex-binned joint density of source and target durations with the dtgt = dsrc diagonal. (c) Distribution of the target-to-source duration ratio dtgt /d src .
+
+where ∆di = d(i)tgt − dsrc , d(i)tgt is the duration of the synthesized candidate, and esrc and e(i)tgt are speaker embeddings of the source and target speech. We set the thresholds to τwer = 0 .05 , τabs = 5 s ,
+
+τrel = 0.20 , and τsim = 0.86 . WER is com-puted using Fun-ASR-Nano-2512 with inverse text normalization (ITN) enabled, which standardizes numbers and punctuation before text alignment. Speaker similarity is computed with WavLM-base-plus-sv embeddings extracted at 16 kHz. Among candidates that pass all filtering criteria, we select the final target speech by minimizing du-ration error, using speaker similarity and WER as secondary tie-breakers. This selection procedure fa-vors duration-aligned pairs while maintaining tran-scription accuracy and speaker consistency. 
+
+B.4 Reasoning Rationale Construction 
+
+After selecting the duration-aligned target pair, we annotate each example with a phoneme-grounded reasoning rationale. The goal is to provide explicit supervision for forward planning: before generat-ing target speech, the model should reason about translation choices, phonetic length, and the dura-tion budget. We query GPT-4o with temperature T = 0 .0
+
+to obtain deterministic rationales. Each ratio-nale is constrained to 150–300 words to maintain sufficient detail while avoiding unnecessary ver-bosity. As shown in Figure 8, the prompt follows a structured reasoning template and enforces a “no-spoiler” rule, requiring the model to discuss trans-lation alternatives before revealing the final target text. To ground the rationale in verifiable phonetic ev-idence, we provide the source and target phoneme sequences together with their lengths. These phoneme sequences are deterministically extracted using the BigCiDian lexicon with a longest-match strategy and mapped to the International Phonetic Alphabet (IPA). This forces the rationale to explic-itly connect wording choices with phonetic foot-prints and duration constraints. 
+
+B.5 Dataset Statistics 
+
+The final DuraSet-440K corpus contains 440,705 parallel utterances, including 229,410 En →Zh ex-amples and 211,295 Zh →En examples. Figure 6 summarizes the duration statistics of the retained Figure 7: Prompt template for translation candidate construction. The prompt encourages stylistically diverse translations with different lexical densities and temporal footprints for the same source utterance. 
+
+corpus. Figure 6(a) shows the distribution of source du-rations, with a mean of 7.89 s and a standard de-viation of 4.68 s. Figure 6(b) plots the joint den-sity of source and target durations, where most examples concentrate around the dtgt = dsrc diag-onal. Figure 6(c) shows the distribution of target-to-source duration ratios, which is tightly centered around μ = 0 .995 with σ = 0 .008 and achieves 
+
+SLC 0.2 = 100 .0% . These statistics confirm that DuraSet-440K provides temporally aligned source-target pairs suitable for training duration-aware S2ST models. 
+
+C Implementation Details 
+
+This section provides additional implementation details for DuraS2ST, including training hyperpa-rameters, reward computation, baseline inference protocols, and evaluation metrics. 
+
+C.1 Training Hyperparameters Phase I: SFT. We perform full-parameter fine-tuning of Step-Audio-2-mini-Think on 8 NVIDIA A100 80 GB GPUs with bf16 precision and Deep-Speed ZeRO-3. We use AdamW with a learning rate of 1e −5, 5% linear warmup, a per-device batch size of 1, and gradient accumulation of 16 , result-ing in a global batch size of 128 . The maximum sequence length is set to 16 ,384 tokens to accom-modate the interleaved CoT and acoustic-token streams. The model is trained for 4,000 steps using the CoT-then-speech format defined in Eq. 1. 
+
+Phase II: GRPO. Starting from the SFT check-point, we attach LoRA adapters with rank 16 and 
+
+α = 32 to all linear projections, and optimize the model with GRPO for 1,000 steps. We use a learning rate of 1.5e −5 and a KL coefficient of 
+
+β = 0 .001 against the SFT reference policy. For each input, we sample G = 16 rollouts with tem-perature 1.0, top-p = 0 .99 , and top-k = 50 . Roll-out generation is served by vLLM (Kwon et al., 2023) to reduce the cost of long autoregressive speech decoding. Following DAPO (Yu et al., 2025), groups whose rewards collapse to a single value are re-sampled up to 3 times, and rollouts longer than 4,096 tokens are filtered before the gra-dient update. 
+
+C.2 RL Reward Implementation 
+
+All rewards are computed online from the gener-ated token stream, without invoking ASR during training. Step-Audio-2-mini-Think emits an inter-leaved TA4 stream, where one text token is placed before every four acoustic tokens. The text tokens inside the <tts> segment therefore form a tem-porally aligned transcript of the generated speech. We concatenate these in-segment text tokens as the post-CoT translation ytext for reward computation. 
+
+BLEU reward. We compute sentence-level SacreBLEU (Post, 2018) between ytext and the reference translation y∗. The score is divided by 
+
+100 to obtain a reward in [0 , 1] . Language-specific preprocessing follows the evaluation pipeline in Appendix C.4. 
+
+COMET Kiwi reward. We compute the reference-free semantic reward using 
+
+Unbabel/wmt22-cometkiwi-da (Rei et al., 2022), with the source text and generated transla-tion as input. The model score is used directly as the COMET Kiwi reward. 
+
+Duration Margin Reward. The duration reward is computed from the acoustic-token length. Given the predicted length Lpred and target length Ltgt ,we compute the relative duration gap δ = |Lpred −
+
+Ltgt |/L tgt and apply the Duration Margin Reward. We use tolerance τ = 0 .05 , smoothing scale s =0.02 , scaling factor κ = 0 .5, and margin clipping bound B = 5 . Under this setting, the reward is high for sub-5% duration gaps, concentrates its learning signal around the recoverable 5% –15% range, and saturates for larger deviations. These constants are tuned on a small held-out subset of DuraSet-440K. 
+
+Format gate. Each rollout is checked by a deter-ministic parser. A rollout is valid only if the con-trol tags <think> , </think> , and <tts_start> 
+
+appear in the required order, with no trailing tokens after <tts_end> . Valid rollouts receive g = 1 ,while malformed rollouts receive g = 0 .
+
+Gated aggregation and attribution. As de-scribed in Section 2.2.1, the format gate multiplica-tively zeroes both the quality and duration rewards before group-relative normalization. This prevents malformed outputs from receiving positive credit for partially satisfying translation or duration objec-tives. The gated rewards are then standardized into per-reward advantages and assigned to token spans through MARA: the quality advantage is applied to both reasoning and acoustic spans, while the duration advantage is restricted to acoustic-phase tokens. 
+
+C.3 Baselines 
+
+For each external baseline, we use the model’s de-fault decoding configuration and a fixed direction-specific translation instruction. We do not ap-ply additional input preprocessing or output post-processing, so the reported scores reflect each sys-tem’s raw end-to-end S2ST behavior under a con-trolled prompt. 
+
+SeamlessM4T. We evaluate Seam-lessM4T (Communication et al., 2023b) using three publicly released checkpoints: 
+
+facebook/hf-seamless-m4t-medium ,
+
+facebook/hf-seamless-m4t-large , and 
+
+facebook/seamless-m4t-v2-large . Inference is performed with the official Hugging Face Transformers wrappers and default decoding parameters. The target-language token is set to 
+
+eng for ZH →EN and cmn for EN →ZH. 
+
+Step-Audio-2-mini and Step-Audio-2-mini-Think. The official Step-Audio-2 release provides the following Chinese-target S2ST prompt: 
+
+> 请仔细聆听这段语音，然后将其内 容翻译成中文
+> 并用语音播报。
+
+For ZH →EN, we find that simply replacing the target language with English may lead to a mis-match between the reasoning text and the generated speech. We therefore explicitly specify both the source and target languages: 
+
+> 请仔细聆听这段中文语音，然后将其内 容翻译成
+> 英文并用英文语音播报。
+
+We use the original Chinese-target prompt for EN →ZH and the dual-language English-target prompt for ZH →EN. The same prompt tem-plates are used for DuraSet-440K construction and DuraS2ST evaluation. 
+
+Qwen2.5-Omni. We evaluate Qwen2.5-Omni (Xu et al., 2025) in its default S2ST mode with a minimal translation instruction following Cheng et al. (2025b). For example: 
+
+> Translate the following Chinese speech into English.
+
+and the symmetric instruction for EN →ZH. We observe that Qwen2.5-Omni sometimes appends conversational fillers after the translated speech, which are retained in the generated waveform and affect both ASR-based translation metrics and du-ration metrics. We do not remove these artifacts by post-processing. 
+
+Kimi-Audio. We use the official 
+
+Kimi-Audio-7B-Instruct check-point (KimiTeam et al., 2025) with its bundled inference pipeline and recommended decoding con-figuration. We use the following direction-specific instructions:      
+
+> Translate the above Chinese audio to English.
+
+for ZH →EN, and      
+
+> Translate the above English audio to Chinese. Answer in Chinese only.
+
+for EN →ZH. The explicit target-language con-straint is used to reduce language fallback errors. 
+
+GPT-Audio. For the commercial reference sys-tem, we query GPT-Audio with the source clip encoded as audio input and a direction-specific translation instruction:              
+
+> Please translate this Chinese audio into English. Just state the translation itself without any additional explanation or polite words.
+
+for ZH →EN, and              
+
+> Please translate this English audio into Chinese. Just state the translation itself without any additional explanation or polite words.
+
+for EN →ZH. The final clause is included to re-duce conversational fillers that would otherwise inflate the generated duration. All other parameters are kept at their default values. 
+
+UniSS. We evaluate UniSS (Cheng et al., 2025b) using the official cmots/UniSS checkpoint and inference scripts. UniSS provides two decoding modes, Quality and Performance, which we report as UniSS (Q) and UniSS (P). We use the official target-language tokens for both directions and leave the remaining decoding hyperparameters at their default values. 
+
+C.4 Evaluation Metrics 
+
+We group evaluation metrics into translation qual-ity, voice/prosody preservation, and duration con-sistency. All scores are computed at the corpus level over the CVSS-T test split. 
+
+Translation quality. Text-BLEU evaluates the intermediate textual output, while Speech-BLEU 
+
+evaluates the ASR transcription of the generated speech. Both are computed with SacreBLEU (Post, 2018) using the corpus_score interface. English text is lowercased and stripped of punctuation; Chi-nese text is converted to simplified characters and evaluated in zh mode with character-level tokeniza-tion. For Speech-BLEU, we use Whisper-large-v3 (Radford et al., 2022) for English ASR and Paraformer-zh (Gao et al., 2023) for Mandarin ASR, following Seed-TTS-eval. 2
+
+We also report reference-based 
+
+COMET (Rei et al., 2020) and reference-free COMET Kiwi (Rei et al., 2022), com-puted with Unbabel/wmt22-comet-da and 
+
+Unbabel/wmt22-cometkiwi-da , respectively. Both are evaluated on the ASR transcript. 
+
+> 2https://github.com/BytedanceSpeech/ seed-tts-eval
+
+Voice and prosody. A.PCP (Communication et al., 2023b) measures prosodic consistency be-tween the source and generated speech, includ-ing pitch, energy, and temporal patterns. We use the official AutoPCP implementation in stopes .3
+
+For SECS , we extract speaker embeddings us-ing WavLM-large fine-tuned for speaker verifica-tion (Chen et al., 2022), and compute cosine sim-ilarity between the source prompt and generated utterance. 
+
+Duration consistency. SLC-0.2 and SLC-0.4 (Wu et al., 2023) measure the fraction of ut-terances whose target-to-source duration ratio falls within ±20% and ±40% , respectively. Since these threshold-based metrics can saturate under strong duration alignment, we also report two fine-grained error metrics: MADE , the mean absolute duration error in seconds, 
+
+MADE = E [|dtgt − dsrc |] ,
+
+and MRDE , the mean relative duration error, 
+
+MRDE = E
+
+ |dtgt − dsrc |
+
+dsrc 
+
+
+
+.
+
+Both are computed directly from waveform dura-tions. 
+
+D Evaluation Examples 
+
+To complement the quantitative results in Section 4, we provide qualitative examples from the CVSS-T test set for both translation directions. For each direction, we randomly select two utterances and compare a representative baseline with DuraS2ST. Each example visualizes the synthesized waveform and its duration alignment with the source speech, allowing translation fidelity and temporal synchro-nization to be inspected jointly. Figure 9 shows EN →ZH examples, and Fig-ure 10 shows ZH →EN examples. For example, in the ZH →EN case, the source utterance describes a company headquartered in Riyadh with branches in Kuwait, Jordan, and Malaysia. A compact trans-lation may preserve these facts but still produce tar-get speech that is too short or less naturally paced. By reasoning over semantic content and phonetic length before speech-token generation, DuraS2ST better follows the source temporal envelope while producing translations that remain faithful to the 
+
+> 3https://github.com/facebookresearch/stopes/ tree/main/stopes/eval/auto_pcp
+
+reference. These examples further demonstrate that the proposed reasoning-based generation and duration-aware optimization generalize to held-out test utterances. 
+
+E Subjective Evaluation Interface 
+
+Figure 11 shows the web interface used for the MOS study in Section 4.4. Each task presents a source clip and one synthesized target clip, with the system identity hidden by an anonymized label. Annotators listen to both clips and provide three integer ratings on a 1–5 Likert scale: translation adequacy , measuring whether the target preserves the source meaning; naturalness , measuring speech fluency and audio quality; and speaker similarity ,measuring whether the target preserves the source speaker’s voice and prosodic characteristics. The same interface and instructions are used for all 160 
+
+samples across the eight systems. Sample order is randomized for each annotator to reduce presenta-tion bias. Figure 8: Prompt template for reasoning rationale construction. The prompt guides the LLM to compare translation choices against deterministic phoneme lengths before outputting the final translation. (a) EN →ZH Example 1. (b) EN →ZH Example 2. 
+
+Figure 9: Qualitative EN →ZH test samples. For each sample we contrast a representative baseline output against the output of DuraS2ST, aligned to the source utterance. The baseline systems exhibit visible duration drift relative to the source’s temporal envelope, while DuraS2ST tracks the source duration tightly and produces a translation faithful to the reference. (a) ZH →EN Example 1. (b) ZH →EN Example 2. 
+
+Figure 10: Qualitative ZH →EN test samples. For each sample we contrast a representative baseline output against the output of DuraS2ST, aligned to the source utterance. As in the EN →ZH case (Figure 9), DuraS2ST closely matches the source’s duration and produces translations consistent with the reference, whereas the baseline drifts in duration and content. Figure 11: Subjective evaluation interface used for the MOS study (Section 4.4). For every task, the annotator listens to a source clip and a synthesized target clip whose system identity is replaced by an anonymized label, then rates the target on three 1–5 Likert scales—translation adequacy, naturalness, and speaker similarity. The presentation order within each direction is randomized per annotator to mitigate position bias.
