@@ -6,35 +6,36 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-27
-- 运行时间：2026-09-27 22:26:38 UTC
+- 最新运行日期：2026-09-28
+- 运行时间：2026-09-29 00:20:17 UTC
 - 运行状态：成功
 - 本次总论文数：5
 - 精读区：1
 - 速读区：4
 
 ### 今日简报（AI）
-今日完成5篇论文筛选，精读AEGIS（9.0/10）音频语言模型越狱防御，速读覆盖方言阿拉伯语
-- 详情：[/202609/27/README](/202609/27/README)
+1) 今日日报成功收录 5 篇，精读 1 篇、速读 4 篇，精读聚焦《AEGIS: Audio Endogenous Guarding via Internal Signals Against Large Audio-Language Model Jailbreaks》（9.0/10）。  
+2)
+- 详情：[/202609/28/README](/202609/28/README)
 
 ### 精读区论文标签
-1. [AEGIS: Audio Endogenous Guarding via Internal Signals Against Large Audio-Language Model Jailbreaks](/202609/27/2609.29287v1-aegis-audio-endogenous-guarding-via-internal-signals-against-large-audio-language-model-jailbreaks)  
+1. [AEGIS: Audio Endogenous Guarding via Internal Signals Against Large Audio-Language Model Jailbreaks](/202609/28/2609.29287v1-aegis-audio-endogenous-guarding-via-internal-signals-against-large-audio-language-model-jailbreaks)  
    标签：评分：9.0/10、query:llm-attack
-   evidence：针对大型音频语言模型音频越狱的防护
+   evidence：基于内部信号防御语音大模型越狱攻击
 
 ### 速读区论文标签
-1. [AlexandriaX 2026: The First Shared Task on Dialectal Arabic Machine Translation](/202609/27/2609.22796v1-alexandriax-2026-the-first-shared-task-on-dialectal-arabic-machine-translation)  
-   标签：评分：6.0/10、query:cross-lang
-   evidence：方言阿拉伯语翻译与社会语言学语境
-2. [JASPER: Joint Audio and Speech Pre-trained Encoder Representations](/202609/27/2609.27260v1-jasper-joint-audio-and-speech-pre-trained-encoder-representations)  
+1. [Why Jailbreaks Succeed in Diffusion Language Models: An Energy Landscape Analysis](/202609/28/2609.30841v1-why-jailbreaks-succeed-in-diffusion-language-models-an-energy-landscape-analysis)  
+   标签：评分：7.0/10、query:llm-attack
+   evidence：从能量景观角度解释扩散语言模型越狱为何成功
+2. [THA: Weighted Finite-State Text Normalization and Inverse Text Normalization for Khmer](/202609/28/2609.30984v1-tha-weighted-finite-state-text-normalization-and-inverse-text-normalization-for-khmer)  
+   标签：评分：7.0/10、query:low-res-tts
+   evidence：面向低资源高棉语TTS的文本规整工具
+3. [Phonemizing User-Generated Text: A Benchmark, Taxonomy, and Compositional Approach](/202609/28/2609.27205v1-phonemizing-user-generated-text-a-benchmark-taxonomy-and-compositional-approach)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：语音与音频联合自监督编码器表示学习
-3. [Seek: Self-Evaluative Exploration for Knowledge Retrieval](/202609/27/2609.28980v1-seek-self-evaluative-exploration-for-knowledge-retrieval)  
-   标签：评分：6.0/10、query:fie-rag
-   evidence：免训练迭代检索框架提升RAG召回
-4. [YODAS v3: Over 1 Million Hours of High-Bandwidth, Stereophonic, Multilingual Speech](/202609/27/2609.29448v1-yodas-v3-over-1-million-hours-of-high-bandwidth-stereophonic-multilingual-speech)  
+   evidence：面向英语、越南语、韩语的多语言G2P基准
+4. [All In Good Time: Causality-Aware Framework for LLM-Based Simultaneous Speech-to-Speech Translation](/202609/28/2609.30416v1-all-in-good-time-causality-aware-framework-for-llm-based-simultaneous-speech-to-speech-translation)  
    标签：评分：6.0/10、query:speech-tech
-   evidence：覆盖147种语言的多语言语音语料库
+   evidence：面向低资源语言的LLM同声语音到语音翻译
 
 
 <div class="dpr-home-promo-card">

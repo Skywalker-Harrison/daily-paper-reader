@@ -1,0 +1,370 @@
+Title: THA: Weighted Finite-State Text Normalization and Inverse Text Normalization for Khmer
+
+URL Source: https://arxiv.org/pdf/2609.30984v1
+
+Published Time: Mon, 28 Sep 2026 00:46:09 GMT
+
+Number of Pages: 9
+
+Markdown Content:
+# Tha : Weighted Finite-State Text Normalization and Inverse Text Normalization for Khmer 
+
+## Seanghay Yath Digital Government Committee, Cambodia 
+
+## y.seanghay@dgc.gov.kh 
+
+# Abstract 
+
+Text-to-speech needs written text in spoken form, and speech recognition output needs the reverse. For Khmer, neither direction has a maintained open-source tool, and the script makes both harder: words are not separated by spaces, and number words occur inside ordinary words. We present Tha , a Khmer text nor-malization and inverse text normalization toolkit built from weighted finite-state transducers. It segments and classifies a whole line in one shortest-path search, and a second transducer rejects token boundaries inside a Khmer syllable. On Google’s Khmer test suite, Tha 
+
+agrees with the reference on all 274 cardinals up to one spelling variant, and on 2,906 real TTS prompts, 153 of the 158 sentences it rewrites are correct. Tha is open source under the Apache 2.0 license. 
+
+# 1 Introduction 
+
+A TTS front end has to turn “ តៃម្ល $1.05” into the words a speaker would say, “ តៃម្ល មួយ ដុលា្លរ្រ បាំ េសន ”, and an ASR system has to turn “ ពីររយហាសិបដុលា្លរ ” back into “$250”. These two tasks, text normalization (TN) and inverse text normalization (ITN), are usually done with hand-written grammars compiled into weighted finite-state transducers (WFSTs) [6, 10, 27], since neural mod-els still make the occasional unrecoverable error, such as reading the wrong number [25, 36]. For Khmer, the only released grammars are Google’s Thrax grammars for TTS [24]. They do TN only, ex-pect input that is already segmented into words, and have been archived since 2021. NeMo [37] and We-TextProcessing [32] do not support Khmer. The lan-guage also breaks some of their assumptions: Khmer is written without spaces between words, so there are no tokens to classify one at a time, and short number words occur inside ordinary words ( ពីរ , “two”, begins 
+
+> ពីេរាះ
+
+, “melodious”). 
+
+Tha is an open-source toolkit for both directions. It tags a whole line in one shortest-path search, so it needs no word segmenter (§4.1), and a filter transducer rejects tokens that start or end inside a Khmer syllable (§4.2). We describe the grammars for 17 TN and 13 ITN classes (§4.3, §4.5) and evaluate them against Google’s test suite, on spoken-form TTS prompts, by round trip and with an ablation (§5). 
+
+1 មួយ 10 ដប់ 10 2 រយ 
+
+2 ពីរ 20 ៃម្ភ 10 3 ពាន់ 
+
+3 បី 30 សាមសិប (សាម ) 10 4 មុឺន 
+
+4 បួន 40 ែសសិប (ែស ) 10 5 ែសន 
+
+5្រ បាំ 50 ហាសិប (ហា ) 10 6 លាន 
+
+6្រ បាំ មួយ 60 ហុកសិប (ហុក ) 10 9 ប៊ីលាន 
+
+7្រ បាំ ពីរ 70 ចិតសិប (ចិត ) ពាន់លាន 
+
+8្រ បាំ បី 80 ែប៉តសិប (ែប៉ត ) 10 12 ្រ ទី លាន 
+
+9្រ បាំ បួន 90 េកៅសិប (េកៅ ) 0 សូន្យ 
+
+Table 1: Khmer number words. Short spoken forms of the tens are in parentheses; they are only used before a digit (ហុកពីរ , 62). 
+
+# 2 Khmer numbers and script 
+
+Script. Khmer is an abugida of the Brahmic family. A syllable is a base consonant, optionally stacked with subscript consonants written with the invisible coeng 
+
+sign (U+17D2), followed by dependent vowel signs and diacritics [13, 30]. Unicode allows several character or-ders for the same visible syllable, for instance a vowel typed before a subscript instead of after it, and fonts render them alike; SIL’s Khmer character specification defines a canonical order [22]. Spaces mark phrase boundaries rather than words, and the zero-width space (U+200B) is used inconsistently to mark word bound-aries [24]. The repetition mark ៗ repeats the preceding word ( េក្មងៗ , “children”, is read េក្មង េក្មង ), which requires knowing where that word begins. 
+
+Number names. Table 1 lists the Khmer number words. Six to nine are compounds of five ( ្រ បាំ មួយ , “five-one”, is six), so ្រ បាំ បួន can be read as nine or as “five, four”. The tens have a spoken short form without សិប 
+
+(សាម្របាំ for សាមសិប្របាំ , 35). The scale words are រយ (10 2),  
+
+> ពាន់
+
+(10 3), មុឺន (10 4), ែសន (10 5) and លាន (10 6); above a million, ប៊ីលាន and ្រ ទី លាន are borrowed, and ពាន់លាន 
+
+(“thousand million”) is common for 10 9. Speakers of-ten count thousands past ten ( ដប់ពាន់ , មួយរយពាន់ ) instead of using មុឺន and ែសន . Several number words are also or-dinary words or names: ែសន means “very” and is part of the place name ស្ទឹងែសន , លាន is a yard, មួយ is an in-definite article. 
+
+Written conventions. Khmer text uses Khmer and Latin digits interchangeably, often in the same docu-ment. Thousands are separated by spaces, commas or dots ( ១.០០០ is usually one thousand, not one), decimals 1arXiv:2609.30984v1 [cs.CL] 25 Sep 2026 by dots or commas. Dates are written day first. A hy-phen between two numbers is read ដល់ (“to”) in a range, but ទល់ (“against”) in a sports score. These ambigui-ties cannot be resolved by a grammar of the token alone, and §4.3 describes the context rules Tha applies. 
+
+# 3 Related work 
+
+Grammar-based normalization. Text normaliza-tion as a task was laid out by Sproat et al. [27], with a taxonomy of semiotic classes later extended by van Esch and Sproat [31]. Production systems such as Kestrel [6] and its open-source counterpart Spar-rowhawk [8] split normalization into a tokenizer and classifier, which tags spans with a semiotic class and fields, and a verbalizer, which turns each tagged token into words. The grammars are written in Thrax [29] or Pynini [10] and compiled into WFSTs with OpenFst [1], using weighted rewrite rules [17] and shortest-path search [12, 16]. The same grammars can serve ASR and TTS [21]. NeMo [37] and WeTextProcessing [32] bring this design to Pynini with TN and ITN for many languages; Tha follows NeMo’s tagger and verbalizer interfaces. 
+
+Neural and hybrid approaches. Sequence-to-sequence models normalize most tokens correctly but make a small number of unacceptable errors, such as reading the wrong number [25, 26]; covering grammars [36] and shallow fusion with a WFST [2] constrain them. Neural ITN has followed the same path [19, 28]. Large language models have recently been prompted for both TN [15, 33] and spoken-to-written conversion [4]. 
+
+Southeast Asian languages. Sodimana et al. [24] wrote Thrax normalization grammars for Bangla, Khmer, Nepali, Javanese, Sinhala and Sundanese to build TTS voices [9, 23]. Their Khmer grammars expect input segmented with a CRF word segmenter [3] and leave segmentation errors to the grammars. Burmese, also written without spaces, has FST normal-ization grammars [18], and Nisaba provides finite-state script normalization for Brahmic scripts [14]. 
+
+Khmer. Khmer is one of the evaluation languages of Gorman and Sproat [11], whose number grammars are induced from a few examples but cover cardinals only and were not released. Tha uses the khmer-cut word segmenter [34] only to expand the repetition mark (§4.4). Multilingual speech corpora and mod-els such as FLEURS and Whisper now cover Khmer [5, 20]. KhmerTagger [35] tags number spans and punc-tuation in ASR output with XLM-RoBERTa; Tha ’s ITN grammars could replace its rule-based converter for the tagged spans (§6). 
+
+# 4 Design 
+
+Figure 1 shows both pipelines. Each has a classifier WFST C that maps a line of text to a tagged token sequence, a filter F that constrains the tokens, and a verbalizer V that writes each tagged token in the target form. For input x the tagged form is 
+
+t∗ = ShortestPath (πout (x ◦ C) ◦ F ), (1) where ◦ is composition, πout projects onto the output tape and the shortest path is taken in the tropical semir-ing. The tagged string uses NeMo’s format,      
+
+> tokens { name: "តៃម្ល " } tokens { money { integer_part: "្រ បាំ "currency_maj: "ដុលា្លរ " } }
+
+for “ តៃម្ល $5” (“price $5”), and is parsed in Python; each semiotic token is then rewritten by V on its own. Parts of a spoken token are joined with a separator, by default, so that a consumer can tell a five-word number from five words. The separator can be set to a space or removed. 
+
+## 4.1 Segmenting while classifying 
+
+NeMo’s classifier consumes one whitespace-separated token at a time. Khmer has no such tokens, so Tha ’s classifier covers the whole line. A line is a sequence of alternating name tokens (plain text, passed through) and semiotic tokens: 
+
+C = N ? (S N )∗ S?, S = ∪
+
+> c
+
+(Gc ⊗ wc
+
+), (2) where Gc is the grammar of class c and wc its weight. A name token N is any non-empty string, and each of its characters costs 1. A semiotic token costs a flat 
+
+wc < 1 however long it is (Table 2). The cheapest path therefore covers as many characters as possible with as few semiotic tokens as possible: covering five charac-ters with one semiotic token costs less than one, leaving them as text costs five. Among classes that match the same span, the smaller wc wins, which encodes pref-erences such as date over cardinal . Because tokens alternate, two semiotic tokens are never adjacent, so “10:234” cannot be split into a time and a number. Figure 2 shows the competing paths for “ តៃម្ល $5”. In the TN direction, digits are excluded from name to-kens, which guarantees that every digit is verbalized. Pronounceable symbols (%, &, +, $, °, …) may appear in name tokens but are replaced by their Khmer names there, so that nothing unpronounceable reaches a TTS transcript. 
+
+## 4.2 Boundary filter 
+
+The cheapest path may still start or end a semiotic token in the middle of a syllable, for instance by reading the ពីរ of ពីេរាះ as a number. The filter F in Eq. 1 is an acceptor over tagged strings, 
+
+F = Σ ∗ \ Σ∗ B Σ∗, (3) where B is a union of forbidden patterns at the junction of a name token and a semiotic token. In the ITN direc-tion these are: a semiotic token followed by a Khmer dependent vowel, diacritic or ៗ (which cannot begin a 2TN written              
+
+> តៃម្ល $5 pre-processing
+> digits, minus, ៗ
+> classifier C◦F
+> whole line
+> verbalizer V
+> per token
+> context rules
+> range, score
+> spoken
+> តៃម្ល្រ បាំ ដុលា្លរ
+> tokens { name: "តៃម្ល " } tokens { money { integer_part: "្រ បាំ " currency_maj: "ដុលា្លរ " } }
+
+ITN spoken        
+
+> ចំណាយពីររយដុលា្លរ
+> flexible joins J
+> , U+200B
+> classifier C′◦F′
+> whole line
+> verbalizer V′
+> per token
+> post-processing
+> ៗ, Khmer digits
+> written
+> ចំណាយ $200
+
+Figure 1: The two pipelines. The classifier tags a whole line in one shortest-path search (Eq. 1); the tagged form of the TN example is shown between the rows. In the ITN direction, each class grammar is composed with the flexible-join transducer J before it enters the classifier.           
+
+> 068
+> name តៃម្ល ␣
+> 6×1
+> name “$” 1cardinal “5” 0.5
+> money “$5” 0.45 6 + 0 .45 = 6 .45 chosen
+> 6 + 1 + 0 .5 = 7 .5
+
+Figure 2: Two paths through the TN classifier lattice for “តៃម្ល $5”. Numbers under the states are character offsets. Plain text costs 1 per character and a semiotic token a flat weight, so the path that covers more text with one token wins. No path can leave the digit 5 as plain text: digits are not allowed in name tokens. 
+
+wc TN classes ITN classes 0.30 whitelist 0.40 date, time, telephone, date, time, telephone, electronic, year range, electronic formation 0.45 money, measure, ordinal, money, measure, license plate, roman license plate 0.50 cardinal, fraction cardinal, fraction, range, arithmetic 0.55 decimal, code decimal 0.60 serial serial 1.00 per character of a name token 
+
+Table 2: Class weights wc. A semiotic token costs wc
+
+regardless of its length; plain text costs 1 per character. 
+
+syllable), a semiotic token preceded by a coeng (a sub-script consonant belongs to the previous one), and a semiotic token whose written form would be glued to a digit or Latin letter of the neighbouring text (“12 ្រ បាំ ”would otherwise become 125). In the TN direction the filter keeps ordinals, times, dates and similar classes away from Latin letters (“1stly”, “5 mango” is not 5 m + “ango”), and rejects the dot thousands reading of a number followed by a scale word ( ២.១៦៦លាន is 2.166 million, not 2,166 million). Applying the constraints to the tagged lattice, rather than inside each grammar, keeps the class grammars independent of their context. 
+
+## 4.3 Normalization grammars 
+
+Cardinals. Let nz k read k-digit strings without a leading zero. For k ≥ 3, with e the largest magnitude in {2, 3, 4, 5, 6, 9, 12 } below k and me its scale word, 
+
+nz k = nz k−e me
+
+(del (0 e) ∪ full e
+
+), (4) where full e reads any non-zero e-digit string. This yields មួយពាន់ ពីររយ សាមសិបបួន for 1234 and ដប់លាន for 10 7.Numbers of more than 15 digits and numbers with lead-ing zeros are read digit by digit. Grouped numbers (1,000,000, 1 000 000, 1.000.000) are accepted, as are number signs (#5, №5, No. 5 → េលខ្រ បាំ ). 
+
+Other classes. Tha covers 17 classes: cardinal, dec-imal (dot or comma, read ចុច or េក្បៀស ), ordinal, fraction (including vulgar fractions such as ½), money (sym-bol or ISO code before or after the amount, with mi-nor units and scale words), measure (units and per-centages), time (24-hour, 12-hour and the French-style 8h30), date (day first, month first only when unambigu-ous), Cambodian telephone numbers, e-mail addresses and URLs, Cambodian license plates, codes of Latin letters and digits (U19, MH370), Roman numerals af-ter words that take them ( ជំពូក II), serials (versions, IP addresses), year ranges and seasons (2022/23), football formations (4-4-2) and a whitelist ( ព.ស. , COVID-19). The word lists (units, currencies, months, letter names, …) are TSV files that native speakers can edit without touching the grammars. 
+
+Character order. The grammars match exact char-acter sequences, so a number word typed in a non-canonical order would not be recognized. Tha there-fore ships a text cleanup step adapted from SIL’s 
+
+khnormal [22], meant to run before either direction: it sorts the characters of each syllable into canonical order, merges confusable vowel sequences and removes repeated invisible characters. Unlike the current up-stream version, it keeps coeng ដ and coeng ត apart, since they are pronounced differently. Google’s TTS prompts are already in canonical order (the cleanup changes none of them), so the evaluation in §5 does not depend on it. 
+
+Context rules. Some readings depend on more than the token. A pre-processing rewrite rule turns a hyphen into a minus sign only when it is not attached to a word or number on its left (“ −5” but not “2-3” or “COVID-19”). A dash between two quantities is read as a range (ដល់ ), or as a score ( ទល់ ) when the line contains a sports 3Last words Repeats Example any w3 ផ្ទះធំៗ → ផ្ទះធំ ធំ 
+
+w2 is មួយ , ទាំង or េលីក w2w3 មួយចានៗ → មួយចាន មួយចាន 
+
+w3 is ម្ដង , េឡីង , េទៅ or េទៀត w2w3 បន្តិចម្ដងៗ → បន្តិចម្ដង បន្តិចម្ដង 
+
+and w2 a unit of time w1w2w3 ពីរៃថ្ងម្ដងៗ → ពីរៃថ្ងម្ដង ពីរៃថ្ងម្ដង 
+
+and w2 is េពល w3 េពលេទៅៗ → េពលេទៅ េទៅ មា្នក់ and ម្ដង , either order w2w3 មា្នក់ម្ដងៗ → មា្នក់ម្ដង មា្នក់ម្ដង 
+
+Table 3: How much text ៗ repeats, decided on the last three words w1w2w3 before it as segmented by khmercut. Units of time are េមា៉ង , ៃថ្ង , យប់ , សបា្ដហ៍ , អាទិត្យ , ែខ and ឆា្នំ .
+
+keyword or team names on both sides, and not after words such as ៃថ្ងទី (“the day”). េមា៉ង (“hour”) and ៃថ្ងទី 
+
+before a time or date are absorbed into the token so that they are not spoken twice. Dot thousands ( ១.០០០ 
+
+= 1000) and score readings can be switched off. 
+
+## 4.4 The repetition mark 
+
+The mark ៗ tells the reader to say the preceding word again: េក្មងៗ (“children”) is read េក្មង េក្មង . It does not say how much text the preceding word is. With no spaces between words, the scope has to be recovered, and it is not always one word: បន្តិចម្ដងៗ (“little by little”) repeats the two words បន្តិចម្ដង , and ពីរៃថ្ងម្ដងៗ (“every two days”) repeats three. 
+
+Tha segments up to 120 characters before the mark with khmercut [34], on the same line and after the last space, because a space ends the phrase: in េរៀងរាល់ៃថ្ង ម្ដងៗ 
+
+only ម្ដង is repeated. Of the last three words w1w2w3,the rules in Table 3 choose how many to repeat; by default it is the last one. The rules accept both spellings of ម្ដង , with coeng ដ or coeng ត. A space before the mark is ignored ( េក្មង ៗ ), and a mark with no word before it is dropped. The ITN post-processing reverses the expansion: a word or phrase repeated with gets its mark back. 
+
+## 4.5 Inverse normalization grammars 
+
+Cardinals. The ITN cardinal grammar is written di-rectly on the spoken side rather than by inverting the TN grammar, so that it accepts forms the TN gram-mar never produces. Following the approach of NeMo’s ITN grammars, it builds a zero-padded 15-digit string, one block per scale word (Figure 3), and then deletes the leading zeros. Each block admits several spoken structures: the six digits below a million can be [X ែសន][X មុឺន][X ពាន់] hundreds , hundreds ពាន់ hundreds (the col-loquial ដប់ពាន់ , មួយរយពាន់ ) or tens មុឺន … (ដប់មុឺន ). Millions are counted up to 999,999, so មួយពាន់លាន is 10 9 with-out a rule of its own. Short tens ( សាម្របាំ ), the pro-nunciation spelling ្រ បាំ ពិល (7) and zero-padded numbers (សូន្យសូ ន្យ្របាំ ពីរ → 007) are accepted. 
+
+Flexible joins. Khmer spoken-form text, like any Khmer text, writes number words together ( ពីររយហាសិប ), but the TN output joins them with and text from the web often has zero-width spaces between words. Rather than enumerating joiners in every grammar, ្រ ទី លាន ប៊ីលាន លាន ពាន់ រយ                              
+
+> 14 13 12 11 10 987654321010 k
+> Below a million (blue), any of:
+> [X ែសន][X មុឺន][X ពាន់] hundreds មួយមុឺន្របាំ ពាន់
+> hundreds ពាន់ hundreds ដប់ពាន់ ,មួយរយពាន់
+> tens មុឺន [X ពាន់] hundreds ដប់មុឺន
+> Millions : up to six digits before លាន
+> when there is no ប៊ីលាន , so មួយពាន់លាន = 10 9
+> Above :hundreds before ប៊ីលាន and ្រ ទី លាន
+
+Figure 3: The ITN cardinal grammar writes every number as 15 zero-padded digits, one block per scale word, then removes the leading zeros. Each block accepts the standard and the colloquial spoken structures. 
+
+each class grammar Gc is written without them and composed with a transducer J that optionally deletes a or U+200B between two characters: J ◦ Gc. J is an optional context-dependent rewrite rule [17]. A space is not a joiner. It marks a phrase boundary in Khmer, so ពីររយ ហាសិប is read as two numbers, 200 and 50; only the date grammar accepts spaces between its parts, as in ៃថ្ងទីពីរ ែខមករា .
+
+Single digits. A single number word on its own is usually part of the phrasing ( មួយចំនួន , “some”; ្រ បាំ នាក់ ,“five people”) and is left as a word. It is written as a digit only inside a larger token (a time, an amount, a measure, a range) or after ទី and េលខ (“ ទីបី ” → “ ទី 3”). 
+
+Negative numbers. ដក before a number is read as a minus sign in cardinals, decimals, measures and amounts of money: ដកដប់ → −10 , ដកដប់អង្សាេស → −10 °C,  
+
+> ដក្របាំ ដុលា្លរ
+
+→ −$5 . A single digit counts here, since the sign makes it a number. Between two numbers ដក is subtraction, read by the arithmetic class below. ដក is also a common verb (“to take out”, “to withdraw”), but only a following number turns it into a sign, so words such as ដកហូត (“to revoke”) are left alone. 
+
+Arithmetic. The operator words the normalizer pro-duces for +, −, ×, ÷ and = (បូក , ដក , គុណ , ែចក , េស្មី ) are written back as symbols when they stand between two numbers: ៃម្ភដកដប់ → 20 - 10, ពីរបូកបីេស្មី្របាំ → 2 + 3 = 5. Outside that position they stay words, so ែចករំែលក (“to share”) and គុណភាព (“quality”) are left alone. A single expression token is cheaper than two numbers around a word, so ៃម្ភដកដប់ is never read as 20 followed by −10 .
+
+Classes and output. The ITN grammars cover 13 classes: cardinal, decimal, money, measure, time (in-cluding កន្លះ , “half past”), full dates, telephone numbers, e-mail addresses and URLs spoken with “dot”/ ចុច and “at”/ ែអ៊ត , license plates, fractions, ranges and scores, arithmetic, and serials. The written conventions are options: Latin or Khmer digits, and a thousands sep-arator for numbers of five digits or more. A word re-peated with gets its repetition mark back ( េក្មង េក្មង →
+
+> េក្មងៗ
+
+, §4.4). 410 2 10 3 10 4 10 5    
+
+> arcs in the class grammar (log scale)
+> money year range serial measure decimal arithmetic fraction cardinal time range date code roman formation ordinal telephone license plate e-mail / URL whitelist TN (written →spoken) ITN (spoken →written)
+
+Figure 4: Size of each class grammar before it is combined into the classifier. Money and measure are the largest be-cause every currency and unit is its own path. Classes with-out a bar in one direction exist only in the other. 
+
+## 4.6 Implementation 
+
+Tha is a Python package built on Pynini 2.1.7 [10]. The grammars compile when first used, in 4.7 s for TN and 1.5 s for ITN on a laptop, and are cached for the process. The compiled TN classifier has 425,482 states and 487,894 arcs, the ITN classifier 246,685 states and 352,104 arcs (Figure 4). The API mirrors NeMo’s: 
+
+import tha tha.normalize_text(" តៃម្ល $1.05") # តៃម្ល មួយ ដុលា្លរ្រ បាំ េសន 
+
+tha.inverse_normalize_text( "ចំណាយពីររយហាសិបដុលា្លរ ") # ចំណាយ $250 
+
+# 5 Evaluation 
+
+There is no public gold standard for Khmer text nor-malization, so we use four smaller evaluations that can all be rerun from public data: agreement with an inde-pendent grammar, ITN on real spoken-form text, round trips, and an ablation. 
+
+Data. (1) The verbalizer test files of Google’s Khmer grammars [7, 24]: 274 cardinals, and decimals and times, each with a structured value and the words the reference grammar produces. (2) 2,906 prompts of Google’s Khmer TTS corpus [9, 23], real sentences already written in spoken form, with numbers as words. Both sources separate every word with a space, which Khmer text does not do, so we remove the spaces between Khmer characters before running ITN: the prompts then read like ordinary Khmer text, and ev-ery number has to be found without word boundaries. (3) The 62,175 Khmer entries of the accompanying pro-nunciation lexicon, as a list of ordinary words that ITN should leave alone. (4) Randomly generated written to-kens of ten classes, 300 per class. 
+
+n before after TN cardinal (exact) 274 236 cardinal ( ពិល ≡ ពីរ ) 274 274 ITN cardinal 265 228 265 decimal 27 19 23 time 13 7 13 
+
+Table 4: Agreement with the test suite of Google’s Khmer grammars [24]. ITN columns: correct before and after adding the spelling ្រ បាំ ពិល (7) to the ITN grammar. 
+
+## 5.1 Agreement with Google’s grammar 
+
+Table 4 compares Tha with the reference verbalizations. In the TN direction, Tha ’s cardinal words equal the reference, spaces removed, in 236 of 274 cases. All other cases differ only in the spelling of seven: the reference writes ្រ បាំ ពិល , following the pronunciation, where Tha 
+
+writes the standard ្រ បាំ ពីរ . With that spelling mapped, all 274 agree. In the ITN direction we read the reference’s spo-ken forms back with Tha ; single digits without a sign, which Tha deliberately leaves as words, are excluded. Before we added ្រ បាំ ពិល to the ITN grammar, every cardinal error came from this spelling. ដប់្របាំ ពិល (17), for example, was read as “15 ពិល ”, because the num-ber grammar matched ្រ បាំ (“five”) and the boundary filter cannot tell that ពិល continues the word. With the spelling added, Tha reads all cardinals and times cor-rectly. The four remaining decimal errors are numbers in scientific notation ( គុណនឹងដប់ស្វ័យគុណ… , “times ten to the power of”), which Tha does not support. We would not have found the ្រ បាំ ពិល problem with our own test cases, which all use the standard spelling. 
+
+## 5.2 Inverse normalization of spoken text 
+
+We ran ITN over all 2,906 TTS prompts. It rewrote 158 sentences, writing 172 tokens (Figure 5); the others contain no number or only single-digit words. We checked every rewritten sentence by hand. 153 (96.8%) are correct, for example ែតចិតសិបែម៉្រតេសាះ →
+
+> ែត
+
+70 m េសាះ , េទៅៃម្ភមួយមុឺន្របាំ បីពាន់េតាន → េទៅ 218000 t, the colloquial ផ្លូវបីរយចិតមួយ → ផ្លូវ 371 and the full date  
+
+> ៃថ្ងទីពីរែខមករាឆា្នំពីរពាន់ដប់បួន
+
+→ 02/01/2014. Table 5 lists the 5 errors. Three come from misspelled units in the source text, one from a unit that is also the beginning of a brand name, and one from េផាន , which is both the pound sterling and the pound weight. We also searched the unchanged sentences for scale and tens words: the only missed number is the typo សាបសិប (for សាមសិប ), while ស្ទឹងែសន (a river and town), រាប់លាន (“millions of”) and ែសន as a ritual offering were correctly left alone. All judgements are the author’s. 
+
+## 5.3 Round trips 
+
+A written token x that TN verbalizes as s should be written back as x by ITN. We generated 300 written tokens for each of ten classes in Tha ’s own written 50 20 40 60 80 100 120 140 
+
+tokens written by ITN in the TTS prompts 
+
+> cardinal measure money date time 124 36 921
+
+Figure 5: Semiotic tokens written by ITN in the 2,906 TTS prompts. Spoken input (excerpt) Tha output  
+
+> មួយែម៉្រតកាេរ
+
+(កាេរ៉ misspelled) 1 m កាេរ …គីឡូែម៉ត្រកឡា (ែម៉្រត misspelled) 574 kg ែម៉ត…្រ បាំ ហិកតារ (ហិកតា misspelled) 5 ha រពីរពាន់ដប់្របាំ វ៉ុលវ៉ូ (Volvo) 2015 V វ៉ូ ទម្ងន់មួយរយេផាន (weight) ទម្ងន់ £100 
+
+Table 5: All ITN errors in the TTS prompts. 
+
+conventions, verbalized them, joined the words of each token in three ways (glued, , zero-width spaces) and read them back (Figure 6). 8 of the 10 classes round trip exactly in every style. Cardinals of every length from 2 to 15 digits round trip at 100.0% in every style (200 per length). Decimals round trip in 91.0% of cases: the fail-ures are numbers such as 503.811, which TN, follow-ing Khmer usage, reads as 503811 because a dot is fol-lowed by exactly three digits. The error is in the for-ward direction and is the documented cost of the dot-thousands option. Telephone numbers round trip in 98.7% of cases because the spoken form itself is ambigu-ous: the subscriber number 1030675 is read in chunks as ដប់ សាមសិប្រ បាំ មួយរយចិតសិប្របាំ (10, 30, 675), which can equally be split as 10, 35, 175. The words alone do not say which one was meant. 
+
+## 5.4 Ablation 
+
+We removed one design choice at a time and ran ITN over the lexicon entries and the prompts (Figure 7). Most lexicon entries are single words and should come back unchanged. We classify every change automati-cally by aligning the number’s span with khmercut’s word boundaries: the whole entry is a number ( ដប់ ); a number sits at a word boundary of a compound entry, such as a place name ( ភ្នំមួយរយ → ភ្នំ 100) or an ordinal (ទីបី → ទី 3), which is a legitimate reading; or a number starts or ends inside a word, which is an error. With every rule on, Tha changes 36 of the 62,175 entries, and the proxy flags 4 as inside a word. On in-spection, three of these are compounds that khmercut does not split ( វិនាទីមួយ , “one second”), and one is a real error: ្រ កបី (“buffalo”) ends in បី (“three”), a whole sylla-ble that the boundary filter cannot distinguish from a number, so ្រ កបី េរៀល becomes ្រ ក 3៛. Without the bound-ary filter, 9 entries are split inside a syllable, for ex-ample ដណ្ដប់ (“to cover”) → ដណ្ 10, where ដប់ (“ten”) joined U+2581 U+200B cardinal decimal money measure time date telephone fraction range e-mail / URL 100 100 100 91.0 91.0 91.0 100 100 100 100 100 100 100 100 100 100 100 100 98.7 98.7 98.7 100 100 100 100 100 100 100 100 100 80.0 82.5 85.0 87.5 90.0 92.5 95.0 97.5 100.0 
+
+> exact round trip (%)
+
+Figure 6: Round trip accuracy (%) by class and by how the spoken words are joined: glued, with (U+2581), or with zero-width spaces (U+200B). 300 tokens per class. 
+
+is a subscript cluster, and មួយរយៈ → 100 ◌ៈ . Allowing single digits has by far the largest effect: 186 entries change, 61 of them inside a word ( ្រ កបី →្រ ក 3, កំពង់្របាំ ង 
+
+→ កំពង់ 5ង), and 438 prompt sentences change instead of 158. Some of these extra sentence changes are correct readings of small numbers ( បីខ្នង , “three buildings”), so the rule costs some recall on small numbers. We keep it on by default, since a missed បី is harmless and a broken word is not. 
+
+## 5.5 Speed 
+
+Figure 8 shows the time per sentence over the prompts, on one core of a laptop (Apple silicon). The median prompt takes 8.6 ms to inverse normalize and its writ-ten form 3.4 ms to normalize (95th percentiles 17.8 and 6.8 ms), about 4.4 and 10.9 thousand characters per sec-ond. Time grows linearly with length, as expected of composition with a fixed transducer. 
+
+# 6 Discussion and limitations 
+
+Ambiguity. A better grammar will not fix every er-ror. A telephone number read in chunks, េផាន as cur-rency or weight, a dash as range or score, and ដក before a count ( ដកដប់នាក់េចញ , “take ten people out”, is written 
+
+−10 នាក់េចញ ) all need information that is not in the to-ken. Tha resolves the last with sentence-level cues and leaves the first two to its weights; a language model rescoring the lattice, as in shallow fusion [2], or a neu-ral span tagger such as KhmerTagger [35] could supply the missing context while Tha ’s grammars keep the conversion itself exact. 
+
+Orthographic variation. The Google evaluation and the TTS prompts both show that the errors that re-main come from spellings the grammar does not know: pronunciation spellings ( ្រ បាំ ពិល ), misspelled units and typos. Because the word lists are data files, these can be added without changing the grammars, but they must first be found; a list of attested variants from a 60 50 100 150 200 250            
+
+> lexicon entries changed (of 62,175)
+> Tha (all rules)
+> −boundary filter
+> −single digit rule 36 (4 inside) 41 (9 inside) 186 (61 inside)
+> number inside a word (error) number at a word boundary whole entry is a number
+> 0100 200 300 400 500
+> prompt sentences changed (of 2,906)
+> Tha (all rules)
+> −boundary filter
+> −single digit rule 158 162 438
+
+Figure 7: Ablation of the ITN design choices. Left: lexicon entries that ITN changes, by where the number’s span falls relative to khmercut’s word boundaries; “inside a word” is an error. Right: TTS prompt sentences changed. 20 40 60 80 100 120 140 160 
+
+sentence length (characters) 
+
+> 0510 15 20 25 30 35
+> time per sentence (ms)
+> TN ITN
+
+Figure 8: Time per sentence against sentence length. Lines are medians over 20-character bins. 
+
+large corpus would help most. A related limit of the boundary filter is a number word that is a whole syl-lable at the end of another word: បី (“three”) ends ្រ កបី 
+
+(“buffalo”), and only a lexicon, not the script, can tell them apart. 
+
+Style choices. Several outputs are conventions rather than facts: Latin or Khmer digits, symbols ( ៛, %) or unit words, numeric or spelled dates, and whether single digits become digits. Tha exposes the most im-portant as options, but a downstream user may prefer others. 
+
+Coverage. ITN does not read back Roman numerals, letter codes ( ជី is both the letter G and “fertilizer”) or whitelist abbreviations. TN has no abbreviation expan-sion beyond a short whitelist. 
+
+Evaluation. Our evaluation uses an independent grammar’s test suite, one corpus of spoken-form text, round trips and an ablation; it does not include a large, independently annotated gold standard of writ-ten Khmer text, nor a measurement of the repetition rules of §4.4, or a comparison with neural or LLM-based normalizers [33, 36]. Building such a test set is the most useful next step. 
+
+# 7 Conclusion 
+
+Tha brings the tagger and verbalizer design of Spar-rowhawk and NeMo to Khmer. Tagging the whole line at once removes the need for a word segmenter, and the boundary filter is what allows ITN to run over raw text without breaking ordinary words. The main open prob-lems are spelling variation and a proper annotated test set. The code, grammars, experiment scripts and re-sults are available at https://github.com/seanghay/ tha .
+
+# Acknowledgements 
+
+We thank the authors of Google’s Khmer language re-sources, whose test suite, TTS prompts and lexicon made the evaluation possible. 
+
+# References 
+
+[1] Cyril Allauzen, Michael Riley, Johan Schalkwyk, Wojciech Skut, and Mehryar Mohri. OpenFst: A general and efficient weighted finite-state trans-ducer library. In Implementation and Application of Automata (CIAA 2007) , volume 4783 of Lecture Notes in Computer Science , pages 11–23. Springer, 2007. doi: 10.1007/978-3-540-76336-9_3. [2] Evelina Bakhturina, Yang Zhang, and Boris Gins-burg. Shallow fusion of weighted finite-state trans-ducer and language model for text normalization. In Proc. Interspeech 2022 , pages 491–495, 2022. doi: 10.21437/Interspeech.2022-11074. [3] Vichet Chea, Ye Kyaw Thu, Chenchen Ding, Masao Utiyama, Andrew Finch, and Eiichiro Sumita. Khmer word segmentation using conditional random fields. In Khmer Nat-ural Language Processing 2015 (KhNLP2015) ,pages 62–69, Phnom Penh, Cambodia, 2015. URL https://att-astrec.nict.go.jp/member/ ding/KhNLP2015-SEG.pdf .[4] HyunJung Choi, Muyeol Choi, Yohan Lim, Minkyu Lee, Seonhui Kim, Seung Yun, Donghyun Kim, and SangHun Kim. Spoken-to-written text 7conversion with large language model. In Proc. Interspeech 2024 , pages 2410–2414, 2024. doi: 10.21437/Interspeech.2024-376. [5] Alexis Conneau, Min Ma, Simran Khanuja, Yu Zhang, Vera Axelrod, Siddharth Dalmia, Jason Riesa, Clara Rivera, and Ankur Bapna. FLEURS: Few-shot learning evaluation of universal represen-tations of speech. In 2022 IEEE Spoken Language Technology Workshop (SLT) , pages 798–805, 2023. doi: 10.1109/SLT54892.2023.10023141. [6] Peter Ebden and Richard Sproat. The Kestrel TTS text normalization system. Natural Language Engineering , 21(3):333–353, 2015. doi: 10.1017/ S1351324914000175. [7] Google. Language resources: Datasets and tools for basic natural language processing. https:// github.com/google/language-resources , 2015. Khmer Thrax/Sparrowhawk grammars under 
+
+km/textnorm (classifier, verbalizer); repository archived. Accessed 2026-09-25. [8] Google. Sparrowhawk: An open-source text normalization system. https://github.com/ google/sparrowhawk , 2016. Open-source release of the Kestrel TN framework; repository archived. Accessed 2026-09-25. [9] Google. High quality TTS data for Khmer (SLR42). https://www.openslr.org/42/ , 2018. Multi-speaker km-KH TTS corpus, CC BY-SA 4.0. Accessed 2026-09-25. [10] Kyle Gorman. Pynini: A Python library for weighted finite-state grammar compilation. In Pro-ceedings of the SIGFSM Workshop on Statistical NLP and Weighted Automata , pages 75–80, Berlin, Germany, 2016. Association for Computational Linguistics. doi: 10.18653/v1/W16-2409. URL 
+
+https://aclanthology.org/W16-2409/ .[11] Kyle Gorman and Richard Sproat. Minimally su-pervised number normalization. Transactions of the Association for Computational Linguistics , 4: 507–519, 2016. doi: 10.1162/tacl_a_00114. URL 
+
+https://aclanthology.org/Q16-1036/ .[12] Kyle Gorman and Richard Sproat. Finite-State Text Processing . Synthesis Lectures on Human Language Technologies. Springer (origi-nally Morgan & Claypool), 2021. doi: 10.1007/ 978-3-031-02179-4. [13] Franklin E. Huffman. Cambodian System of Writ-ing and Beginning Reader, with Drills and Glos-sary . Yale Linguistic Series. Yale University Press, New Haven, 1970. xii+365 pp. Reviewed by P. N. Jenner, Journal of Asian Studies 30(3):732–733, 1971, doi:10.2307/2052533. [14] Cibu Johny, Lawrence Wolf-Sonkin, Alexander Gutkin, and Brian Roark. Finite-state script nor-malization and processing utilities: The Nisaba Brahmic library. In Proceedings of the 16th Con-ference of the European Chapter of the Association for Computational Linguistics: System Demon-strations , pages 14–23. Association for Computa-tional Linguistics, 2021. doi: 10.18653/v1/2021. eacl-demos.3. URL https://aclanthology.org/ 2021.eacl-demos.3/ .[15] Min Ma, Heiga Zen, and James Zhao. Leverag-ing large language models for text normalization of non-standard words in text-to-speech synthe-sis. In ICASSP 2026 – 2026 IEEE International Conference on Acoustics, Speech and Signal Pro-cessing (ICASSP) , pages 18622–18626, 2026. doi: 10.1109/ICASSP55912.2026.11463552. [16] Mehryar Mohri. Finite-state transducers in lan-guage and speech processing. Computational Lin-guistics , 23(2):269–311, 1997. URL https:// aclanthology.org/J97-2003/ .[17] Mehryar Mohri and Richard Sproat. An efficient compiler for weighted rewrite rules. In 34th An-nual Meeting of the Association for Computational Linguistics , pages 231–238, Santa Cruz, Califor-nia, USA, 1996. Association for Computational Linguistics. doi: 10.3115/981863.981894. URL 
+
+https://aclanthology.org/P96-1031/ .[18] Yin May Oo, Theeraphol Wattanavekin, Chen-fang Li, Pasindu De Silva, Supheakmungkol Sarin, Knot Pipatsrisawat, Martin Jansche, Oddur Kjartansson, and Alexander Gutkin. Burmese speech corpus, finite-state text normalization and pronunciation grammars with an application to text-to-speech. In Proceedings of the Twelfth Language Resources and Evaluation Conference (LREC 2020) , pages 6328–6339, Marseille, France, 2020. European Language Resources Association. URL https://aclanthology.org/2020.lrec-1. 777/ .[19] Ernest Pusateri, Bharat Ram Ambati, Elizabeth Brooks, Ondrej Platek, Donald McAllaster, and Venki Nagesha. A mostly data-driven approach to inverse text normalization. In Proc. Inter-speech 2017 , pages 2784–2788, 2017. doi: 10.21437/ Interspeech.2017-1274. [20] Alec Radford, Jong Wook Kim, Tao Xu, Greg Brockman, Christine McLeavey, and Ilya Sutskever. Robust speech recognition via large-scale weak supervision. In Proceedings of the 40th International Conference on Machine Learn-ing , volume 202 of Proceedings of Machine Learning Research , pages 28492–28518. PMLR, 2023. URL https://proceedings.mlr.press/ v202/radford23a.html .[21] Sandy Ritchie, Richard Sproat, Kyle Gorman, Daan van Esch, Christian Schallhart, Nikos Bam-pounis, Benoît Brard, Jonas Fromseier Mortensen, 8Millie Holt, and Eoin Mahon. Unified verbaliza-tion for speech recognition & synthesis across lan-guages. In Proc. Interspeech 2019 , pages 3530– 3534, 2019. doi: 10.21437/Interspeech.2019-2807. [22] SIL Global. Khmer character specifica-tion. https://github.com/sillsdev/ khmer-character-specification , 2019. In-cludes khnormal, a normalizer for the Khmer encoding structure (MIT license). Accessed 2026-09-25. [23] Keshan Sodimana, Pasindu De Silva, Supheak-mungkol Sarin, Knot Pipatsrisawat, Oddur Kjar-tansson, Martin Jansche, and Linne Ha. A step-by-step process for building TTS voices using open source data and frameworks for Bangla, Ja-vanese, Khmer, Nepali, Sinhala, and Sundanese. In Proc. 6th Workshop on Spoken Language Tech-nologies for Under-Resourced Languages (SLTU 2018) , pages 66–70, Gurugram, India, 2018. doi: 10.21437/SLTU.2018-14. [24] Keshan Sodimana, Pasindu De Silva, Richard Sproat, Theeraphol Wattanavekin, Alexander Gutkin, and Knot Pipatsrisawat. Text normal-ization for Bangla, Khmer, Nepali, Javanese, Sin-hala and Sundanese text-to-speech systems. In 
+
+Proc. 6th Workshop on Spoken Language Tech-nologies for Under-Resourced Languages (SLTU 2018) , pages 147–151, Gurugram, India, 2018. doi: 10.21437/SLTU.2018-31. [25] Richard Sproat and Navdeep Jaitly. RNN ap-proaches to text normalization: A challenge, 2016. URL https://arxiv.org/abs/1611.00068 .arXiv:1611.00068. [26] Richard Sproat and Navdeep Jaitly. An RNN model of text normalization. In Proc. Inter-speech 2017 , pages 754–758, 2017. doi: 10.21437/ Interspeech.2017-35. [27] Richard Sproat, Alan W. Black, Stanley Chen, Shankar Kumar, Mari Ostendorf, and Christina D. Richards. Normalization of non-standard words. 
+
+Computer Speech & Language , 15(3):287–333, 2001. doi: 10.1006/csla.2001.0169. [28] Monica Sunkara, Chaitanya Shivade, Sravan Bo-dapati, and Katrin Kirchhoff. Neural inverse text normalization. In ICASSP 2021 – 2021 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pages 7573–7577, 2021. doi: 10.1109/ICASSP39728.2021.9414912. [29] Terry Tai, Wojciech Skut, and Richard Sproat. Thrax: An open source grammar compiler built on OpenFst. IEEE Automatic Speech Recognition and Understanding Workshop (ASRU 2011), toolkit demonstration, 2011. URL 
+
+http://dihana.cps.unizar.es/proceedings/ ASRU/2011/Toolkit/Thrax.pdf .[30] The Unicode Consortium. The Unicode Standard, Version 17.0.0 . The Unicode Consortium, South San Francisco, CA, 2025. ISBN 978-1-936213-35-1. URL https://www.unicode.org/versions/ Unicode17.0.0/ . Chapter 16 (Southeast Asia-I), Section 16.4: Khmer. [31] Daan van Esch and Richard Sproat. An expanded taxonomy of semiotic classes for text normaliza-tion. In Proc. Interspeech 2017 , pages 4016–4020, 2017. doi: 10.21437/Interspeech.2017-402. [32] WeNet Community. WeTextProcessing: Text nor-malization & inverse text normalization. https: //github.com/wenet-e2e/WeTextProcessing ,2022. Apache-2.0. Accessed 2026-09-25. [33] Michel Wong, Ali Alshehri, Sophia Kao, and Hao-tian He. PolyNorm: Few-shot LLM-based text normalization for text-to-speech. In Proceedings of the 2025 Conference on Empirical Methods in Nat-ural Language Processing: Industry Track , pages 77–85, Suzhou, China, 2025. Association for Com-putational Linguistics. doi: 10.18653/v1/2025. emnlp-industry.6. URL https://aclanthology. org/2025.emnlp-industry.6/ .[34] Seanghay Yath. khmercut: A (fast) Khmer word segmentation toolkit. https://github.com/ seanghay/khmercut , 2023. Accessed 2026-09-25. [35] Seanghay Yath. KhmerTagger: Inverse text normalization for Khmer automatic speech recognition. https://github.com/seanghay/ khmertagger , 2024. Apache-2.0. Accessed 2026-09-25. [36] Hao Zhang, Richard Sproat, Axel H. Ng, Felix Stahlberg, Xiaochang Peng, Kyle Gorman, and Brian Roark. Neural models of text normalization for speech applications. Computational Linguis-tics , 45(2):293–337, 2019. doi: 10.1162/coli_a_ 00349. [37] Yang Zhang, Evelina Bakhturina, Kyle Gorman, and Boris Ginsburg. NeMo inverse text normaliza-tion: From development to production. In Proc. Interspeech 2021 , pages 4468–4472, 2021. doi: 10.21437/Interspeech.2021-1571. 9
