@@ -1,0 +1,340 @@
+Title: Shared-State Local Translations for Training-Free Voice Conversion
+
+URL Source: https://arxiv.org/pdf/2610.01952v1
+
+Published Time: Fri, 02 Oct 2026 02:21:05 GMT
+
+Number of Pages: 5
+
+Markdown Content:
+SHARED-STATE LOCAL TRANSLATIONS FOR TRAINING-FREE VOICE CONVERSION 
+
+Yangyang Qu Michele Panariello Massimiliano Todisco Nicholas Evans 
+
+EURECOM, Sophia Antipolis, France 
+
+ABSTRACT 
+
+In one-shot training-free voice conversion (VC), the source and reference utterances may contain different linguistic content, so reliable frame-level correspondence between them cannot be assumed. We propose StateVC, which jointly defines a com-mon set of local regions from pooled frame-level WavLM rep-resentations of the source and reference utterances; we refer to these regions as states . These shared states are obtained by fit-ting a pair-specific Gaussian mixture model to the pooled repre-sentations, without explicit source–reference frame matching. Within each state, StateVC estimates a source-to-reference mean shift in the original WavLM space. Source-frame poste-rior probabilities then combine the state-specific shifts so that different frames can receive different local updates. For the LibriSpeech one-shot protocol, StateVC achieves the lowest word error rate (WER) and character error rate (CER) among the evaluated systems, at 8.01% and 3.22%, respectively, with a speaker similarity (SIM) of 0.9512. It also achieves the high-est mean perceived speaker similarity among the evaluated systems and the highest mean naturalness among the evaluated training-free systems. 
+
+Index Terms — voice conversion, self-supervised speech representations, Gaussian mixture model, training-free conver-sion 
+
+1. INTRODUCTION 
+
+Reference-based voice conversion (VC) aims to modify the speaker characteristics of a source utterance toward those of a reference utterance while preserving the source linguistic content [1]. We consider one-shot VC with a single reference utterance, whose linguistic content may differ from that of the source; therefore, reliable frame-level correspondence is not assumed. In training-free VC, conversion is performed by modifying pretrained speech representations without training a task-specific conversion network [2–4]. We hypothesize that, for source frames with similar WavLM [5] representations, the source-to-reference change can be approximated by a com-mon shift. This motivates defining local regions in representa-tion space and estimating a separate source-to-reference shift within each region, rather than matching individual source and reference frames. Existing VC methods based on self-supervised speech representations differ in how they establish source–reference relations and in whether they use a single mapping or multiple local mappings. Nearest-neighbor and frame-based opti-mal transport methods explicitly relate source and reference frames [2, 6, 7], while LinearVC fits a single linear transfor-mation from nearest-neighbor-paired frames [3]. MKL-VC estimates factorized distribution-level mappings [4], while USCF uses a shared low-rank representation with speaker-specific linear transformations [8]. Classical GMM-based VC learns mixture-dependent mappings from speaker-specific or parallel training data [9, 10], whereas SSL-GMMVC obtains local affine mappings by first pairing source and reference self-supervised representations and then fitting a GMM [11]. These approaches leave open whether local source-to-reference changes can be estimated without first pairing source and reference frames. To address this problem, we introduce StateVC, which pools source and reference representations and fits a single GMM for each utterance pair to define shared local regions. We refer to these regions as states . This joint definition al-lows source and reference statistics to be estimated within the same state without first matching individual frames or separately estimated components. For each state, StateVC esti-mates a source-to-reference mean shift in the original WavLM space. Source-frame posterior probabilities then combine these state-specific shifts, allowing the applied update to vary across frames. Our contributions are: • We propose StateVC, a training-free one-shot VC method that jointly defines one set of local states shared by the source and reference, and uses state-specific mean shifts with posterior-weighted frame updates without explicit source–reference frame matching. • Controlled comparisons show that jointly defining one common set of states shared by source and reference yields lower WER and CER than defining them sepa-rately and matching them afterward. • Under the LibriSpeech one-shot protocol, StateVC achieves the lowest WER/CER among the evaluated systems with a SIM of 0.9512, alongside the highest mean perceived speaker similarity and the highest mean naturalness among the evaluated training-free systems. arXiv:2610.01952v1 [eess.AS] 1 Oct 2026 Source  
+
+> ��
+> Reference
+> ��
+> WavLM
+> ��
+> Rank & Select
+> ��
+> Selected indices ��
+> ��
+> Shared GMM
+> ��
+
+# ...          
+
+> �r
+> Stage 1: Shared-State Definition and Assignment Stage 2: Local Shift Estimation and Frame Update
+> Temporal Smoothing
+> ��x D
+> ��x D
+> ��x � �
+> ��x � �
+> ��
+> ��x��
+> ��x��
+> Automatic state-number selection
+> ��
+
+......∆�∗
+
+> ∆�∗
+> ∆��
+> ∗
+
+＋    
+
+> ��’
+> ��x D
+> ����x D
+> ��
+> ��x��
+
+×                    
+
+> ��
+> ��x��
+> ��
+> ��x��
+> ����x D ∆∗
+> ∆∗����x D
+> Converted Speech ��
+> HiFi-GAN
+> (a) Local Shift Estimation (b) Posterior-Weighted Frame Update Ke:StSelected state number ate number Ts:Source frame count
+> Tr:Reference frame count
+> D= 1024
+> ��= 24 : Frozen State-wise Weighted Mean :
+> Ke:Selected state number
+
+� 
+
+> ��
+
+Fig. 1 . Overview of StateVC. Source and reference representations jointly define a common set of shared states through a pair-specific GMM in a compact routing space. Source and reference means within each state define full-dimensional local shifts. Source-frame posterior probabilities combine these shifts before frozen HiFi-GAN synthesis. 
+
+2. METHOD 
+
+An illustration of StateVC is provided in Figure 1. A frozen WavLM [5] encoder extracts frame-level representations from the source and reference utterances. StateVC jointly defines shared states from these representations and computes source and reference statistics within the same states; no linguistic interpretation of the states is assumed. For each state, Stat-eVC estimates a source-to-reference mean shift in the original WavLM space. Source-frame posterior probabilities then com-bine these state-specific shifts to produce frame-level updates without training or fine-tuning neural parameters. 
+
+2.1. Shared-State Definition and Assignment 
+
+The frozen WavLM encoder F extracts Hq = F (xq ) ∈
+
+RTq ×D , q ∈ { s, r }, where Tq is the number of frames in the source s or reference r and where D is the representation dimension. For each conversion, we fit the GMM using a reduced set of WavLM feature dimensions. We rank the source fea-ture dimensions by their temporal standard deviation, vd =Std( Hs[: , d ]) . We retain the dc source dimensions with the largest temporal standard deviations and denote their indices by Is. We then select these same feature dimensions from the reference representation. This gives source and reference representations expressed in the same dc-dimensional coor-dinate system: Zq = Hq [: , Is] ∈ RTq ×dc , q ∈ { s, r }. The reduced representations Zq are used only for state definition and frame-to-state routing. All state statistics and conversion shifts are estimated and applied in the original D-dimensional WavLM space. Fitting separate GMMs to the source and reference utter-ances would define two independent sets of components and would therefore require an additional component-matching step. We instead concatenate the source and reference frames and fit one GMM to the resulting pooled representations. Each mixture component therefore defines one shared state for both utterances. We use a diagonal covariance parameterization: 
+
+p(z) = 
+
+> K
+
+X
+
+> k=1
+
+πkN  z; νk, diag( σ2
+
+> k
+
+) . (1) As usual, for each state k, πk denotes the mixture weight, 
+
+νk the component mean, and σ2 
+
+> k
+
+the diagonal variance. We then fit candidate GMMs with number of components K ≤
+
+Kmax . For model selection, each pooled frame Zq [i] is tem-porarily assigned to k⋆q (i) = arg max k p(k | Zq [i]) . We dis-card any GMM candidate for which a state contains fewer than nmin assigned pooled frames. Among the remaining candidates, the GMM with the lowest Bayesian information criterion (BIC) [12] is selected, and its number of states is denoted by Ke.The selected GMM is then used to assign each frame a posterior probability over the set of Ke states: 
+
+γ(q) 
+
+> i,k
+
+= p(k | Zq [i]) , q ∈ { s, r }, k = 1 , . . . , K e. (2) We refer to γ(q) 
+
+> i,k
+
+as the routing probability from frame i of utterance q to state k.To reduce frame-to-frame variation in the routing prob-abilities, we apply temporal smoothing over a window of 
+
+L = 2 J + 1 frames: 
+
+¯γ(q) 
+
+> i,k
+
+= 1
+
+L
+
+> J
+
+X
+
+> j=−J
+
+γ(q) 
+
+> cq(i+j),k
+
+, ˆγ(q) 
+
+> i,k
+
+= ¯γ(q)
+
+> i,k
+
+PKe 
+
+> ℓ=1
+
+¯γ(q) 
+
+> i,ℓ
+
++ ε , (3) where cq (u) = min {max {u, 1}, T q } clips out-of-range in-dices to the nearest valid frame and ε ensures numerical stabil-ity. 2.2. Local Shift Estimation 
+
+For each state, StateVC estimates a source-to-reference mean shift in the original D-dimensional WavLM space. The state statistics are computed using the smoothed routing probabili-ties ˆγ(q) 
+
+> i,k
+
+.For state k, the total posterior weight and full-dimensional weighted mean are 
+
+Mq,k =
+
+> Tq
+
+X
+
+> i=1
+
+ˆγ(q) 
+
+> i,k
+
+, μq,k =
+
+PTq 
+
+> i=1
+
+ˆγ(q) 
+
+> i,k
+
+Hq [i]
+
+Mq,k 
+
+, q ∈ { s, r }.
+
+(4) For a state whose total posterior mass is at least mmin in both utterances, we define the source-to-reference shift as the difference between the corresponding state means. Otherwise, we use the utterance-level mean difference: 
+
+∆⋆k =
+
+(μr,k − μs,k , Ms,k ≥ mmin and Mr,k ≥ mmin ,
+
+μg 
+
+> r
+
+− μg 
+
+> s
+
+, otherwise ,
+
+(5) where 
+
+μg 
+
+> q
+
+= 1
+
+TqTq
+
+X
+
+> i=1
+
+Hq [i].
+
+The state-specific shift controls the source-to-reference change within each local region, while the utterance-level mean difference provides a fallback when a local estimate is poorly supported. 
+
+2.3. Posterior-Weighted Frame Update 
+
+Given the estimated local shifts, each source frame is updated by a posterior-weighted combination: 
+
+H′
+
+> s
+
+[t] = Hs[t] + λ
+
+> Ke
+
+X
+
+> k=1
+
+ˆγ(s) 
+
+> t,k
+
+∆⋆k, (6) where λ ∈ [0 , 1] controls the conversion strength. We refer to this posterior-weighted combination of state-specific shifts as soft routing . Because the posterior weights depend on the source frame, different frames can receive different combina-tions of the state-specific shifts. Finally, a frozen WavLM-conditioned HiFi-GAN [13] vocoder released with kNN-VC [2] 1 reconstructs the converted waveform from H′
+
+> s
+
+.
+
+3. EXPERIMENTAL SETUP 
+
+Following MKL-VC [4], we construct 7,800 cross-speaker pairs from LibriSpeech test-clean [14]: five source ut-terances from each of 40 speakers, each paired with one ref-erence utterance from every other speaker. All systems use 
+
+> 1https://github.com/bshall/knn-vc
+
+the same source–reference pairs. We include FreeVC and FreeVC-S [15] as learned zero-shot references and compare StateVC primarily with the training-free methods kNN-VC [2], LinearVC [3], MKL-VC [4], kDOT [7], USCF [8], and SSL-GMMVC [11]. For consistency with our evaluation setting, we adopt the configurations from the original papers that are com-patible with our setup. We use MKL-VC with k = 2 , kDOT with k = 4 , USCF with W1 and r = 75 , and SSL-GMMVC CrossDiag with K = 1 .Speaker similarity is measured by cosine similarity (SIM) between SpeechBrain x-vectors 2 extracted from the converted and reference waveforms [16]. Content preservation is evalu-ated for all systems using the same Whisper-base 3 WER/CER protocol against the source transcript [17]. Twenty listeners each evaluate the outputs of all compared VC systems for the same 40 source–reference pairs. Naturalness is rated on a 1–5 scale (N-MOS), and perceived similarity to the reference speaker on a 1–4 scale (S-MOS). Reported scores are averaged over listeners and source–reference pairs for each system. StateVC uses frozen sixth-layer WavLM-Large represen-tations with D = 1024 , dc = 24 , Kmax = 4 , nmin = 20 ,
+
+mmin = 20 , λ = 1 , and posterior smoothing with L = 5 
+
+frames ( J = 2 ). Here, nmin is the minimum assigned-frame count used to validate a candidate GMM, whereas mmin is the minimum posterior mass required to use a state-specific shift. To examine whether the shared-state framework requires transformations more flexible than a mean shift, we com-pare three state-specific transformations. Mean applies only the state-specific shift in Eq. (5). Diagonal additionally rescales each source-centered coordinate by the correspond-ing reference-to-source state-wise standard-deviation ratio before recentering at the reference mean. Block further in-corporates within-block covariance through Gaussian Monge– Kantorovich linear transport [18] over contiguous 2-D feature blocks. All three transformations act in the full D = 1024 
+
+WavLM space, while dc = 24 is used only to define the shared states and compute routing probabilities. For the separate-GMM state-definition comparison, source and reference states are matched by the Hungarian algo-rithm [19]. For the Block transformation, we compare hard and soft frame-level routing. Both use the same smoothed state posteriors, state means and covariances, and state-specific Block transformations. Hard routing selects the Block-transformed output of the most probable state, 
+
+k⋆(t) = arg max k ˆγ(s) 
+
+> t,k
+
+, whereas soft routing combines the state-specific Block-transformed outputs using the source-frame posterior probabilities. Code and audio samples are available at https://gi thub.com/eurecom-asp/StateVC and https:// github.com/eurecom-asp/StateVC_listening _samples .             
+
+> 2https://huggingface.co/speechbrain/spkrec-xvect -voxceleb
+> 3https://huggingface.co/openai/whisper-base 0.00 0.25 0.50 0.75 1.00
+> λ
+> 0.90 0.92 0.94
+> SIM
+> (a) Conversion strength
+> 124
+> Kmax
+> (b) Candidate-state limit
+> 1 s 2 s 4 s Full
+> Duration
+> (c) Reference duration
+> None Mean Diag. Block
+> Transformation
+> (d) State transformation
+> 7.2 7.6 8.0 8.4
+> WER (%)
+> SIM WER
+
+Fig. 2 . Sensitivity and design analyses for (a) conversion strength λ, (b) candidate-state limit Kmax , (c) reference duration, and (d) state transformation. SIM and WER use the left and right axes, respectively. Panels (a–c) use Mean, while panel (d) compares state-specific transformations. Shaded regions indicate the selected settings; comparisons are made within each panel. 
+
+Table 1 . Objective and subjective results. WER/CER are percentages.                                                        
+
+> Method SIM ↑WER ↓CER ↓N-MOS ↑S-MOS ↑
+> Learned zero-shot
+> FreeVC 0.9473 8.82 3.70 3.800 2.600 FreeVC-S 0.9441 8.63 3.60 3.850 2.500
+> Training-free
+> LinearVC 0.9753 47.65 28.69 2.500 2.200
+> kDOT 0.9600 39.52 23.41 2.150 1.600 kNN-VC 0.9699 37.50 22.17 2.850 2.200 USCF 0.9515 20.36 11.38 2.250 1.850 SSL-GMMVC 0.9303 11.87 5.39 1.850 1.650 MKL-VC 0.9456 8.22 3.37 3.100 2.450
+> StateVC 0.9512 8.01 3.22 3.550 2.750
+
+Table 2 . State-definition and routing comparisons with the Block transformation fixed.                      
+
+> Variant SIM ↑WER ↓CER ↓
+> State definition
+> Separate GMMs + same-index 0.9467 40.28 26.40 Separate GMMs + Hungarian 0.9541 13.82 6.60 Shared GMM 0.9540 8.44 3.48
+> Frame-level routing
+> Hard: single-state Block transform 0.9556 9.14 3.86 Soft: posterior-weighted Block transforms 0.9540 8.44 3.48
+
+4. RESULTS 
+
+Table 1 reports the overall VC results. On the 7,800 Lib-riSpeech cross-speaker pairs, StateVC achieves 8.01% WER and 3.22% CER, the lowest values among the evaluated sys-tems, with a SIM of 0.9512. Compared with MKL-VC, Stat-eVC reduces WER from 8.22% to 8.01% and CER from 3.37% to 3.22%, while increasing SIM from 0.9456 to 0.9512. It also achieves the highest mean S-MOS among the evaluated systems and the highest mean N-MOS among the evaluated training-free systems. Table 2 evaluates state definition and frame-level routing with the Block transformation fixed. Compared with Hun-garian matching of separately fitted states, the shared-state definition reduces WER from 13.82% to 8.44% and CER from 6.60% to 3.48%, at nearly identical SIM (0.9541 vs. 0.9540). With the shared states, state statistics, and Block transforma-tions fixed, soft routing reduces WER from 9.14% to 8.44% and CER from 3.86% to 3.48%, while SIM decreases slightly from 0.9556 to 0.9540. Figure 2 reports the state-transformation and sensitivity analyses. Figure 2(d) shows that more flexible state-specific transformations provide only small additional SIM gains be-yond Mean, while WER increases from 8.01% for Mean to 8.36% for Diagonal and 8.44% for Block. Mean captures most of the observed SIM gain over None, with a smaller WER increase than the more flexible transformations. We therefore use Mean in the final system. Figure 2(a–c) further shows that SIM increases with λ, increasing Kmax slightly improves SIM at the cost of higher WER, and longer reference speech mainly improves SIM. 
+
+5. CONCLUSIONS 
+
+We presented StateVC, a training-free one-shot VC method that jointly defines shared local states for source and reference representations and applies state-specific mean shifts through posterior-weighted frame updates. Under the LibriSpeech one-shot protocol, StateVC achieves the lowest WER and CER among the evaluated systems, at 8.01% and 3.22%, respec-tively, with a SIM of 0.9512. Controlled comparisons show that jointly defined states yield lower recognition errors than separately fitted and matched states at nearly identical SIM, while a simple mean shift captures most of the SIM improve-ment obtained with more flexible transformations. The current evaluation is limited to English LibriSpeech under the reported one-shot protocol. 
+
+# Acknowledgment 
+
+This work was supported by the French Agence Nationale de la Recherche (ANR) through the SpeechPrivacy project (ANR-23-CE23-0022). ChatGPT was used solely for language editing and stylistic refinement. All scientific claims, experi-mental results, analyses, and conclusions were independently reviewed and verified by the authors. 6. REFERENCES 
+
+[1] Seyed Hamidreza Mohammadi and Alexander Kain, “An overview of voice conversion systems,” Speech Commu-nication , vol. 88, pp. 65–82, 2017. [2] Matthew Baas, Benjamin van Niekerk, and Herman Kam-per, “Voice Conversion With Just Nearest Neighbors,” in 
+
+Interspeech 2023 , 2023, pp. 2053–2057. [3] Herman Kamper, Benjamin van Niekerk, Julian Za¨ ıdi, and Marc-Andr´ e Carbonneau, “LinearVC: Linear Trans-formations of Self-Supervised Features Through the Lens of Voice Conversion,” in Interspeech 2025 , 2025, pp. 1398–1402. [4] Alexander Lobashev, Assel Yermekova, and Maria Larchenko, “Training-Free Voice Conversion with Fac-torized Optimal Transport,” in Interspeech 2025 , 2025, pp. 1373–1377. [5] Sanyuan Chen, Chengyi Wang, Zhengyang Chen, Yu Wu, Shujie Liu, Zhuo Chen, Jinyu Li, Naoyuki Kanda, Takuya Yoshioka, Xiong Xiao, et al., “Wavlm: Large-scale self-supervised pre-training for full stack speech processing,” IEEE Journal of Selected Topics in Signal Processing , vol. 16, no. 6, pp. 1505–1518, 2022. [6] Arip Asadulaev, Rostislav Korst, Vitalii Shutov, Alexan-der Korotin, Yaroslav Grebnyak, Vahe Egiazarian, and Evgeny Burnaev, “Optimal transport maps are good voice converters,” arXiv preprint arXiv:2411.02402 , 2024. [7] Anton Selitskiy and Maitreya Kocharekar, “Discrete optimal transport and voice conversion,” arXiv preprint arXiv:2505.04382 , 2025. [8] Henry Li Xinyuan, Zexin Cai, Lin Zhang, Leibny Paola Garc´ ıa-Perera, Berrak Sisman, Sanjeev Khudanpur, Nicholas Andrews, and Matthew Wiesner, “Uni-versal speech content factorization,” arXiv preprint arXiv:2603.08977 , 2026. [9] Yannis Stylianou, Olivier Capp´ e, and Eric Moulines, “Continuous probabilistic transform for voice conversion,” 
+
+IEEE Transactions on speech and audio processing , vol. 6, no. 2, pp. 131–142, 1998. [10] Tomoki Toda, Alan W Black, and Keiichi Tokuda, “Voice conversion based on maximum-likelihood estimation of spectral parameter trajectory,” IEEE Transactions on Audio, Speech, and Language Processing , vol. 15, no. 8, pp. 2222–2235, 2007. [11] Tomoya Tanabu, Hiroshi Nishijima, Daisuke Saito, and Nobuaki Minematsu, “Ssl-gmmvc: Interpretable voice conversion via locally linear gmm transforms in self-supervised representation space,” arXiv preprint arXiv:2606.10317 , 2026. [12] Gideon Schwarz, “Estimating the dimension of a model,” 
+
+The Annals of Statistics , vol. 6, no. 2, pp. 461–464, 1978. [13] Jungil Kong, Jaehyeon Kim, and Jaekyoung Bae, “Hifi-gan: Generative adversarial networks for efficient and high fidelity speech synthesis,” Advances in neural in-formation processing systems , vol. 33, pp. 17022–17033, 2020. [14] Vassil Panayotov, Guoguo Chen, Daniel Povey, and San-jeev Khudanpur, “Librispeech: an asr corpus based on public domain audio books,” in 2015 IEEE international conference on acoustics, speech and signal processing (ICASSP) . IEEE, 2015, pp. 5206–5210. [15] Jingyi Li, Weiping Tu, and Li Xiao, “Freevc: To-wards high-quality text-free one-shot voice conversion,” in ICASSP 2023-2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) .IEEE, 2023, pp. 1–5. [16] David Snyder, Daniel Garcia-Romero, Gregory Sell, Daniel Povey, and Sanjeev Khudanpur, “X-vectors: Ro-bust dnn embeddings for speaker recognition,” in 2018 IEEE international conference on acoustics, speech and signal processing (ICASSP) . IEEE, 2018, pp. 5329–5333. [17] Alec Radford, Jong Wook Kim, Tao Xu, Greg Brockman, Christine McLeavey, and Ilya Sutskever, “Robust speech recognition via large-scale weak supervision,” in Inter-national conference on machine learning . PMLR, 2023, pp. 28492–28518. [18] Asuka Takatsu, “Wasserstein geometry of gaussian mea-sures,” Osaka Journal of Mathematics - OSAKA J MATH ,vol. 48, 12 2011. [19] Harold W Kuhn, “The hungarian method for the assign-ment problem,” Naval research logistics quarterly , vol. 2, no. 1-2, pp. 83–97, 1955.

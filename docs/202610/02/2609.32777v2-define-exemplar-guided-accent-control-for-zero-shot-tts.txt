@@ -1,0 +1,222 @@
+Title: DEFINE: Exemplar-Guided Accent Control for Zero-Shot TTS
+
+URL Source: https://arxiv.org/pdf/2609.32777v2
+
+Published Time: Fri, 02 Oct 2026 00:38:13 GMT
+
+Number of Pages: 5
+
+Markdown Content:
+# DEFINE: EXEMPLAR-GUIDED ACCENT CONTROL FOR ZERO-SHOT TTS 
+
+# Ambuj Mehrish 1, Abhinaba Roy 4, Alex Ivanov 2, Tawsif Ahmed 3, Dorien Herremans 41Ca’ Foscari University of Venice 2Kandinsky Lab 3Sleeping AI 
+
+> 4
+
+# Singapore University of Technology and Design 
+
+ABSTRACT 
+
+Zero-shot text-to-speech (TTS) can reproduce an unseen speaker from a short reference recording, but typically entangles speaker identity and accent within the same reference. We introduce D EFINE , an end-to-end framework that decouples these factors by conditioning speaker identity and target accent on separate audio exemplars. A single inference-time guidance weight continuously controls accent strength without retraining. Built on F5-TTS with parameter-efficient LoRA adaptation, D EFINE maps short accent exemplars into a condi-tioning space using an exemplar encoder supervised through learned accent prototypes, requiring neither accent labels at inference time nor post-synthesis waveform conversion. On seen accents, increas-ing accent guidance improves accent-probe accuracy from 6.5% to 19.6%. More importantly, a single D EFINE model generalizes accent control beyond its training accent set: on seen and out-of-domain accents, though not on held-out accents, it matches the accent transfer performance of a two-model TTS–voice-conversion cascade while achieving higher speaker similarity and comparable predicted speech quality. These results demonstrate that speaker identity and accent can be independently controlled from audio exemplars within a single zero-shot TTS model, including for accents unseen during training. 1
+
+Index Terms — Text-to-Speech, Accent Conversion, Flow-Matching, LoRA 
+
+1. INTRODUCTION 
+
+Recent zero-shot TTS models can reproduce the voice of an unseen speaker from only a few seconds of reference speech [1, 2, 3]. How-ever, the reference carries more than speaker identity: it also carries the speaker’s accent. There is no independent mechanism for re-questing, for example, the reference speaker’s voice with a Scottish accent . This coupling is reinforced by training data in which each speaker is observed with a single native accent. The training objective therefore provides little incentive to represent them as independently controllable factors. Previous work has approached this problem in two main ways. The first introduces accent as an explicit conditioning variable, rep-resented by an accent label or an embedding learned from labeled speech [4, 5]. A second approach performs accent conversion af-ter synthesis, passing generated speech through a separate accent or voice-conversion model [6]. More importantly, neither formulation naturally provides a unified mechanism in which voice and accent are independently specified by reference examples, while accent strength remains controllable after training. We introduce D EFINE (Disentangled Exemplar Framework for Identity and Novel-accent Expression), a modular approach that ex-plicitly separates these two sources of conditioning. The conventional 
+
+> 1https://github.com/AMAAI-Lab/define
+
+reference audio specifies who should speak, while a separate short accent exemplar specifies how the generated speech should be ac-cented. The accent exemplar is encoded directly into a conditioning representation and injected into the TTS model, avoiding a separate waveform-conversion stage. A key feature of D EFINE is that at in-ference time, a single guidance weight w controls the contribution of accent conditioning. Setting w=0 removes the contribution of accent-conditioning, while increasing w progressively strengthens the influence of the target accent. However, learning a useful global accent representation from the flow-matching objective alone provides only indirect supervision to the accent encoder. We address this with prototype anchoring . An exemplar encoder maps the accent clip to a conditioning vector, while a small learned table maintains one prototype for each training accent. During training, these prototypes provide stable targets that organize the accent representation space and supervise the exemplar encoder. The resulting representation is injected alongside the timestep and text conditioning of an F5-TTS [1] backbone. We keep the pretrained backbone frozen and perform parameter-efficient adaptation using LoRA [7]. Our main contributions are: • We introduce D EFINE , a zero-shot TTS framework that indepen-dently specifies speaker identity and target accent from separate audio examples, without requiring an accent label at inference time. • We propose prototype anchoring , in which learned per-accent proto-types provide direct supervision for an exemplar encoder, enabling short accent examples to be mapped to a stable conditioning space despite the weak accent supervision provided by the flow-matching objective alone. • We introduce continuous inference-time accent control through a single guidance weight w, allowing accent strength to be varied after training. 
+
+2. RELATED WORK 
+
+Our work relates to three lines of research: zero-shot text-to-speech, explicit accent conditioning, and post-hoc accent conversion. Zero-shot TTS synthesizes speech in the voice of an unseen speaker from a short reference utterance. Recent approaches use discrete speech representations [8] or flow matching over masked acoustic features [9, 3, 1], while earlier systems rely on explicit speaker en-coders [10]. In these formulations, the reference jointly specifies speaker identity and speaking characteristics, implicitly coupling accent with voice. Other work introduces accent as an explicit condi-tioning variable through labels or learned representations [5, 4, 11], with some methods additionally controlling accent strength [12]. These approaches provide direct control but are generally restricted to accents represented during training, requiring labelled data and model adaptation for new accents. Alternatively, accent conversion modifies arXiv:2609.32777v2 [cs.SD] 30 Sep 2026 Fig. 1 : D EFINE overview. (a) Accent exemplars are encoded by a frozen XLS-R and pooled into one accent vector; (b) a learned per-accent prototype table supervises the encoder during training. The accent vector shifts the timestep and text embeddings of a frozen F5-TTS backbone adapted with LoRA. At inference the prototypes are discarded and a single weight w sets accent strength. Snowflake: frozen, flame: trained. synthesized or recorded speech [13, 14, 15, 16], often using a separate voice-conversion model [6], introducing an additional transformation stage in which speaker characteristics must be preserved. 
+
+3. METHOD 3.1. Backbone and accent injection 
+
+We build on F5-TTS [1] (Figure 1), a non-autoregressive text-to-speech model trained with conditional flow matching [17] on mel spectrograms. Let x1 ∈ RT ×F denote the target mel spectrogram, 
+
+x0 ∼ N (0 , I ), and t ∼ U (0 , 1) . Given xt = (1 − t)x0 + tx 1, the network vθ learns the conditional vector field by minimizing: 
+
+Lfm = Et,x 0,x 1
+
+∥m ⊙ ∆vθ ∥22
+
+ ,
+
+∆vθ = vθ (xt, t, c, y, a ) − (x1 − x0). (1) here, y is the text, c is the reference audio that carries speaker iden-tity through in-context infilling, m is a binary target-span mask, and 
+
+a ∈ Rd is an accent embedding with d = 128 . The backbone archi-tecture is unchanged. Rank-16 LoRA adapters [7] are applied to the attention query and value projections, feed-forward layers, and adaLN modulation, resulting in 6.3M trainable parameters out of 343 M. The accent vector enters at two places (Fig. 1). Let ρ(u) = 
+
+q 1
+
+> n
+
+Pni=1 u2
+
+> i
+
+denote the root-mean-square (RMS) of an n-dim vector, and LN 
+
+layer normalization. The timestep and text embeddings are shifted as follows: 
+
+et ← et + γt ρ(et) LN( Wta),ey ← ey + γy ρ(ey ) LN( Wy a). (2) RMS scaling matches each shift to the size of the embedding it modifies; without it the added term is about 100 times smaller than the timestep embedding and is ignored during training. Since et
+
+controls adaLN, accent conditioning reaches every transformer block. 
+
+Wt and Wy are bias-free and LN is non-affine, so a=0 leaves both embeddings unchanged. During training, a is set to 0 with pdrop =0.15 to train the accent-free inference branch. 
+
+3.2. Exemplar encoder and prototype anchoring 
+
+Let X = {u1, . . . , u K } be K ≥ 1 short clips of the desired accent from speakers absent from training (Fig. 1a). Training uses K=1 ;at inference we pool over the provided clips, with K=1 and K=3 
+
+giving similar accuracy (Sec. 4.1). Each clip is cropped to speech regions and encoded by a frozen XLS-R [18] model, read at layer 
+
+ℓ=15 as selected by a layer-wise accent probe. Let hk ∈ RTk ×1024 
+
+be the frame features of clip k, let hk be their masked mean over frames, and write ν(u) = u/ ∥u∥2. An MLP gϕ maps each pooled clip to Rd, and the clip embeddings are averaged: 
+
+¯ak = ν gϕ(hk ), aenc = ν
+
+ 1
+
+K
+
+> K
+
+X
+
+> k=1
+
+¯ak
+
+
+
+. (3) Training gϕ with (1) alone provides only weak and indirect super-vision for global conditioning, resulting in embeddings that do not effectively guide the decoder (see Table 3). An auxiliary prototype table is introduced, P ∈ RC×d with one row per training accent (C=23 ; Fig. 1b), normalised as pc = Pc/∥Pc∥2. The encoder is aligned with these prototypes using cosine and contrastive terms: 
+
+Lproto = 1 − a⊤
+
+> enc
+
+sg[ pc] − λce log exp( a⊤
+
+> enc
+
+pc/τ )
+
+PCj=1 exp( a⊤
+
+> enc
+
+pj /τ ) . (4) Here, τ = 0 .1 and sg denotes stop-gradient. To reduce depen-dence on exact prototype lookup, the decoder is conditioned dur-ing training on a Bernoulli mixture: a = b sg[ aenc ] + (1 − b) pc,where b ∼ Bernoulli( π) and π = 0 .5. The stop-gradient operation prevents Lfm from updating gϕ, ensuring that the prototypes learn decoder-compatible conditioning while the encoder learns to match them. At inference, P is discarded and only (3) is used (see Fig. 1, bottom), enabling representation of unseen accents directly from their exemplars. Two auxiliary losses shape the embedding space. Super-vised contrastive loss [19] Lcon brings clips with the same accent label together. A speaker classifier with a gradient reversal layer [20] supplies Lspk , discouraging speaker information in aenc . The full Table 1 : Accent control with 95% bootstrap intervals over items. DEFINE is reported at w=15 , selected on validation items disjoint from the evaluation grid; it infers the accent from exemplar clips and uses no accent label. †Prototype lookup is instead given the accent label and reads the corresponding row of the learned prototype table; it therefore cannot address accents outside the training set; it is also shown at w=11 , the operating point of the listening study. The reference row is real speech by a different speaker reading different text, so SPK and WER against the prompt and target sentence do not apply ( --). System ACC ↑ (95% CI) SPK ↑ WER ↓ UTMOS ↑                                                                                        
+
+> Seen accents ,n= 1134 items Real speech (reference) 0.436 [0.406, 0.464] ----3.08 F5-TTS (stock) 0.079 [0.063, 0.096] 0.732 0.071 3.99 Cascade F5-TTS →Seed-VC 0.188 [0.166, 0.211] 0.600 0.056 3.92 DEFINE , accent off 0.065 [0.051, 0.079] 0.694 0.063 4.06 DEFINE (exemplar) 0.196 [0.173, 0.219] 0.624 0.067 3.93
+> – prototype lookup †,w=11 0.326 [0.300, 0.354] 0.592 0.075 3.88
+> – prototype lookup †,w=15 0.354 [0.327, 0.381] 0.562 0.089 3.77
+> Held-out accents ,n= 378 items Real speech (reference) 0.455 [0.402, 0.505] ----3.18 F5-TTS (stock) 0.061 [0.037, 0.087] 0.737 0.073 3.99 Cascade F5-TTS →Seed-VC 0.175 [0.138, 0.212] 0.603 0.076 3.89 DEFINE , accent off 0.066 [0.042, 0.093] 0.698 0.057 4.05 DEFINE (exemplar) 0.127 [0.095, 0.161] 0.654 0.062 4.01
+> Out-of-domain accents ,n= 252 items Real speech (reference) 0.333 [0.278, 0.389] ----3.06 F5-TTS (stock) 0.024 [0.008, 0.044] 0.728 0.080 3.99 Cascade F5-TTS →Seed-VC 0.083 [0.052, 0.119] 0.601 0.047 3.94 DEFINE , accent off 0.048 [0.024, 0.075] 0.692 0.076 4.06 DEFINE (exemplar) 0.087 [0.056, 0.123] 0.640 0.074 3.97
+
+objective is 
+
+L = Lfm + λpLproto + λcLcon + λsLspk . (5) 
+
+3.3. Accent guidance at inference 
+
+Accent strength is adjustable in a continuous manner during inference. Let v∅ = vθ (xt, t, c, y, 0) denote the accent-free prediction, vu
+
+the unconditional prediction for classifier-free guidance [21], and 
+
+va = vθ (xt, t, c, y, a ). At each solver step, we use 
+
+ˆv = v∅ + s (v∅ − vu) + w (va − v∅), (6) with s = 2 ; here vu drops both the text and the audio prompt. If 
+
+w = 0 , the adapted model is used without accent conditioning. Increasing w makes the accent contribution stronger, allowing a balance between speaker similarity and accent strength (see Table 2). 
+
+4. EXPERIMENTAL SETUP AND RESULTS Data. Training data comes from two sources. The English sub-set of Common Voice [22] supplies naturally accented speech from many speakers per accent; after removing one low-resource accent we retain 15 , holding out Australian, Irish and Filipino for unseen-accent evaluation and reserving Welsh and West Indian as out-of-domain conditions. Training also covers 13 further accent classes that are never evaluated, mostly L2-English varieties, so the proto-type table has C=23 rows: the 10 trained accents of the evaluation taxonomy plus these 13. Held-out accents appear in the probe’s label set; out-of-domain accents are absent from training in either fold. Speaker prompts come from an in-house set of studio-quality recordings synthesised with a commercial TTS system, annotated 
+
+Table 2 : Guidance sweep. w=0 disables the accent term; the LoRA adapters remain active, so this is not identical to F5-TTS; larger w
+
+pushes further toward the accent. ACC ex and SPK are exemplar-driven; ACC lk is the prototype-lookup bound and exists for seen accents only. Seen accents Held-out accents Out-of-domain                                                 
+
+> wACC ex SPK ACC lk ACC ex SPK ACC ex
+> 00.065 0.694 0.065 0.066 0.698 0.048 70.156 0.667 0.272 0.079 0.683 0.048 90.168 0.655 0.311 0.098 0.675 0.056 11 0.185 0.644 0.326 0.108 0.669 0.063 15 0.196 0.624 0.354 0.127 0.654 0.087 19 0.214 0.604 0.376 0.135 0.638 0.111 23 0.212 0.587 0.385 0.151 0.624 0.103
+
+per speaker for accent and gender under the same taxonomy, and kept only when word-aligned prompt–target splits meet duration, transcription-confidence, speech-presence and script quality criteria; these prompts give the highest speaker similarity in Table 1. Because Common Voice couples the two factors, we use Seed-VC [6] to transfer Common Voice utterances into the timbre of stu-dio speakers with different accents, yielding 94 .7k deliberately mis-matched prompt–target pairs alongside 137 k real recordings. Held-out and out-of-domain accents are excluded from training, and exem-plar speakers are disjoint from training speakers. 
+
+Evaluation. All systems are evaluated on the same set of 1,764 items: 1,134 seen, 378 held-out, and 252 out-of-domain; each a voice prompt, at least one exemplar clip from a different target accent, and unseen text. Accent accuracy (ACC) uses a 15-way logistic-regression probe on layer-15 XLS-R features [18] (chance =0 .067 )2.Speaker similarity (SPK) is the cosine similarity between ECAPA-TDNN embeddings [23] of the output and the prompt. Word error rate (WER) comes from Whisper large-v3 [24], and predicted quality from UTMOS [25], with 95% bootstrap intervals calculated over items. Baselines include F5-TTS [1], D EFINE with accent guidance disabled (w=0 ; LoRA remains active), and an F5-TTS–Seed-VC cascade. Real target-accent recordings serve as a reference. Additionally, we include a non-deployable prototype-lookup oracle that receives the accent label and retrieves its row from P .
+
+4.1. Results Accent control and guidance. For seen accents, D EFINE raises ACC from 0.065 with guidance disabled to 0.196 at w=15 , matching the Seed-VC cascade (0.188) with 0.024 higher SPK and equivalent predicted quality (Table 1). Unlike waveform conversion, D EFINE 
+
+modulates accent within the synthesizer instead of re-rendering the generated voice through a separate converter, so identity is better preserved. Each solver step uses one fused classifier-free call and one accent-conditioned call: three sequence evaluations against two for F5-TTS, whereas the cascade adds a full conversion pass over the waveform. On accents absent from all training data D EFINE is statistically indistinguishable from the cascade ( 0.087 vs. 0.083 ) and improves over the same model with the accent disabled by +0 .040 
+
+ACC (95% CI [+0 .004 , +0 .079] , paired over items) and over F5-TTS by +0 .064 ([+0 .032 , +0 .099] ), though the cascade remains stronger on held-out accents ( 0.175 vs. 0.127 ). The sweep in Table 2 reveals 
+
+> 2
+
+The probe shares its feature extractor with the exemplar encoder, but does not appear to favour it: the prototype-lookup path uses no XLS-R at inference yet scores highest ( 0.354 vs. 0.196 ), and the cascade uses none anywhere yet ties DEFINE ( 0.188 vs. 0.196 ). Table 3 : Ablation on the 378 held-out-accent set. Each variant is reported at the largest guidance weight w∗ keeping UTMOS within 
+
+0.15 and speaker similarity within 0.10 of the same variant with the accent switched off, selected on validation items: variants tolerate guidance very differently, so a common w would reward one that degrades into noise. A variant whose w∗ is 0 gains no accent control at any weight; its high speaker similarity and predicted quality simply reflect the accent being switched off. Variant w∗ ACC SPK UTMOS                                     
+
+> DEFINE (full) 15 0.127 0.654 4.01
+> −contrastive prototype term 90.074 0.662 4.04
+> −prototype anchoring (free encoder) 00.079 0.711 4.03
+> −flow-matching gradient into the accent path 00.074 0.717 4.01
+> +encoder-consistency loss 00.074 0.698 4.04 cross-attention conditioning 00.085 0.693 4.01
+> π=0 .7encoder mixing, 2×augmentation 15 0.103 0.651 4.01
+
+a smooth trade-off: SPK falls monotonically with w, so a single post-training scalar picks the desired operating point. Exemplar-based ACC peaks at w=19 for both seen (0.214) and OOD accents (0.111), whereas prototype lookup continues to improve to 0.385 at w=23 ,which points to accent inference from exemplars, not the conditioning pathway, as the bottleneck at high guidance. 
+
+Ablated variants. Beyond removing individual terms of (5), we compare three alternatives. Cross-attention conditioning replaces the additive injection of (2) with a zero-initialised cross-attention layer inserted after every fourth backbone block, attending from the hidden states to the XLS-R exemplar frames rather than to a single pooled vector. The encoder-consistency loss adds a round-trip term: the predicted mel span is decoded with the vocoder, re-encoded with the exemplar encoder, and penalised by 1 − cos( agen , sg[ a]) , so that generated audio carries back the accent vector it was conditioned on. Finally we raise the Bernoulli mixing rate to π=0 .7 and repeat the converted rows twice in the training pool. The gradient variant detaches the accent input entirely, so Lf m no longer updates the prototype table either; the encoder is stop-gradiented in all variants. 
+
+Ablations and bottleneck analysis. Without prototype anchoring, no guidance weight improves on switching the accent off ( w∗=0 ,ACC 0.079): an encoder trained from Lfm alone does not steer the decoder. The contrastive prototype term adds a further 0.053 (Table 3). Variants must be compared at matched quality: pushed to w=23 ,cross-attention reaches 0.175 ACC but collapses to UTMOS 1.52 and SPK 0.22 — unintelligible audio that still fires the probe, which is why its usable weight in Table 3 is 0. Mean-pooling three exemplars instead of one changes ACC by +0 .000 (95% CI ±0.058 , seen) and 
+
++0 .003 (CI [−0.026 , +0 .032] , held-out), and adds 0.019 SPK. The limit is the encoder itself: prototype lookup reaches 0.354 ACC on seen accents against 0.196 from exemplars, and its nearest-prototype accuracy falls from 0.873 on training speakers to 0.540 on unseen ones (chance 1/23 = 0 .043 ). The decoder follows a well-placed accent vector; speaker overfitting in the encoder, not conditioning capacity or guidance, is the bottleneck. Seed-VC fulfills two primary roles: during augmentation, it trans-fers timbre while the Common Voice utterance supplies the accent, whereas the baseline model is required to transfer the accent. The observed parity on seen accents at higher speaker similarity cannot be explained by exposure to Seed-VC outputs. This is not what one would expect from a model distilling the cascade; however, D EFINE 
+
+maintains a speaker similarity of 0.624 to 0.654 , compared to 0.600 
+
+to 0.603 for the baseline. Held-out and out-of-domain accents are ex-cluded from the converted pool, ensuring that the out-of-domain result 0 33 66 100       
+
+> listener votes (%) DEFINE Cascade Stock F5-TTS
+> chance
+> (a) systems
+> 70 21 9033 66 100
+> listener votes (%)
+> w= 0
+> w= 11
+> w= 23
+> chance
+> (b) guidance weight
+> 10 47 43
+
+Fig. 2 : Listening test on seen accents. All D EFINE samples use prototype-lookup, i.e. accents given as a label, at w=11 , where the accent change is clearly perceptible. (a) D EFINE against F5-TTS and the cascade; (b) the same model at three guidance weights. 11 listeners, 10 trials per part, giving 110 votes per part. Bars show the share of votes each option received, with 95% Wilson intervals. (0.087 vs. 0.083 ) does not utilize any Seed-VC-generated training data. 
+
+4.2. Listening test 
+
+To determine how the accent changes are perceived by the human ear, we ran a listening test on the seen-accent set. Samples use the prototype-lookup configuration, which fixes the conditioning path so the test isolates accent control from encoder quality: decoder, injection and guidance are identical to the exemplar system. 11 listeners completed two parts of ten trials each (four England targets, three India, three US). Each trial gave a reference clip of the target accent, a clip of the reference voice, and three synthesised samples in random order, and the listener picked the sample closest to the target accent. Each part therefore gives 110 votes against a chance rate of 
+
+0.333 . Fig. 2 summarises both parts. 
+
+Systems. The first part puts D EFINE at w=11 against F5-TTS and the F5-TTS–Seed-VC cascade. D EFINE took 77 of the 110 votes (0.70 , 95% CI [0 .61 , 0.78] ), the cascade 23 ( 0.21 ) and F5-TTS 10 (0.09 ), D EFINE was the most-picked system for 9 of 11 listeners (binomial test against chance, p = 0 .0014 ). Listeners thus favour the single-pass output over the two-model cascade by a wide margin. 
+
+Guidance weight. The second part compares w=0 , w=11 and 
+
+w=23 from the same model, with 11, 52 and 47 votes respectively. Guidance off falls far below chance ( p < 10 −7), so the accent lis-teners hear comes from the guidance term and not from the LoRA adaptation on its own. The two active settings are not separable (p=0 .69 ). Since speaker similarity keeps falling as w grows (Ta-ble 2), a moderate w is the better operating point. 
+
+5. CONCLUSION 
+
+We introduced D EFINE , an exemplar-based method for zero-shot TTS that separates speaker identity, defined by a reference prompt, from accent, specified by short exemplar clips. A post-training scalar con-trols accent strength without retraining. Prototype anchoring aligns the exemplar encoder with per-accent prototypes learned through flow matching, providing direct supervision that improves accent con-trol while maintaining baseline intelligibility and predicted quality at practical operating points. With a single inference pass and no accent labels, D EFINE matches the conversion cascade on seen accents, is statistically indistinguishable from it on out-of-domain accents, and better preserves speaker identity. 6. ACKNOWLEDGEMENTS 
+
+This work has received support from MOE under grant number MOE-T2EP20124-0014, and SUTD GAP-052 project. We acknowledge the EuroHPC Joint Undertaking for access to LEONARDO at CINECA, Italy, through the EuroHPC AI Factories call “AI for Science and Collaborative EU Projects” (Proposal No. EHPC-AIF-2026SC01-041). 
+
+7. REFERENCES 
+
+[1] Yushen Chen, Zhikang Niu, Ziyang Ma, Keqi Deng, Chunhui Wang, JianZhao JianZhao, Kai Yu, and Xie Chen, “F5-tts: A fairytaler that fakes fluent and faithful speech with flow match-ing,” in Proceedings of the 63rd Annual Meeting of the Associ-ation for Computational Linguistics (Volume 1: Long Papers) ,2025, pp. 6255–6271. [2] Ambuj Mehrish, Navonil Majumder, Rishabh Bharadwaj, Rada Mihalcea, and Soujanya Poria, “A review of deep learning techniques for speech processing,” Information Fusion , vol. 99, pp. 101869, 2023. [3] Sefik Emre Eskimez, Xiaofei Wang, Manthan Thakker, Canrun Li, Chung-Hsien Tsai, Zhen Xiao, Hemin Yang, Zirun Zhu, Min Tang, Xu Tan, et al., “E2 tts: Embarrassingly easy fully non-autoregressive zero-shot tts,” in 2024 IEEE spoken language technology workshop (SLT) . IEEE, 2024, pp. 682–689. [4] Jan Melechovsky, Ambuj Mehrish, Berrak Sisman, and Dorien Herremans, “Dart: Disentanglement of accent and speaker rep-resentation in multispeaker text-to-speech,” arXiv:2410.13342 ,2024. [5] Jan Melechovsky, Ambuj Mehrish, Dorien Herremans, and Berrak Sisman, “Learning accent representation with multi-level vae towards controllable speech synthesis,” in 2022 IEEE Spoken Language Technology Workshop (SLT) . IEEE, 2023, pp. 928–935. [6] Songting Liu, “Zero-shot voice conversion with diffusion trans-formers,” arXiv:2411.09943 , 2024. [7] Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen, “Lora: Low-rank adaptation of large language models,” 
+
+arXiv:2106.09685 , 2021. [8] Chengyi Wang, Sanyuan Chen, Yu Wu, Ziqiang Zhang, Long Zhou, Shujie Liu, Zhuo Chen, Yanqing Liu, Huaming Wang, Jinyu Li, et al., “Neural codec language models are zero-shot text to speech synthesizers,” arXiv:2301.02111 , 2023. [9] Matthew Le, Apoorv Vyas, Bowen Shi, Brian Karrer, Leda Sari, Rashel Moritz, Mary Williamson, Vimal Manohar, Yossi Adi, Jay Mahadeokar, et al., “Voicebox: Text-guided multilingual universal speech generation at scale,” Advances in neural infor-mation processing systems , vol. 36, pp. 14005–14034, 2023. [10] Edresson Casanova, Julian Weber, Christopher D Shulby, Arnaldo Candido Junior, Eren G¨ olge, and Moacir A Ponti, “Yourtts: Towards zero-shot multi-speaker tts and zero-shot voice conversion for everyone,” in International conference on machine learning . PMLR, 2022, pp. 2709–2720. [11] Yahuan Cong, Haoyu Zhang, Haopeng Lin, Shichao Liu, Chun-feng Wang, Yi Ren, Xiang Yin, and Zejun Ma, “Genertts: Pro-nunciation disentanglement for timbre and style generalization in cross-lingual text-to-speech,” arXiv:2306.15304 , 2023. [12] Rui Liu, Berrak Sisman, Guanglai Gao, and Haizhou Li, “Con-trollable accented text-to-speech synthesis with fine and coarse-grained intensity rendering,” IEEE/ACM Transactions on Audio, Speech, and Language Processing , vol. 32, pp. 2188–2201, 2024. [13] Guanlong Zhao, Shaojin Ding, and Ricardo Gutierrez-Osuna, “Foreign accent conversion by synthesizing speech from pho-netic posteriorgrams,” in Proc. Interspeech 2019 , 2019, pp. 2843–2847. [14] Shaojin Ding, Guanlong Zhao, and Ricardo Gutierrez-Osuna, “Accentron: Foreign accent conversion to arbitrary non-native speakers using zero-shot learning,” Computer Speech & Lan-guage , vol. 72, pp. 101302, 2022. [15] Zhijun Jia, Huaying Xue, Xiulian Peng, and Yan Lu, “Con-vert and speak: Zero-shot accent conversion with minimum supervision,” in Proceedings of the 32nd ACM International Conference on Multimedia , 2024, pp. 4446–4454. [16] Mumin Jin, Prashant Serai, Jilong Wu, Andros Tjandra, Vimal Manohar, and Qing He, “Voice-preserving zero-shot multi-ple accent conversion,” in ICASSP 2023-2023 IEEE Interna-tional Conference on Acoustics, Speech and Signal Processing (ICASSP) . IEEE, 2023, pp. 1–5. [17] Yaron Lipman, Ricky TQ Chen, Heli Ben-Hamu, Maximilian Nickel, and Matt Le, “Flow matching for generative modeling,” 
+
+arXiv:2210.02747 , 2022. [18] Arun Babu, Changhan Wang, Andros Tjandra, Kushal Lakho-tia, Qiantong Xu, Naman Goyal, Kritika Singh, Patrick Von Platen, Yatharth Saraf, Juan Pino, et al., “Xls-r: Self-supervised cross-lingual speech representation learning at scale,” 
+
+arXiv:2111.09296 , 2021. [19] Prannay Khosla, Piotr Teterwak, Chen Wang, Aaron Sarna, Yonglong Tian, Phillip Isola, Aaron Maschinot, Ce Liu, and Dilip Krishnan, “Supervised contrastive learning,” Advances in neural information processing systems , vol. 33, pp. 18661– 18673, 2020. [20] Yaroslav Ganin and Victor Lempitsky, “Unsupervised domain adaptation by backpropagation,” in International conference on machine learning . PMLR, 2015, pp. 1180–1189. [21] Jonathan Ho and Tim Salimans, “Classifier-free diffusion guid-ance,” arXiv:2207.12598 , 2022. [22] Rosana Ardila, Megan Branson, Kelly Davis, Michael Kohler, Josh Meyer, Michael Henretty, Reuben Morais, Lindsay Saun-ders, Francis Tyers, and Gregor Weber, “Common voice: A massively-multilingual speech corpus,” in Proceedings of the twelfth language resources and evaluation conference , 2020, pp. 4218–4222. [23] Brecht Desplanques, Jenthe Thienpondt, and Kris Demuynck, “Ecapa-tdnn: Emphasized channel attention, propagation and ag-gregation in tdnn based speaker verification,” arXiv:2005.07143 ,2020. [24] Alec Radford, Jong Wook Kim, Tao Xu, Greg Brockman, Chris-tine McLeavey, and Ilya Sutskever, “Robust speech recognition via large-scale weak supervision,” in International conference on machine learning . PMLR, 2023, pp. 28492–28518. [25] Takaaki Saeki, Detai Xin, Wataru Nakata, Tomoki Ko-riyama, Shinnosuke Takamichi, and Hiroshi Saruwatari, “Ut-mos: Utokyo-sarulab system for voicemos challenge 2022,” 
+
+arXiv:2204.02152 , 2022.

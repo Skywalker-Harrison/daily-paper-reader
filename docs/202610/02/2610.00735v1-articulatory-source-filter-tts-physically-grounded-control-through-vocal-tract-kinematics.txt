@@ -1,0 +1,638 @@
+Title: Articulatory Source-Filter TTS: Physically Grounded Control through Vocal Tract Kinematics
+
+URL Source: https://arxiv.org/pdf/2610.00735v1
+
+Published Time: Fri, 02 Oct 2026 00:34:31 GMT
+
+Number of Pages: 13
+
+Markdown Content:
+> IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 1
+
+# Articulatory Source-Filter TTS: Physically Grounded Control through Vocal Tract Kinematics 
+
+Jesuraj Bandekar, Shinji Watanabe, Fellow, IEEE, and Prasanta Kumar Ghosh, Senior Member, IEEE 
+
+Abstract —Modern neural text-to-speech (TTS) systems achieve remarkable acoustic fidelity but operate as opaque black boxes, offering limited interpretable control over the physical speech production process. While some models allow prosodic manipula-tion, explicit control over the vocal tract filter remains largely inaccessible. In this paper, we propose a novel, controllable source-filter TTS architecture that grounds the synthesis process in physical articulatory kinematics. Our approach utilises an Acoustic-to-Articulatory Inversion (AAI) model, enhanced by large-scale pretrained representations, to generate kinematic pseudo-trajectories for a large TTS corpus. These trajectories explicitly condition the filter response, while predicted pitch and energy contours parameterise the glottal source. The source and filter are predicted independently, and the source is refined by an Optimal Transport Conditional Flow Matching (OT-CFM) module before recombination with the filter to form the final spectrogram. Experimental results demonstrate that our model achieves intelligibility and naturalness competitive with similarly sized baselines, incurring only a modest spectral fidelity cost from constraining the output to an explicit source-filter decomposition, in exchange for control unavailable to black-box systems. Furthermore, quantitative and qualitative evaluations reveal explicit source-filter disentanglement, allowing for stable prosodic scaling and cross-speaker source/filter recombination. In this recombination, prosodic source attributes, notably F0, remain tied to the source speaker while vocal-tract spectral characteristics consistently follow the filter speaker. Finally, we demonstrate that the model enables explicit, fine-grained articu-latory control, such as accent modification through direct spatial manipulation of articulatory trajectories, offering a new direction for interpretable speech synthesis. Audio samples are available at https://coding-phoenix-12.github.io/ArticulatorySFTTS/. 
+
+Index Terms —Text-to-speech, source-filter model, acoustic-to-articulatory inversion, articulatory kinematics, interpretable speech synthesis. 
+
+I. I NTRODUCTION 
+
+# MODERN text-to-speech (TTS) systems generate audio of very high naturalness and acoustic quality. Recent methods based on flow-matching, neural audio codecs, and Large Language Models (LLMs) [1]–[3] use large architectures and vast training data to produce zero-shot synthesis that is nearly indistinguishable from natural human speech. This progress, however, comes at the cost of interpretability, as these systems function largely as black boxes. Despite their strong performance, they offer little control or insight for downstream tasks such as dialect understanding, accent modification, voice conversion, and clinical and pathological speech modelling, all of which require fine-grained, disentangled control. Such 
+
+> Jesuraj Bandekar and Prasanta Kumar Ghosh are with the SPIRE Lab, De-partment of Electrical Engineering, Indian Institute of Science (IISc), Bangalore 560012, India (e-mail: jesurajbandekar@gmail.com; prasantg@iisc.ac.in). Shinji Watanabe is with the Language Technologies Institute, Carnegie Mellon University, Pittsburgh, PA 15213, USA (e-mail: shinjiw@ieee.org).
+
+applications benefit from physically interpretable control: an articulatory handle on the vocal tract allows dialectal variation to be edited in gesture space, vocal-tract identity to be separated from prosody, and atypical articulation to be probed in physical terms, none of which is accessible in a black-box latent space. As summarised in Table I, recent controllable models expose prosodic attributes such as pitch and energy [4]–[6], and source– filter approaches go further by separating source and filter spectrograms [7], [8], yet none provides an explicit, physically grounded handle on the vocal tract response, nor any connection to well-established speech production theory. In this work, we argue that recovering physically grounded control while preserving high-quality synthesis requires a glottal-source and articulation-based decomposition, which would in turn enable explicit physical control. The source–filter model of speech production [9] provides the theoretical foundation for this decomposition, separating speech into a glottal source that carries pitch and energy, and a vocal-tract filter that shapes the final spectral output. Early formant synthesisers [10] modelled both explicitly, yielding fully interpretable but mechanical speech, and more recent physical synthesisers such as VocalTractLab [11], [12] improve quality but remain driven by hand-designed gestures or recorded audio rather than text. Subsequent neural approaches [13]– [19] abandoned this physical grounding in favour of acoustic fidelity, mapping text directly to acoustics through opaque latent representations (Table I). While some systems expose pitch and energy to control the glottal source (Table I), the vocal tract filter lacks a comparable physical parameterisation in TTS. Real-time MRI (rtMRI) [20], [21] captures full articulatory data for synthesis [22], [23], but its high cost and acoustic reverberation make it a poor training target, whereas Electromagnetic Articulography (EMA) offers a tractable alternative. Because EMA corpora are small, extensive work has leveraged Self-Supervised Learning (SSL) representations and auxiliary-task pretraining to build robust Acoustic-to-Articulatory Inversion (AAI) models [24]– [27], though their pseudo-targets are mostly applied in speech-to-speech resynthesis or coding frameworks [28], [29]. We instead integrate articulatory trajectories into a TTS architecture, explicitly grounding the filter of a source-filter decomposition in the physical kinematics of the vocal tract. Building on this, we propose a controllable source-filter TTS architecture whose filter is grounded in AAI-supervised articulatory trajectories, with the following contributions: 1) A controllable source–filter TTS architecture in which the filter is conditioned on predicted articulatory trajectories, providing, to our knowledge, the first text-arXiv:2610.00735v1 [eess.AS] 30 Sep 2026 IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 2
+
+driven TTS with physically grounded, kinematic-level control over the vocal-tract response. 2) A two-stage AAI-based pseudo-labelling pipeline 
+
+using multilingual speech-model features that scales articulatory supervision from a small EMA corpus to hundreds of hours of unpaired TTS speech. 3) Competitive synthesis quality , showing that the explicit source–filter decomposition retains intelligibility and naturalness competitive with comparably-sized baselines at only a modest spectral-fidelity cost. 4) Quantitative source–filter disentanglement through (a) pitch/energy scaling, where filter-side properties (formants, spectral envelope) remain stable under source perturbation, and (b) cross-speaker swapping, where pitch stays tied to the source speaker while spectral characteristics follow the filter speaker. 5) Qualitative physical interpretability through articulatory–acoustic analyses, including articulator decoupling across minimal pairs and recovery of the canonical American rhotic posture in post-vocalic /r/. 6) Interpretable accent modification , converting a rhotic American /r/ to its non-rhotic realisation by flattening the tongue-tip and tongue-body gestures, with the cor-responding F 3 shift in the synthesised audio control unavailable in black-box neural TTS. The remainder of the paper covers related work (Section II), the proposed methodology including the AAI backend and TTS architecture (Section III), the experimental setup (Section IV), the evaluation framework (Section V), and results with analysis (Section VI).                                                   
+
+> TABLE I COMPARISON OF REPRESENTATIVE SPEECH SYNTHESIS APPROACHES BY INPUT MODALITY ,EXPOSED INTERPRETABLE REPRESENTATIONS ,AND CONTROLLABLE ASPECTS . O NLY THE PROPOSED MODEL IS TEXT -DRIVEN WITH AN EXPLICIT SOURCE /FILTER DECOMPOSITION AND ARTICULATORY FILTER CONTROL . L EGEND BELOW THE TABLE .
+> Model Input Interp. Control
+> Black-box neural TTS
+> Tacotron [15] Text ––FastSpeech [16] Text ––Glow-TTS [17] Text ––VITS [18] Text ––VALL-E [19] Text ––StyleTTS2 [4] Text P, E P, E HierSpeech++ [5] Text PPNaturalSpeech 3 [6] Text AC P, T
+> Source–filter TTS
+> FastPitch [30] Text P, E P, E FastSpeech 2 [31] Text P, E P, E FastPitchFormant [7] Text SF, P PStableForm-TTS [8] Text SF, P, E P, E
+> Physical / articulatory synthesis
+> VocalTractLab [11] Gestures VT AG ACS [12] Audio VT AG
+> Proposed Text P, E, AT, SF P, E, AT
+> P: pitch; E: energy; AT: articulatory trajectories; SF: source/filter spectrograms; VT: vocal-tract geometry/parameters; AG: articulatory gestures; AC: attribute codes; T: timbre.
+
+II. B ACKGROUND AND RELATED WORK 
+
+A. Flow Matching based TTS 
+
+Flow Matching (FM) considers a prior noise distribution 
+
+x0 ∼ q0 (typically a standard Gaussian) and a target data distribution x1 ∼ pdata , learning a time-dependent neural vector field that transports samples from q0 to pdata over τ ∈ [0 , 1] .Since marginalising over the full data distribution is intractable, Conditional Flow Matching (CFM) conditions the vector field on individual samples x1. Optimal Transport CFM (OT-CFM) further constrains the conditional path between noise and data to a deterministic straight line, ϕτ (x) = (1 −τ )x0 +τ x 1, yielding a constant conditional vector field uτ (x | x1) = x1 − x0 (see [32] for the full derivation). For conditional generative tasks such as TTS, the neural vector field is further conditioned on auxiliary variables c (e.g., linguistic features, prosodic cues, or articulatory representations). The resulting training objective is 
+
+LOT-CFM (θ) = Eτ,x 0,x 1
+
+ ∥(x1 − x0) − vτ (ϕτ (x); θ, c )∥2  .
+
+(1) where vτ is the neural vector field and θ the learnable parameters. Models such as Matcha-TTS [33], Voicebox [34], and P-Flow [35] apply this framework to TTS, mapping prior noise to acoustic features (typically Mel-spectrograms) conditioned on linguistic encodings, durations, and speaker embeddings, achieving strong zero-shot naturalness with simulation-free training. 
+
+B. Controllable and Interpretable Source-Filter TTS 
+
+Beyond black-box mapping, several architectures expose source-filter attributes for interpretable control. Early non-autoregressive models such as FastPitch [30] and FastSpeech 2 [31] introduced explicit pitch and energy predictors. More recent systems [5], [36], [37] combine these with style or prosodic embeddings for finer control. A complementary direction generates source and filter spectrograms separately and combines them. FastPitchFormant [7] couples a pitch-driven excitation generator with a formant generator, and [8] extends this with a diffusion-based source decoder and energy prediction. While these approaches provide interpretable control over source attributes, they treat the filter as an abstract spectral object with no physical correspondence to the articulators. 
+
+C. Acoustic-to-Articulatory Inversion and Articulatory Speech Synthesis 
+
+Acoustic-to-articulatory inversion (AAI) is the task of estimating the physical movements of the vocal tract articulators from a recorded speech signal. This data of the articulator movement is collected using an Electromagnetic Articulograph (EMA). While AAI solves the inverse problem of uncovering physical states from acoustics, Articulatory Speech Synthesis or forward mapping, focuses on the generation of high-fidelity speech directly from these articulatory trajectories. Both these allow for a comprehensive modelling of the relationship between vocal tract biomechanics and the resulting acoustic output. IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 3 
+
+> Fig. 1. Overview of the proposed controllable source-filter TTS architecture. Solid lines denote data flow active during both training and inference. Green dashed lines indicate paths exclusive to the training phase (e.g., MAS alignment, AAI pseudo-target supervision), while red dashed lines represent the inference-only generative paths. Optimisation pathways for the multi-task objective are highlighted in yellow.
+
+Deep learning-based methods for AAI include Convolutional Neural Networks (CNN), Recurrent Neural Networks (RNN) based sequence-to-sequence modeling [24], [38], [39], and Transformer-based networks [25], [40], [41]. These models use audio representations, such as spectrograms and Mel-frequency cepstral coefficients (MFCCs), to predict EMA trajectories. However, the scarcity of EMA data poses a considerable bottleneck for achieving high-level performance, especially for unseen speakers. To tackle this, recent methods such as utilising self-supervised learning (SSL) representations instead of standard audio features [26], [42]–[45] and employing auxiliary task pretraining [27] have been shown to significantly improve performance. Notably, SSL representations have been shown to implicitly encode articulatory information [44], [45], which contributes to their strong AAI performance. Similar models have been explored for articulatory speech synthesis. [46]–[48] use phoneme-based losses, multimodal training, and GAN-based architectures, while [49] achieves highly efficient synthesis using differentiable digital signal processing (DDSP). Additionally, [28] and [29] use articu-latory trajectories as intermediate controls for pronunciation modification and voice conversion, respectively. III. P ROPOSED METHODOLOGY 
+
+We use a two-stage setup. First, an AAI model is trained on parallel EMA-speech data to map acoustics to the physical kinematics of the vocal-tract articulators (the lips, jaw, and tongue), later detailed as 12-channel midsagittal trajectories in Section IV-A1. Second, it generates articulatory pseudo-trajectories over a large TTS corpus, which then serve as ground truth to train our source-filter explicit-control TTS model. 
+
+A. Articulatory Pseudo-Target Generation via AAI 
+
+For the AAI model, we adopt the Transformer-based archi-tecture of [25]. Recent literature has extensively demonstrated that utilising representations from large-scale pretrained models significantly enhances AAI performance. We extract acoustic features using the massively multilingual MMS-1B model [50]. Because this model is pre-trained on over a thousand languages, it encapsulates vast phonetic variability, which has been shown to substantially improve inversion performance, particularly in cross-lingual scenarios [26]. Furthermore, acoustic and phonetic properties are distributed heterogeneously across the depth of large pre-trained speech models [51]. Therefore, rather than relying on a single hidden state, we extract representations from three distinct depths of the MMS-1B model, specifically layers 6, 24, and 36. These extracted states are concatenated along the feature dimension to form the final composite acoustic input. Given a 16 kHz audio input, the MMS-1B model yields feature frames at a rate of 50 Hz. Given an input acoustic feature sequence, M =[m1, . . . , mT ] with mt ∈ RD the D-dimensional composite MMS feature, and the corresponding ground-truth articula-tory trajectories A = [ a1, . . . , aT ], with at ∈ RK the K-dimensional articulatory frame, both of frame length T (so that M ∈ RD×T and A ∈ RK×T ), the estimated kinematic sequence is predicted as 
+
+˜A = FAAI (M) (2) where FAAI denotes the AAI model, and ˜A = [˜ a1, . . . , ˜aT ]
+
+represents the generated pseudo-trajectories. These pseudo-trajectories subsequently serve as the supervisory training targets for the Articulatory Trajectory Predictor (ATP), which we detail in III-B. The model FAAI is optimised using two losses. First, the absolute positional error is measured using the Mean Squared Error (MSE) loss, averaged over all T frames and K channels: 
+
+LMSE = 1
+
+T K 
+
+> T
+
+X
+
+> t=1
+> K
+
+X
+
+> k=1
+
+(at,k − ˜at,k )2 (3) where at,k and ˜at,k represent the ground-truth and predicted values of the k-th articulator at time step t, respectively. Second, to capture the shape and dynamic movement of the articulators over time, a Pearson Correlation Coefficient IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 4
+
+(PCC) loss is used. For two length-T sequences u, v ∈ RT
+
+with temporal means ¯u, ¯v, the Pearson correlation is 
+
+ρ(u, v) = 
+
+PTt=1 (ut − ¯u)( vt − ¯v)
+
+qPTt=1 (ut − ¯u)2 PTt=1 (vt − ¯v)2
+
+. (4) The PCC loss averages 1 − ρ over the K articulator channels: 
+
+LPCC = 1
+
+K
+
+> K
+
+X
+
+> k=1
+
+ 1 − ρ(ak, ˜ak), (5) where ak, ˜ak ∈ RT are the ground-truth and predicted trajectories of channel k.The final training objective for the AAI model is computed as the direct sum of the two penalty terms: 
+
+LAAI = LMSE + LPCC (6) Once training is done, we use this model to generate pseudo-trajectories for the target TTS dataset. 
+
+B. Controllable Source-Filter TTS Architecture 
+
+To realise the explicit source-filter-based disentanglement of the speech signal, our core Text-to-Speech (TTS) architecture builds upon the structural foundations of the FastPitchFormant framework [7] and [8]. Throughout, ˆ(·) denotes a prediction, un-hatted symbols denote ground truth, ˜(·) an AAI pseudo-target from Section III-A, and ∗ a length-regulated sequence upsampled to T . Mres src = M − ˆMflt is the residual source target for OT-CFM training which is employed in Section III-B3. The model relies on a pre-trained speaker embedding module that extracts a global speaker vector, es ∈ Rdspk , per utterance where dspk denotes the dimension of the speaker embedding vector. This embedding is explicitly injected into every subsequent block to provide consistent speaker (Fig. 1). The speaker embedding is injected into every block rather than only at the input so that speaker identity conditions each stage consistently. This is essential for the cross-speaker routing experiments, where source and filter blocks must be driven by different speaker embeddings independently 
+
+1) Linguistic Encoding and Length Regulation: Given an input phoneme sequence P = [p1, . . . , p L] of length 
+
+L, where each pi denotes a phoneme token, the Phoneme Encoder (PE) (Fig. 1), parameterised by learnable weights 
+
+θPE , predicts the linguistic hidden representation sequence, 
+
+Hphone ∈ Rdhidden ×L, as: 
+
+Hphone = FθPE (P, es) (7) where dhidden is the dimension of the encoder’s hidden state. This phoneme representation is subsequently projected into three distinct intermediate representation streams: the Articu-latory Embedding Predictor (AEP), the Source Embedding Predictor (SEP), and the Average Spectrogram Projection (ASP) (all shown in Fig. 1), parameterised by learnable weights θAEP , θSEP , and θASP , resulting in the sequences 
+
+HAEP , HSEP ∈ Rdhidden ×L, and HASP ∈ Rdmel ×L, respectively: 
+
+HAEP = FθAEP (Hphone , es) (8) 
+
+HSEP = FθSEP (Hphone , es) (9) 
+
+HASP = FθASP (Hphone , es) (10) We project into three separate streams rather than a shared representation so that the source and filter can be predicted independently for the explicit disentanglement. This branch structure follows the decomposed design of FastPitchFormant [7]. To resolve the length mismatch between the linguistic representations of length L and the acoustic frames of length 
+
+T , the HASP sequence is utilized along with the Monotonic Alignment Search (MAS) [17] (the Length Regulator in Fig. 1) to quickly learn to align the linguistic representation with the output frames by using the prior loss ( Lprior ), defined as the negative log-likelihood of the acoustic features given the text prior under the optimal MAS alignment. We route the coarse average spectrogram stream (rather than the source or filter-specific streams) into alignment so that a single, decomposition-agnostic target provides a stable monotonic prior [17]. Using these extracted alignments, we obtain the phoneme durations 
+
+D = [ d1, . . . , d L] ∈ ZL 
+
+> ≥0
+
+which we use as ground truth to train the Duration Predictor network (Fig. 1), parameterised by learnable weights θdur , which estimates the predicted durations 
+
+ˆD, and is optimised using a logarithmic Mean Squared Error (MSE) loss. 
+
+ˆD = Fθdur (Hphone , es) (11) 
+
+Ldur = 1
+
+L
+
+> L
+
+X
+
+> i=1
+
+
+
+log di − log ˆdi
+
+2
+
+(12) The ground-truth durations D are then used to expand HAEP ,
+
+HSEP , and HASP via discrete frame replication to match the target frame length T , resulting in the upsampled sequences 
+
+H∗
+
+> AEP
+
+, H∗ 
+
+> SEP
+
+∈ Rdhidden ×T and H∗ 
+
+> ASP
+
+∈ Rdmel ×T
+
+2) Source and Filter Prediction: Following length regulation, the upsampled sequences are routed to their respective physical predictors. The Pitch and Energy Predictor (PEP) (Fig. 1), parameterised by learnable weights θPEP , estimates the funda-mental frequency ( ˆF0 ∈ RT ) and energy ( ˆE ∈ RT ) contours: 
+
+[ ˆF0, ˆE] = FθPEP (H∗
+
+> SEP
+
+, es) (13) Predicting pitch and energy explicitly exposes the glottal source as a directly controllable signal [30], [31]. The PEP is supervised against the ground-truth pitch ( F0 ∈ RT ) and energy (E ∈ RT ) using a combined MSE and Pearson Correlation Coefficient (PCC) objective: 
+
+LPE = 1
+
+T
+
+
+
+∥F0 − ˆF0∥22 + ∥E − ˆE∥22
+
+
+
++
+
+
+
+2 − ρ(F0, ˆF0) − ρ(E, ˆE)
+
+ (14) where ρ(·, ·) denotes the Pearson Correlation Coefficient computed over the sequence length T established in Eq. (4). Concurrently, the Articulatory Trajectory Predictor (ATP) (Fig. 1), parameterised by learnable weights θATP ,processes H∗ 
+
+> AEP
+
+to estimate the continuous kinematic sequence 
+
+ˆA = FθATP (H∗
+
+> AEP
+
+, es) (15) These predicted trajectories are subsequently supervised against the pseudo-articulatory targets ˜A, which are derived IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 5
+
+using the AAI model in Section III-A (Eq. 2). Mirroring the PEP objective, we apply the combined MSE loss (Eq. 3) and PCC loss (Eq. 5) established in III-A: 
+
+LATP = 1
+
+T ∥ ˜A − ˆA∥2 
+
+> F
+
++
+
+
+
+1 − ρ( ˜A, ˆA)
+
+
+
+(16) The explicit source-filter disentanglement is achieved during the log-Mel spectrogram generation phase. During training, the Source log-Mel Predictor (SLP) (Fig. 1), parameterised by learnable weights θSLP , utilises the ground-truth pitch and energy to predict the glottal excitation log-Mel spectrogram, 
+
+ˆMsrc ∈ RT ×dmel :
+
+ˆMsrc = FθSLP (F0, E, H∗
+
+> ASP
+
+, es) (17) The SLP is conditioned on the ground-truth pitch and energy so that the source spectrogram is explicitly tied to the controllable prosodic contours, while the shared average-spectrogram stream H∗ 
+
+> ASP
+
+supplies the linguistic context needed to render a coherent excitation. Conversely, the Filter log-Mel Predictor (FLP) (Fig. 1), parameterised by learnable weights 
+
+θFLP , models the impulse response of the vocal tract by utilising the AAI-generated pseudo-articulatory trajectories to predict the filter spectrogram, ˆMflt ∈ RT ×dmel :
+
+ˆMflt = FθFLP ( ˜A, H∗
+
+> ASP
+
+, es) (18) The FLP receives the articulatory trajectories, but not the pitch or energy contours. Withholding the source attributes biases the filter to depend only on vocal-tract kinematics, structurally encouraging the source-filter separation. Since the Source log-Mel Predictor (SLP) and Filter log-Mel Predictor (FLP) are explicitly driven by their respective decoupled physical components, pitch and energy for the source, and ar-ticulatory trajectories for the filter, they independently estimate the isolated source and filter log-Mel spectrograms. Because multiplication in the linear amplitude domain corresponds to addition in the logarithmic domain, the final synthesised audio log-Mel spectrogram ˆMaudio ∈ RT ×dmel is computed as the direct sum of the source and filter components: 
+
+ˆMaudio = ˆMsrc + ˆMflt (19) This combined prediction is optimised against the ground-truth audio log-Mel spectrogram M ∈ RT ×dmel using an MSE loss: 
+
+Lmel = 1
+
+T ∥M − ˆMaudio ∥2 
+
+> F
+
+(20) 
+
+3) Source Refinement via OT-CFM: Recent work [8], has demonstrated that explicitly improving the source excitation component is critical for achieving higher-quality synthesised audio compared to the baseline [7]. Motivated by this, to further refine the spectral resolution and temporal dynamics of the glottal excitation, we integrate an Optimal Transport Conditional Flow Matching (OT-CFM) module (Fig. 1). The MSE-trained source predictor tends to produce over-smoothed spectra. The OT-CFM module restores fine spectral and temporal detail by learning a generative refinement of the source excitation [32], [33]. To isolate the target source representation for CFM training, we subtract the predicted filter response from the ground-truth audio spectrogram to obtain Mres src = M− ˆMflt .Let x1 = Mres src denote the target data sample, and 
+
+x0 ∼ N (0, I) denote a sample from the prior noise dis-tribution. We define the aggregated conditioning vector as 
+
+c = [ ˆMsrc ; ˆMflt ; es]. The refinement network is conditioned on the predicted components ( ˆMsrc , ˆMflt ) so that it refines the source consistently with the already-predicted filter and content rather than in isolation, es preserves speaker identity through the generative step. The OT-CFM module learns to predict the optimal vector field mapping the noise to the target over a continuous time step τ ∈ [0 , 1] . The flow matching loss is formulated as a regression against the target vector field 
+
+(x1 − x0):
+
+LCFM = Eτ ∼U (0 ,1) ,x0,x1
+
+h
+
+∥F θCFM (xτ , τ, c) − (x1 − x0)∥22
+
+i
+
+(21) where FθCFM is the flow-prediction network with learnable parameters θCFM , and xτ = τ x1 + (1 − τ )x0 represents the interpolated state at time τ .
+
+4) Training Objective and Inference: The entire controllable TTS architecture is optimised end-to-end. The final multi-task training objective is formulated as the direct sum of all individual component penalties: 
+
+Ltotal = Ldur + Lprior + LPE + LATP + Lmel + LCFM (22) where Ldur , LPE , LATP , Lmel , and LCFM are defined in Eqs. (12), (14), (16), (20), and (21), respectively, and Lprior is the MAS alignment prior loss [17] introduced earlier in III-B1. At inference, ground-truth acoustic and articulatory targets are unavailable, so the model operates entirely in prediction mode (the red dashed inference-only paths in Fig. 1). The intermediate linguistic representations are upsampled using the predicted durations ˆD from Eq. (11). The vocal tract filter response ˆMflt (Eq. (18)) is generated by the FLP conditioned exclusively on the predicted articulatory kinematics ˆA from Eq. (15), in place of the pseudo-targets ˜A used during training. Correspondingly, the source path is driven by the predicted pitch and energy contours ˆF0 and ˆE from Eq. (13), in place of the ground-truth contours used during training. To reconstruct the glottal excitation, the OT-CFM module samples prior noise 
+
+x0 ∼ N (0, I) and solves the learned Ordinary Differential Equation (ODE) using an Euler solver, conditioned on the aggregated vector c defined in Eq. (21), to generate the refined source spectrogram ˆMres src . Finally, mirroring the training-phase combination in Eq. (19), the synthesised audio log-Mel spectrogram is obtained via element-wise addition of the two predicted components (the ⊕ node in Fig. 1): 
+
+ˆMaudio = ˆMres src + ˆMflt (23) This combined spectrogram is subsequently passed to a pre-trained vocoder for final waveform reconstruction. Overall, the conditioning is asymmetric by design: source-side blocks receive prosodic attributes and filter-side blocks receive articulatory attributes, with only the speaker embed-ding and a shared linguistic context common to both. This routing encourages the source-filter separation evaluated in IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 6
+
+Section VI-E, and we found it to yield stable training and strong synthesis quality in practice. IV. E XPERIMENTAL SETUP 
+
+This section details the experimental setup, including the datasets, model architecture, training parameters, and the baseline models used for comparison. 
+
+A. Datasets 1) AAI: To ensure the model generalises across diverse phonetic profiles, speaking styles, and languages, we utilise a combination of six distinct Electromagnetic Articulography (EMA) datasets. All datasets provide synchronised acoustic waveforms and 12-channel kinematic trajectories, capturing the 2D midsagittal coordinates ( x, y ) of six key articulators: Upper Lip (UL), Lower Lip (LL), Jaw (JAW), Tongue Tip (TT), Tongue Body (TB), and Tongue Dorsum (TD). A comprehensive breakdown of the training corpus, including language demographics, speaker counts, and subset durations, is detailed in Table II. To assess generalisation, we construct two test sets exclu-sively from the HPRC dataset: one for intra-speaker perfor-mance (seen speakers, unseen utterances) and another for zero-shot inter-speaker evaluation (held-out speakers). Restricting this to HPRC isolates American English, aligning the AAI evaluation with the target dialect of our downstream TTS architecture.                                       
+
+> TABLE II DATASETS USED FOR TRAINING THE AAI MODEL . L1 AND L2 DENOTE FIRST (NATIVE )AND SECOND LANGUAGE ,RESPECTIVELY .
+> Dataset Language (Accent) Spks. Dur. Description
+> SpireEMA [46] English (Indian) 32 9h 28m 460 MOCHA-TIMIT sentences. EMA-MAE [52] English (American/Mandarin) 37 17h 34m L1 American & L2 Mandarin. HPRC [53] English (American) 65h 34m Kinematics of speech rate variation. USC-TIMIT [54] English (American) 21h 29m Synchronous core TIMIT sentences. MSPKA [55] Italian (Italian) 21h 31m Hyperarticulated read speech. DKU [56] Cantonese & Mandarin 70h 18m Native cross-linguistic kinematics.
+> Total 86 35h 55m
+
+2) TTS: For the downstream controllable Text-to-Speech (TTS) framework we use the LibriTTS corpus. Training is conducted using the train-clean-460 subset. All audio signals are resampled to a uniform sampling rate of 22.05 kHz.To establish the ground-truth acoustic targets for the model, we compute 80-band log Mel-spectrograms ( dmel = 80 ) as done in [33] with a hop length of 256 and a window length of 1024. The fundamental frequency ( F0) and energy contours are extracted using the PyWORLD vocoder toolkit 1, specifically configured with a matching 256-sample hop length to ensure temporal synchronisation with the Mel-spectrogram acoustic frames. For objective evaluation, we report results on the LibriTTS test-clean and test-other subsets. Furthermore, to validate the source-filter-based controllability of the proposed architecture, we utilise the VCTK dataset [57], leveraging parallel utterances spoken by different speakers to demonstrate cross-speaker control. 
+
+> 1https://github.com/JeremyCCHsu/Python-Wrapper-for-World-Vocoder
+
+B. Model architecture and Training 1) AAI: The AAI backend ( FAAI , Eq. (2)) adopts a non-autoregressive encoder-decoder architecture, following the configuration established in [25]. An initial linear projection layer maps input features into a shared hidden dimension of 256. The core architecture consists of an input encoder and a decoder, each comprising four Feed-Forward Transformer (FFT) blocks that refine the acoustic features and project them into the latent articulatory space. Each FFT block is configured with a single attention head of dimension 32, a convolutional kernel size of 7, a filter size of 256, and a dropout rate of 0.1. A final linear output projection layer maps these hidden states to the 12-channel midsagittal EMA representation. The total parameter count is about 7.3M. For the acoustic inputs, we investigate contextualised rep-resentations extracted from three pre-trained speech models: TERA [58] as a self-supervised baseline, MMS-SSL (the base Massively Multilingual Speech model), and MMS-FT (the MMS model fine-tuned for ASR) [50]. As the different datasets originally sampled articulatory trajectories at varying rates, we downsample all kinematics to a unified 100 Hz. While TERA, which has been used in previous works [25], [27] naturally outputs representations at 100 Hz, the architecture of the MMS models inherently constrains their continuous representations to a 50 Hz sampling rate due to the cumulative stride of their convolutional front-ends. To temporally align these 50 Hz MMS acoustic features with the 100 Hz kinematic data, we apply a discrete frame-duplication strategy, effectively upsampling the acoustic sequence by a factor of two. Finally, each of the 12 kinematic channels is independently normalised using the global mean and standard deviation computed across all utterances within the combined AAI training set. The model is trained using the Adam optimiser with a fixed learning rate of 1 × 10 −4. To prevent overfitting during the training process, we implement early stopping monitored against the validation loss. We restrict the maximum audio duration to 30 seconds and train the model with a batch size of 8. 
+
+2) TTS: The proposed non-autoregressive encoder-decoder framework utilises a text encoder ( FθPE , Eq. (7)) and dura-tion predictor ( Fθdur , Eq. (11)) based on Matcha-TTS [33]. For consistent speaker conditioning, we use the pre-trained speaker embedding module [59], following the configuration of YourTTS [60]. The AEP and SEP streams ( FθAEP and FθSEP ,Eqs. (8) and (9)) project linguistic representations to a 256-dimensional hidden space ( dhidden = 256 ) via two sequential 1D-convolutional layers with layer normalisation and ReLU activations. After duplicating these embeddings to the target acoustic length T , they are routed to the Pitch and Energy Predictor (PEP) ( FθPEP , Eq. (13)) and the Articulatory Trajectory Predictor (ATP) ( FθATP , Eq. (15)). Both predictors employ 1D-convolutional residual networks with layer normalisation, ReLU, and dropout. To temporally align the modalities, the pseudo-articulatory trajectories are downsampled to match the target temporal length of the mel-spectrogram. The SLP and FLP modules ( FθSLP and FθFLP , Eqs. (17) and (18)) then process these representations using a Transformer architecture adapted IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 7
+
+from [7], consisting of two Feed-Forward Transformer (FFT) blocks. Within these blocks, hidden states are modulated by 
+
+es via Style-Adaptive Layer Normalisation (SALN) applied after the attention and feed-forward sub-layers. For acoustic refinement, the OT-CFM flow-prediction net-work ( FθCFM , Eq. (21)) employs a conditional 1D U-Net adapted from [33]. To estimate the target vector field, it processes a concatenated input comprising the interpolated state xτ , predicted source ( ˆMsrc ) and filter ( ˆMflt ) log-Mel spectrograms, and es. The continuous time step τ is encoded via sinusoidal embeddings and dynamically injected into the U-Net. The symmetric down/up-sampling paths use 1D residual networks with Group Normalisation, Mish activations, snake-activated self-attention blocks, and skip connections. A terminal 1D convolution projects these representations to output the predicted vector field, enabling an Euler ODE solver to iteratively transform prior noise into the high-fidelity source spectrogram ˆMres src . At inference, the OT-CFM source is generated using a Euler ODE solver with 10 steps (NFE = 10), consistent with prior flow-matching TTS systems [33], which report high-quality synthesis at comparable step counts. This refined source is element-wise summed with the predicted filter 
+
+ˆMflt , and a pre-trained HiFi-GAN vocoder [61] is employed to synthesise the final time-domain audio waveform. The complete TTS architecture comprises approximately 33M parameters and is trained using the Adam optimiser for 1M steps with a batch size of 8, distributed across two 24GB GPUs. 
+
+C. Baseline Models 
+
+To rigorously evaluate the proposed AAI-integrated, source-filter architecture, we benchmark its performance against a diverse set of models targeting both articulatory prediction and speech synthesis:  
+
+> •
+
+Self-Supervised AAI Baselines : To evaluate the efficacy of our kinematic prediction frontend, we include the TERA SSL [58] model as a baseline for Acoustic-to-Articulatory Inversion (AAI), as it has been used before in previous works like [27], [42]  
+
+> •
+
+End-to-End TTS : We compare against YourTTS [60] and XTTS [62], which represent highly robust, zero-shot capable, and widely adopted end-to-end architectures. These serve as the standard benchmark for overall speech quality and intelligibility. For both, we use the publicly available open-source code and pre-trained checkpoints.  
+
+> •
+
+Flow-Matching Models : Because our acoustic decoder utilises Optimal Transport Conditional Flow Matching (OT-CFM), we include Matcha-TTS [33] as a direct comparative baseline. To ensure a fair evaluation within our experimental framework, we adapted the standard Matcha-TTS architecture for multi-speaker synthesis by incorporating global speaker embedding conditioning used in YourTTS [60]. This adapted baseline was trained for 500,000 updates, allowing us to accurately evaluate the specific impact of our source-filter disentanglement against a rigorously matched, state-of-the-art generative backend.  
+
+> •
+
+Controllable and Prosodic TTS : To benchmark our model’s explicit prosodic controllability, we compare                  
+
+> TABLE III CC FOR ARTICULATORY TRAJECTORY PREDICTION ON THE HPRC TEST SET . T HE PROPOSED TTS MODEL IS ZERO -SHOT FOR BOTH SPEAKER SUBSETS . B EST VALUES BOLDED .
+> Type Model Seen Speakers Unseen Speakers
+> AAI TERA 0.9153 0.7226 MMS-SSL 0.9450 0.7749
+> MMS-FT 0.9542 0.7711 TTS Proposed (MMS-FT) 0.6673 0.6922
+
+against StyleTTS2 [4] and HierSpeech++ [5]. Both models offer prosodic manipulation and style transfer capabilities, making them the most rigorous competitors for evaluating 
+
+F0 and energy tracking during our explicit manipulation experiments. For both, we use the publicly available open-source code and pre-trained checkpoints as well.  
+
+> •
+
+Vanilla Source-Filter Baseline: To isolate the contribution of articulatory conditioning, we include an ablation of the proposed architecture with the entire articulatory branch removed (the AEP, ATP, and Filter log-Mel Predictor’s articulatory input). The resulting baseline retains the source-side components (SEP, PEP, Source log-Mel Predictor, OT-CFM) and predicts the filter log-Mel from H∗ 
+
+> ASP
+
+and the speaker embedding alone, mirroring the source-filter decomposition of [8] but adapted to use an OT-CFM source decoder for fair comparison. This isolates the contribution of physical articulatory grounding from the rest of the architectural choices.  
+
+> •
+
+No-OT-CFM Ablation: To quantify the contribution of the flow-matching refinement, we evaluate a variant of the proposed model in which the OT-CFM module is removed and the source spectrogram is taken directly from the MSE-trained source predictor. All other components are unchanged. We report objective metrics for this ablation; subjective MOS was not collected for this condition. V. E VALUATION METRICS 
+
+To comprehensively evaluate the proposed source-filter based architecture, we employ a diverse set of objective and subjective metrics targeting articulatory precision, acoustic quality, physical interpretability and controllability. 
+
+A. Articulatory Trajectory Prediction Performance 
+
+To validate the physical accuracy of the kinematic represen-tations throughout the pipeline, we conduct evaluations using ground-truth EMA data from the HPRC test set with both seen and unseen speakers. We quantify precision using the Pearson Correlation Coefficient (CC) as done in previous AAI works. This evaluation is performed at two critical stages of the framework:  
+
+> •
+
+Acoustic-to-Articulatory Inversion (AAI) : We bench-mark the inversion accuracy across three contextualised acoustic representations (TERA, MMS-SSL, and MMS-FT) to determine the optimal input feature space for kinematic prediction.  
+
+> •
+
+Text-to-Articulatory Prediction : To ensure the down-stream TTS model learns valid human articulatory be-haviour rather than just overfitting to pseudo-targets, we IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 8
+
+TABLE IV PROSODIC TRACKING AND SPECTRAL FIDELITY ON THE LIBRI TTS TEST SETS . P ARAMS IS THE INFERENCE -TIME COUNT (EXCLUDING VOCODER AND SPEAKER -EMBEDDING MODULES ). C TRL . AND INT . ARE ADDITIVE SCORES OVER EXPOSED CONTROLLABLE AND INTERPRETABLE REPRESENTATIONS ; SEE 
+
+SECTION V-B FOR DEFINITIONS . B EST VALUES PER COLUMN IN BOLD .
+
+Model Params (M) ↓ Ctrl. ↑ Int. ↑ Log F0 MSE ↓ F0 CC ↑ MCD ↓
+
+(/3) (/5) clean other clean other clean other 
+
+Matcha-TTS 20.9 0 0 1.15 1.62 0.8797 0.8013 5.67 5.99 StyleTTS2 129.5 2 2 1.05 1.36 0.8954 0.8221 4.52 4.80 
+
+YourTTS 22.0 0 0 1.36 1.90 0.8718 0.7881 5.69 5.77 XTTS 466.9 0 0 1.38 2.01 0.8730 0.7908 5.67 5.77 HierSpeech++ 205.6 1 1 0.96 1.22 0.9071 0.8429 4.91 5.35 Source-Filter 30.0 2 4 1.17 1.61 0.8815 0.7993 5.73 6.07 Proposed (MMS-FT) 33.0 3 5 1.19 1.63 0.8841 0.8004 5.89 6.36 
+
+w/o OT-CFM 33.0 3 5 1.76 2.25 0.8351 0.7392 6.72 7.49 TABLE V OBJECTIVE AND SUBJECTIVE EVALUATION OF SPEECH INTELLIGIBILITY , SPEAKER SIMILARITY , AND NATURALNESS ON THE LIBRI TTS TEST SETS .PARAMS IS THE INFERENCE -TIME COUNT (EXCLUDING VOCODER AND SPEAKER -EMBEDDING MODULES ); C TRL . AND INT . ARE ADDITIVE CONTROLLABILITY /INTERPRETABILITY SCORES (SEE SECTION V-B). B EST PERFORMING VALUES PER COLUMN ARE IN BOLD .                                                                                                                                                                                           
+
+> Model Params (M) ↓Ctrl. ↑Int. ↑WER ( ↓)CER ( ↓)Speaker Similarity ( ↑)MOS ( ↑)UTMOS ( ↑)(/3) (/5) clean other clean other clean other clean other clean other
+> Matcha TTS 20.9 004.28 5.39 1.63 2.25 0.9418 0.9089 3.93 ±0.14 3.85 ±0.14 3.66 ±0.012 3.44 ±0.012 StyleTTS2 129.5 224.17 5.40 2.43 3.98 0.9408 0.9081 4.17 ±0.13 4.16 ±0.12 4.09 ±0.010 3.84 ±0.013 YourTTS 22.0 008.51 10.20 3.74 4.74 0.9383 0.8861 3.63 ±0.15 3.59 ±0.16 3.59 ±0.012 3.48 ±0.013 XTTS 466.9 005.52 8.35 2.93 4.79 0.9257 0.9049 3.93 ±0.15 3.45 ±0.17 3.65 ±0.016 3.27 ±0.018 HierSpeech++ 205.6 114.65 6.13 1.92 2.72 0.9489 0.9103 4.16 ±0.14 4.31 ±0.13 4.23 ±0.009 4.09 ±0.011
+> Source-Filter 30.0 245.96 7.96 2.66 3.76 0.9333 0.9006 3.74 ±0.15 3.77 ±0.16 3.75 ±0.011 3.56 ±0.012 Proposed (MMS-FT) 33.0 355.53 7.33 2.29 3.35 0.9366 0.8989 3.76 ±0.15 3.65 ±0.16 3.71 ±0.011 3.53 ±0.012
+> w/o OT-CFM 33.0 354.77 6.40 1.91 2.87 0.9309 0.8875 –†–†2.26 ±0.014 1.99 ±0.014
+> †Subjective MOS was not collected for the no-OT-CFM ablation; only objective metrics are reported.
+
+explicitly evaluate the zero-shot physical accuracy of the text-predicted trajectories against the HPRC test data. 
+
+B. Speech Synthesis and Model Evaluation 
+
+The downstream TTS performance is evaluated across several dimensions:  
+
+> •
+
+Intelligibility : WER and CER via a pre-trained whisper-medium ASR 2. 
+
+> •
+
+Spectral and Prosodic Fidelity : MCD for spectra; log-MSE and CC for F0 and energy contours.  
+
+> •
+
+Speaker Similarity : Cosine similarity of WavLM speaker embeddings 3. 
+
+> •
+
+Naturalness : Subjective naturalness is evaluated via MOS listening tests: 20 listeners 4 rated 20 utterances per system (10 test-clean, 10 test-other) on a 5-point scale from 1 (completely unnatural) to 5 (very natural). To complement these subjective human evaluations with a scalable, au-tomated measure, we additionally employ UTMOS [63], a neural network-based naturalness predictor, computed over the full LibriTTS test-clean and test-other sets.  
+
+> •
+
+Controllability and Interpretability Scores : We quantify each model as additive scores. The controllability score (max 3) adds one point per explicitly manipulable attribute (pitch, energy, articulatory trajectories); the interpretability score (max 5) adds one point per exposed intermediate representation (pitch, energy, articulatory contours, and source and filter spectrograms). 
+
+> 2
+
+https://huggingface.co/openai/whisper-medium 
+
+> 3
+
+https://huggingface.co/microsoft/wavlm-base-sv 
+
+> 4
+
+Informed consent was obtained from all participants involved in the subjective listening evaluations. 
+
+C. Explicit Control and Disentanglement Analysis 
+
+To quantify explicit controllability and structural disentan-glement, we perform prosodic manipulation on the VCTK dataset. We artificially scale the predicted pitch and energy contours by multipliers ranging from 0.7 to 1.3 during synthesis. We evaluate the generated F0, energy, and formants ( F1, F2,
+
+F3) against equivalently scaled ground-truths using log-MSE, Pearson Correlation (CC), and Mel Cepstral Distortion (MCD) 5.A perfectly disentangled model tracks the scaled source param-eters while leaving filter characteristics ( F1−3) unperturbed. We benchmark this explicit control against StyleTTS2 and HierSpeech++. To further validate physical interpretability, we conduct a cross-speaker source-filter disentanglement analysis using identical utterances from two speakers (A and B). We explicitly divide the speaker embedding routing: Speaker A’s embedding is injected into all source and temporal modules, while Speaker B’s drives all filter blocks (the A-B setup). Effective disentan-glement is demonstrated if the A-B synthesis strongly tracks Speaker A’s prosody ( F0, energy) and Speaker B’s vocal-tract resonances ( F1−3). To rigorously verify parameter isolation, we benchmark these cross-speaker correlations against self-reconstructed (A-A and B-B) baselines. Furthermore, we conduct a qualitative graphical analysis of the articulatory-acoustic relationship to prove physical grounding:  
+
+> •
+
+Kinematic Disentanglement in Minimal Pairs: We analyse predicted articulatory trajectories for the minimal pair “pat” and “cat” to verify the model’s ability to 
+
+> 5
+
+In MCD calculations, the zeroth coefficient ( c0) is excluded to decouple overall frame energy from the spectral envelope evaluation. IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 9
+
+TABLE VI PERFORMANCE OF EXPLICIT SOURCE ATTRIBUTE MANIPULATION ACROSS VARIOUS SCALING FACTORS . P ARAMS (M) DENOTES THE INFERENCE -TIME PARAMETER COUNT (EXCLUDING VOCODER AND SPEAKER -EMBEDDING MODULES ). M ETRICS REPORT THE DEVIATION AND CORRELATION AGAINST GROUND -TRUTH MANIPULATED CONTOURS . B EST PERFORMING VALUES PER SCALE ARE IN BOLD .
+
+Model Scale F0 Energy F1 F2 F3 MCD Log MSE CC Log MSE CC Log MSE CC Log MSE CC Log MSE CC Proposed 
+
+(33.0M )0.7 2.2393 0.7498 0.0287 0.9859 0.0848 0.8839 0.0173 0.8930 0.0068 0.8605 5.0352 0.8 2.1528 0.7424 0.0256 0.9852 0.0778 0.8807 0.0179 0.8911 0.0074 0.8555 4.8292 0.9 2.2279 0.7673 0.0245 0.9890 0.0781 0.8849 0.0175 0.8971 0.0130 0.8583 4.6688 1.1 2.1807 0.7484 0.0255 0.9875 0.0768 0.8827 0.0171 0.8960 0.0078 0.8557 4.6850 1.2 2.2844 0.7500 0.0258 0.9869 0.0747 0.8890 0.0165 0.8995 0.0073 0.8669 4.9371 1.3 2.1259 0.7425 0.0284 0.9849 0.0742 0.8772 0.0182 0.8928 0.0076 0.8559 5.0993 
+
+StyleTTS2 
+
+(129.5M) 0.7 1.9301 0.8175 0.2289 0.8212 0.0795 0.8760 0.0165 0.9052 0.0081 0.8796 3.5431 
+
+0.8 1.8092 0.8143 0.1016 0.9111 0.0672 0.8901 0.0146 0.9191 0.0065 0.8960 2.8277 
+
+0.9 1.8747 0.8374 0.0735 0.9551 0.0637 0.8944 0.0140 0.9180 0.0069 0.8984 2.7099 
+
+1.1 1.8007 0.8443 0.0643 0.9603 0.0580 0.8883 0.0135 0.9220 0.0066 0.8998 2.4724 
+
+1.2 1.8420 0.8289 0.0692 0.9529 0.0635 0.8785 0.0146 0.9104 0.0058 0.8853 3.2053 
+
+1.3 1.8571 0.8173 0.0789 0.9454 0.0666 0.8567 0.0150 0.9096 0.0062 0.8818 3.2337 HierSpeech++ 
+
+(205.6M) 0.7 3.2795 0.7584 –† –† 0.0930 0.8753 0.0182 0.8759 0.0062 0.8543 3.6290 0.8 2.9639 0.7630 – – 0.0853 0.8867 0.0174 0.8782 0.0064 0.8587 3.1209 0.9 2.9638 0.7614 – – 0.0939 0.8710 0.0189 0.8659 0.0065 0.8506 3.1049 1.1 2.9711 0.7643 – – 0.0825 0.8848 0.0175 0.8783 0.0065 0.8619 2.8088 1.2 2.9124 0.7639 – – 0.0884 0.8812 0.0181 0.8747 0.0067 0.8553 3.3561 1.3 3.0763 0.7440 – – 0.0874 0.8796 0.0181 0.8745 0.0064 0.8578 3.2784  
+
+> †
+
+Energy manipulation is not applicable to HierSpeech++, which supports only explicit F0 control. TABLE VII CROSS -SPEAKER DISENTANGLEMENT EVALUATION . T HE TABLE REPORTS ACOUSTIC TRACKING METRICS WHEN GENERATING SPEECH USING VARYING COMBINATIONS OF SOURCE EXCITATIONS AND VOCAL TRACT KINEMATIC FILTERS FROM SPEAKER A AND SPEAKER B. 
+
+Scenario Evaluation Target F0 Energy F1 F2 F3 MCD Log MSE CC Log MSE CC Log MSE CC Log MSE CC Log MSE CC A-B (Cross-Speaker) 
+
+Speaker A 1.5988 0.7587 0.4259 0.8414 0.1602 0.7777 0.0327 0.7938 0.0146 0.7650 5.8321 Speaker B 1.9843 0.6850 0.4597 0.8349 0.1578 0.7791 0.0303 0.8004 0.0134 0.7769 5.4694 
+
+A-A (Speaker A Only) 
+
+Speaker A 1.5757 0.7663 0.4189 0.8457 0.1551 0.7883 0.0312 0.8052 0.0133 0.7837 5.4056 Speaker B 1.9569 0.6872 0.4636 0.8319 0.1642 0.7756 0.0333 0.7890 0.0144 0.7649 5.7776 
+
+B-B (Speaker B Only) 
+
+Speaker A 1.8584 0.6922 0.4359 0.8349 0.1646 0.7705 0.0340 0.7885 0.0154 0.7610 6.1317 Speaker B 1.6522 0.7602 0.4371 0.8392 0.1556 0.7783 0.0305 0.8024 0.0135 0.7811 5.2231 
+
+correctly isolate primary articulators (lips vs. tongue dorsum) while preserving shared coarticulatory trends.  
+
+> •
+
+Acoustic-Kinematic Realisation: We evaluate the natural mapping of acoustic signals to complex physical postures by tracing the anticipatory retroflex gesture and the simultaneous F 3 lowering characteristic of the American rhotic /r/ in the word “cart”.  
+
+> •
+
+Controllability via Trajectory Modification: We demon-strate fine-grained dialectal control by manually flattening the tongue elevation trajectories in the word “bird”. This direct physical intervention suppresses acoustic rhoticity. VI. R ESULTS AND DISCUSSION 
+
+In this section, we present the results of the evaluations detailed in Section V 6.
+
+A. AAI Backend Performance 
+
+Table III reports the Pearson Correlation Coefficient (CC) on the HPRC test set for both seen and unseen speakers. We evaluate three feature-extraction configurations of our AAI backend (TERA, MMS-SSL, and ASR-finetuned MMS, MMS-FT). MMS-FT achieves the highest correlation for seen 
+
+> 6
+
+Audio samples, source/filter decompositions, and the articulatory-edit ex-amples are available at https://coding-phoenix-12.github.io/ArticulatorySFTTS/ 
+
+speakers (0.9542), while MMS-SSL marginally leads on unseen speakers (0.7749). We adopt MMS-FT as the feature extractor for downstream pseudo-labelling, as preliminary experiments showed it yielded better downstream TTS performance than MMS-SSL under matched training conditions. The bottom row of Table III reports the Text-to-Articulatory Trajectory Evaluation: the zero-shot articulatory accuracy of the proposed TTS model’s ATP block on the HPRC test set. The proposed TTS model is trained on MMS-FT pseudo-labels using only LibriTTS, without any exposure to HPRC. Since every HPRC speaker is effectively unseen from the TTS model’s perspective, the relevant comparison is against the unseen-speaker performance of the dedicated AAI baselines. Under this comparison, the proposed TTS achieves a CC of 0.6922 on unseen speakers, close to the dedicated MMS-FT baseline’s unseen-speaker performance (0.7711) despite the added challenges of pseudo-label supervision, phoneme rather than acoustic input, and cross-corpus generalisation, indicating that the model learns valid articulatory dynamics from text under indirect supervision. 
+
+B. TTS Quality and Model Capabilities 
+
+Table V details downstream performance on the LibriTTS subsets. The proposed kinematic-conditioned model (MMS-FT) IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 10 35             
+
+> 30
+> 25
+> 20
+> Lower Lip Y
+> pætBilabial Stop: "pat" kætVelar Stop: "cat"
+> 40
+> 20
+> Jaw Y
+> 10
+> 0
+> Tongue Body Y
+> 0.0 0.1 0.2 0.3 0.4
+> Time (s)
+> 10
+> 010
+> Tongue Dorsum Y
+> 0.0 0.1 0.2 0.3 0.4
+> Time (s)
+
+Fig. 2. Kinematic trajectory comparison for the minimal pair “pat” (bilabial stop) and “cat” (velar stop), showing generated vertical displacement of the lower lip, jaw, tongue body, and tongue dorsum. Dashed lines mark phoneme boundaries for the stop closure, the vowel /æ/, and the final /t/. 
+
+achieves intelligibility comparable to or slightly better than the Vanilla Source-Filter baseline across both sets (WER 5.53 vs. 5.96 on test-clean), while maintaining competitive naturalness (MOS 3.76, UTMOS 3.71), suggesting that articulatory condi-tioning provides useful structure beyond what is captured by speaker embedding and pitch/energy contours alone. Although removing the OT-CFM refinement yields marginally better intelligibility (WER 4.77 vs. 5.53, CER 1.91 vs. 2.29 on test-clean), it severely degrades naturalness and spectral fidelity (UTMOS 3.71 to 2.26, MCD 5.89 to 6.72), confirming that the MSE-trained source alone is over-smoothed and that the flow-matching step is essential for restoring perceptual quality. These results must be contextualised by model capacity. While massive, unconstrained models like StyleTTS2 and HierSpeech++ achieve higher raw MOS and speaker similarity, they utilise significantly larger architectures. Despite its smaller footprint, our model matches the far larger XTTS in intelli-gibility (WER 5.53 vs. 5.52), outperforms the comparably sized YourTTS across all perceptual metrics, and is highly competitive with Matcha-TTS. This confirms that the explicit source-filter decomposition delivers competitive quality while providing interpretability and disentanglement that black-box baselines lack as summarised by the controllability and interpretability scores in Tables V and IV. The proposed model is the only system to attain the maximum on both, exposing all three controllable attributes and both spectral decompositions, whereas the black-box baselines score zero. 
+
+C. Prosodic and Spectral Fidelity 
+
+Table IV details prosodic tracking and spectral fidelity. The proposed architecture achieves competitive F0 reconstruction (CC 0.8841 on test-clean), exceeding both XTTS (0.8730) and YourTTS (0.8718), with the trend consistent on test-other. Its MCD (5.89) is higher than the much larger StyleTTS2 (4.52) and HierSpeech++ (4.91), an expected consequence of constraining the output to the strict source-filter decomposition. 30       
+
+> 20
+> 10
+> 0
+> Tongue Tip
+> kt
+> TT Y (Elevation) TT X (Retraction)
+> 60
+> 40
+> 20
+> Tongue Body/ Dorsum
+> TB X (Retraction) TD X (Retraction)
+> 40
+> 30
+> 20
+> Jaw
+> Jaw Y (Aperture)
+> 0.0 0.1 0.2 0.3 0.4 0.5
+> Time (s)
+> 02000 4000
+> Frequency (Hz)
+> F1 F2 F3 (Rhotic)
+
+Fig. 3. Acoustic and kinematic trajectories for the word “cart” (/k’a:rt/). The acoustic panel (bottom) shows the characteristic F3 lowering at 0.20–0.30s; the kinematic panels show the corresponding retroflex gesture via simultaneous tongue-tip elevation ( T T y ) and retraction ( T T x) decoupled from the lowered jaw ( Jaw y )
+
+D. Explicit Source Attributes Controllability 
+
+To evaluate the robustness and disentanglement of the proposed architecture, we conducted explicit manipulation of the source attributes. Specifically, the fundamental frequency (F0) and energy contours were uniformly scaled by factors ranging from 0.7 to 1.3 during inference. It is important to note that HierSpeech++ natively supports only explicit F0
+
+manipulation; therefore, energy manipulation results are not reported for HierSpeech++. The generated audio was then analysed to determine how accurately the synthesised pitch and energy tracked the target scaled contours, and to measure the unintended degradation on the vocal tract filter response, quantified by formant tracking ( F1, F 2, F 3) and Mel-Cepstral Distortion (MCD). The results are detailed in Table VI. The proposed model demonstrates better stability and preci-sion in explicit energy manipulation. Across all scaling factors it maintains a near-perfect Energy CC (0.9849–0.9890) and the lowest Log MSE. By contrast, StyleTTS2 performs well near the neutral scale but degrades as scaling moves further from the training distribution, showing that the proposed architecture provides granular prosodic control with greater stability under extreme scaling. For pitch, the larger StyleTTS2 baseline achieves the best raw F0 correlation, while the proposed model trails StyleTTS2 but exceeds HierSpeech++ across all scales, indicating that the gap reflects model capacity rather than a disentanglement failure. However, the formant tracking remains on par with the baselines ( F1 CC ≈ 0.88), indicating that the manipulated source passes through the kinematic-conditioned filter without disturbing the predicted vocal-tract resonances. IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 11 30                        
+
+> 20
+> 10
+> Tongue Tip X
+> bdX-Axis (Retraction)
+> Original Modified
+> 20
+> 15
+> 10
+> 5
+> 0
+> Tongue Tip Y
+> bdY-Axis (Elevation)
+> Original Modified
+> 30
+> 20
+> 10
+> Tongue Body X  Original Modified
+> 10
+> 0
+> Tongue Body Y  Original Modified
+> 0.0 0.1 0.2 0.3 0.4
+> Time (s)
+> 2000 3000 4000
+> Frequency (Hz)
+> Acoustics: Original (Rhotic)
+> Original F2 Original F3
+> 0.0 0.1 0.2 0.3 0.4
+> Time (s)
+> 2000 3000 4000
+> Acoustics: Modified (Non-Rhotic)
+> Modified F2 Modified F3
+> Fig. 4. Kinematic and acoustic effects of modifying the rhotic vowel in “bird”. Top two rows: Tongue Tip ( T T y) and Tongue Body ( T B y) elevation. Flattening the original bunched/retroflex gesture (dashed →solid) shifts the acoustic synthesis (bottom) from a suppressed rhotic F3(left) to a non-rhotic F3plateau (right), preventing F2–F3convergence.
+
+E. Cross-Speaker Disentanglement 
+
+Table VII shows that the proposed architecture largely isolates the excitation source from the kinematic vocal tract filter. The clearest evidence of disentanglement is in the pitch contour. In the cross-speaker (A-B) setup, the generated audio correlates strongly with Speaker A’s ground-truth F0 (CC: 0.7587), closely approaching the A-A self-reconstruction ceiling (0.7663). Its correlation with Speaker B’s F0 (0.6850) is comparable to the B-B → Speaker A baseline (0.6922), confirming that no spurious pitch tracking occurs and that the F0 contour remains strictly tied to the source embedding. This tracking behaviour inverts cleanly for spectral characteristics, with A-B output formants (F1, F2, F3) aligning more closely with Speaker B than Speaker A. Mel-Cepstral Distortion (MCD), which evaluates the spectral envelope independently of excitation, further confirms this structural transfer: the A-B synthesis achieves a lower (better) MCD against Speaker B (5.4694) than against Speaker A (5.8321), a gap comparable to the A-A self-reconstruction’s spectral preference, indicating partial but consistent transfer of Speaker B’s spectral charac-teristics through the filter routing. Energy follows the same direction (A-B → Speaker A: 0.8414, close to the A-A ceiling of 0.8457), though the speakers’ energy contours are similar enough across all conditions (CC 0.83–0.85) that this metric is less diagnostic on its own. 
+
+F. Physical Interpretability and Articulatory Control 
+
+To validate physical interpretability, we analysed the mapping between generated articulatory trajectories and the acoustic spectrum. Unlike opaque standard TTS, grounding our synthesis in human kinematics enables explicit, interpretable articulatory and accent modifications that are unavailable in opaque systems. 
+
+1) Evaluation of Articulatory Independence in Minimal Pairs: 
+
+To probe physical interpretability, we evaluated the model’s ability to distinguish place of articulation while maintaining coarticulatory consistency. Figure 2 illustrates the generated vertical trajectories for the minimal pair “pat” (bilabial stop /p/ onset) and “cat” (velar stop /k/ onset). In natural speech, independent articulatory gestures coordinate to produce sound [64]. Physiologically, /p/ requires active labial constriction with a neutral tongue, whereas /k/ elevates the tongue dorsum toward the velum with minimal labial involvement [65]. The generated traces successfully capture this biological reality. During the onset of “pat”, the lower lip trajectory ( LL y ) starts significantly higher to achieve bilabial closure compared to its neutral position in “cat”. Conversely, for “cat”, primary motor activity correctly shifts backwards: the tongue dorsum trajectory ( T D y ) originates at a notably higher elevation for velar closure, positioned well above its resting state seen during “pat”. Furthermore, the model demonstrates robust physical consistency throughout the shared rhyme sequence (/-æt/). In the shared rhyme (Fig. 2, second row), the jaw (Jaw y ) drops for the open vowel /æ/ before elevating for the final /t/ closure. Despite minor spatial variations typical of natural speech, these intermediate representations reliably capture expected physiological kinematics. 
+
+2) Acoustic-Kinematic Realisation of the American Rhotic: 
+
+To evaluate the model’s mapping of continuous acoustic signals to complex kinematics, we analysed the generated trajectories for “cart” (/k’a:rt/). Because the reference speaker is American, IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 12 
+
+the model is expected to realise the post-vocalic /r/ through a distinct rhotic gesture, universally characterised by the third formant (F3) lowering toward F2 [66], [67]. Figure 3 illustrates this precise acoustic-kinematic mapping. In the acoustic panel, the generated F3 predictably plunges, reaching its maximum lowering around 0.30s. Concurrently, the kinematics exhibit a highly accurate physical response. To execute the retroflex rhotic posture, the tongue tip simultane-ously elevates ( T T y ) and retracts ( T T x). This apical gesture is supported by concurrent retraction of the tongue dorsum (TD x)and body (TB x), capturing the secondary posterior constriction of the American /r/, while the lowered jaw (Jaw y ) confirms decoupling of tongue shaping from the jaw cycle. For the final /t/, F 3 rises as the tongue tip exits the retroflex posture and advances ( T T x) toward the alveolar closure, consistent with acoustic generation grounded in coherent kinematics. 
+
+3) Controllability Using Articulatory Trajectory Modifica-tion: To demonstrate the model’s capacity for fine-grained, interpretable control, we performed targeted kinematic manipu-lations to alter the dialectal realisation of the word “bird”. The baseline American synthesis exhibits a rhotic gesture during the central vowel, Tongue Tip (TT y ) and Tongue Body (TB y )elevation acoustically marked by an F3 plunge toward F2, the signature of English rhoticity [66], [67]. To synthesise a non-rhotic variant, we flatten the articulatory trajectories across the duration of the vowel tokens, overriding the rhotic gesture and forcing a relaxed, neutral tongue posture. As shown in Figure 4, flattening the tongue elevation removes the F 3 drop in the synthesised audio. F 3 remains elevated and distinctly separated from F 2, consistent with standard non-rhotic phonology [65], demonstrating that the model has learned to associate this gesture with its expected acoustic correlates. VII. C ONCLUSION 
+
+We presented a controllable source–filter TTS architecture that exposes both sides of speech production as explicit, phys-ically grounded intermediate representations. By conditioning the filter spectrogram on predicted articulatory trajectories supervised via pseudo-targets generated by a multilingual AAI model, we obtain a text-driven synthesis pipeline in which the vocal tract response is anchored in the kinematics of the human articulators. Experiments demonstrate that this physical grounding incurs only a modest spectral-fidelity cost, achieving intelligibility, prosodic fidelity, and naturalness comparable to baselines of similar model capacity. More importantly, the architecture provides quantitative and qualitative evidence of source-filter disentanglement: prosodic manipulation leaves the filter stable, cross-speaker swapping ties pitch to the source speaker and spectral characteristics to the filter speaker, and the predicted trajectories follow known physiological patterns including the American rhotic gesture. We further demonstrate that direct intervention on these trajectories enables interpretable accent modification, converting a rhotic American token into a non-rhotic variant through articulatory trajectory editing alone, with no acoustic post-processing, a form of control unavailable in opaque neural TTS systems. While the proposed architecture trades some raw spectral fidelity for explicit structural disentanglement, this trade-off opens a direction for TTS research in which speech can be generated, manipulated, and analysed through the same physical primitives that govern human speech production. Future work will explore enforcing inter-articulator correlations to respect physical constraints, scaling the model toward state-of-the-art audio quality, and extending the framework to further use cases such as voice conversion and atypical speech. REFERENCES [1] Y. Chen, Z. Niu et al. , “F5-TTS: A fairytaler that fakes fluent and faithful speech with flow matching,” in Proc. Annual Meeting of the Association for Computational Linguistics (ACL) , 2025, pp. 6255–6271. [2] Y. Wang, H. Zhan et al. , “MaskGCT: Zero-shot text-to-speech with masked generative codec transformer,” in Proc. International Conference on Learning Representations (ICLR) , 2025, pp. 47 127–47 150. [3] Z. Liu, S. Wang et al. , “E1 TTS: Simple and fast non-autoregressive TTS,” in Proc. IEEE International Conference on Acoustics, Speech, and Signal Processing (ICASSP) , 2025, pp. 1–5. [4] Y. A. Li, C. Han et al. , “StyleTTS 2: Towards human-level text-to-speech through style diffusion and adversarial training with large speech language models,” in Advances in Neural Information Processing Systems (NeurIPS) , vol. 36, 2023, pp. 19 594–19 621. [5] S. H. Lee, H. Y. Choi et al. , “HierSpeech++: Bridging the gap between semantic and acoustic representation of speech by hierarchical variational inference for zero-shot speech synthesis,” IEEE Transactions on Neural Networks and Learning Systems , 2025. [6] Z. Ju, Y. Wang et al. , “NaturalSpeech 3: Zero-shot speech synthesis with factorized codec and diffusion models,” in Proc. International Conference on Machine Learning (ICML) , 2024, pp. 22 605–22 623. [7] T. Bak, J.-S. Bae et al. , “FastPitchFormant: Source-filter based decom-posed modeling for speech synthesis,” in Proc. Interspeech , 2021, pp. 116–120. [8] C. Han, S. Lee et al. , “Improving robustness of diffusion-based zero-shot speech synthesis via stable formant generation,” in Proc. IEEE International Conference on Acoustics, Speech, and Signal Processing (ICASSP) , 2025, pp. 1–5. [9] G. Fant, Acoustic Theory of Speech Production: With Calculations Based on X-ray Studies of Russian Articulations . Walter de Gruyter, 1971, no. 2. [10] D. H. Klatt, “Software for a cascade/parallel formant synthesizer,” The Journal of the Acoustical Society of America , vol. 67, no. 3, pp. 971–995, 1980. [11] P. Birkholz, “Modeling consonant-vowel coarticulation for articulatory speech synthesis,” PloS one , vol. 8, no. 4, p. e60603, 2013. [12] Y. Gao, P. Birkholz et al. , “Articulatory copy synthesis based on the speech synthesizer VocalTractLab and convolutional recurrent neural networks,” IEEE/ACM Transactions on Audio, Speech, and Language Processing , vol. 32, pp. 1845–1858, 2024. [13] A. J. Hunt and A. W. Black, “Unit selection in a concatenative speech synthesis system using a large speech database,” in Proc. IEEE International Conference on Acoustics, Speech, and Signal Processing (ICASSP) , vol. 1, 1996, pp. 373–376. [14] H. Zen, K. Tokuda et al. , “Statistical parametric speech synthesis,” Speech Communication , vol. 51, no. 11, pp. 1039–1064, 2009. [15] Y. Wang, R. Skerry-Ryan et al. , “Tacotron: Towards end-to-end speech synthesis,” in Proc. Interspeech , 2017, pp. 4006–4010. [16] Y. Ren, Y. Ruan et al. , “FastSpeech: Fast, robust and controllable text to speech,” in Advances in Neural Information Processing Systems (NeurIPS) , vol. 32, 2019. [17] J. Kim, S. Kim et al. , “Glow-TTS: A generative flow for text-to-speech via monotonic alignment search,” in Advances in Neural Information Processing Systems (NeurIPS) , vol. 33, 2020, pp. 8067–8077. [18] J. Kim, J. Kong et al. , “Conditional variational autoencoder with adversarial learning for end-to-end text-to-speech,” in Proc. International Conference on Machine Learning (ICML) , 2021, pp. 5530–5540. [19] C. Wang, S. Chen et al. , “Neural codec language models are zero-shot text to speech synthesizers,” arXiv preprint arXiv:2301.02111 , 2023. [20] S. Narayanan, K. Nayak et al. , “An approach to real-time magnetic resonance imaging for speech production,” The Journal of the Acoustical Society of America , vol. 115, no. 4, pp. 1771–1776, 2004. IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING 13 
+
+[21] S. Narayanan, A. Toutios et al. , “Real-time magnetic resonance imaging and electromagnetic articulography database for speech production research (TC),” The Journal of the Acoustical Society of America , vol. 136, no. 3, pp. 1307–1311, 2014. [22] A. Toutios, T. Sorensen et al. , “Articulatory synthesis based on real-time magnetic resonance imaging data,” in Proc. Interspeech , 2016, pp. 1492–1496. [23] Y. Otani, S. Sawada et al. , “Speech synthesis from articulatory movements recorded by real-time MRI,” in Proc. Interspeech , 2023, pp. 127–131. [24] A. Illa and P. K. Ghosh, “Low resource acoustic-to-articulatory inversion using bi-directional long short term memory,” in Proc. Interspeech , 2018, pp. 3122–3126. [25] S. Udupa, A. Roy et al. , “Estimating articulatory movements in speech production with transformer networks,” in Proc. Interspeech , 2021, pp. 1154–1158. [26] Y. Hao, R. Amooie et al. , “Exploring self-supervised speech repre-sentations for cross-lingual acoustic-to-articulatory inversion,” in Proc. Interspeech , 2024, pp. 4603–4607. [27] J. Bandekar and P. K. Ghosh, “Enhancing acoustic-to-articulatory inversion with multi-target pretraining for low-resource settings,” in 
+
+Proc. Interspeech , 2025, pp. 5588–5592. [28] C. J. Cho, P. Wu et al. , “Coding speech through vocal tract kinematics,” 
+
+IEEE Journal of Selected Topics in Signal Processing , vol. 18, no. 8, pp. 1427–1440, 2024. [29] Y. Liu, C. Wang et al. , “RT-VC: Real-time zero-shot voice conversion with speech articulatory coding,” in Proc. Annual Meeting of the Association for Computational Linguistics (ACL): System Demonstrations , 2025, pp. 385–393. [30] A. Ła´ ncucki, “FastPitch: Parallel text-to-speech with pitch prediction,” in 
+
+Proc. IEEE International Conference on Acoustics, Speech, and Signal Processing (ICASSP) , 2021, pp. 6588–6592. [31] Y. Ren, C. Hu et al. , “FastSpeech 2: Fast and high-quality end-to-end text to speech,” in Proc. International Conference on Learning Representations (ICLR) , 2021. [32] Y. Lipman, R. T. Chen et al. , “Flow matching for generative modeling,” in Proc. International Conference on Learning Representations (ICLR) ,2023. [33] S. Mehta, R. Tu et al. , “Matcha-TTS: A fast TTS architecture with conditional flow matching,” in Proc. IEEE International Conference on Acoustics, Speech, and Signal Processing (ICASSP) , 2024, pp. 11 341– 11 345. [34] M. Le, A. Vyas et al. , “Voicebox: Text-guided multilingual universal speech generation at scale,” in Advances in Neural Information Processing Systems (NeurIPS) , vol. 36, 2023, pp. 14 005–14 034. [35] S. Kim, K. Shih et al. , “P-Flow: A fast and data-efficient zero-shot TTS through speech prompting,” in Advances in Neural Information Processing Systems (NeurIPS) , vol. 36, 2023, pp. 74 213–74 228. [36] Y. A. Li, C. Han et al. , “StyleTTS: A style-based generative model for natural and diverse text-to-speech synthesis,” IEEE Journal of Selected Topics in Signal Processing , vol. 19, no. 1, pp. 283–296, 2025. [37] N. Ellinas, M. Christidou et al. , “Controllable speech synthesis by learning discrete phoneme-level prosodic representations,” Speech Com-munication , vol. 146, pp. 22–31, 2023. [38] N. Bozorg and M. T. Johnson, “Acoustic-to-articulatory inversion with deep autoregressive Articulatory-WaveNet,” in Proc. Interspeech , 2020, pp. 3725–3729. [39] A. Illa and P. K. Ghosh, “Representation learning using convolution neural network for acoustic-to-articulatory inversion,” in Proc. IEEE International Conference on Acoustics, Speech, and Signal Processing (ICASSP) , 2019, pp. 5931–5935. [40] S. Udupa, A. Illa et al. , “Streaming model for acoustic to articulatory inversion with transformer networks,” in Proc. Interspeech , 2022, pp. 625–629. [41] W. J. Chung and H. G. Kang, “Speaker-independent acoustic-to-articulatory inversion through multi-channel attention discriminator,” in 
+
+Proc. Interspeech , 2024, pp. 1540–1544. [42] S. Udupa, C. Siddarth et al. , “Improved acoustic-to-articulatory inversion using representations from pretrained self-supervised learning models,” in Proc. IEEE International Conference on Acoustics, Speech, and Signal Processing (ICASSP) , 2023, pp. 1–5. [43] S. K. Maharana, K. K. Adidam et al. , “Acoustic-to-articulatory inversion for dysarthric speech: Are pre-trained self-supervised representations favorable?” in Proc. IEEE International Conference on Acoustics, Speech, and Signal Processing Workshops (ICASSPW) , 2024, pp. 408–412. [44] C. J. Cho, A. Mohamed et al. , “Self-supervised models of speech infer universal articulatory kinematics,” in Proc. IEEE International Conference on Acoustics, Speech, and Signal Processing (ICASSP) , 2024, pp. 12 061– 12 065. [45] C. Cho, Jun, P. Wu et al. , “Evidence of vocal tract articulation in self-supervised learning of speech,” in Proc. IEEE International Conference on Acoustics, Speech, and Signal Processing (ICASSP) . IEEE, 2023, pp. 1–5. [46] J. Bandekar, S. Udupa et al. , “Articulatory synthesis using representations learnt through phonetic label-aware contrastive loss,” in Proc. Interspeech ,2024. [47] Y.-W. Chen, K.-H. Hung et al. , “EMA2S: An end-to-end multimodal articulatory-to-speech system,” in Proc. IEEE International Symposium on Circuits and Systems (ISCAS) , 2021, pp. 1–5. [48] P. Wu, S. Watanabe et al. , “Deep speech synthesis from articulatory representations,” in Proc. Interspeech , 2022, pp. 779–783. [49] Y. Liu, B. Yu et al. , “Fast, high-quality and parameter-efficient articulatory synthesis using differentiable dsp,” in IEEE Spoken Language Technology Workshop (SLT) , 2024, pp. 711–718. [50] V. Pratap, A. Tjandra et al. , “Scaling speech technology to 1,000+ languages,” Journal of Machine Learning Research , vol. 25, no. 97, pp. 1–52, 2024. [51] A. Pasad, J.-C. Chou et al. , “Layer-wise analysis of a self-supervised speech representation model,” in Proc. IEEE Automatic Speech Recogni-tion and Understanding Workshop (ASRU) , 2021, pp. 914–921. [52] A. Ji, J. J. Berry et al. , “The electromagnetic articulography Mandarin accented English (EMA-MAE) corpus of acoustic and 3D articulatory kinematic data,” in Proc. IEEE International Conference on Acoustics, Speech, and Signal Processing (ICASSP) , 2014, pp. 7719–7723. [53] M. Tiede, C. Y. Espy-Wilson et al. , “Quantifying kinematic aspects of reduction in a contrasting rate production task,” The Journal of the Acoustical Society of America , vol. 141, no. 5 Supplement, pp. 3580– 3580, 2017. [54] S. Narayanan, A. Toutios et al. , “Usc-timit: A database of multimodal speech production data.” [55] C. Canevari, L. Badino et al. , “A new Italian dataset of parallel acoustic and articulatory data,” in Proc. Interspeech , 2015, pp. 2152–2156. [56] Z. Cai, X. Qin et al. , “The DKU-JNU-EMA electromagnetic articulogra-phy database on Mandarin and Chinese dialects with tandem feature based acoustic-to-articulatory inversion,” in Proc. International Symposium on Chinese Spoken Language Processing (ISCSLP) , 2018, pp. 235–239. [57] J. Yamagishi, C. Veaux et al. , “CSTR VCTK Corpus: English multi-speaker corpus for CSTR voice cloning toolkit (version 0.92),” 2019. [58] A. T. Liu, S.-W. Li et al. , “TERA: Self-supervised learning of transformer encoder representation for speech,” IEEE/ACM Transactions on Audio, Speech, and Language Processing , vol. 29, pp. 2351–2366, 2021. [59] H. S. Heo, B. J. Lee et al. , “Clova baseline system for the VoxCeleb speaker recognition challenge 2020,” arXiv preprint arXiv:2009.14153 ,2020. [60] E. Casanova, J. Weber et al. , “YourTTS: Towards zero-shot multi-speaker TTS and zero-shot voice conversion for everyone,” in Proc. International Conference on Machine Learning (ICML) , 2022, pp. 2709–2720. [61] J. Kong, J. Kim et al. , “HiFi-GAN: Generative adversarial networks for efficient and high fidelity speech synthesis,” in Advances in Neural Information Processing Systems (NeurIPS) , vol. 33, 2020, pp. 17 022– 17 033. [62] E. Casanova, K. Davis et al. , “XTTS: A massively multilingual zero-shot text-to-speech model,” in Proc. Interspeech , 2024, pp. 4978–4982. [63] T. Saeki, D. Xin et al. , “UTMOS: UTokyo-SaruLab system for VoiceMOS challenge 2022,” in Proc. Interspeech , 2022. [64] C. P. Browman and L. Goldstein, “Articulatory phonology: An overview,” 
+
+Phonetica , vol. 49, no. 3-4, pp. 155–180, 1992. [65] P. Ladefoged and I. Maddieson, The Sounds of the World’s Languages .Malden, MA: Blackwell, 1996. [66] K. N. Stevens and G. Weismer, “Acoustic phonetics,” The Journal of the Acoustical Society of America , vol. 109, no. 1, pp. 17–18, 2001. [67] P. Delattre and D. C. Freeman, “A dialect study of American r’s by X-ray motion picture,” Linguistics , vol. 6, no. 44, 1968.

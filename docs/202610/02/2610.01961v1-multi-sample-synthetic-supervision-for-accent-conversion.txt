@@ -1,0 +1,224 @@
+Title: Multi-sample Synthetic Supervision for Accent Conversion
+
+URL Source: https://arxiv.org/pdf/2610.01961v1
+
+Published Time: Fri, 02 Oct 2026 02:00:39 GMT
+
+Number of Pages: 5
+
+Markdown Content:
+# MULTI-SAMPLE SYNTHETIC SUPERVISION FOR ACCENT CONVERSION 
+
+# Yangyang Qu Michele Panariello Massimiliano Todisco Nicholas Evans 
+
+# EURECOM, Sophia Antipolis, France 
+
+ABSTRACT 
+
+Accent conversion (AC) requires changing accent while preserving speaker identity and linguistic content, yet parallel recordings are scarce. Speech synthesis provides an alternative source of super-vision, but generated targets vary in accent realization and source preservation. We propose a multi-sample synthetic supervision frame-work that constructs conversion targets by jointly assessing these properties across candidate waveforms for each source–accent condi-tion. Selected candidates provide associated discrete speech codes, representing linguistic content, prosody, and speaking style, as targets for accent-conditioned autoregressive adaptation. Compared with using one generated target per training example, our method improves target-accent classification accuracy by 2.49 percentage points, while speaker similarity remains nearly unchanged, and word error rate increases by 0.29 percentage points. Across six target accents, our method achieves 7.81% WER and the highest mean listening ratings among evaluated systems. 
+
+Index Terms — accent conversion, multi-sample supervision, synthetic supervision, stochastic generation, target-accent condition-ing 
+
+1. INTRODUCTION 
+
+Accent conversion (AC) aims to modify accent while preserving speaker identity and linguistic content. Learning this transformation from paired examples ideally requires recordings of the same speaker uttering the same content in different accents. Such recordings are difficult to collect, motivating the use of synthetic supervision and making the construction of suitable conversion targets a central chal-lenge. Existing approaches alleviate this data shortage using speech syn-thesis and transferred representations. TTS-guided training [1] and transferred linguistic representations [2] support AC with non-parallel data. Other approaches construct synthetic native-like targets [3], learn conversion through discrete speech tokens [4], or pair synthe-sized accented speech with natural target recordings [5]. Together, these methods show that useful AC supervision can be constructed without directly matched recordings. Pretrained controllable speech generators such as Vevo [6] and Vevo2 [7] can also be used to construct synthetic AC supervision. Because generation is stochastic, repeated sampling under the same source–accent condition can produce realizations with different target-accent and source-preservation characteristics. This raises a specific supervision question: whether a single sampled target is sufficient, or whether multiple stochastic realizations can provide more effective supervision. We formulate this question as a multi-sample target-construction problem. Selection from multiple generations has precedents in best-of-N distillation [8, 9] and ASR-based self-verification for speech synthesis [10]. In AC, however, candidate quality involves multiple requirements: the output should exhibit the requested accent change while preserving linguistic content and source-speaker characteristics. Consequently, transcription correctness alone is insufficient for con-structing suitable AC supervision. We therefore jointly assess accent realization and source preservation at the waveform level, transfer the selection to the associated token sequence, and test the resulting supervision under a matched source–accent population. We propose a multi-sample synthetic supervision framework in which a fixed categorical accent-conditioned generator produces multiple waveform–token candidates for each source–accent condi-tion. Here, the tokens are discrete content-style codes from a learned speech representation that encode linguistic content, prosody, and speaking style. Candidate waveforms are jointly assessed for target-accent realization and source preservation, and the content-style token sequence paired with a selected feasible waveform is used as pseudo-supervision for categorical autoregressive adaptation. To test whether access to multiple stochastic realizations improves supervision rather than merely expanding the pool of usable training conditions, we compare single- and eight-sample supervision on the same source– accent conditions with identical data splits, initialization within each seed, and optimization protocol. This controlled comparison iso-lates the downstream effect of replacing the first generated target with a target selected from multiple stochastic realizations. Under this matched comparison, eight-sample supervision improves target-accent accuracy by 2.49 percentage points, with nearly unchanged speaker similarity. Our main contributions are: • We formulate synthetic AC supervision as a multi-sample target-construction problem, in which multiple stochastic re-alizations of the same source–accent condition are jointly as-sessed for target-accent realization and source preservation. • We develop an AC-specific supervision framework that first adapts a pretrained autoregressive backbone to categorical accent control and then transfers waveform-level accent– preservation assessment to paired discrete content-style targets for final autoregressive adaptation. • We validate the proposed formulation through a controlled single- versus multi-sample comparison that holds the source– accent population and data split, showing stronger target-accent evidence with only a small WER increase and nearly unchanged speaker similarity. 
+
+2. METHOD 
+
+Given a source waveform x, its transcript t, and a target-accent label a, we aim to generate speech ˆx in the requested accent while preserving linguistic content and source-speaker identity: (t, x, a ) →
+
+ˆx. The transcript is available during both training and inference. The autoregressive model is conditioned on t and a, whereas x is used arXiv:2610.01961v1 [eess.AS] 1 Oct 2026 Stage2: Accent conversion model training                      
+
+> Stage1: Synthetic Training Data Construction
+> Accent-conditioned generator
+> �∅
+> N=8 candidate waveform–token pairs
+> AWSD
+> C1 ×
+> 
+> ×C2
+> 
+> C3 ×
+> 
+> ×
+> 
+> C4 ×
+> 
+> ××C5
+> 
+> C6 ×
+> 
+> ×
+> 
+> C7
+> 
+> C8 ××××
+> Joint accent and preservation assessment
+> Source waveform x Source transcript �
+> AWSD
+> Constraint filtering and selection
+> Target accent �
+> Adapted conversion model
+> Inference
+> Source transcript �
+> Target accent �Adapted conversion model Frozen synthesis (Flow Matching + Vocoder) Converted waveform
+> Source transcript �
+> A= Accent W= WER S= Speaker D= Duration × Fail Pass
+> Frozen AR backbone Accent embeddings + shared LoRA
+> Data flow Trainable Supervision Selection Frozen
+> Source waveform x
+> Selected token sequence z*
+> Target accent
+> a
+
+Fig. 1 . Overview of multi-sample synthetic supervision and accent conversion. A reference-conditioned generation stage first provides token targets for adapting the categorical candidate generator Gϕ. The fixed Gϕ then samples N token sequences from the source transcript t and target-accent label a, while frozen acoustic synthesis uses the source waveform x to produce the paired candidate waveforms. Waveform-level accent and preservation assessment selects a candidate whose paired token sequence z∗ supervises the final converter pθ . At inference, pθ
+
+generates one token sequence from (t, a ) and frozen synthesis combines it with x, without target-accent reference speech or candidate selection. only for source timbre conditioning during the subsequent frozen acoustic synthesis stage. 
+
+2.1. Synthetic Training Data Construction 
+
+2.1.1. Stochastic Candidate Generation 
+
+We construct the accent-conditioned candidate generator Gϕ in two steps. First, we use reference-conditioned generation to construct the token-level training targets for Gϕ. Let ra denote a reference utterance representing target accent a and tra its transcript. Given the source transcript t, the target-reference pair (ra, t ra), and source waveform x, the pretrained Vevo2 model [7] generates a content-style token sequence for the source linguistic content while the reference provides target-accent and style information. Frozen acoustic synthe-sis uses x for source-timbre conditioning. Selected token sequences from this stage are retained as training targets for the subsequent categorical adaptation. Second, we use these token targets to train a categorical accent-conditioned autoregressive generator Gϕ. This adaptation replaces target-reference conditioning with categorical accent control, allow-ing Gϕ to generate content-style tokens directly from a source tran-script and target-accent label. Each target accent is represented by a trainable sequence of 32 accent embeddings, while shared rank-32 LoRA modules [11] adapt the query, key, value, and output projec-tions. We first optimize the accent embeddings alone and then jointly optimize the accent embeddings and LoRA parameters using autore-gressive token cross-entropy. All remaining autoregressive backbone parameters are frozen. After development-set checkpoint selection, 
+
+Gϕ is fixed for multi-sample supervision construction. Given a source transcript t and target-accent label a, the fixed gen-erator Gϕ samples a content-style token sequence zi conditioned on 
+
+(t, a ). The content-style tokens are discrete codes from the pretrained content-style representation [7], representing linguistic content to-gether with prosodic and speaking-style information. Given zi and the source waveform x, frozen Flow Matching [7] and Vocos [12] synthesize the corresponding candidate waveform ˜xi, with x provid-ing source-timbre conditioning. Thus, target-accent reference speech is required only for constructing the initial pseudo-target supervision, whereas the trained generator Gϕ produces candidates using only the source transcript and categorical target-accent label. Repeating the stochastic generation process under fixed model parameters and decoding settings produces multiple waveform–token realizations for the same source–accent condition. With N repetitions, we obtain 
+
+CN (t, x, a ) = {(˜ xi, z i)}Ni=1 .
+
+Each pair (˜ xi, z i) preserves the correspondence between the synthe-sized waveform used for quality assessment and the discrete token sequence available for supervision. The candidate waveform ˜xi is subsequently evaluated for target-accent realization and source preser-vation, while its paired token sequence zi serves as the candidate pseudo-target for final-model training. 
+
+2.1.2. Candidate Assessment and Selection 
+
+We assess each candidate waveform jointly for target-accent evi-dence, content preservation, speaker preservation, and duration con-sistency. Let q denote the fixed development-time accent scorer used for candidate construction. We define pi = q(a | ˜xi) and 
+
+∆pi = pi − q(a | x), and set hi = 1 when q predicts the requested accent a for ˜xi.Let wi denote candidate WER, si the source–candidate ECAPA-TDNN [13] cosine similarity, and 
+
+ρi = dur(˜ xi)dur( x) .
+
+A candidate is feasible when 
+
+wi ≤ τWER , s i ≥ τSIM , ρ min ≤ ρi ≤ ρmax , (hi = 1 ∨ ∆pi ≥ τ∆).
+
+(1) Conditions with no feasible candidate are excluded from final-model training. Among feasible candidates, we select the highest-ranked waveform–token pair using lexicographic ordering by decreas-ing pi, ∆pi, hi, and si, followed by increasing wi. The selected token sequence z∗ is retained as the pseudo-target for final-model adaptation. 2.2. Accent Conversion Model Training 
+
+After candidate assessment and selection, each retained source–accent condition provides an autoregressive training example (tb, a b, z ∗ 
+
+> b
+
+),
+
+where tb is the source transcript, ab is the categorical target-accent label, and z∗ 
+
+> b
+
+is the token sequence paired with the selected wave-form. Thus, waveform-level assessment determines which generated content-style token sequence is used as supervision for the final con-version model. The final converter pθ uses the same categorical autoregressive architecture as the candidate generator Gϕ, but its parameters are further adapted using the selected supervision. For each training seed, the converter is initialized from a seed-specific categorical warm-start derived from Gϕ, rather than directly from the pretrained backbone. We then continue adapting the model on the selected token targets z∗
+
+from the final supervision pool. As in Gϕ, each target accent is represented by a trainable se-quence of 32 accent embeddings, and shared rank-32 LoRA mod-ules [11] adapt the query, key, value, and output projections of the autoregressive backbone. Only the accent embeddings and shared LoRA parameters are optimized, while the remaining autoregressive backbone parameters are frozen. The autoregressive model therefore learns pθ (z | t, a ), without using the source waveform x as an input to the token predictor. For a minibatch of B examples, let Mb denote the non-padding positions of the selected token sequence z∗ 
+
+> b
+
+. We minimize the causal token negative log-likelihood 
+
+Ltok = − 1
+
+B
+
+> B
+
+X
+
+> b=1
+
+1
+
+|Mb|
+
+X
+
+> u∈Mb
+
+log pθ
+
+ z∗ 
+
+> b,u
+
+| z∗
+
+> b,<u
+
+, t b, a b
+
+ , (2) where θ denotes the trainable accent-embedding and LoRA parame-ters. No additional accent, content, speaker, or preference loss is used during this final adaptation. 
+
+2.3. Inference 
+
+At inference, given a source transcript t and target-accent label a, the trained autoregressive converter generates a single content-style token sequence ˆz ∼ pθ (z | t, a ). The source waveform x does not enter the autoregressive converter and is instead used as the source-timbre ref-erence during the subsequent frozen acoustic synthesis stage. Frozen Flow Matching [7] and Vocos [12] synthesize the converted waveform 
+
+ˆx from ˆz and x. Thus, inference requires only (t, x, a ) and produces a single converted waveform without target-accent reference speech, multi-sample candidate generation, or candidate selection. 
+
+3. EXPERIMENTAL SETUP 3.1. Data and Implementation 
+
+We evaluate six English target accents: Arabic, Chinese, Hindi, Ko-rean, Spanish, and Vietnamese. Synthetic-supervision construction uses 29,754 source–accent conditions from 17,649 LibriTTS [14] utterances from 235 speakers and 12,105 L2-ARCTIC [15] utterances from 20 speakers, with 4,959 conditions per accent. The categorical generator Gϕ is first adapted using 29,840 pseudo-target token se-quences obtained from the reference-conditioned bootstrap stage in Sec. 2.1.1. For final supervision construction, the fixed Gϕ generates N = 8 
+
+candidates per condition using top-k = 25 , top-p = 0 .8, temper-ature 1.0, and 32 Flow Matching steps. Candidate retention uses 
+
+τWER = 0 .08 , τSIM = 0 .60 , ρ ∈ [0 .75 , 1.45] , and τ∆ = 0 .02 .At least one candidate is feasible for 16,153 conditions, which are partitioned into 15,346 optimization and 807 internal-validation con-ditions. A separate 300-condition development set is used for check-point selection. Candidate selection uses a fixed six-way accent probe q based on valid-frame mean-pooled Whisper-small [16] encoder representations, feature standardization, and balanced logistic regression. WER and speaker similarity are measured using Whisper-small and ECAPA-TDNN [13], respectively. The final converter is trained for three epochs using seeds 1337, 2027, and 3407. The learning rates are 
+
+5 × 10 −6 for LoRA and 10 −4 for the accent embeddings. We construct AC-Eval3K from 3,000 unique LibriTTS test-clean utterances by assigning each source utterance one target-accent label, yielding 500 conditions for each of the six accents. The utterances come from 39 speakers, with no source-utterance or speaker overlap with the supervision-construction pool. 
+
+3.2. Compared Systems and Evaluation 
+
+Direct comparison with existing AC-specific systems is limited by dif-ferences in task definition and target-accent coverage. Many closely related methods focus on accent normalization or specific source– target mappings [2, 3, 5], and do not provide a released model or pro-tocol covering all six target accents considered here. Evaluating them on AC-Eval3K would therefore require retraining or modifying their original task configuration. We instead compare with systems that can generate outputs for all six targets: Vevo-Style [6], Vevo1.5 [17], Vevo2 [7], SeedVC-v2 [18], and StarGANv2-VC [19]. All systems are evaluated using the same output-level scoring pipeline, although their training and inference conditions are not matched. For automatic evaluation, target-accent performance is measured using the PAID-Whisper evaluation framework introduced in [20]. We report target-accent classification accuracy (Acc.), defined as the percentage of converted utterances classified as the requested accent, and ∆ptgt = p(a | ˆx) − p(a | x), which measures the source-relative increase in probability assigned to the requested ac-cent. Content preservation is measured by word error rate (WER) using Whisper-small [16], and source-speaker preservation by cosine similarity (SIM) between SpeechBrain ECAPA-TDNN [13] embed-dings of the source and converted speech. Higher Acc., ∆ptgt , and SIM indicate stronger target-accent evidence or speaker preservation, whereas lower WER indicates better content preservation. To isolate the effect of multi-sample supervision, we compare 
+
+N = 1 and N = 8 on the same 6,600 source–accent conditions. The N = 1 system uses the first feasible candidate, whereas N = 8 
+
+selects the highest-ranked feasible candidate from eight generations. Within each seed, both systems use the same data split, initializa-tion, and training protocol. Target-accent metrics in this matched comparison are measured using the development accent probe q.We further conduct a blinded listening test with 10 listeners on 12 source utterances, comprising one male and one female utterance per target accent. Listeners rate naturalness (N-MOS), source-speaker similarity (S-MOS), and target-accent similarity (A-MOS) on 1–5 scales. For A-MOS, listeners are provided with target-accent refer-ence speech only for perceptual evaluation. Code and audio samples are available at https://github.c om/eurecom-asp/SSAC and https://github.com/eur ecom-asp/SSAC_listening_samples .Table 1 . Automatic results on AC-Eval3K and listening-test results on the perceptual evaluation subset. MOS values are descriptive means without uncertainty estimates. All systems use the same evaluation pipeline, but the external systems are not training- or input-matched to ours. Higher is better for target-accent classification accuracy, ∆ptgt , SIM, and MOS; lower is better for WER. System Acc. (%) ↑ ∆ptgt (pp) ↑ WER (%) ↓ SIM ↑ N-MOS ↑ S-MOS ↑ A-MOS ↑
+
+Vevo-Style 32.33 +13.83 14.24 0.6737 3.440 3.429 2.940 Vevo1.5 18.63 +1.67 31.05 0.7657 2.857 3.179 2.417 Vevo2 19.13 +2.16 17.01 0.8227 3.619 3.488 2.940 SeedVC-v2 42.10 +20.08 17.60 0.0910 2.464 1.786 2.440 StarGANv2-VC 45.50 +23.79 20.68 0.1888 1.881 1.583 1.929 
+
+Ours 30.31 +11.01 7.81 0.7135 3.690 3.560 3.131 Table 2 . Single- versus multi-sample supervision using the same source utterance–target accent training combinations. Values are means over three training runs. Samples Acc. (%) ↑ ∆ptgt (pp) ↑ WER (%) ↓ SIM ↑
+
+N = 1 28.08 +9.77 7.82 0.7139 
+
+N = 8 30.57 +11.70 8.11 0.7134 
+
+4. RESULTS 4.1. Overall Conversion Performance 
+
+Table 1 summarizes performance across the evaluated systems. Our system achieves the lowest WER of 7.81%, with a target-accent clas-sification accuracy of 30.31% and ∆ptgt = +11 .01 pp. Vevo-Style, SeedVC-v2, and StarGANv2-VC obtain higher automatic target-accent scores, while Vevo2 achieves the highest SIM. These results show different accent–content–speaker operating points under the common output-level evaluation rather than dominance by a single system across all metrics. In the listening test, our system obtains the highest observed mean ratings for naturalness, source-speaker similarity, and target-accent similarity, with N-MOS, S-MOS, and A-MOS of 3.690, 3.560, and 3.131, respectively. 
+
+4.2. Effect of Multi-Sample Supervision 
+
+In the full construction pool, the first generated candidate satisfies the retention requirements for 6,600 of 29,754 source–accent condi-tions (22.18%). With eight stochastic generations, 16,153 conditions (54.29%) contain at least one feasible candidate. This increased cov-erage shows that multiple generations provide more opportunities to construct usable supervision, but does not by itself establish a downstream benefit. We therefore compare N = 1 and N = 8 using the same 6,600 source–accent conditions for which the first candidate is feasible. For 
+
+N = 1 , the first candidate provides the supervision target, whereas for N = 8 , the highest-ranked feasible candidate is selected from eight generations. Within each seed, the two systems use the same data split, categorical warm-start, and optimization protocol. As shown in Table 2, N = 8 increases mean probe-measured target-accent accuracy by 2.49 pp and mean ∆ptgt by 1.93 pp relative to N = 1 . The target-accent gains are positive for all three paired training seeds. Mean WER increases by 0.29 pp, while SIM changes only from 0.7139 to 0.7134. These results support the use of multiple stochastic realizations for constructing supervision with stronger 
+
+Table 3 . Alternative strategies for using feasible candidates. Results are averaged over three training seeds. Strategy Acc. (%) ↑ ∆ptgt (pp) ↑ WER (%) ↓ SIM ↑
+
+Random Near-Best 29.82 +10.90 8.18 0.7130 Soft Top-2 29.88 +10.56 7.82 0.7162 
+
+Soft Near-Best 30.04 +10.94 8.38 0.7156 
+
+Selected Top-1 30.31 +11.01 7.81 0.7135 downstream target-accent evidence under the selection probe q, while showing a small mean increase in WER. 
+
+4.3. Alternative Supervision Strategies 
+
+Table 3 compares alternative ways of using feasible candidates. Se-lected Top-1 uses the highest-ranked candidate. Random Near-Best samples from candidates within ϵ = 0 .05 of the highest target-accent probability. Soft Top-2 combines losses from the two highest-ranked candidates, while Soft Near-Best applies the same soft-min objective to candidates within the same ϵ margin. Selected Top-1 gives the highest mean target-accent accuracy and 
+
+∆ptgt and the lowest mean WER, while Soft Top-2 gives the highest mean SIM. We therefore use Selected Top-1 in the final system. 
+
+5. CONCLUSIONS 
+
+We studied synthetic AC supervision as selection over multi-ple stochastic waveform–token realizations of the same source– accent condition. Our framework first learns a categorical accent-conditioned generator, uses it to construct and assess multiple candidate conversions, and transfers the token sequence paired with a selected waveform to final autoregressive adaptation. The resulting converter uses the source transcript and categorical target-accent label for token generation and requires neither target-accent reference speech nor multi-candidate selection at inference. In the controlled comparison on the same source–accent conditions, eight-sample supervision improves probe-measured target-accent accuracy by 2.49 pp, with a 0.29-pp increase in mean WER and nearly unchanged speaker similarity. Under the common output-level evaluation, the final system achieves the lowest WER among the evaluated systems and the highest observed mean ratings on all three perceptual mea-sures. The evaluation remains limited to six target accents and to external systems with different training and inference conditions. Future work will extend the evaluation to broader accent settings and independently evaluate the matched multi-sample effect. Acknowledgment 
+
+This work was supported by the French Agence Nationale de la Recherche (ANR) through the SpeechPrivacy project (ANR-23-CE23-0022). ChatGPT was used solely for language editing and stylistic refinement. All scientific claims, experimental results, analyses, and conclusions were independently reviewed and verified by the au-thors. 
+
+6. REFERENCES 
+
+[1] Yi Zhou, Zhizheng Wu, Mingyang Zhang, Xiaohai Tian, and Haizhou Li, “Tts-guided training for accent conversion without parallel data,” IEEE Signal Processing Letters , vol. 30, pp. 533–537, 2023. [2] Xi Chen, Jiakun Pei, Liumeng Xue, and Mingyang Zhang, “Transfer the linguistic representations from tts to accent conver-sion with non-parallel data,” in IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , 2024, pp. 12501–12505. [3] Tuan Nam Nguyen, Seymanur Akti, Ngoc Quan Pham, and Alexander Waibel, “Improving pronunciation and accent con-version through knowledge distillation and synthetic ground-truth from native tts,” in IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , 2025, pp. 1–5. [4] Qibing Bai, Sho Inoue, Shuai Wang, Zhongjie Jiang, Yannan Wang, and Haizhou Li, “Accent Normalization Using Self-Supervised Discrete Tokens with Non-Parallel Data,” in Inter-speech 2025 , 2025, pp. 1618–1622. [5] Qibing Bai, Shuhao Shi, Shuai Wang, Yukai Ju, Yannan Wang, and Haizhou Li, “Cosyaccent: Duration-controllable accent normalization using source-synthesis training data,” in IEEE International Conference on Acoustics, Speech and Signal Pro-cessing (ICASSP) , 2026, pp. 17372–17376. [6] Xueyao Zhang, Xiaohui Zhang, Kainan Peng, Zhenyu Tang, Vi-mal Manohar, Yingru Liu, Jeff Hwang, Dangna Li, Yuhao Wang, Julian Chan, et al., “Vevo: Controllable zero-shot voice imi-tation with self-supervised disentanglement,” in International Conference on Learning Representations , 2025, vol. 2025, pp. 58436–58459. [7] Xueyao Zhang, Junan Zhang, Yuancheng Wang, Chaoren Wang, Yuanzhe Chen, Dongya Jia, Zhuo Chen, and Zhizheng Wu, “Vevo2: A unified and controllable framework for speech and singing voice generation,” IEEE Transactions on Audio, Speech and Language Processing , 2026. [8] Pier Giuseppe Sessa, Robert Dadashi, L´ eonard Hussenot-Desenonges, Johan Ferret, Nino Vieillard, Alexandre Ram´ e, Bobak Shahriari, Sarah Perrin, Abram Friesen, Geoffrey Cideron, et al., “Bond: Aligning llms with best-of-n distillation,” in International Conference on Learning Representations , 2025, vol. 2025, pp. 59040–59060. [9] Ke Zhang, Yunjie Tian, Dongdi Zhao, Yijiang Li, Yuanye Liu, Vishal M Patel, and Di Fu, “On-policy distillation with best-of-n teacher rollout selection,” arXiv preprint arXiv:2605.09725 ,2026. [10] Ali Asaria, Tony Salomone, and Deep Gandhi, “Reliable neural-codec text-to-speech by asr self-verification and distilla-tion: Near-zero catastrophic failures across models and codecs,” 
+
+arXiv preprint arXiv:2606.18323 , 2026. [11] Edward J Hu, yelong shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen, “LoRA: Low-rank adaptation of large language models,” in Interna-tional Conference on Learning Representations , 2022. [12] Hubert Siuzdak, “Vocos: Closing the gap between time-domain and fourier-based neural vocoders for high-quality audio synthe-sis,” in International Conference on Learning Representations ,2024. [13] Brecht Desplanques, Jenthe Thienpondt, and Kris Demuynck, “ECAPA-TDNN: Emphasized Channel Attention, Propagation and Aggregation in TDNN Based Speaker Verification,” in 
+
+Interspeech 2020 , 2020, pp. 3830–3834. [14] Heiga Zen, Viet Dang, Rob Clark, Yu Zhang, Ron J. Weiss, Ye Jia, Zhifeng Chen, and Yonghui Wu, “LibriTTS: A Corpus Derived from LibriSpeech for Text-to-Speech,” in Interspeech 2019 , 2019, pp. 1526–1530. [15] Guanlong Zhao, Sinem Sonsaat, Alif Silpachai, Ivana Lu-cic, Evgeny Chukharev-Hudilainen, John Levis, and Ricardo Gutierrez-Osuna, “L2-ARCTIC: A Non-native English Speech Corpus,” in Interspeech 2018 , 2018, pp. 2783–2787. [16] Alec Radford, Jong Wook Kim, Tao Xu, Greg Brockman, Chris-tine McLeavey, and Ilya Sutskever, “Robust speech recognition via large-scale weak supervision,” in International conference on machine learning . PMLR, 2023, pp. 28492–28518. [17] Jiaqi Li, Xueyao Zhang, Yuancheng Wang, Haorui He, Chaoren Wang, Li Wang, Huan Liao, Junyi Ao, Zeyu Xie, Yiqiao Huang, et al., “Overview of the amphion toolkit (v0. 2),” arXiv preprint arXiv:2501.15442 , 2025. [18] Songting Liu, “Zero-shot voice conversion with diffusion trans-formers,” arXiv preprint arXiv:2411.09943 , 2024. [19] Yinghao Aaron Li, Ali Zare, and Nima Mesgarani, “StarGANv2-VC: A Diverse, Unsupervised, Non-Parallel Framework for Natural-Sounding Voice Conversion,” in In-terspeech 2021 , 2021, pp. 1349–1353. [20] Yangyang Qu, Massimiliano Todisco, and Nicholas Evans, “Phoneme-aware pronunciation representations for L2-English L1-Background accent identification,” arXiv preprint arXiv:2609.10466 , 2026.
