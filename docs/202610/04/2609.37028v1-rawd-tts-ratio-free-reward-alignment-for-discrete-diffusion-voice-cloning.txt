@@ -1,0 +1,278 @@
+Title: RAWD-TTS: Ratio-Free Reward Alignment for Discrete-Diffusion Voice Cloning
+
+URL Source: https://arxiv.org/pdf/2609.37028v1
+
+Published Time: Wed, 30 Sep 2026 01:19:23 GMT
+
+Number of Pages: 5
+
+Markdown Content:
+# RAWD-TTS: RATIO-FREE REWARD ALIGNMENT FOR DISCRETE-DIFFUSION VOICE CLONING 
+
+# Maxim Maslov 1 Kirill Borodin 1,2 Vasilii Kudryavtsev 1,2 Nikita Vasiliev 1,2 Grach Mkrtchian 2,31lab260, Yerevan, Armenia 2BitmanagerAI, Dubai, UAE 3MTUCI, Moscow, Russia kborodin.research@gmail.com 
+
+ABSTRACT 
+
+Zero-shot text-to-speech synthesizes new utterances in a speaker’s voice from a short reference recording. Voice cloning requires accu-rate content and preserved speaker identity, but supervised acoustic-token prediction does not directly optimize these waveform-level properties. Reward-based post-training addresses this mismatch, but in discrete diffusion, token choices and reveal positions jointly define the sampling trajectory, complicating alignment. We in-troduce RAWD-TTS (Ratio-free Advantage-Weighted Denoising), which scores decoded samples with recognition and speaker rewards and uses group-relative advantages to weight masked-token recon-struction of those samples, without reverse-trajectory likelihoods or target audio. On 500 Russian CV3-Eval voice-cloning prompts, joint alignment reduces word error rate from 3.18% to 2.42% at the reward-selected checkpoint (24.0% relative) and to 2.58% at the final checkpoint (19.0%), while WavLM speaker cosine rises from 0.733 to 0.748 and 0.755. Controlled experiments characterize recognition–identity trade-offs and the effects of corruption count, group composition, and weighting. 
+
+Index Terms — text-to-speech, discrete diffusion, voice cloning, reward alignment, advantage-weighted denoising 
+
+1. INTRODUCTION 
+
+Zero-shot text-to-speech (TTS) must reproduce both the requested words and the identity of an unseen reference speaker. Supervised token prediction provides indirect supervision for these goals: alow acoustic-token loss does not directly measure intelligibility or speaker preservation in a decoded waveform. Reward-based post-training addresses this mismatch by evaluating generated speech with task-specific models. Recent flow-matching TTS alignment methods optimize recognition and speaker rewards through denois-ing trajectories [1, 2]. Discrete-diffusion TTS introduces a different optimization in-terface. OmniVoice generates multiple acoustic codebooks through iterative masked prediction, conditioned on target text and reference speech [3]. Token choices and the order of revealing positions jointly determine a decoding path. A final waveform therefore cannot sim-ply be assigned the product of autoregressive token probabilities. Trajectory-based diffusion policy optimization can explicitly model transitions [4], but requires an appropriate likelihood for the actual sampling process. RAWD-TTS (Ratio-free Advantage-Weighted Denoising) 1 uses final generated samples as reward-weighted supervision. For each 
+
+> 1
+
+Training code and configuration are available at https://github. com/lab260ru/RAWD-TTS. prompt, it reconstructs forward-masked acoustic tokens with group-relative weights: positive for above-average samples and negative for below-average samples. This decouples learning from the reverse trajectory. Training needs only reference speech and target text, not target audio. Building on ratio-free weighted diffusion optimization, we make three contributions: (i) an adaptation of signed final-sample denois-ing to conditional multi-codebook TTS that preserves voice-cloning conditioning and normalizes reconstruction across codebooks and utterances; (ii) a controlled study on a fixed backbone of reward composition, corruption count, group allocation, and the weighting rule, scored by both training and independent evaluators; and (iii) released training code. Target text + reference speech and transcript Stochastic policy pθ
+
+Final tokens {xi
+
+> 0
+
+}Gi=1 
+
+Decode speech ASR + speaker rewards 
+
+K forward masks Token reconstruction Group-relative advantages A
+
+Weighted loss Aℓ θ
+
+Update pθ
+
+Fig. 1 . RAWD-TTS connects final-sample rewards to masked-token learning. Generated tokens provide both waveform rewards and re-construction targets. Advantages weight reconstruction losses; only this path updates the policy. 
+
+2. RELATED WORK Reward alignment for speech. F5R-TTS applies group-relative policy optimization to flow-matching speech synthesis [1]. Multi-objective waveform rewards are studied in FlowTTS-GRPO [2], and Koel-TTS aligns an autoregressive TTS model with recognition and speaker-verification preferences [5]. These works motivate our com-parison of recognition and speaker rewards, but continuous flow and autoregressive transitions differ from categorical masked-token up-dates. Masked generative codec models such as MaskGCT [6] and OmniVoice [3] share this interface. 
+
+Weighted diffusion training. Ratio-free weighted denoising in wd1 [7] and Advantage Weighted Matching [8] are close method-ological precedents. UDM-GRPO also constructs forward-corrupted states from final samples, while retaining a ratio-based objective [9]. This work has been submitted to the IEEE ICASSP for possible publication. Copyright may be transferred without notice, after which this version may no longer be accessible. arXiv:2609.37028v1 [cs.SD] 29 Sep 2026 SEPO derives policy gradients for discrete diffusion from score en-tropy [10], d1 applies GRPO to masked diffusion language models with an approximate sequence likelihood [11], and MaskGRPO esti-mates importance weights for discrete diffusion [12]. The weighting principle itself follows wd1 and AWM; our contribution is its adap-tation to multi-codebook speech with waveform rewards and the re-sulting empirical study. 
+
+3. METHOD 3.1. Voice-cloning rollouts and terminal rewards 
+
+A prompt q = ( y, a ref , y ref ) consists of target text, reference au-dio, and its transcript. The native voice-cloning sampler generates acoustic tokens x0 ∈ V C×L for C codebooks and L target frames; codec decoding gives waveform a = D(x0). The reference and text conditioning are fixed within a group, and target duration follows the native estimator. Each iteration samples B prompts and G independent stochas-tic rollouts per prompt from the current, pre-update model. Let abi 
+
+denote rollout i for prompt b. A frozen recognizer produces tran-script ˆybi , and a frozen speaker encoder e embeds the generated and reference audio. We define 
+
+rasr  
+
+> bi
+
+= exp[ −2.5 WER( N (yb), N (ˆ ybi ))] , (1) 
+
+rspk  
+
+> bi
+
+= 1 + cos( e(abi ), e (aref  
+
+> b
+
+)) 2 , (2) 
+
+rbi = λasr rasr  
+
+> bi
+
++ λspk rspk  
+
+> bi
+
+, (3) where N applies the same Russian normalization to both texts and the coefficient 2.5 is an empirical choice. Each component is in 
+
+[0 , 1] . Joint training uses (λasr , λ spk ) = (1 , 1) , so its reward is in [0 , 2] ; single-reward runs set one coefficient to zero. We do not standardize reward components separately. For each prompt, we compute detached advantages 
+
+¯rb = 1
+
+G
+
+X
+
+> i
+
+rbi , Abi = rbi − ¯rb
+
+pG−1 P
+
+> i
+
+(rbi − ¯rb)2 + ϵ , (4) with ϵ = 10 −6 and population standard deviation. Thus P 
+
+> i
+
+Abi =0: comparisons are prompt-local, while standardization also rescales each group’s contribution. Constant-reward groups contribute zero to the surrogate gradient. 
+
+3.2. Final-sample denoising surrogate 
+
+We detach the final tokens and draw K forward corruptions for each rollout. For state k, one ratio ρbk ∼ U (0 , 1) is shared within prompt group b; target-token masks are independent Bernoulli draws with that ratio. The shared ratio acts as common random numbers: rollouts of one prompt are compared at the same corrup-tion level, so advantage-weighted differences reflect rewards rather than mask-ratio variation. Text, reference tokens, and padding are never masked. Empty target masks are redrawn up to eight times at the same ratio; if still empty, one uniformly chosen target token is masked. This nonempty safeguard slightly modifies the uncondi-tional Bernoulli corruption law. Let ˜xbik be the corrupted input, Mbikc its masked positions in codebook c, and Cbik the codebooks with nonempty masks. With the base model’s codebook weights renormalized over Cbik , denoted 
+
+˜wbikc , the reconstruction loss is 
+
+ℓbik (θ) = − X
+
+> c∈C bik
+
+˜wbikc 
+
+|Mbikc |
+
+X
+
+> j∈Mbikc
+
+log pθ (xi 
+
+> 0,bcj
+
+| ˜xbik , q b). (5) This reduction first averages masked tokens within each codebook, then combines codebooks. Longer utterances therefore do not re-ceive larger weights merely because they contain more tokens. The update minimizes 
+
+L(θ) = 1
+
+BGK 
+
+> B
+
+X
+
+> b=1
+> G
+
+X
+
+> i=1
+> K
+
+X
+
+> k=1
+
+stopgrad( Abi ) ℓbik (θ). (6) Gradients accumulate over all groups and corruption states before a single optimizer step, followed by fresh rollout collection. We use neither KL regularization nor a supervised anchor loss. 
+
+Algorithm 1 One RAWD-TTS update 
+
+Require: Current policy pθ ; batch dimensions B, G, K 
+
+Collect samples and scores without gradients 
+
+1: Sample B prompts qb.2: Draw G native rollouts xi 
+
+> 0,b
+
+per prompt. 3: Decode abi = D(xi
+
+> 0,b
+
+) with the frozen codec. 4: Compute rbi using frozen scorers, Eq. (3). 5: Compute group advantages Abi , Eq. (4). 
+
+Differentiate masked-token reconstruction 
+
+6: Initialize accumulated gradient g ← 0.7: for k = 1 , . . . , K do 
+
+8: Sample group ratios ρbk ∼ U (0 , 1) .9: Corrupt detached targets as in Section 3.2. 10: Compute ℓbik (θ) using Eq. (5). 11: g ← g + 1
+
+> BGK
+
+P 
+
+> b,i
+
+Abi ∇θ ℓbik (θ).12: end for 
+
+13: Clip g; update θ with one AdamW step. 
+
+3.3. Interpretation and weighting control 
+
+Equation (6) transfers relative reward through reconstruction of final samples. Because ρbk is uniform on (0 , 1) and |Mbikc | ≈ ρbk L,each term in Eq. (5) is, up to the codebook weights and the nonempty safeguard, a length-normalized single-sample estimate of the masked-diffusion evidence lower bound (ELBO) with the 1/t 
+
+weighting of MDLM, MD4, and LLaDA [13, 14, 15]. The objective is therefore a group-baselined REINFORCE surrogate in which a variational bound on log pθ (x0 | q) replaces the intractable likeli-hood of the native sampler. The parameter K controls Monte Carlo estimation over forward corruptions, independently of the number of reverse decoding steps. Because a bound replaces the trajectory likelihood, the objective is a signed surrogate rather than an unbiased policy-gradient estimator. It imposes no likelihood-ratio constraint on native position selection. Our wd1-style control uses the alternative coefficients 
+
+ωbi = eAbi 
+
+P 
+
+> j
+
+eAbj − e−Abi 
+
+P 
+
+> j
+
+e−Abj . (7) This wd1-inspired weighting control [7] retains the reduction in Eq. (6) without rescaling ω, changing both the relative coefficients and their gradient scale. 
+
+4. EXPERIMENTAL SETUP 4.1. Training data and implementation 
+
+We use 8,000 Russian voice-cloning prompts from the YouTube partition processed by Balalaika [16]. 2 References are filtered for 
+
+> 2
+
+https://huggingface.co/datasets/lab260/youtube_balalaika single-speaker segments lasting 2–8 s with ASR consistency scores of at least 80. They comprise 10.96 h of audio, with mean duration 4.93 s. Each reference audio/transcript is paired with target text from a different eligible record, restricted to 20–120 characters. Target-record audio is not used for training or rewards. All trained systems initialize from base OmniVoice (0.6B), which predicts C = 8 Higgs-audio codebooks per frame [3], using LoRA [17] with rank 16, alpha 32, and zero dropout; the codec is frozen. Controlled reward and weighting comparisons use B = 4 ,
+
+G = 8 , and K = 3 . Joint K = 5 retains these training settings except for the corruption count. AdamW uses learning rate 10 −5
+
+after 10 linear warmup updates, zero weight decay, and gradient-norm clipping at 1. Training rollouts use 32 denoising steps, no classifier-free guidance (CFG), token temperature 1, and position temperature 5, which is applied to token confidences when sampling the positions to reveal [3]. On one NVIDIA RTX 6000 Ada Generation GPU with co-located reward models, the K = 5 run took 9.25 GPU-hours for 2,000 training iterations (16.65 s/update), excluding evaluations. 
+
+4.2. Evaluation protocol 
+
+Evaluation uses all 500 prompts of the Russian subset of CV3-Eval Multilingual Voice Cloning , introduced with CosyVoice 3 [18]. OmniVoice variants use the native reference-audio/transcript prompt path, native duration estimation, 32 decoding steps, CFG 2, greedy token selection, position temperature 5, and decoding seed 12345. Metrics are mean per-utterance WER from faster-whisper with Whisper-large-v3 [19], and mean cosine similarity between WavLM-ECAPA embeddings [20, 21] of generated and reference audio; the training reward applies the mapping of Eq. (2) to the same cosine. WER is computed after the same normalization of reference text and ASR predictions and is reported as a percentage. These scorers also supply training rewards. For an independent assessment, Table 1 additionally reports WER from Qwen3-ASR-1.7B [22], raw speaker cosine from ERes2Net [23], and predicted quality from DistilMOS [24] with its WavLM backbone (raw pre-dicted MOS, not a listening-test score); none participates in training or checkpoint selection. Qwen uses greedy decoding with Russian specified and no transcript hint; all three process 16-kHz audio. Two non-terminating Qwen3-TTS outputs receive WER = 1; outputs over 60 s are scored in 30-s chunks with concatenated transcripts and duration-weighted speaker and MOS scores. Primary runs use 2,000 updates for recognition-only, speaker-only, and joint rewards. Table 1 reports checkpoints selected by joint training-scorer reward on the reported prompts; final checkpoints, which involve no selection, are labeled separately. Corruption and group-size ablations use 1,000-update budgets. The weighting com-parison and extended K = 5 run use 2,000 updates. Primary K = 3 
+
+runs are evaluated every 100 updates and K = 5 every 250, so the coarser K = 5 grid offers fewer selection opportunities. Ablation checkpoints maximize joint evaluation reward within the stated bud-get. We conduct one training run per configuration. The SFT control uses the same 8,000 source recordings paired with their real transcripts, not the randomized RL target texts. It re-constructs masked real tokens with a visible 0–30% audio prefix, us-ing 32 utterances per update and the same LoRA and optimizer set-tings. Rewards only select its checkpoint. Thus SFT matches source data and update budget, but receives real target audio rather than generated supervision. Controlled alignment comparisons hold the backbone fixed. For context, we also evaluate released CosyVoice3-0.5B-2512 [18] and Qwen3-TTS-12Hz-1.7B-Base [25], with native 
+
+0 500 1,000 1,500 2,000 2.42.62.833.2
+
+Update WER (%) ASR-only Joint Base 
+
+0 500 1,000 1,500 2,000 0.73 0.74 0.75 0.76 
+
+Update Speaker cosine Speaker-only Joint Base 
+
+Fig. 2 . Evaluation WER (top) and WavLM speaker cosine (bot-tom) on all 500 prompts, measured every 100 updates (21 points per curve, without smoothing). These K = 3 runs show each single-reward model’s optimized metric and both Joint metrics. Dashed: base model. Stars: metric optima; open circle: the reward-selected Joint checkpoint. sampling and the same reference pairs. 
+
+5. RESULTS AND DISCUSSION 5.1. Recognition and speaker-identity trade-off Table 1 . CV3-Eval Multilingual Voice Cloning (Russian, 500 prompts). Adapters use 2,000 updates; the lower block contains RAWD-TTS variants. Cos: raw cosine. Adapter rows not marked fi-nal are checkpoints selected by joint training-scorer reward on these prompts (updates 1,300 for Joint K = 3 , 1,500 for K = 5 ); final rows use update 2,000 without selection. Dashes: not scored. Bold: column optimum; shading: highest joint training-scorer reward. Training scorers Independent Quality System WER ↓ Cos ↑ WER ↓ Cos ↑ MOS ↑
+
+CosyVoice3 5.34 0.738 7.87 0.770 3.41 Qwen3-TTS 4.69 0.734 6.18 0.701 3.67 
+
+OmniVoice 3.18 0.733 4.38 0.704 3.18 OmniVoice+SFT 2.94 0.765 4.11 0.726 3.20 ASR-only 2.35 0.705 3.72 0.688 3.29 Speaker-only 3.34 0.763 4.52 0.734 3.21 Joint K = 3 (selected) 2.41 0.736 3.90 0.713 3.24 Joint K = 3 (final) 2.82 0.743 – – –Joint (wd1) K = 3 2.61 0.732 3.89 0.708 3.35 Joint K = 5 (selected) 2.42 0.748 3.76 0.724 3.25 Joint K = 5 (final) 2.58 0.755 3.97 0.727 3.22 Within RAWD-TTS, Table 1 shows that each single-reward objective improves its target metric while degrading the comple-mentary attribute. Recognition-only alignment reduces WER from 3.18% to 2.35%, but decreases speaker cosine from 0.733 to 0.705. Speaker-only alignment attains cosine 0.763, while WER increases to 3.34%. Joint K = 3 reduces WER to 2.41% and increases cosine to 0.736, preserving most of the ASR-only gain without its loss in speaker scoring. Selected Joint K = 5 attains 2.42% Whisper WER and 0.748 WavLM cosine. It matches K = 3 in WER and gives slightly higher similarity. Its final checkpoint, which involves no selection, retains most of the gain: 2.58% WER (19.0% relative) and 0.755 cosine, above base on every metric in Table 1. 
+
+Independent assessment. Qwen3-ASR gives a 14.0% relative WER reduction for Joint K = 5 (4.38% to 3.76%), while ERes2Net cosine rises from 0.704 to 0.724. ASR-only attains Qwen WER 3.72% but reduces speaker cosine to 0.688; speaker-only increases cosine to 0.734 but increases WER to 4.52%. Thus the recognition–identity trade-off transfers beyond the training scorers, although the recogni-tion gain is smaller than measured by Whisper. All aligned variants also have DistilMOS at or above base (3.18), so alignment does not reduce predicted quality. 
+
+External TTS systems. On Russian voice cloning, base OmniVoice already attains lower recognition error than CosyVoice3 and Qwen3-TTS under both ASR evaluators, and Joint K = 5 widens this mar-gin. CosyVoice3 attains the highest independent speaker cosine (0.770), while Qwen3-TTS has the highest DistilMOS (3.67). The external comparison therefore mainly reflects backbone strength on Russian, with different recognition, identity, and quality trade-offs across systems. 
+
+Supervised adaptation. SFT attains 2.94% Whisper WER and 0.765 WavLM cosine, compared with 2.42% and 0.748 for Joint 
+
+K = 5 . Independent scores give the same trade-off: SFT has higher Qwen WER (4.11% versus 3.76%) and slightly higher ERes2Net cosine (0.726 versus 0.724). Joint K = 5 has higher DistilMOS (3.25 versus 3.20). SFT is therefore a strong speaker-preservation baseline; reward alignment improves recognition, not every met-ric. SFT, however, requires paired target speech, whereas reward alignment uses only reference audio and arbitrary target text. 
+
+Weighting rule. With the same joint rewards, K = 3 , and 2,000-update budget, wd1-style weighting yields 2.61% WER and 0.732 cosine, compared with 2.41% and 0.736 for linear signed weighting. It therefore improves neither training metric in this comparison, but has higher DistilMOS (3.35 versus 3.24). This quality-score differ-ence cautions against ranking models by training rewards alone. The comparison changes both weighting shape and scale. Figure 2 shows non-monotonic joint improvement: after the se-lected update 1,300, WER rises from 2.41% to 2.82% at update 2,000, while cosine improves from 0.736 to 0.743. The ASR-only run ends at 2.60% after its optimum of 2.35% at update 1,900. Both training-batch rewards rise steadily over the same run, so rising train-ing reward does not imply monotonic benchmark improvement. 
+
+5.2. Hyperparameter ablations Table 2 . Joint-reward ablations: 1,000 updates, 500 evaluation prompts, and BG = 32 . The shared control uses K = 3 , B = 4 ,and G = 8 . Checkpoint selection and highlighting follow Table 1. 
+
+K B G WER ↓ Cos ↑
+
+1 4 8 2.82 0.736 3 4 8 2.55 0.733 5 4 8 2.47 0.738 
+
+3 8 4 2.72 0.733 3 2 16 2.59 0.725 
+
+Corruption count. At 1,000 updates, K = 5 improves both metrics over K = 1 and K = 3 (Table 2), motivating the extended run in Ta-ble 1. WER decreases with K, but similarity is non-monotonic. One run per setting does not establish the reliability of these differences. 
+
+Group composition. At fixed BG = 32 and K = 3 , (B, G ) = (4 , 8) gives lower WER than (8 , 4) or (2 , 16) . The G = 4 set-ting matches the control in similarity, whereas G = 16 degrades both metrics. More alternatives per prompt do not uniformly im-prove alignment: group composition trades prompt diversity against within-prompt comparisons. 
+
+5.3. Limitations 
+
+The signed surrogate provides neither a likelihood-ratio trust region nor a monotonic reward-improvement guarantee. Group standard-ization can amplify small reward-model differences, and equal com-ponent coefficients do not ensure equal gradient contributions when their within-group variations differ. Reported checkpoints, including the SFT control, are selected by evaluation reward on the reported prompts, which favors them relative to base and external systems; the final-checkpoint rows are free of this selection. Training uses stochastic rollouts without CFG, whereas evaluation uses CFG 2 and greedy tokens, so our gains show transfer to the guided evalua-tor rather than direct optimization of guided generation; a guidance sweep would be needed to separate these effects. Independent recog-nition and speaker models indicate transfer of average gains, but au-tomatic scores do not establish human-perceived quality or freedom from reward exploitation. Evidence is limited to one backbone, Rus-sian speech, and one training run per configuration. Voice cloning poses impersonation risks; releases require appropriate consent and safeguards. 
+
+6. CONCLUSION 
+
+RAWD-TTS adapts signed final-sample denoising to discrete-diffusion voice cloning. On CV3-Eval Russian, joint alignment with five corruption views reduces WER by 24.0% at the reward-selected checkpoint and by 19.0% at the final checkpoint, while improving speaker similarity over base OmniVoice. Independent evaluators are consistent with both gains. Single-reward and supervised controls reveal recognition–identity trade-offs, supporting joint waveform rewards as a practical alignment objective for discrete TTS. 
+
+7. COMPLIANCE WITH ETHICAL STANDARDS 
+
+This study used only publicly available, previously collected speech recordings (Balalaika and CV3-Eval) and collected no new data from human subjects, so no ethical approval was required. The authors declare no conflicts of interest. 
+
+8. ACKNOWLEDGEMENTS 
+
+Claude Fable 5 (Anthropic) was used to polish the text of this paper. All ideas and experiments are the authors’ own. 
+
+9. REFERENCES 
+
+[1] Xiaohui Sun, Ruitong Xiao, Jianye Mo, Bowen Wu, Qun Yu, and Baoxun Wang, “F5R-TTS: Improving flow-matching based text-to-speech with group relative policy optimization,” 
+
+arXiv preprint arXiv:2504.02407 , 2025. [2] Haoxu Wang, Biao Tian, Weiqin Li, Xiang Lv, Han Zhao, and Xiangang Li, “FlowTTS-GRPO: Online rein-forcement learning with multi-objective reward optimization for flow-matching based text-to-speech,” arXiv preprint arXiv:2606.23190 , 2026. [3] Han Zhu, Lingxuan Ye, Wei Kang, Zengwei Yao, Liyong Guo, Fangjun Kuang, Zhifeng Han, Weiji Zhuang, Long Lin, and Daniel Povey, “OmniVoice: Towards omnilingual zero-shot text-to-speech with diffusion language models,” arXiv preprint arXiv:2604.00688 , 2026. [4] Kevin Black, Michael Janner, Yilun Du, Ilya Kostrikov, and Sergey Levine, “Training diffusion models with reinforcement learning,” in International Conference on Learning Represen-tations , 2024. [5] Shehzeen Hussain, Paarth Neekhara, Xuesong Yang, Edresson Casanova, Subhankar Ghosh, Mikyas T. Desta, Roy Fejgin, Rafael Valle, and Jason Li, “Koel-TTS: Enhancing LLM based speech generation with preference alignment and classifier free guidance,” arXiv preprint arXiv:2502.05236 , 2025. [6] Yuancheng Wang, Haoyue Zhan, Liwei Liu, Ruihong Zeng, Haotian Guo, Jiachen Zheng, Qiang Zhang, Xueyao Zhang, Shunsi Zhang, and Zhizheng Wu, “MaskGCT: Zero-shot text-to-speech with masked generative codec transformer,” in In-ternational Conference on Learning Representations , 2025, arXiv:2409.00750. [7] Xiaohang Tang, Rares Dolga, Sangwoong Yoon, and Ilija Bo-gunovic, “wd1: Weighted policy optimization for reasoning in diffusion language models,” in International Conference on Learning Representations , 2026. [8] Shuchen Xue, Chongjian Ge, Shilong Zhang, Yichen Li, and Zhi-Ming Ma, “Advantage weighted matching: Aligning RL with pretraining in diffusion models,” in International Confer-ence on Machine Learning , 2026, arXiv:2509.25050. [9] Jiaqi Wang, Haoge Deng, Ting Pan, Yang Liu, Chengyuan Wang, Fan Zhang, Yonggang Qi, and Xinlong Wang, “UDM-GRPO: Stable and efficient group relative policy optimization for uniform discrete diffusion models,” in International Con-ference on Machine Learning , 2026, arXiv:2604.18518. [10] Oussama Zekri and Nicolas Boullé, “Fine-tuning discrete dif-fusion models with policy gradient methods,” in Advances in Neural Information Processing Systems , 2025. [11] Siyan Zhao, Devaansh Gupta, Qinqing Zheng, and Aditya Grover, “d1: Scaling reasoning in diffusion large lan-guage models via reinforcement learning,” arXiv preprint arXiv:2504.12216 , 2025. [12] Tianren Ma, Mu Zhang, Yibing Wang, and Qixiang Ye, “Con-solidating reinforcement learning for multimodal discrete dif-fusion models,” arXiv preprint arXiv:2510.02880 , 2025. [13] Subham Sekhar Sahoo, Marianne Arriola, Yair Schiff, Aaron Gokaslan, Edgar Marroquin, Justin T. Chiu, Alexander Rush, and Volodymyr Kuleshov, “Simple and effective masked dif-fusion language models,” in Advances in Neural Information Processing Systems , 2024, arXiv:2406.07524. [14] Jiaxin Shi, Kehang Han, Zhe Wang, Arnaud Doucet, and Michalis K. Titsias, “Simplified and generalized masked dif-fusion for discrete data,” in Advances in Neural Information Processing Systems , 2024, arXiv:2406.04329. [15] Shen Nie, Fengqi Zhu, Zebin You, Xiaolu Zhang, Jingyang Ou, Jun Hu, Jun Zhou, Yankai Lin, Ji-Rong Wen, and Chongx-uan Li, “Large language diffusion models,” arXiv preprint arXiv:2502.09992 , 2025. [16] Kirill Borodin, Nikita Vasiliev, Vasiliy Kudryavtsev, Maxim Maslov, Mikhail Gorodnichev, Oleg Rogov, and Grach Mkrtchian, “Balalaika: Data-centric, prosody-aware annota-tion pipeline for Russian speech,” in Proc. Interspeech , 2026, arXiv:2507.13563. [17] Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen, “LoRA: Low-rank adaptation of large language models,” in Interna-tional Conference on Learning Representations , 2022. [18] Zhihao Du, Changfeng Gao, Yuxuan Wang, Fan Yu, Tianyu Zhao, Hao Wang, et al., “CosyVoice 3: Towards in-the-wild speech generation via scaling-up and post-training,” arXiv:2505.17589, 2025. [19] Alec Radford, Jong Wook Kim, Tao Xu, Greg Brockman, Christine McLeavey, and Ilya Sutskever, “Robust speech recognition via large-scale weak supervision,” in International Conference on Machine Learning , 2023, arXiv:2212.04356. [20] Sanyuan Chen, Chengyi Wang, Zhengyang Chen, Yu Wu, Shu-jie Liu, et al., “WavLM: Large-scale self-supervised pre-training for full stack speech processing,” IEEE Journal of Selected Topics in Signal Processing , vol. 16, no. 6, pp. 1505– 1518, 2022. [21] Brecht Desplanques, Jenthe Thienpondt, and Kris Demuynck, “ECAPA-TDNN: Emphasized channel attention, propagation and aggregation in TDNN based speaker verification,” in Proc. Interspeech , 2020, pp. 3830–3834. [22] Xian Shi, Xiong Wang, Zhifang Guo, Yongqi Wang, Pei Zhang, Xinyu Zhang, et al., “Qwen3-ASR technical report,” 
+
+arXiv preprint arXiv:2601.21337 , 2026. [23] Yafeng Chen, Siqi Zheng, Hui Wang, Luyao Cheng, Qian Chen, and Jiajun Qi, “An enhanced Res2Net with local and global feature fusion for speaker verification,” in Proc. Inter-speech , 2023, pp. 2228–2232. [24] Jianing Yang, Wataru Nakata, Yuki Saito, and Hiroshi Saruwatari, “DistilMOS: Layer-wise self-distillation for self-supervised learning model-based MOS prediction,” arXiv preprint arXiv:2601.13700 , 2026. [25] Hangrui Hu, Xinfa Zhu, Ting He, Dake Guo, Bin Zhang, Xiong Wang, et al., “Qwen3-TTS technical report,” arXiv preprint arXiv:2601.15621 , 2026.
