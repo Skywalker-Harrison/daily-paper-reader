@@ -1,0 +1,721 @@
+Title: Where Does the Audio Jailbreak Live? A Controlled Frequency-Depth Audit of AdvWave-P on Qwen2-Audio
+
+URL Source: https://arxiv.org/pdf/2610.07005v1
+
+Published Time: Wed, 07 Oct 2026 00:05:41 GMT
+
+Number of Pages: 23
+
+Markdown Content:
+# WHERE DOES THE AUDIO JAILBREAK LIVE ?A CONTROLLED FREQUENCY -D EPTH AUDIT OF 
+
+# ADV WAVE -P ON QWEN 2-A UDIO 
+
+Boyuan Chen 1,2 , Minseok Kim 1, Sohaila Abdulsattar 1, Minghao Shao 1,2 ,Siddharth Garg 2, Ramesh Karri 2, Muhammad Shafique 1,
+
+> 1
+
+eBRAIN Lab, Division of Engineering, New York University Abu Dhabi, UAE 
+
+> 2
+
+Tandon School of Engineering, New York University, NY, USA 
+
+{boyuan.chen, mk7545, sm10688, shao.minghao, sg175 }@nyu.edu 
+
+{rkarri, muhammad.shafique }@nyu.edu 
+
+ABSTRACT 
+
+We audit frequency and decoder-depth claims for AdvWave-P, an additive audio jailbreak, on Qwen2-Audio. The protocol masks frequency components of the per-turbation in the short-time Fourier transform (STFT) domain and measures attack success and audio-span representations. On 520 AdvBench prompts, the primary judge labels 76.7% of adversarial inputs as jailbreaks. A condition-blind, single-annotator validation yields a Rogan-Gladen sensitivity estimate of 0.87 for this adversarial condition (approximately 0.83–0.95 when validation-rate uncertainty is propagated); this correction is not applied to masked conditions. The apparent frequency ranking depends on the partition: energy share alone predicts the stan-dard eight-band ranking (Spearman’s ρ = 0 .95 ), and equal-Hz and equal-energy partitions show that masking any tested band can sharply reduce attack success. At a finer, 16-band equal-energy resolution, however, masking the narrow 7520 –
+
+7960 Hz band leaves ASR at 0.10; without a matched control at this resolution, this remains unresolved. Matched-energy scattered-removal tests show that con-tiguous removal is more damaging in lower bands, while both forms of removal approach the floor in upper bands. Global rescaling leaves ASR near baseline, but tests amplitude sensitivity rather than frequency location. In a re-optimization pi-lot ( n = 20 ), tested single-band and two-band supports reach ASRs of 0.00, 0.25, and 0.40, while random supports covering about half the STFT bins reach a mean of 0.86. A prompt- and energy-adjusted model finds that audio-span divergence is associated with band necessity, with the coefficient increasing from +0 .63 at the projector output to +0 .93 at layer 30 (contrast +0 .293 , 95% CI [0 .11 , 0.51] ). This association is not a causal localization, and single-layer patching does not establish a causal layer. Together, the results support a partition-aware audit of frequency claims while leaving the fine-resolution top-band result and broader generality open. Code: https://github.com/BoyuanChen99/Where_ Does_The_Audio_Jailbreak_Live .
+
+1 INTRODUCTION 
+
+Audio-language models (ALMs), including Qwen2-Audio and LLaMA-Omni, extend language models with speech frontends (Chu et al., 2024; Fang et al., 2025). A model may refuse a harmful text instruction yet comply when the same instruction is presented as adversarial audio. AdvWave and AdvWave-P demonstrate this risk on AdvBench (Kang et al., 2025; Jin et al., 2025; Zou et al., 2023); related vulnerabilities have also been reported for other attacks and ALMs (Song et al., 2025; Peri et al., 2024; Yang et al., 2025). To evaluate frequency-localization claims, an analysis must distinguish a band’s location from its width, energy, and the structure of the removed signal. Prior work selects frequency regions for different purposes. GRM ranks mel bands by an attack-to-utility gradient ratio (Wang et al., 2026). ALMGuard selects mel bins for applying a defensive universal perturbation, balancing jailbreak mitigation against speech-recognition performance (Jin et al., 2025). Gupta et al. use encoder attention to identify a broad 1–8 kHz region for universal audio jailbreaks (Gupta et al., 2025). These methods do not all make the same claim about which com-1arXiv:2610.07005v1 [cs.SD] 4 Oct 2026 ponents of an attacker’s perturbation are necessary. We test how apparent band importance changes with the analysis partition, perturbation energy, and removal structure, then examine its association with decoder representations. We study AdvWave-P on Qwen2-Audio and use it to audit frequency-localization claims. We mask perturbation components in the STFT domain, reconstruct each waveform, and measure attack suc-cess and decoder representations. The comparisons include random contiguous regions, equal-Hz and equal-energy partitions, matched-energy scattered removal, and global rescaling. The standard eight-band ranking is strongly associated with band energy, while the finer equal-energy sweep leaves one narrow top-frequency result unresolved because it lacks a matched control. Separately, a prompt- and energy-adjusted model finds a depth-varying association between audio-span diver-gence and band necessity. This association does not establish a causal layer. We make four contributions, summarized with their supporting results in Table 1. • A controlled audit of frequency rankings (Section 3). The protocol measures judge-adjudicated ASR and layer-wise audio-span divergence after STFT-domain occlusion. Random-region, equal-Hz, equal-energy, and scattered-removal comparisons expose how band rankings depend on partition and removal structure; global rescaling serves only as an amplitude check. • Frequency results depend on resolution (Section 5.1). Energy share alone closely pre-dicts the standard eight-band ranking (Spearman ρ = 0 .95 ). Equal-Hz and eight-band equal-energy partitions show substantial effects across bands, while the narrow top band in the 16-band equal-energy sweep remains unresolved without a matched control. • Removal structure and support coverage matter (Section 5.2). At low frequencies, con-tiguous removal is more damaging than scattered removal of the same energy; at high frequencies, both approach the floor. In a re-optimization pilot, tested single-band and two-band supports perform poorly, while some random supports covering about half the STFT bins sustain the attack. The ALMGuard and GRM audits are inconclusive at their tested scales and do not evaluate the methods’ original objectives. • A depth-varying representational association (Sections 5.3 and 5.4). In a prompt- and energy-adjusted model, audio-span divergence is associated with band necessity, and the estimated coefficient increases with depth. The association is not causal, and single-layer patching does not identify a causal layer. 
+
+2 RELATED WORK 
+
+Audio jailbreaks on ALMs. Qwen2-Audio and LLaMA-Omni pair a log-mel frontend with an instruction-tuned language model (Chu et al., 2024; Fang et al., 2025), but text-side safety does not always transfer to audio. SpeechGuard documents vulnerabilities to adversarial waveforms (Peri et al., 2024). Kang et al. (2025) introduce dual-phase optimization to address gradient shattering in the encoder and report over 90% ASR on AdvBench (Zou et al., 2023). Jin et al. (2025) introduce the ALMGuard defense and AdvWave-P, the additive attack evaluated here. AudioJailbreak and related work broadened evaluation across attacks and ALMs (Song et al., 2025; Yang et al., 2025). We ask whether apparent frequency patterns persist when bandwidth, perturbation energy, and decoder depth are tested with matched controls. 
+
+Classical audio-adversarial and psychoacoustic attacks. Our analysis also draws on audio-adversarial research. Carlini & Wagner (2018) construct targeted audio attacks. Qin et al. (2019); Sch¨ onherr et al. (2019) use psychoacoustic methods to reduce audibility. These studies motivate attention to spectral structure, but AdvWave-P constrains only ∥δ∥∞ and has no explicit masking-threshold objective. Our findings concern how its spectrum is analyzed, not the psychoacoustic mechanism. 
+
+Frequency-domain structure and defenses. GRM ranks mel bands by attack-to-utility ratio and perturbs a selected subset (Wang et al., 2026). ALMGuard selects mel bins for its defensive uni-versal perturbation (Jin et al., 2025), while Gupta et al. (2025) use encoder attention to identify a broad 1–8 kHz region for universal audio jailbreaks. Yang et al. (2019) study temporal-dependency-based detection, not a band-stop defense. Our analysis tests how frequency rankings change with the partition and removal control, then examines their association with decoder representations. 
+
+Mechanistic interpretability and safety evaluation. We use representation-space probes and lin-ear CKA to examine decoder states (Alain & Bengio, 2017; Kornblith et al., 2019). We also test ac-tivation patching, drawing on causal-mediation methods (Vig et al., 2020; Meng et al., 2022; Wang 24. CORRELATE & TEST 
+
+Per-layer Pearson correlation 
+
+𝜌𝜌ℓ = corr 𝑘𝑘 ASR Drop 𝑏𝑏𝑘𝑘 , Δllm ℓ 𝑏𝑏𝑘𝑘 
+
+across K bands; mask sweep 
+
+1. INPUT  2. OCCLUDE    
+
+> Clean speech and additive perturbation
+> Clean Waveform 𝒙𝒙
+> (AdvBench prompt, TTS-rendered, 16 kHz)
+> Adversarial Perturbation
+
+δ           
+
+> Adversarial Waveform 𝒙𝒙𝒂𝒂𝒂𝒂𝒂𝒂
+> AdvWave-P : additive 𝛿𝛿 ,
+> 𝛿𝛿 ∞ ≤0.01 (Adam, 3,000 steps)
+> STFT 𝑛𝑛𝑓𝑓𝑓𝑓𝑓𝑓 = 400, ℎ𝑜𝑜𝑜𝑜 =160 , float32, no clipping
+
+Take STFT ( δ)
+
+> Analysis basis : 80 mel bins, 0 to 8 kHz → K contiguous
+> bands (equal-mel; also equal-Hz, equal-energy)
+
+Mask Sweep 
+
+> Remove 1 band, keep the rest
+
+Keep-Only Sweep 
+
+> Keep 1 band, remove the rest
+
+Apply binary mask  𝑚𝑚 𝑘𝑘  : zero 𝛿𝛿 ’s STFT bins inside 𝑏𝑏𝑘𝑘 
+
+(mask) or outside the kept bands (keep, cumulative) 
+
+> Qwen2-Audio-7B-Instruct (primary); LLaMA-Omni (null arm, App. A.3.3)
+
+ISTFT back to get  ̃ 𝛿𝛿 (𝑘𝑘 ); reconstruct  �𝒙𝒙 (𝑘𝑘 ) = 𝒙𝒙 +̃ 𝛿𝛿 (𝑘𝑘 )
+
+K+2 conditions per sweep: clean, adv, one per band 
+
+{𝑏𝑏1 , …,  𝑏𝑏 K}              
+
+> Log-mel frontend (victim's 128 bins)
+> Whisper-style encoder 𝐸𝐸 Projector 𝑃𝑃 LLM decoder 𝒇𝒇 𝑳𝑳𝑳𝑳𝑳𝑳
+> 𝐿𝐿 = 32 layers, 𝑑𝑑𝑙𝑙𝑙𝑙𝑙𝑙 =4096
+> Controls (same pipeline)
+> • Random contiguous band, bandwidth-matched
+> • Equal-Hz and equal-energy partitions
+> • Scattered bins, energy-matched
+> • Uniform rescale: 𝛿𝛿 ⋅ 1− 𝑒𝑒𝑘𝑘
+> • Graded attenuation: 3 / 6 / 12 dB
+
+Branch 1: Behavioral Importance 
+
+Generate response 
+
+> Greedy decoding, fixed seed
+
+LLM-as-Judge      
+
+> AdvWave judge (GPT-4o-mini), checked against condition-blind human labels
+> 𝑨𝑨𝑨𝑨𝑹𝑹𝑫𝑫𝑫𝑫𝑫𝑫𝑫𝑫 𝒃𝒃𝒌𝒌 =𝑨𝑨𝑨𝑨 𝑹𝑹 𝒂𝒂𝒂𝒂𝒂𝒂 − 𝑨𝑨𝑨𝑨 𝑹𝑹 𝒃𝒃𝒌𝒌
+
+Branch 2: Representational Importance 
+
+Output    
+
+> Per-band 𝐴𝐴𝐴𝐴𝑅𝑅𝐷𝐷𝐷𝐷𝐷𝐷𝐷𝐷 𝑏𝑏𝑘𝑘 with 95% bootstrap CI; mask → necessity, keep / cumulative → sufficiency
+> Audio-span mean-pool
+
+�𝒉𝒉 ℓ,𝒄𝒄 = 𝟏𝟏 𝒆𝒆 − 𝒔𝒔 �𝒕𝒕=𝒔𝒔 𝒆𝒆−𝟏𝟏 𝒉𝒉 𝒕𝒕 ,: 
+
+> ℓ,𝒄𝒄
+
+Δllm  
+
+> ℓ
+
+𝑏𝑏𝑘𝑘 = 1
+
+𝑛𝑛 �𝑖𝑖 �ℎ𝑖𝑖 ℓ,adv − � ℎ𝑖𝑖 ℓ,𝑏𝑏𝑘𝑘 2 
+
+> at each layer ℓ
+
+Output    
+
+> Δllm ℓ𝑏𝑏𝑘𝑘 :K bands × 32 layers (Fig. 9a)
+
+Record per condition 𝑐𝑐 ∈ {clean , adv , and every occlusion and control condition from Panel 2 }. Generation-regime forward: audio-span [𝑠𝑠 , 𝑒𝑒 ) hidden states ℎ ℓ,𝑐𝑐 ,
+
+all layers; generated text 
+
+Cumulative 
+
+> keep k of K bands
+
+𝑥𝑥adv = 𝑥𝑥 + 𝛿𝛿 
+
+Reference Rankings 
+
+Band energy share; 
+
+gradient attribution → rank 
+
+agreement with ASR Drop 
+
+Depth Test 
+
+Late-decoder slope of 
+
+𝜌𝜌ℓ over ℓ ≥ 15  vs phase-randomized surrogate null 
+
+Energy Adjustment 
+
+Prompt × band mixed-effects logistic: mask success  ∼
+
+log 𝐸𝐸𝑘𝑘 + 𝛾𝛾ℓΔ llm ℓ + 𝑢𝑢 𝐷𝐷 
+
+Specificity and  Causal Checks 
+
+Behavior-irrelevant band statistics; last-frame and random-token spans; activation patching 
+
+> Every localization claim is tested against a matched baseline or null
+
+3. SCORE Figure 1: Protocol overview. We decompose the perturbation δ in the STFT domain, mask or retain each analysis band, reconstruct the waveform, and score the victim response. Controls include ran-dom contiguous regions, equal-Hz and equal-energy partitions, matched-energy scattered removal, global rescaling by √1 − ek, and graded attenuation. Hidden-state analysis measures layer-wise audio-span divergence ∆(ℓ)llm . We compare ASR drops with band-energy and gradient rankings. A surrogate test evaluates the raw depth curve, and a prompt-by-band model estimates the energy-adjusted association. Section 5 reports the findings. et al., 2023; Conmy et al., 2023). Appendix A.3 discusses the patching protocol and its limits, in-cluding the single-layer caveat described in recent interpretability guidance (Heimersheim & Nanda, 2024). 
+
+Removal-based attribution and its pitfalls. Occlusion attributes an output change to the region that was removed, but the effect can depend on how the removal is constructed. In vision, Zeiler and Fergus (Zeiler & Fergus, 2014) measure output changes after occluding input regions, while ROAR (Hooker et al., 2019) retrains on the modified data to separate feature information from removal effects. Sanity checks have also shown that some saliency maps can be insensitive to what a model has learned (Adebayo et al., 2018); RISE (Petsiuk et al., 2018) addresses the variability of any single mask by averaging over random masks. Covert et al. (Covert et al., 2021) place these methods within a broader account of removal-based explanations. We apply the same caution to spectral occlusion: our random-band, equal-energy, and scattered-removal controls test whether a measured effect depends on band location, energy, or removal structure. The limits of single-layer patching are discussed in Section 5.4. 
+
+3 METHODOLOGY 
+
+We study one audio jailbreak by removing selected frequency components of its perturbation and measuring attack behavior and decoder representations. Behavioral importance measures how each removal changes attack success. Representational divergence measures how the audio-span repre-sentation changes across decoder layers. 3.1 SETUP AND MEL -B AND OCCLUSION 
+
+Let x ∈ RT be a clean 16 kHz waveform from AdvBench (Zou et al., 2023), and let xadv = x + δ
+
+be its AdvWave-P counterpart (Jin et al., 2025). We optimize δ with ∥δ∥∞ ≤ 0.01 using Adam (learning rate 10 −3, 3,000 iterations). We evaluate the clean and adversarial waveforms and band-occluded variants of the adversarial waveform. The victim processes each input through its own 
+
+128 -bin log-mel frontend, projects the encoded audio into tokens, and passes them to an L-layer language-model decoder. Our analysis uses a separate frequency basis: contiguous bands defined by mel-scale edges over 0–8 kHz. We use K=8 bands for Qwen (10 analysis bins per band), a K=16 
+
+3refinement (5 bins per band), and K=13 bands on Omni’s 128-bin analysis basis. This analysis basis is distinct from each victim’s frontend. We report band boundaries in Hz and map them to STFT bins for reconstruction. For band bk, we define the occluded waveform as 
+
+˜x(k) 
+
+> mask
+
+= x + ISTFT  STFT( δ) ⊙ m(k), (1) where m(k) is 0 on the bins covered by bk and 1 elsewhere, zeroing the perturbation’s energy inside 
+
+bk while leaving the clean waveform unchanged. The mask sweep measures necessity; the keep-only 
+
+sweep measures sufficiency, formalized in Section 3.2. 
+
+Reconstruction and reference evaluation. All reconstructions use a single float32, no-clipping STFT-mask-ISTFT path, with exact inversion and no 16-bit quantization (Table 4). 
+
+Protocol interface. The protocol takes a clean waveform and a time-aligned additive perturbation. White-box access to decoder hidden states is required only for the depth analysis. 3.2 BEHAVIORAL IMPORTANCE 
+
+We evaluate the mask and keep-only sweeps separately. Each sweep has K+2 conditions: clean, full adversarial, and one masked or retained variant per band. For each condition c, we generate a response using AdvWave’s decoding settings and score it with the judge in Section 4. Attack success is ASR( c) = 1
+
+> n
+
+P 
+
+> i
+
+1[judge (ci) = jailbroken ], and band importance is ASR Drop( bk) = ASR( adv ) − ASR( bk). Conditions within a sweep share the same fixed seed and greedy decoding. For the representation analysis (Section 3.3), we record hidden states and the audio-token span in a separate generation-regime forward pass using the same input and decoding configuration. We define necessity as I+(bk) = ASR( adv ) − ASR( mask (bk)) : larger values mean that masking the band reduces ASR. Sufficiency is I−(bk) = ASR( adv ) − ASR( keep (bk)) : smaller values mean that retaining the band better sustains the attack. We report bootstrap 95% CIs and Spearman correlations between rankings (Section 3.4). 3.3 LAYER -WISE REPRESENTATION PROBES 
+
+For each condition, we save the projector output, decoder residual streams, and audio-token span [s, e ) from the generation-regime forward. At layer ℓ, we mean-pool the span, 
+
+¯h(ℓ,c ) = 1
+
+> e−s
+
+Pe−1 
+
+> t=s
+
+h(ℓ,c )[t, :] , and define per-band divergence ∆(ℓ) 
+
+> llm
+
+(bk) = 1
+
+> n
+
+P 
+
+> i
+
+∥¯h(ℓ, adv ) 
+
+> i
+
+−
+
+¯h(ℓ,b k ) 
+
+> i
+
+∥2. We correlate band-level ASR drops with these divergences at each layer, ρℓ =corr k
+
+ ASR Drop( bk), ∆(ℓ)llm (bk) (Pearson; Spearman is a sensitivity analysis). This raw correla-tion is descriptive and uses only eight bands. We summarize it with the late-decoder ( ℓ ≥ 15 ) slope. A separate prompt-by-band model estimates the association after adjustment for prompt identity and band energy (Section 3.4). 3.4 STATISTICAL INFERENCE AND UNCERTAINTY 
+
+We validate the primary judge on 220 condition-blind, human-labeled responses: 120 adversarial responses, 40 clean controls, and 60 responses sampled from disagreement strata. One author an-notated the set; a second annotator was unavailable (Section 7). Appendix A.3.2 gives the sample composition, seed, and blind key. On the 120 adversarial responses, the judge’s false-positive rate is 0.095 (2/21 human negatives; Wilson 95% CI [0 .027 , 0.289] ), and its false-negative rate is 0.131 
+
+(13 /99 human positives; Wilson 95% CI [0 .078 , 0.212] ). Applying the Rogan-Gladen correction to the n = 520 judged adversarial ASR of 0.767 gives approximately 0.87 ; propagating the endpoint confidence intervals gives approximately 0.83 –0.95 . These error rates were estimated only for ad-versarial responses, so we do not apply the correction to masked conditions. For example, applying the adversarial false-positive rate to the judged b8 ASR of 0.05 gives a negative corrected rate. We therefore report the uncorrected judge scores for condition-level comparisons and treat the corrected adversarial estimate as a sensitivity analysis. The primary judge uses the AdvWave LLM-as-a-judge prompt, its default threshold, and GPT-4o-mini at temperature 0 (Section 4). 
+
+Raw depth curve. The raw statistic ρℓ is a correlation across the K bands at layer ℓ; we summarize its late-decoder slope over ℓ ∈ [15 , 31] . Adjacent layers are strongly autocorrelated (effective n ≈
+
+4.3 over 17 layers). We compare the observed curve with phase-randomized surrogates that preserve its power spectrum (Theiler et al., 1992; Schreiber & Schmitz, 2000); the observed slope does not reject this null ( p = 0 .183 ). Separately, a prompt-level bootstrap over 2,000 resamples at n = 520 
+
+estimates uncertainty in ∆ρ = ρ30 − ρ0. This interval is conditional on the eight-band partition and does not replace the surrogate test. 
+
+Energy-adjusted depth model and partition sensitivity. Because band energy and represen-tational divergence are strongly correlated, we estimate their relationship at the prompt-by-band 4level rather than relying on eight band means. We restrict the analysis to the 399 prompts jail-broken by the full adversarial input and, at each layer ℓ, fit a mixed-effects logistic model: 
+
+logit P (mask breaks attack=1) = α + βℓ log Ep,k + γℓ∆(ℓ)llm ,p,k + up, with a random intercept for each prompt. Energy is measured per prompt and band, and divergences are normalized per layer. We report γℓ with a prompt-cluster bootstrap CI, focusing on the pre-specified layer-30 coefficient and the layer-30-minus-projector contrast (Section 5.3). The raw band-level result remains sensitive to the partition: its leave-one-band-out spread is 0.172 , about twice the prompt-bootstrap standard error. This sensitivity applies to the raw eight-band correlation, not the prompt-level model’s uncer-tainty interval. 
+
+4 EXPERIMENTAL SETUP 
+
+Victim models, attack, and corpus. We evaluate Qwen2-Audio-7B-Instruct (Chu et al., 2024) (Whisper-large-v3 encoder, L=32 , dllm =4096 ) and LLaMA-Omni (Fang et al., 2025). Both models use a 128 -bin log-mel frontend, distinct from the Qwen analysis basis described in Section 3.1. We attack 520 prompts from AdvBench (Zou et al., 2023) with AdvWave-P (Jin et al., 2025), the ad-ditive variant of AdvWave (Kang et al., 2025). The perturbation is applied to the full waveform; its budget and optimization settings appear in Section 3.1 and Figure 1. The primary K=8 mask and keep-only sweeps and the depth estimators use all 520 prompts. The K=16 behavioral sweep also uses 520 prompts, but its hidden-state depth estimate uses n=50 . Several secondary controls, in-cluding equal-Hz and equal-energy partitions, scattered removal, and global rescaling, are reported at their respective sample sizes and are described separately from the primary-judge results. The ep-silon and resolution-ladder analyses use n=50 . Main sweeps use greedy decoding and one response per prompt and condition. Stochastic-decoding results are a sensitivity check, not headline ASR (Appendix A.7). The mask and keep-only sweeps are separate, each with K+2 conditions: clean, adversarial, and K masked or retained variants. Representation visualizations, the Omni arm, and the transfer matrix use the conditions specified in their captions. Omni’s clean ASR leaves limited headroom for measuring per-band effects. For transfer, each source perturbation is passed unchanged to the target, and source bands are swept in each cell of the 2 × 2 ASR matrix. 
+
+Judge. For the primary K=8 results, we use the AdvWave LLM-as-a-judge prompt (Kang et al., 2025), its default threshold, and GPT-4o-mini at temperature 0. The provider did not expose an immutable model snapshot; the main n = 520 scores were collected through 2026-09-02, and per-sample responses and scores are needed to reproduce these labels if the model changes. Equal-Hz and equal-energy partitions, scattered removal, graded attenuation, global rescaling, and the ALM-Guard suppression sweep were scored with Meta-Llama-3-8B-Instruct. The GRM re-optimization pilot uses GPT-4o-mini. Each result is interpreted within its scorer-specific run, and ASRs from different judges are not pooled. We also scored the n = 50 K=8 sensitivity set with the propri-etary reference model GPT-5.6-sol (scored 2026-09-05); this provider model label has no archived immutable snapshot. The reference scores appear in Table 3 and are a sensitivity analysis, not the headline ASR. The clean-audio renderer is described in Appendix A.4. 
+
+5 RESULTS AND DISCUSSION 
+
+On Qwen2-Audio, the clean-input ASR is 0.008 and the adversarial ASR is 0.767 across the 520 AdvBench prompts. The condition-blind judge validation implies a corrected adversarial estimate of about 0.87 , with a wide interval of approximately 0.83 –0.95 ; we do not transport this correction to masked conditions. Unless noted otherwise, the primary behavioral results use GPT-4o-mini, and the 95% intervals are prompt-bootstrap intervals. Secondary control sweeps and their scorers are identified in Section 4. Table 1 collects the main findings. 5.1 PER -B AND BEHAVIORAL IMPORTANCE 
+
+Figure 2 reports the primary K=8 sweeps at n=520 . Masking the top band b8=[70 , 79] reduces judged ASR from 0.767 to 0.054 (drop 0.714 , 95% CI [0 .671 , 0.754] ). The four upper bands b5–b8
+
+span 1.7–8 kHz, or about 79% of the analyzed spectrum. A separate n=50 control removed a random contiguous region covering 40 of the 80 analysis bins, the same bin count as b5–b8 combined. Across 20 draws, mean ASR was 0.015 , compared with 0.05 after masking b8. Both results are near the floor, so this broad-region control does not distinguish a specific location. The equal-energy partitions and energy-share analysis below provide more informative comparisons. The keep-only sweep also leaves ASR near the floor when retaining a single band’s original perturbation components; the re-optimized support pilot is reported separately. 5Question Test Answer                     
+
+> Is one frequency band privileged? (§5.1)
+> K=8 mask sweep; equal-Hz/energy partitions;
+> K=16 equal-energy result
+> Unresolved across resolutions. Energy share predicts the K=8 ranking ( ρs=0 .95 ); the K=16 top band is unresolved without a matched control Does removal structure matter? (§5.2) Contiguous mask vs. matched-energy scattered removal; global-rescaling check
+> Yes, in the tested comparisons.
+> Contiguous removal is more damaging in lower bands; both methods approach the floor in upper bands. Rescaling tests amplitude, not location Do restricted supports sustain the attack? (§5.1) Keep-only; cumulative addition; band-restricted re-optimization
+> Some random supports do. Tested single bands and their union perform poorly; random supports covering about half the STFT bins reach mean ASR 0.86 in an
+> n=20 pilot Do prior band selections outperform controls? (§5.2) ALMGuard mask and GRM rule vs. matched random
+> Inconclusive. Both pilots are limited in scale and do not test the methods’ original objectives Do band importance and representation covary? (§5.3) Raw ρℓcurve; energy-adjusted prompt-by-band model
+> Yes, with different evidence. The raw increase is partition-sensitive and does not reject its surrogate null; the adjusted association is positive across depth Does the adjusted association change with depth? (§5.3) Prompt- and energy-adjusted mixed-effects model; behavior-irrelevant controls
+> The estimate increases. The layer-30-minus-projector contrast is
+> +0 .293 (95% CI [0 .11 ,0.51] ); this is not causal localization What replicates across corpora? (§5.5) Full JailbreakBench pool; selected MaliciousInstruct and StrongREJECT subsets
+> Limited evidence. The full JailbreakBench sweep reproduces the broad ranking; the other subsets are selection-conditioned. None rejects the depth surrogate null
+
+Table 1: Summary of findings (Qwen2-Audio, AdvWave-P, ϵ=0 .01 , n=520 unless noted). 
+
+Resolution controls. In the equal-Hz K=8 sweep, masking any band leaves residual ASR at or be-low 0.30 . The perturbation’s energy is unevenly distributed: frequencies below 1 kHz contain 23 .0% 
+
+of its energy. We therefore also partition the spectrum into eight contiguous bands with equal shares of corpus-mean |STFT( δ)|2 energy. In this secondary sweep, masking each band leaves residual ASR between 0.07 and 0.16 ; the range does not justify calling the bands equally important. At the finer, 16-band equal-energy resolution, masking the narrow top band b15 =[7520 , 7960] Hz leaves residual ASR 0.10 (drop 0.667 ; energy share 0.065 ). This is the largest observed drop at that resolu-tion, but there is no matched random control, so its frequency-specific interpretation remains unre-solved (Section 7). The results therefore show both partition sensitivity at K=8 and an unresolved top-band result at K=16 , rather than a resolution-independent frequency ranking. In the separate 
+
+n=50 cumulative-retention analysis, the importance- and energy-ordered curves are similar: ASR reaches 0.28 at k=7 and 0.80 at k=8 , the full adversarial level for that subset (Figure 8). 5.2 PROTOCOL DIAGNOSTICS : O CCLUSION FIDELITY AND THE ENERGY CONFOUND 
+
+Occlusion fidelity and band-energy diagnostics appear in Appendix A.3.3. Reconstruction residuals and neighboring-band leakage are small relative to the removed energy. In the n=520 matched-energy scattered control, each random comparison removes the same number of STFT bins and the same total perturbation energy as its contiguous-band counterpart. Across 20 draws per band, contiguous removal leaves lower ASR in every band; the difference is largest in lower bands and narrows toward the top, where both conditions approach the floor. This indicates that removal struc-ture matters, but does not by itself identify one uniquely necessary band. Graded attenuation at 3, 6, and 12 dB produces a monotone response. Raw audio-span divergence also tracks band energy closely (Appendix A.3.3), motivating the prompt- and energy-adjusted model in Section 5.3. 
+
+Global rescaling checks amplitude sensitivity. For each K=8 band, a secondary control scales the full perturbation by √1 − ek, where ek is that band’s energy share, while preserving its direction. Under the Meta-Llama-3-8B-Instruct judge, ASR remains near the adversarial baseline ( 0.75 –0.79 ;uniform 18 energy removal gives 0.76 ). This is an amplitude-sensitivity check, not a location control: the mask displacement is √ek = 0 .27 –0.49 in relative L2 distance, while rescaling changes the 6perturbation by only 1 − √1 − ek = 0 .037 –0.13 . The global-rescaling and mask edits therefore differ in displacement as well as frequency selectivity. The separate scattered-removal comparison matches the number of bins and removed energy to test removal structure. 
+
+Named prior band selections vs. matched random. We tested the selected supports from ALM-Guard and GRM on AdvWave-P, not the methods’ original objectives (Appendix A.10). With equal-energy suppression at n=520 , ALMGuard’s mask gives ASR 0.15 ; the 20 matched random masks have mean 0.17 and range [0 .150 , 0.187] . This pilot is inconclusive under the pre-specified compar-ison. In a separate n=20 re-optimization pilot, GRM’s selected support gives ASR 0.75 , compared with a mean of 0.86 for bandwidth-matched random supports (range [0 .75 , 0.95] ). GRM lies at the lower edge of this range, so this small pilot is also inconclusive. Neither test establishes whether the source methods’ selections are effective for their original objectives. 5.3 PER -L AYER REPRESENTATIONAL IMPORTANCE AND THE ALIGNMENT TREND 
+
+The raw K=8 correlation rises from ρ0 = +0 .568 at the projector output to ρ30 = +0 .877 at layer 30 (Figure 6). The paired prompt bootstrap estimates ∆ρ = +0 .307 (95% CI [0 .271 , 0.342] ), conditional on this partition. The raw curve does not reject the phase-randomized surrogate null (p = 0 .183 ), and its leave-one-band-out spread is 0.172 , about twice the prompt-bootstrap standard error. These results support an increase over prompts for the fixed partition, but do not establish that the raw trend is specific to jailbreak behavior. The pooled curve rises with depth, while the final-audio-frame correlation stays near 0.45 –0.49 . A length- and position-matched random-token span reproduces the pooled level, further limiting the interpretation of the raw curve. Table 2 summarizes the raw estimators and the adjusted model. 
+
+Interpreting the raw depth curve. The prompt-bootstrap interval excludes zero for the raw in-crease, but this inference is conditional on eight bands. Its leave-one-band-out spread is 0.172 ,and the phase-randomized test does not reject an autocorrelation-preserving null ( p = 0 .183 ). The prompt- and energy-adjusted model addresses a different question and is reported separately. Single-layer activation patching restores the jailbreak only near the decoder entrance (Section 5.4). Because later positions have already processed the occluded audio at lower layers, this design cannot test rep-resentations that develop cumulatively; it does not establish a causal layer. 
+
+The adjusted association increases with depth. Among the 399 prompts jailbroken by the full ad-versarial input, the prompt-by-band mixed-effects model estimates a positive divergence coefficient at every layer, rising from +0 .63 at the projector output to +0 .93 at layer 30 (95% CI [0 .70 , 1.19] ). The pre-specified layer-30-minus-projector contrast is +0 .29 (95% CI [0 .11 , 0.51] ), and the mean late-layer coefficient is +0 .52 (95% CI [0 .31 , 0.76] ). The tested behavior-irrelevant band statistics have zero depth contrasts. This supports a depth-varying, energy-adjusted association in this attack and partition, not a causal layer location. The controls share the same coarse frequency partition, and single-layer activation patching cannot test effects that develop cumulatively across layers. The raw correlation and adjusted model answer different questions: the former is partition-sensitive and does not reject its surrogate null, while the latter controls for prompt identity and per-prompt band energy. 5.4 ACTIVATION PATCHING IS A NULL FOR LOCALIZATION 
+
+We test single-layer activation patching in raw-overwrite and norm-matched modes (Zhang & Nanda, 2024). The self-patch gate passes all 312 checks. Restoration decreases with depth, from 
+
+0.83 at the projector output to zero at layers 18 –30 ; the control band shows a similar pattern. Patch-ing the full adversarial span into the clean stream restores the attack only near the decoder entrance. This intervention replaces the full audio span and cannot isolate a specific band. With n=12 , the result is a design-limited null, not evidence for where the representation forms (Appendix A.3). 5.5 ADDITIONAL FINDINGS : G EOMETRY , T RANSFER , D ETECTOR , AND ROBUSTNESS 
+
+Geometry, robustness, and detection. A supervised input-space classifier matches the depth probe’s detection AUROC, so these experiments show no measurable detection advantage for residual-stream features (Appendix A.3.5). Gradient attribution ( ρ = 0.97 , p < 0.001 ) and perturbation-energy share ( ρ = 0 .95 ) both recover the standard per-band ranking. These baselines limit the ranking’s novelty; the value of the occlusion analysis is in testing it against partition, en-ergy, and removal-structure controls. Masking the low band b1=[0 , 9] reduces ASR from 0.77 to 
+
+0.24 . Appendix A.7 reports decoding- and optimization-seed checks. Appendix A.8 explains why this perturbation-only notch is not a validated defense and may suppress useful speech. 
+
+Cross-corpus analyses. Only the JailbreakBench K=8 mask sweep uses the full jailbroken pool without selection on band necessity ( n=70 of 89). The MaliciousInstruct and StrongREJECT mask 7[0,9] [10,19] [20,29] [30,39] [40,49] [50,59] [60,69] [70,79]      
+
+> mel band
+> 0.0 0.2 0.4 0.6 0.8
+> ASR_Drop (=ASR adv  ASR cond )
+> Qwen2-Audio n=520 adv=0.77
+> [0,9] [10,19] [20,29] [30,39] [40,49] [50,59] [60,69] [70,79] [80,89] [90,99] [100,109] [110,119] [120,127]
+> mel band
+> 0.05
+> 0.00 0.05 0.10 0.15 0.20
+> ASR_Drop (=ASR adv  ASR cond )
+> LLaMA-Omni n=520 adv=0.61
+> keep-only (floor) mask sweep (removed)
+
+Figure 2: Per-band behavioral importance on the n=520 corpus; bars show mask-sweep and keep-only drops, with prompt-bootstrap 95% CIs for the primary mask sweep. On Qwen2-Audio (left, judged adversarial ASR 0.77 ), upper-band removal sharply reduces ASR in the K=8 partition. This ranking is not stable across partitions: energy share predicts it closely, equal-energy K=8 masks all leave low residual ASR, and the K=16 top-band result remains unresolved without a matched control. The keep-only sweep leaves ASR near the floor when retaining one band’s original per-turbation components; re-optimized support tests are reported separately. On LLaMA-Omni (right, judged adversarial ASR 0.61 ), the mask-drop CIs overlap zero. analyses use the existing 50-prompt, highest-necessity subsets, selected from jailbroken pools of 93/100 and 190/276, respectively (Table 8; Appendix A.11). The JailbreakBench full-pool sweep reproduces the broad pattern that masking 70 –79 has the largest drop and masking 20 –29 the small-est. The other two subsets are selection-conditioned and do not independently replicate that ranking. Depth estimates use existing n=50 highest-necessity samples for all three corpora, including Jail-breakBench; none rejects the phase-randomized null ( p=0 .195 , 0.230 , 0.499 ; primary p=0 .183 ). The separate n=20 re-optimization pilot shows that some random supports covering about half the STFT bins sustain the attack; it does not establish a general sufficiency threshold. 
+
+LLaMA-Omni and cross-model transfer. On the n=520 corpus, Omni’s judged clean ASR is 0.41 and adversarial ASR is 0.61 , leaving limited headroom for per-band comparisons (Ap-pendix A.3.4). Direct cross-model transfer is a two-directional null; these tests identify no trans-ferable band or depth signature (Appendix A.3.6). 
+
+6 CONCLUSION 
+
+We audited AdvWave-P on Qwen2-Audio using frequency occlusion and decoder representations. The standard eight-band ranking is closely predicted by band energy, and its apparent location changes with the analysis partition. A finer equal-energy sweep singles out a narrow band near Nyquist, but the absence of a matched control leaves that result unresolved. Matched-energy scattered-removal tests show that contiguous removal is more damaging in lower bands; at higher bands, both conditions approach the floor. Global rescaling leaves ASR near baseline, but it is an amplitude check rather than a frequency-location control. In re-optimization pilots, tested single-band supports and their union perform poorly, while random supports covering about half the STFT bins reach mean ASR 0.86 . The ALMGuard and GRM audits are inconclusive and do not evaluate those methods’ original objectives. A prompt- and energy-adjusted model estimates a depth-varying association between audio-span divergence and band necessity, but the raw depth trend is partition-sensitive and single-layer patching does not establish a causal location. Overall, the results motivate partition-aware controls and leave open whether the findings generalize to other attacks, victims, or perturbation domains. 
+
+7 LIMITATIONS 
+
+Scope. The positive findings come from one attack, AdvWave-P at ϵ = 0 .01 , on one victim with a usable margin, Qwen2-Audio. LLaMA-Omni already judges 40% of clean harmful prompts as jailbroken, leaving too little headroom to measure per-band effects. The protocol is designed for additive perturbations aligned with the clean waveform; it does not directly apply to suffix-appended, semantic, or mel-domain attacks. 8Perturbation budget. Attacks optimized at ϵ = 0 .005 and 0.02 were not stable under cold-start re-inference. Their ASRs fell from 0.84 and 0.76 during optimization to 0.32 and 0.40 at inference on n = 50 prompts; we have not isolated the cause. All behavioral results therefore use ϵ = 0 .01 .The untrained-ϵ probe detects the perturbation family, not necessarily a successful jailbreak. 
+
+Occlusion target. We remove components from the perturbation while holding the clean wave-form fixed. This isolates perturbation structure but does not test a deployable filter, which would have to process the clean-plus-adversarial mixture. The notch result in Appendix A.8 should be read as a perturbation analysis, not as a validated defense. 
+
+Removal displacement. Global rescaling preserves the perturbation’s direction but does not match the band mask’s displacement. For a band with energy share ek, the mask’s relative L2 dis-placement is √ek (0.27 –0.49 ), whereas the rescaling displacement is 1 − √1 − ek (0.037 –0.13 ), 3.8–7.3 times smaller (Table 5). We therefore treat rescaling only as an amplitude check. The com-parison of removal structure relies on the scattered control, which matches both removed energy and bin count. 
+
+Equal-energy resolution. In the K = 8 equal-energy partition, residual ASR ranges from 0.07 
+
+to 0.16 at n = 520 . This spread is several per-band standard errors, so the result supports the claim that masking any band disrupts the attack, not that all bands are equally important. At K = 16 , the narrow near-Nyquist band b15 = [7520 , 7960] Hz leaves residual ASR 0.10 and carries the largest energy share. Without a matched random control at this resolution, we treat this as an unresolved observation, not a localization result. 
+
+Depth. The adjusted depth result is an association, not a causal localization. The raw correla-tion uses only eight bands; its prompt-bootstrap interval excludes zero, but the leave-one-band-out spread is 0.172 , about twice the bootstrap standard error, and the phase-randomized null test gives 
+
+p = 0 .183 . These raw-curve results are conditional on the partition and do not test the adjusted model. The prompt-by-band model adjusts for prompt identity and per-prompt energy; its layer-30-minus-projector contrast is positive, while the tested behavior-irrelevant statistics show no corre-sponding depth contrast. Those controls use statistics defined on the same coarse partition. Single-layer activation patching cannot test effects that develop cumulatively across layers, so the causal location remains unresolved. Cumulative or KV-cache patching, a refusal-direction readout (Arditi et al., 2024), and a check for massive-activation channels (Sun et al., 2024) are possible next steps. 
+
+Judge. We validated GPT-4o-mini’s AdvWave-judge labels against one author-annotator on a condition-blind sample; a second annotator was unavailable. Applying the Rogan-Gladen correction to the adversarial condition gives 0.87 , with an approximate interval of 0.83 –0.95 after propagating uncertainty in the validation rates. It cannot be transferred to masked conditions: applying the ad-versarial false-positive rate of 0.095 to the judged b8 ASR of 0.05 , for example, yields a negative corrected rate. We therefore report uncorrected scores for condition-level comparisons. The Wilson 95% CIs are [0 .03 , 0.29] for the false-positive rate ( 2/21 ) and [0 .08 , 0.21] for the false-negative rate (13 /99 ). The n=50 reference-judge sensitivity check uses GPT-5.6-sol, a provider model label for which no immutable snapshot was archived; it gives adversarial ASR 0.64 versus 0.76 under the primary judge. The ranking agreement on this sensitivity subset does not remove uncertainty about absolute ASR or about judge-version drift. 
+
+Cross-corpus analyses. These studies use a different TTS renderer. Only the JailbreakBench 
+
+K=8 mask sweep covers its full jailbroken pool ( n = 70 ); MaliciousInstruct and StrongREJECT use the 50 highest-necessity prompts from their respective jailbroken pools. The selected subsets cannot independently validate the ranking used to select them. Depth curves for all three corpora use the existing 50-prompt highest-necessity samples, not the full JailbreakBench pool, and none rejects the phase-randomized null. Re-optimized sufficiency and the GRM support comparison are small pilots ( n = 20 ); in the GRM audit, random supports are scattered and are not structurally matched to the selected support (Appendix A.10). 
+
+ETHICAL CONSIDERATIONS 
+
+Use and release of resources. We apply the public AdvWave-P method to public harmful-prompt corpora and public victim models; we introduce no new attack method, prompt corpus, or model. The optimized adversarial waveforms and perturbations are not included in the release. Instead, the repository will provide optimization and analysis code, seeds, hyperparameters, renderer details, prompt identifiers, responses, and judge scores to support re-derivation without distributing those waveforms (Appendix A.5). The analysis is intended to inform defense, though frequency-level findings may also help characterize existing attacks. We recruited no external participants and trained no new models. The experiments used fewer than 100 A100 GPU-hours. 9ACKNOWLEDGMENT 
+
+This work was supported in parts by the NYUAD Center for Cyber Security (CCS), funded by Tamkeen under the NYUAD Research Institute Award G1104. Experiments are performed with NYUAD Jubail High Performance Computing (HPC). 
+
+REFERENCES 
+
+Julius Adebayo, Justin Gilmer, Michael Mlyniec, Ian Goodfellow, Moritz Hardt, and Been Kim. Sanity checks for saliency maps. In Advances in Neural Information Processing Systems (NeurIPS) , 2018. https://arxiv.org/abs/1810.03292 .Guillaume Alain and Yoshua Bengio. Understanding intermediate layers using linear classifier probes, 2017. Andy Arditi, Oscar Obeso, Aaquib Syed, Daniel Paleka, Nina Panickssery, Wes Gurnee, and Neel Nanda. Refusal in language models is mediated by a single direction. In Advances in Neural Information Processing Systems (NeurIPS) , 2024. Nicholas Carlini and David Wagner. Audio adversarial examples: Targeted attacks on speech-to-text. In IEEE Security and Privacy Workshops (SPW) , pp. 1–7, 2018. Yunfei Chu, Jin Xu, Qian Yang, Haojie Wei, Xipin Wei, Zhifang Guo, Yichong Leng, Yuanjun Lv, Jinzheng He, Junyang Lin, Chang Zhou, and Jingren Zhou. Qwen2-audio technical report, 2024. Arthur Conmy, Augustine N. Mavor-Parker, Aengus Lynch, Stefan Heimersheim, and Adri` aGarriga-Alonso. Towards automated circuit discovery for mechanistic interpretability. In Ad-vances in Neural Information Processing Systems (NeurIPS) , 2023. https://openreview. net/forum?id=89ia77nZ8u .Ian Covert, Scott M. Lundberg, and Su-In Lee. Explaining by removing: A unified view of model-agnostic explainers. Journal of Machine Learning Research , 22(209):1–38, 2021. Qingkai Fang, Shoutao Guo, Yan Zhou, Zhengrui Ma, Shaolei Zhang, and Yang Feng. LLaMA-Omni: Seamless speech interaction with large language models. In International Conference on Learning Representations (ICLR) , 2025. https://openreview.net/forum?id= PYmrUQmMEw .Isha Gupta, David Khachaturov, and Robert Mullins. “i am bad”: Interpreting stealthy, universal and robust audio jailbreaks in audio-language models, 2025. Stefan Heimersheim and Neel Nanda. How to use and interpret activation patching, 2024. Sara Hooker, Dumitru Erhan, Pieter-Jan Kindermans, and Been Kim. A benchmark for interpretabil-ity methods in deep neural networks. In Advances in Neural Information Processing Systems (NeurIPS) , 2019. https://arxiv.org/abs/1806.10758 .Weifei Jin, Yuxin Cao, Junjie Su, Jason Xue, Jie Hao, Ke Xu, Jin Song Dong, and Derui Wang. ALMGuard: Safety shortcuts and where to find them as guardrails for audio–language mod-els. In Advances in Neural Information Processing Systems (NeurIPS) , 2025. https:// openreview.net/forum?id=pCRm6g0RnA .Mintong Kang, Chejian Xu, and Bo Li. AdvWave: Stealthy adversarial jailbreak attack against large audio-language models. In International Conference on Learning Representations (ICLR) , 2025. 
+
+https://openreview.net/forum?id=0BujOfTqab .Simon Kornblith, Mohammad Norouzi, Honglak Lee, and Geoffrey Hinton. Similarity of neural net-work representations revisited. In Proceedings of the 36th International Conference on Machine Learning (ICML) , volume 97 of Proceedings of Machine Learning Research , pp. 3519–3529, 2019. Kevin Meng, David Bau, Alex Andonian, and Yonatan Belinkov. Locating and editing factual as-sociations in GPT. In Advances in Neural Information Processing Systems (NeurIPS) , 2022. 
+
+https://arxiv.org/abs/2202.05262 .10 Raghuveer Peri, Sai Muralidhar Jayanthi, Srikanth Ronanki, Anshu Bhatia, Karel Mundnich, Saket Dingliwal, Nilaksh Das, Zejiang Hou, Goeric Huybrechts, Srikanth Vishnubhotla, Daniel Garcia-Romero, Sundararajan Srinivasan, Kyu Han, and Katrin Kirchhoff. SpeechGuard: Exploring the adversarial robustness of multi-modal large language models. In Lun-Wei Ku, Andre Martins, and Vivek Srikumar (eds.), Findings of the Association for Computational Linguistics: ACL 2024 ,pp. 10018–10035, Bangkok, Thailand, August 2024. Association for Computational Linguis-tics. doi: 10.18653/v1/2024.findings-acl.596. URL https://aclanthology.org/2024. findings-acl.596/ .Vitali Petsiuk, Abir Das, and Kate Saenko. Rise: Randomized input sampling for explanation of black-box models. In British Machine Vision Conference (BMVC) , 2018. Yao Qin, Nicholas Carlini, Garrison Cottrell, Ian Goodfellow, and Colin Raffel. Imperceptible, robust, and targeted adversarial examples for automatic speech recognition. In Proceedings of the 36th International Conference on Machine Learning (ICML) , volume 97 of Proceedings of Machine Learning Research , pp. 5231–5240, 2019. Lea Sch¨ onherr, Katharina Kohls, Steffen Zeiler, Thorsten Holz, and Dorothea Kolossa. Adversarial attacks against automatic speech recognition systems via psychoacoustic hiding. In Network and Distributed System Security Symposium (NDSS) , 2019. Thomas Schreiber and Andreas Schmitz. Surrogate time series. Physica D: Nonlinear Phenomena ,142(3–4):346–382, 2000. Zirui Song, Qian Jiang, Mingxuan Cui, Mingzhe Li, Lang Gao, Zeyu Zhang, Zixiang Tang, Yanbo Wang, Chenxi Wang, Guangxian Ouyang, Zhenhao Chen, and Xiuying Chen. Audio jailbreak: An open comprehensive benchmark for jailbreaking large audio-language models, 2025. Mingjie Sun, Xinlei Chen, J. Zico Kolter, and Zhuang Liu. Massive activations in large language models, 2024. James Theiler, Stephen Eubank, Andr´ e Longtin, Bryan Galdrikian, and J. Doyne Farmer. Testing for nonlinearity in time series: the method of surrogate data. Physica D: Nonlinear Phenomena ,58(1–4):77–94, 1992. Jesse Vig, Sebastian Gehrmann, Yonatan Belinkov, Sharon Qian, Daniel Nevo, Yaron Singer, and Stuart Shieber. Investigating gender bias in language models using causal mediation analysis. In 
+
+Advances in Neural Information Processing Systems (NeurIPS) , 2020. Kevin Wang, Alexandre Variengien, Arthur Conmy, Buck Shlegeris, and Jacob Steinhardt. Inter-pretability in the wild: a circuit for indirect object identification in GPT-2 small. In Interna-tional Conference on Learning Representations (ICLR) , 2023. https://openreview.net/ forum?id=NpsVSN6o4ul .Yunqiang Wang, Hengyuan Na, Di Wu, Miao Hu, and Guocong Quan. Grm: Utility-aware jailbreak attacks on audio llms via gradient-ratio masking, 2026. Hao Yang, Lizhen Qu, Ehsan Shareghi, and Gholamreza Haffari. Audio is the achilles’ heel: Red teaming audio large multimodal models. In Luis Chiruzzo, Alan Ritter, and Lu Wang (eds.), 
+
+Proceedings of the 2025 Conference of the Nations of the Americas Chapter of the Associa-tion for Computational Linguistics: Human Language Technologies (Volume 1: Long Papers) ,pp. 9292–9306, Albuquerque, New Mexico, April 2025. Association for Computational Linguis-tics. doi: 10.18653/v1/2025.naacl-long.470. URL https://aclanthology.org/2025. naacl-long.470/ .Zhuolin Yang, Bo Li, Pin-Yu Chen, and Dawn Song. Characterizing audio adversarial examples using temporal dependency. In International Conference on Learning Representations (ICLR) ,2019. Matthew D. Zeiler and Rob Fergus. Visualizing and understanding convolutional networks. In 
+
+European Conference on Computer Vision (ECCV) , pp. 818–833, 2014. 11 Fred Zhang and Neel Nanda. Towards best practices of activation patching in language models: Metrics and methods. In International Conference on Learning Representations (ICLR) , 2024. 
+
+https://arxiv.org/abs/2309.16042 .Andy Zou, Zifan Wang, Nicholas Carlini, Milad Nasr, J. Zico Kolter, and Matt Fredrikson. Universal and transferable adversarial attacks on aligned language models, 2023. 12 A APPENDIX 
+
+A.1 METHODOLOGY AND PROTOCOL 
+
+Figure 1 summarizes the analysis. We decompose the perturbation δ in the STFT domain, remove or retain one band, reconstruct the waveform, and evaluate it with the victim and judge. We then compare each band’s behavioral importance with audio-span divergence across decoder layers. A.2 REPRESENTATION -S PACE VISUALIZATIONS 
+
+We supplement Section 5.5 with linear CKA heatmaps for the K+2 clean, adversarial, and band-masked conditions at layer 30, plus PCA and t-SNE projections of the pooled audio-span states. A.3 SUPPLEMENTAL ANALYSES AND DIAGNOSTICS 
+
+Activation-patching gate and scale detail. Before each cross-patch, a self-patch gate checks that replacing a layer’s activation with itself reproduces the original generation exactly. The reference activations are collected from the generation-regime forward, following the procedure described by Zhang and Nanda (Zhang & Nanda, 2024). The self-patch identity holds at all 312 checks ( 12 
+
+samples × 13 layers × 2 modes). Injected and incumbent spans differ in norm (mean |ratio − 1| =0.10 /0.20 /0.37 /0.71 at layers 31 /30 /28 /20 , reaching about 2.6× at layer 20); the norm-matched mode addresses this RMSNorm scale difference. Raw-overwrite and norm-matched results agree (Section 5.4). 
+
+Per-layer restoration and power. We inject the full adversarial audio-span representation into a band-occluded stream at one layer, using raw-overwrite and norm-matched modes (Zhang & Nanda, 2024). Under the pre-specified localization criterion, restoration should increase with depth while the control remains flat. Instead, restoration decreases: it is 0.83 at the projector output, 0.67 –0.75 
+
+at layer 8, 0.33 at layer 12, 0.08 at layer 16, and zero at layers 18–30. The control band follows a similar pattern, so the early restoration is not specific to the necessary band. Patching the full adversarial span into the clean stream also restores the attack only at the decoder entrance. This intervention tests full-span substitution, not the causal role of an individual band. With 12 samples per layer, the 95% Clopper–Pearson upper bound after zero restorations is 0.26; the design has at least 90% power to detect restoration of 0.2 or larger. Because downstream positions have already processed the occluded audio at lower layers, single-layer patching cannot test effects that emerge cumulatively. Cumulative or KV-cache patching is left for future work (Section 7). A.3.1 PER -B AND BEHAVIORAL DETAIL 
+
+Figure 6 shows the pooled-audio-span curve and its prompt-bootstrap band used in Section 5.3. The last-audio-frame correlation stays lower and nearly flat ( ρlast ≈ 0.45 –0.49 ); Figure 7 shows divergence by band and layer. A.3.2 JUDGE -M ISCLASSIFICATION CORRECTION (R OGAN -G LADEN )We validate the primary judge on the condition-blind sample described in Section 3.4. Among the 120 adversarial responses, the judge labels Pj =0 .733 as jailbreaks ( 88 /120 ); the annotator labels 
+
+0.825 as jailbreaks ( 99 /120 ). The estimated conditional false-positive rate is F P R =0 .095 (2/21 
+
+human negatives), and the false-negative rate is F N R =0 .131 (13 /99 human positives). The Rogan– Gladen estimate (Pj −F P R )/(1 −F P R −F N R ) applied to the n=520 judged adversarial ASR of 
+
+0.767 is 0.868 ≈ 0.87 . Uncertainty in the validation rates gives an approximate range of 0.83 –0.95 
+
+(Section 7). These estimates apply to the adversarial condition only; they do not correct masked-condition ASRs. Table 4 reports the primary K=8 contiguous mask sweep. The perturbation is transformed and re-constructed in float32 using an STFT with nfft =400 and hop length 160 at 16 kHz, without clipping or int16 conversion. A direct waveform comparison gives relative RMSE 1.76 ×10 −5 and signal-to-quantization-noise ratio of about 70 .5 dB; quantization is small relative to the signal. A.3.3 ENERGY DIAGNOSTICS 
+
+Table 5 reports each band’s share of total δ energy, its Hz edges, the n=520 K=8 mask ASR drop, and the round-trip occlusion residual (the fraction of in-band energy that re-enters the supposedly removed band), the data underlying the energy-confounded reading in §5.2. A.3.4 LL AMA-O MNI BEHAVIOR 
+
+The Omni ASR and depth-alignment sweeps are reported in Figure 9, and the cross-architecture summary (mask/keep band drops and the depth-slope row) in Table 6. 13 A.3.5 DETECTOR DEPTH CURVES 
+
+Figure 10 reports the linear-probe and Mahalanobis detector AUROC by decoder depth on both ALMs. The input-versus-residual-stream comparison (adversarial-versus-benign-perturbed, plus the untrained-epsilon column) is in Table 7, discussed in §5.5. A.3.6 CROSS -M ODEL TRANSFER 
+
+Figure 11 reports the 2×2 ASR matrix and the per-band sweep across each cross-victim. The transfer result is a two-directional null, summarized in §5.5. A.4 CLEAN -S PEECH RENDERER 
+
+We render the clean AdvBench waveforms with OpenAI’s tts-1-hd API using the alloy voice at speed 1.0. The service returns 24 kHz audio in an MP3 container, stored with a .wav filename; we resample it to 16 kHz mono for both victims. Each clean waveform is decoded once, and the same 16 kHz samples are used during perturbation optimization and all later inference. Qwen2-Audio and LLaMA-Omni therefore receive byte-identical clean inputs, enabling a direct comparison of their clean-condition results (Section 5.5). A.5 ARTIFACT AVAILABILITY AND REPRODUCIBILITY 
+
+The accompanying repository will provide analysis and optimization code, random seeds, attack hy-perparameters, renderer specifications, prompt identifiers, model responses, and per-condition judge scores needed to re-derive the reported results from the public prompt corpora. It will not distribute optimized adversarial waveforms or perturbations. The primary AdvBench audio was generated with OpenAI tts-1-hd , voice alloy , then resampled to 16 kHz mono. The three additional corpora used edge-tts with voice en-US-AriaNeural (Appendix A.4 and Section A.11). Because the judges are provider-hosted models without archived immutable snapshots, released responses and scores, rather than future re-queries to those services, are the reference for reproducing the labels. A.6 GRADIENT BAND -A TTRIBUTION BASELINE 
+
+Occlusion requires K+2 forward passes per sample, so gradient attribution offers a cheaper ranking check. On 50 saved ε = 0 .01 adversarial waveforms, we backpropagate AdvWave-P’s next-token cross-entropy objective to δ and sum squared gradients within each analysis band in the STFT domain. Without re-optimization or generation, this gradient ranking correlates with the occlusion ranking (Spearman ρ = 0 .97 , p < 0.001 ; Pearson 0.84 ). Energy share alone also recovers much of the ranking at n = 520 (Spearman ρ = 0 .95 ). These baselines show that occlusion is not an independent source of the ranking; its added value is the set of controls for bandwidth, energy, and removal structure. Using gradient saliency as the behavioral target also produces a raw depth curve that rises from ρ0 = 0 .70 to ρ30 = 0 .94 (late-decoder slope +0 .0102 per layer). This curve tracks band geometry and is not evidence for a behavior-specific depth effect. A.7 DECODING AND OPTIMIZATION SEED STABILITY 
+
+Decoding seeds. The main sweep uses greedy decoding. To check sensitivity to decoding, we re-evaluate the adversarial condition and the highest- and lowest-importance masked bands with stochastic decoding ( do sample=true , t=1 .0, three seeds, n=520 , cold start). Adversarial ASR varies from 0.56 to 0.75 (mean 0.67 ), below the greedy result of 0.77 . The tested band contrast is consistent across seeds: masking the top band [70 , 79] leaves ASR at 0.04 –0.11 (mean 0.07 ), while masking the low band [0 , 9] leaves ASR at 0.18 –0.31 (mean 0.24 ). These two conditions do not establish a full-band ranking under stochastic decoding. The variation in adversarial ASR is larger than expected from binomial noise alone (per-seed standard error at n=520 is at most 0.022 ); its source remains unresolved. We therefore treat this check as evidence about these two masks, not as a replication of the complete ranking. 
+
+Optimization seeds. We also tested whether the perturbation’s energy profile depends on its ran-dom initialization. On 20 prompts, we re-optimized AdvWave-P at ε = 0 .01 for 3,000 Adam itera-tions from three independent initializations. Every prompt placed its largest energy share in the same band, b8 = [70 , 79] (20/20 prompts). Across seeds, the mean pairwise Spearman correlation of per-band energy shares was 0.97 (minimum 0.88 ); 19 of 20 prompts had all three pairwise correlations at or above 0.9. The largest band’s energy share averaged 0.21 (SD 0.015 ), and every perturbation respected the L∞ bound. This indicates that the top-energy band is stable across these optimization seeds. It does not establish frequency-specific necessity, since the band’s larger frequency width also contributes to its energy share (Section 5.1). 14 A.8 AN ARBITRARY SINGLE NOTCH AS A DEFENSE HYPOTHESIS 
+
+A single band-stop notch can substantially reduce attack success even when applied to a low-frequency band. Masking b1=[0 , 9] , which contains about 10% of the perturbation energy and is the second-least-important band in the n=520 sweep, reduces ASR from 0.77 to 0.24 (n=520 ); the 
+
+n=50 subset drops from 0.76 to 0.34 . This is a property of the tested perturbation, not a validated defense. A practical filter would have to act on the mixture x+δ, and a broad low-frequency notch could also remove speech fundamentals. We did not measure speech utility and therefore do not recommend this intervention. A.9 RESOLUTION LADDER ACROSS K
+
+This appendix reports exploratory raw correlations across partition resolutions. They are descrip-tive sensitivity checks and do not replace the prompt- and energy-adjusted model in Section 5.3. Energy-adjusted partial-correlation estimates are omitted because the near-collinearity produced in-valid values outside [−1, 1] .We test whether the raw depth increment changes with partition resolution by repeating the analysis at K=4 and K=20 , alongside the K=8 and K=16 results. At K=4 , band-mask drops saturate, leaving too little across-band variation for a reliable depth estimate. At the resolutions where band effects vary, the raw increments are +0 .36 (K=8 ), +0 .13 (K=16 ), and +0 .094 (K=20 ), each at 
+
+n=50 ; the full-corpus K=8 estimate is +0 .309 . These point estimates depend on the partition and are descriptive, not evidence for a resolution-independent depth effect. The primary K=8 , n=520 
+
+trend does not reject the autocorrelation-preserving null (Section 5.3). Energy-adjusted partial corre-lations at K=8 are degenerate, with estimates outside [−1, 1] because band energy and representa-tional divergence are near-collinear; we therefore omit energy-conditioned depth increments rather than interpret them. A.10 AUDIT OF NAMED PRIOR BAND -S ELECTIVITY CLAIMS 
+
+GRM ranks mel bands by an attack-to-utility ratio and perturbs a selected subset (Wang et al., 2026). ALMGuard selects mel bins for applying a defensive universal perturbation, balancing jailbreak mitigation with speech-recognition performance (Jin et al., 2025). Neither selection rule is, by itself, a claim about which components of an attacker’s perturbation are necessary. We applied the selected supports to AdvWave-P as an exploratory audit using random controls. The ALMGuard comparison used equal-energy suppression; the GRM comparison used random supports matched in bandwidth. Both pilots were inconclusive and neither evaluates the methods’ original objectives. 
+
+ALMGuard (equal-energy suppression, n=520 ). We map ALMGuard’s released 128 -mel selec-tion mask for Qwen2-Audio to the 201 -bin STFT analysis basis. We suppress the selected coeffi-cients so that the removed perturbation energy is approximately 10% , then compare with 20 random masks matched on removed energy and bandwidth. The ALMGuard condition gives ASR 0.15 ; ran-dom masks have mean 0.17 and empirical range [0 .150 , 0.187] . Its result falls inside this range, so the pilot does not resolve a difference. This comparison tests the selected mask on AdvWave-P; it is not an evaluation of ALMGuard’s defensive universal perturbation. 
+
+GRM (band-restricted re-optimization, n=20 ). We reproduce GRM’s selection rule, not its orig-inal perturbation, by restricting a newly optimized AdvWave-P perturbation to its selected 109 of 201 STFT bins. Cold-start inference on 20 jailbroken JailbreakBench prompts, scored with GPT-4o-mini, gives ASR 0.75 (15 /20 ). Twenty random supports matched in bandwidth reach mean ASR 
+
+0.86 (range [0 .75 , 0.95] ; bootstrap 95% CI for the mean [0 .84 , 0.885] ). The GRM support lies at the lower edge of the random range. Given this sample size and support construction, the result is inconclusive; the uniformly sampled random supports are scattered and not structurally matched to a contiguous support. Neither pilot resolves whether the selected supports differ from the corresponding random controls. The ALMGuard comparison matches removed energy and bandwidth; the GRM pilot matches band-width but uses scattered random supports, unlike the selected support’s structure. These exploratory tests do not evaluate the original methods or show that their selections are ineffective. They only test the selected regions on AdvWave-P under the stated conditions. A.11 SECOND CORPUS : C ROSS -C ORPUS REPLICATION 
+
+To examine whether the AdvBench findings extend to other prompt sets, we analyze Jailbreak-Bench (89 deduplicated prompts), MaliciousInstruct (100), and StrongREJECT (276 prompts not in AdvBench). These corpora were rendered with edge-tts , voice en-US-AriaNeural , and attacked at ε = 0 .01 , then evaluated from a cold start. The K=8 JailbreakBench mask sweep uses 15 all 70 prompts jailbroken by the full adversarial input, without selection on band necessity. For MaliciousInstruct and StrongREJECT, the available analyses use the 50 highest-necessity prompts selected from the jailbroken pools (93/100 and 190/276, respectively). We follow the primary proto-col with Qwen2-Audio, GPT-4o-mini at temperature 0, and float32 reconstruction without clipping; the sample selection differs across these analyses. Table 8 reports the K = 8 mask-sweep drops relative to each sample’s adversarial baseline. In the full JailbreakBench pool, masking 70 –79 gives the largest drop and masking 20 –29 the smallest. The same ordering appears in the necessity-selected MaliciousInstruct and StrongREJECT subsets, but that agreement is conditioned on selection and is not an independent replication. These data do not establish a common ordering at K = 16 .On the available 50-prompt samples, cumulative-retention curves stay near zero until roughly the last two bands and then rise toward 0.9–1.0; these curves are selection-conditioned and are not full-pool replication results. In a separate re-optimization pilot on 20 jailbroken JailbreakBench prompts, the full perturbation reaches ASR 0.95 (19 /20 ). Restricting optimization to the tested least-important band [20 , 29] , top band [70 , 79] , or their union gives ASRs 0.00 , 0.25 , and 0.40 . These tested supports do not cover all possible subsets. Random supports covering about half the STFT bins reach mean ASR 0.86 in the same pilot, showing that the full band set is not required in these trials. The equal-Hz and matched-energy scattered-removal checks use the available selected subsets and should be read with the same selection caveat. Raw depth correlations rise in the three existing 50-prompt samples (ρ0 = +0 .69 , +0 .87 , +0 .72 to ρ30 = +0 .88 , +0 .98 , +0 .93 ), but none rejects the phase-randomized late-slope null ( p = 0 .195 , 0.230 , 0.499 ; primary p = 0 .183 ). 
+
+Qualifications. The additional corpora use a different renderer, so absolute ASRs are not directly comparable with AdvBench. Only the JailbreakBench K=8 mask sweep uses the full jailbro-ken pool; MaliciousInstruct and StrongREJECT, and the auxiliary analyses described above, use necessity-selected 50-prompt samples. Those selected samples cannot independently confirm the ranking used to select them. The three depth curves are also based on these existing 50-prompt sam-ples and none rejects the phase-randomized null ( p = 0 .195 , 0.230 , 0.499 ; primary p = 0 .183 ). We treat the cross-corpus evidence as partial and descriptive, not as full replication. 16 clean adv 0_9 10_19 20_29 30_39 40_49 50_59 60_69 70_79 clean adv 0_9 10_19 20_29 30_39 40_49 50_59 60_69 70_79 
+
+Linear CKA layer 30 n=520 stems 
+
+0.0 0.2 0.4 0.6 0.8 1.0 CKA clean adv 0_9 10_19 20_29 30_39 40_49 50_59 60_69 70_79 80_89 90_99 100_109 110_119 120_127 clean adv 0_9 10_19 20_29 30_39 40_49 50_59 60_69 70_79 80_89 90_99 100_109 110_119 120_127 
+
+Linear CKA layer 14 n=50 stems 
+
+0.0 0.2 0.4 0.6 0.8 1.0 CKA Figure 3: Linear CKA (Qwen2-Audio at ℓ=30 , n=520 ; LLaMA-Omni at ℓ=14 , n=50 pairing, which lacks the n=520 sampling point at ℓ=14 ). Left: Qwen2-Audio ( 10 ×10 ). Right: LLaMA-Omni ( 15 ×15 ). Cells are linear CKA between audio-span-pooled residual states (Kornblith et al., 2019). Band-removed conditions form a broad high-similarity block, so the behaviorally relevant differences in Figure 7 live in the high-dimensional distance rather than in CKA-detectable geome-try. 40 30 20 10 0 10 20 
+
+> 10
+> 010 20
+
+PCA layer 30 n_stems=520         
+
+> clean adversarial 0_9 10_19 20_29 30_39 40_49 50_59 60_69 70_79 100 75 50 25 025 50 75 100 100
+> 50
+> 050 100
+
+t-SNE layer 30 perplexity=15 
+
+> clean adversarial 0_9 10_19 20_29 30_39 40_49 50_59 60_69 70_79
+
+Figure 4: Qwen2-Audio at layer 30 , n=520 . Left: PCA. Right: t-SNE (perplexity 15 ). Each point is one (sample, condition) pair across clean, full adversarial, and K=8 band-removed variants. Con-ditions overlap in both projections, confirming the jailbreak direction is not on the first two unsuper-vised axes. 0.75 0.50 0.25 0.00 0.25 0.50 0.75 0.4 
+
+> 0.2
+> 0.0 0.2 0.4 0.6
+
+PCA layer 14 n_stems=50     
+
+> clean adversarial 0_9 10_19 20_29 30_39 40_49 50_59 60_69 70_79 80_89 90_99 100_109 110_119 120_127 40 20 020 40 60
+> 40
+> 20
+> 020 40
+
+t-SNE layer 14 perplexity=15 
+
+> clean adversarial 0_9 10_19 20_29 30_39 40_49 50_59 60_69 70_79 80_89 90_99 100_109 110_119 120_127
+
+Figure 5: LLaMA-Omni at layer 14 , n=50 . Left: PCA. Right: t-SNE (perplexity 15 ). As on Qwen2-Audio (Figure 4), heavy condition overlap confirms a structured high-dimensional displacement rather than a 2D cluster. 17 0 5 10 15 20 25 30 
+
+Transformer layer 
+
+> 0.0 0.2 0.4 0.6 0.8
+> Pearson  (ASR drop , LLM ( ) )
+
+Qwen2-Audio full-depth           
+
+> n=520 mean trend
+> n=50 prompt-level 95% CI peak *=30 ( =0.88)
+> 0510 15 20 25 30
+
+Transformer layer 
+
+> 0.4
+> 0.2
+> 0.0 0.2 0.4 0.6 0.8
+> Pearson  (ASR drop , LLM ( ) )
+
+LLaMA-Omni full-depth     
+
+> n=520 mean trend
+> n=50 prompt-level 95% CI peak *=26 ( =0.71)
+
+Figure 6: Raw full-depth correlation curve. The blue line shows per-band Pearson correlation ρℓ =corr(ASR Drop , ∆(ℓ)llm ) from the n=520 mean divergences across 32 layers. The orange region shows prompt-bootstrap 95% CIs at layers {0, 5, 10 , 15 , 20 , 25 , 30 , 31 }. On Qwen2-Audio, the point estimate rises from ρ0 ≈ 0.568 at the projector output to ρ30 = 0 .877 ; its raw curve does not reject the phase-randomized surrogate null ( p = 0 .183 ). On LLaMA-Omni, the late-decoder slope is near zero and per-band effects are imprecise. This figure is descriptive; the adjusted analysis appears in Table 2. The marked layers are visual references, not critical-layer estimates. 
+
+Estimator n Initial value Layer 30 Contrast Pooled raw, K=8 520 0.568 0.877 ∆ρ = +0 .309 
+
+Prompt-bootstrap raw 520 0.564 0.872 ∆ρ = +0 .307 [0 .271 , 0.342] 
+
+Disattenuated raw 520 0.568 0.878 ∆ρ = +0 .310 
+
+Max-pooled span 520 0.665 0.732 ∆ρ = +0 .067 (peak 0.84) Cosine, norm-normalized 520 0.501 0.835 ∆ρ = +0 .334 
+
+Continuous judge score 520 0.58 0.88 ∆ρ = +0 .30 
+
+Raw, equal-energy K=16 50 0.79 0.92 ∆ρ = +0 .13 
+
+Adjusted mixed-effects γℓ 399 +0 .63 +0 .93 γ30 − γ0 = +0 .293 [0 .11 , 0.51] 
+
+Table 2: Raw depth-alignment estimates and the prompt- and energy-adjusted mixed-effects model. Initial and layer-30 values are correlations ρℓ except in the final row, which reports coefficients 
+
+γℓ. The prompt-bootstrap interval for the raw K=8 increase excludes zero, but the leave-one-band-out spread is 0.172 , showing sensitivity to this partition; the phase-randomized test of the raw late-decoder slope gives p = 0 .183 . The adjusted model uses the 399 prompts jailbroken by the full adversarial input and per-prompt, per-band energy. Its layer-30 coefficient is +0 .93 
+
+(95% CI [0 .70 , 1.19] ), and the pre-specified layer-30-minus-projector contrast is +0 .293 (95% CI 
+
+[0 .11 , 0.51] ). The behavior-irrelevant controls show no corresponding depth modulation, but are de-fined over the same coarse frequency partition. The K=16 raw-correlation estimate uses n=50 ; its behavioral sweep covers n=520 , but per-stem K=16 hidden states were not collected. 18 0 5 10 15 20 25 30 
+
+Layer Index 
+
+> 0_9 10_19 20_29 30_39 40_49 50_59 60_69 70_79
+> Mel band
+
+_LLM (band vs adv) per layer (n=520 stems) 
+
+> 10 20 30 40
+> mean L2 distance
+
+Figure 7: Band-by-layer audio-span divergence on Qwen2-Audio ( 32 decoder layers, K=8 analysis bands, n=520 ). The heatmap shows raw divergence across conditions. The prompt- and energy-adjusted association with band necessity is summarized in Table 2; the analysis does not identify a causal layer. 1 2 3 4 5 6 7 8
+
+k (bands retained, cumulative) 
+
+> 0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8
+> ASR
+
+Cumulative band-addition (Qwen, n=50) 
+
+> by importance by energy random-k (20 draws) adv baseline 0.76
+
+Figure 8: Cumulative band-addition on Qwen2-Audio ( n=50 ). ASR as a function of k retained bands, ordered by mask-sweep importance and by retained energy, against an energy-matched random-k baseline (orange band, 20 draws). Retaining the least-important bands first leaves ASR at the floor through k=6 (importance path 0.00 , 0.00 , 0.02 , 0.04 , 0.06 , 0.08 ), rises to 0.28 at k=7 ,and reaches the full adversarial ASR only when all bands are retained ( k=8 , 0.80 ). The importance-and energy-ordered paths are closely matched, so retention order is immaterial ; the energy-matched 
+
+random baseline stays near zero until k=7 –8, which is the control’s purpose: it shows the sufficiency signal is carried by bandwidth+energy coverage, not by which specific bands are retained. 19 condition ASR primary ASR ref agreement( κ)adversarial (no mask) 0.76 0.64 0.80 ( 0.53 )
+
+b1 = [0 , 9] 0.32 0.28 0.92 ( 0.81 )
+
+b2 = [10 , 19] 0.18 0.14 0.96 ( 0.85 )
+
+b3 = [20 , 29] 0.28 0.24 0.92 ( 0.79 )
+
+b4 = [30 , 39] 0.18 0.14 0.96 ( 0.85 )
+
+b5 = [40 , 49] 0.04 0.04 1.00 ( 1.00 )
+
+b6 = [50 , 59] 0.04 0.04 1.00 ( 1.00 )
+
+b7 = [60 , 69] 0.08 0.08 1.00 ( 1.00 )
+
+b8 = [70 , 79] 0.02 0.02 1.00 ( 1.00 )
+
+Table 3: Agreement between the primary AdvWave judge (GPT-4o-mini) and a stricter reference judge (GPT-5.6-sol) on the K=8 mask sweep and adversarial condition ( n=50 per condition, Qwen2-Audio, ε=0 .01 ). These re-scored ASRs come from an n=50 sensitivity run, not the head-line float32 results in Table 4. The stricter judge labels fewer borderline adversarial responses as jailbreaks, but the judges preserve the band ordering (Section 7). We use GPT-4o-mini for the pri-mary evaluation and GPT-5.6-sol only as a sensitivity check. 
+
+Mel-band ASR 
+
+(δ bins) (float32) 0–9 0.24 10–19 0.17 20–29 0.29 30–39 0.14 40–49 0.11 50–59 0.07 60–69 0.09 70–79 0.05 
+
+Table 4: Per-band jailbreak ASR for the primary K=8 contiguous mask sweep ( n=520 ), using float32 STFT-mask-ISTFT reconstruction without clipping. Direct waveform comparison gives a relative RMSE of 1.76 ×10 −5 and signal-to-quantization-noise ratio of about 70.5 dB. 
+
+Qwen2-Audio (80-bin analysis basis) LLaMA-Omni (128-bin analysis basis) Band Hz [flow , f high ] En. Res. Drop Hz En. 
+
+[0 , 9] 0–344 0.10 0.014 0.53 0–214 0.056 
+
+[10 , 19] 382–725 0.089 0.030 0.60 238–451 0.047 
+
+[20 , 29] 764–1117 0.072 0.035 0.48 475–689 0.051 
+
+[30 , 39] 1162–1656 0.101 0.022 0.63 713–926 0.046 
+
+[40 , 49] 1722–2455 0.105 0.017 0.66 950–1184 0.046 
+
+[50 , 59] 2554–3640 0.146 0.010 0.70 1213–1513 0.056 
+
+[60 , 69] 3786–5396 0.147 0.007 0.68 1550–1932 0.073 
+
+[70 , 79] 5613–8000 0.242 0.003 0.72 1980–2469 0.071 
+
+[80 , 89] – – – – 2530–3154 0.078 
+
+[90 , 99] – – – – 3232–4029 0.087 
+
+[100 , 109] – – – – 4129–5148 0.084 
+
+[110 , 119] – – – – 5275–6576 0.084 
+
+[120 , 127] – – – – 6739–8000 0.221 
+
+Table 5: Band-level perturbation-energy share (En.), Hz boundaries, reconstruction residual (Res.), and mask-sweep ASR drop for Qwen2-Audio, with energy share and Hz boundaries also shown for LLaMA-Omni. Boundaries use the Slaney mel scale over 0–8 kHz; we report frequencies in Hz so the two analysis bases can be compared (Section 3.1). The residual is the fraction of energy that re-enters the masked band after STFT masking, inverse STFT, and re-analysis. All checked residuals are below 5%, and neighboring-band mel-filter leakage is below 1.5% of the in-band attenuation. The residual diagnostic uses complete 10-bin groups, so Omni’s final 8-bin group is not measured. ASR drop is 0.767 minus the masked ASR in Table 4. 20 0-9 10-19 20-29 30-39 40-49 50-59 60-69 70-79 80-89 90-99 100-109 110-119 120-127 
+
+Mel band [start-end] 
+
+> 0.05
+> 0.00 0.05 0.10
+> ASR drop (vs. full adversarial)
+
+Mask sweep (band removed) (ASR_adv=0.61, ASR_clean=0.41, n=13 bands, 95% bootstrap CI) Figure 9: LLaMA-Omni null arm ( 128 -bin analysis basis, K=13 ). We read this model as a null, not as a power study, because its small margin and judge noise prevent reliable per-band comparisons (Section 5.5). The plot shows mask-sweep ASR drops relative to the adversarial baseline of 0.61 
+
+(n=520 ); every 95% bootstrap CI overlaps zero. The raw depth estimates are summarized in Table 6. Omni’s 128-bin analysis basis covers different frequencies from Qwen’s 80-bin basis; Table 5 reports the corresponding Hz boundaries.                          
+
+> Metric Qwen2-Audio LLaMA-Omni
+> Evaluated prompts n520 520 Analysis bands K813 ASR, clean 0.008 0.41 ASR, adversarial 0.77 0.61 Top mask band (basis index) [70 ,79] [80 ,89]
+> Top mask band (frequency) 5.6–8.0 kHz 2.5–3.2 kHz ASR Drop at top band 0.72 0.08 Late-decoder ρℓslope rising ≈flat
+
+Table 6: Cross-architecture comparison on the n=520 corpus. LLaMA-Omni is interpreted as a null arm because its clean ASR leaves too little margin for reliable per-band comparisons (Section 5.5). ASR drops are measured relative to each model’s own adversarial baseline. The depth row reports the late-decoder slope of the raw ρℓ curve, not a selected peak layer. We omit keep-only results here because they are floor-saturated on Qwen (all retained-band ASRs are ≤ 0.02 ) and return toward Omni’s clean ASR; the cumulative band-addition curve is the more informative sufficiency analysis (Section 5.1). 21 0 5 10 15 20 25 30 
+
+Transformer layer 
+
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Detector AUROC (clean vs adversarial)
+
+Qwen2-Audio       
+
+> Linear probe (logistic) Mahalanobis (128-d proj.)
+> 0510 15 20 25 30
+
+Transformer layer 
+
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Detector AUROC (clean vs adversarial)
+
+LLaMA-Omni Figure 10: Clean-versus-adversarial detector AUROC as a function of decoder depth, on the n=50 
+
+pooled audio-span hidden states. A linear probe (logistic regression, held out by prompt) separates clean from adversarial representations with AUROC 1.0 at every sampled layer on both ALMs; a Mahalanobis detector on a 128 -dim random projection rises from chance at the input layers to near-perfect at depth. The jailbreak displacement is therefore large enough to be linearly detectable in the high-dimensional residual stream even though the first two PCA/t-SNE axes show no cluster. 
+
+Detector AUROC Untrained-ϵ AUROC clean vs. adv adv vs. benign-perturbed (0.005 / 0.02) Input space, high-freq. energy ratio 0.92 0.64 —Input space, spectral flatness 1.00 0.57 —Depth linear probe (layer 30) 1.00 1.00 1.00 / 1.00 Input space, log-mel logistic ( d=80 ) 1.00 0.999 —
+
+Table 7: Input-space and residual-stream detector AUROCs on the Qwen2-Audio subset ( n=50 ). The first column separates clean from adversarial audio. The second tests adversarial audio against benignly corrupted speech, using additive noise at SNR 15 or 25 dB and MP3 or Opus compression at 64 kbps. Unsupervised input features perform well on the clean-versus-adversarial task but decline with benign corruption. The depth probe remains at 1.0; however, a supervised logistic-regression classifier on the victim’s log-mel input features reaches 1.0 and 0.999 on the two tasks, respectively. Thus, this experiment shows no measurable AUROC advantage for the depth probe over a compa-rable supervised input baseline. The final column evaluates a depth probe trained only on ϵ = 0 .01 
+
+samples against attacks optimized at ϵ = 0 .005 and 0.02 (Section 5.5). AUROC remains 1.00, indi-cating that the probe detects the perturbation family, not successful jailbreak behavior at a particular budget. Qwen2 Omni 
+
+> Victim
+> Qwen2 Omni
+> source
+
+0.76 
+
+> [0.64,0.88]
+> WB
+
+0.34 
+
+> [0.22,0.48]
+> TX
+
+0.02 
+
+> [0.00,0.06]
+> TX
+
+0.62              
+
+> [0.48,0.76]
+> WB
+> (a) 2 ×2 ASR matrix
+> WB: on own victim
+> TX: transferred to other victim
+> WB full-adv ASR TX full-adv ASR
+> 0.0 0.5 1.0
+> ASR
+> TX: ASR = 0.37, = 0.03
+> rank =0.53 ( p= 0.18)
+> (b) Qwen-Omni: mask sweep
+> [0,9] [10,19] [20,29] [30,39] [40,49] [50,59] [60,69] [70,79]
+> Mel band
+> 0.0 0.5 1.0
+> ASR
+> TX: ASR = 0.38, = 0.03
+> rank = + 0.09 ( p= 0.84)
+> Keep-only sweep
+> 0.0 0.5 1.0
+> ASR
+> TX: ASR = 0.00, = 0.00
+> TX uniform: no transfer across bands
+> (c) Omni-Qwen: mask sweep
+> [0,9] [10,19] [20,29] [30,39] [40,49] [50,59] [60,69] [70,79] [80,89] [90,99] [100,109] [110,119] [120,127]
+> Mel band
+> 0.0 0.5 1.0
+> ASR
+> TX: ASR = 0.00, = 0.00
+> TX uniform: no transfer across bands
+> Keep-only sweep
+
+Figure 11: Cross-model AdvWave-P transferability on the n=50 matched subset. (a) 2×2 ASR matrix; diagonal cells ( WB ) are white-box, off-diagonal ( TX ) are direct black-box transfer. (b, c) per-band mask (top) and keep-only (bottom) sweeps in both directions: blue bars are the source-victim white-box ASR, red bars are the cross-victim transfer ASR; dashed lines mark the full-adversarial WB and TX ASRs. Inline boxes report transfer mean ±σ across bands and Spearman ρrank between the WB and TX ASR-drop rankings. Brackets in (a) are bootstrap 95% CIs over 1000 resamples. 22 band JBB (full pool, n=70) Malicious ( n = 50 †) StrongRE ( n = 50 †) AdvBench (n=520) 0–9 +0 .70 +0 .82 +0 .60 +0 .68                             
+
+> 10–19 +0 .69 +0 .76 +0 .62 +0 .78
+> 20–29 +0 .45 +0 .60 +0 .45 +0 .63
+> 30–39 +0 .75 +0 .74 +0 .54 +0 .81
+> 40–49 +0 .73 +0 .80 +0 .69 +0 .86
+> 50–59 +0 .78 +0 .87 +0 .75 +0 .91
+> 60–69 +0 .77 +0 .88 +0 .73 +0 .88
+> 70–79 +0 .89 +0 .96 +0 .81 +0 .93
+
+Table 8: Normalized K=8 mask-sweep drop, 1 − ASR(mask) /ASR adv , across corpora. Jailbreak-Bench uses its full jailbroken pool ( n=70 of 89; adversarial ASR 0.914 ). †MaliciousInstruct and StrongREJECT use the 50 highest-necessity prompts from their jailbroken pools ( 93 /100 and 
+
+190 /276 ); those two rankings are selection-conditioned and are shown descriptively, not as inde-pendent replication. AdvBench uses n=520 (adversarial ASR 0.767 ). 23

@@ -6,62 +6,56 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-10-06
-- 运行时间：2026-10-06 23:19:07 UTC
+- 最新运行日期：2026-10-07
+- 运行时间：2026-10-07 23:58:26 UTC
 - 运行状态：成功
-- 本次总论文数：13
-- 精读区：1
-- 速读区：12
+- 本次总论文数：12
+- 精读区：4
+- 速读区：8
 
 ### 今日简报（AI）
-- 今日共生成 13 篇推荐（精读 1 篇，速读 12 篇）
-- 精读：《Automatic Speech Recognition for Low-Resource Sinhala: A Critical Review of Methods, Challenges, and Future Directions》（9.0/10）
-- 速读：《Conformal Factuality Control for Multi-Hop Retrieval-Augmented Generation》（7.0/10）, 《MGhana-ST: A Low-Resource Speech Translation Dataset for Ghanaian Languages and an Analysis of Multilingual Training Trade-offs》（7.0/10）, 《Cross-Lingual Alignment for Decoder-Only Models using MoE Routers》（7.0/10）
-- 这些结果覆盖了当下较热的方向，建议先看精读区论文的关键问题与方法。
-- 详情：[/202610/06/README](/202610/06/README)
+今日筛出12篇论文，精读4篇、速读8篇，重点集中在语音/音频与RAG检索增强。最值得看的是两篇8分精读：SHAMS为黎凡特阿拉伯语提供发音评测基准，AdvWave-P则系统审计Qwen2-Audio的音频越狱频深分布。普通读者可先关注语音模型安全与多语言发音评测，再顺着RAG的语义补全和图检索两条线了解检索增强。
+- 详情：[/202610/07/README](/202610/07/README)
 
 ### 精读区论文标签
-1. [Automatic Speech Recognition for Low-Resource Sinhala: A Critical Review of Methods, Challenges, and Future Directions](/202610/06/2610.05681v1-automatic-speech-recognition-for-low-resource-sinhala-a-critical-review-of-methods-challenges-and-future-directions)  
-   标签：评分：9.0/10、query:speech-tech
-   evidence：低资源语言自动语音识别的批判性综述
+1. [SHAMS: An Audio-Grounded Pronunciation Benchmark for Levantine Arabic](/202610/07/2610.01427v1-shams-an-audio-grounded-pronunciation-benchmark-for-levantine-arabic)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：黎凡特阿拉伯语方言语音基准
+2. [Where Does the Audio Jailbreak Live? A Controlled Frequency-Depth Audit of AdvWave-P on Qwen2-Audio](/202610/07/2610.07005v1-where-does-the-audio-jailbreak-live-a-controlled-frequency-depth-audit-of-advwave-p-on-qwen2-audio)  
+   标签：评分：8.0/10、query:llm-attack
+   evidence：Qwen2-Audio上的音频越狱攻击审计
+3. [Region-Aware Masking for Accent-Robust Cross-Lingual Text-to-Speech](/202610/07/2610.07524v1-region-aware-masking-for-accent-robust-cross-lingual-text-to-speech)  
+   标签：评分：8.0/10、query:speech-tech
+   evidence：跨语言零样本文本到语音合成
+4. [Language Unalignability: Why Some Concepts Resist Cross-Cultural Benchmark Evaluation](/202610/07/2610.08303v1-language-unalignability-why-some-concepts-resist-cross-cultural-benchmark-evaluation)  
+   标签：评分：8.0/10、query:cross-lang
+   evidence：不可译概念抵抗跨语言映射
 
 ### 速读区论文标签
-1. [Conformal Factuality Control for Multi-Hop Retrieval-Augmented Generation](/202610/06/2609.38222v1-conformal-factuality-control-for-multi-hop-retrieval-augmented-generation)  
-   标签：评分：7.0/10、query:fie-rag
-   evidence：检索增强生成与claim级事实性控制
-2. [MGhana-ST: A Low-Resource Speech Translation Dataset for Ghanaian Languages and an Analysis of Multilingual Training Trade-offs](/202610/06/2609.40041v2-mghana-st-a-low-resource-speech-translation-dataset-for-ghanaian-languages-and-an-analysis-of-multilingual-training-trade-offs)  
+1. [HINTT Submission to the 2nd MLC-SLM Challenge: Comparing Cascaded and Unified Approaches to Diarization and ASR](/202610/07/2610.08063v1-hintt-submission-to-the-2nd-mlc-slm-challenge-comparing-cascaded-and-unified-approaches-to-diarization-and-asr)  
    标签：评分：7.0/10、query:speech-tech
-   evidence：面向加纳低资源语言的语音翻译数据集
-3. [Cross-Lingual Alignment for Decoder-Only Models using MoE Routers](/202610/06/2610.01921v2-cross-lingual-alignment-for-decoder-only-models-using-moe-routers)  
-   标签：评分：7.0/10、query:cross-lang
-   evidence：跨语言表示对齐提升跨语言迁移
-4. [Reactivating Alignment: Defending LLMs from Jailbreaks via Intention-Aware Input-Output Matching](/202610/06/2610.04470v1-reactivating-alignment-defending-llms-from-jailbreaks-via-intention-aware-input-output-matching)  
-   标签：评分：7.0/10、query:llm-attack
-   evidence：通过意图感知匹配防御LLM越狱攻击
-5. [Reward Stealing Attack on Large Language Models](/202610/06/2610.06670v1-reward-stealing-attack-on-large-language-models)  
-   标签：评分：7.0/10、query:llm-attack
-   evidence：面向大模型对齐奖励的对抗攻击框架
-6. [VISTA-Bench: Benchmarking Multilingual Image Translation with Image-Specific Rubrics](/202610/06/2609.37287v1-vista-bench-benchmarking-multilingual-image-translation-with-image-specific-rubrics)  
-   标签：评分：6.0/10、query:mtg-bench
-   evidence：覆盖22种语言、采用图像特定评分标准的多语言基准
-7. [VOSSA: Voiceprint Optimization for Streaming Speech Architectures](/202610/06/2609.38887v2-vossa-voiceprint-optimization-for-streaming-speech-architectures)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：面向流式语音架构的语音转换声纹表示
-8. [Code-Switching Spoken Language Identification as Multi-Label Set Prediction](/202610/06/2610.01450v1-code-switching-spoken-language-identification-as-multi-label-set-prediction)  
-   标签：评分：6.0/10、query:speech-tech
-   evidence：面向多语言语音的代码切换口语语种识别
-9. [A Matryoshka Hierarchical RAG for Efficient Multi-Hop Question Answering](/202610/06/2610.01767v1-a-matryoshka-hierarchical-rag-for-efficient-multi-hop-question-answering)  
+   evidence：基于Qwen3-ASR与说话人分离的多语言说话人属性ASR系统
+2. [Bridging Semantic Gaps in RAG through Generated Context Knowledge Fusion](/202610/07/2609.37171v1-bridging-semantic-gaps-in-rag-through-generated-context-knowledge-fusion)  
    标签：评分：6.0/10、query:fie-rag
-   evidence：面向高效多跳问答的分层检索增强生成框架
-10. [DEPICT: Scoring Text-to-Image Alignment by Answer Agreement](/202610/06/2610.03617v1-depict-scoring-text-to-image-alignment-by-answer-agreement)  
-   标签：评分：6.0/10、query:mtg-bench
-   evidence：文生图对齐评分与T2I基准评测方法
-11. [Target-free Latent Safety Alignment](/202610/06/2610.04467v1-target-free-latent-safety-alignment)  
+   evidence：改进检索增强生成中段落选择的框架
+3. [Corpus-Guided Dual-Path Propagation for Graph Retrieval-Augmented Generation](/202610/07/2609.37661v1-corpus-guided-dual-path-propagation-for-graph-retrieval-augmented-generation)  
+   标签：评分：6.0/10、query:fie-rag
+   evidence：面向多跳证据检索的图检索增强生成
+4. [Towards Model as a Library: Offline, Community-Sourced AI for Low-Resource African Languages](/202610/07/2609.38574v1-towards-model-as-a-library-offline-community-sourced-ai-for-low-resource-african-languages)  
+   标签：评分：6.0/10、query:speech-tech
+   evidence：面向低资源非洲语言与方言的离线社区语音AI
+5. [Silence-the-Mimic: Accelerating Imperceptible Perturbation Generation Against Voice Cloning](/202610/07/2610.00662v1-silence-the-mimic-accelerating-imperceptible-perturbation-generation-against-voice-cloning)  
    标签：评分：6.0/10、query:llm-attack
-   evidence：防御大模型越狱攻击
-12. [A Comprehensive Objective Evaluation of Modern Text-to-Speech for Turkish Using Speech Quality Assessment Models](/202610/06/2610.06057v1-a-comprehensive-objective-evaluation-of-modern-text-to-speech-for-turkish-using-speech-quality-assessment-models)  
-   标签：评分：6.0/10、query:low-res-tts
-   evidence：面向低资源语言的TTS系统客观评测
+   evidence：针对语音克隆与TTS的对抗防护
+6. [CLIMB: Confidence-Guided Complementary Evidence for Multimodal Retrieval-Augmented Generation](/202610/07/2610.03421v1-climb-confidence-guided-complementary-evidence-for-multimodal-retrieval-augmented-generation)  
+   标签：评分：6.0/10、query:fie-rag
+   evidence：多模态检索增强生成框架，互补证据与置信度控制
+7. [VoiceWeaver: Staged Learning of Structured Controls for Expressive Speech and Sound-Event Generation](/202610/07/2610.04500v1-voiceweaver-staged-learning-of-structured-controls-for-expressive-speech-and-sound-event-generation)  
+   标签：评分：6.0/10、query:qwen-tts
+   evidence：带结构化属性控制的可控语音生成
+8. [Loud and Clear: Dynamic Activation Steering for Improving Speech Intelligibility in Noisy Environments](/202610/07/2610.07647v1-loud-and-clear-dynamic-activation-steering-for-improving-speech-intelligibility-in-noisy-environments)  
+   标签：评分：6.0/10、query:qwen-tts
+   evidence：通过激活引导实现多语言TTS可控
 
 
 <div class="dpr-home-promo-card">
