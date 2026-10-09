@@ -1,0 +1,403 @@
+Title: AccentCL: Robust Accent Classification with Incremental Expansion
+
+URL Source: https://arxiv.org/pdf/2610.07426v1
+
+Published Time: Wed, 07 Oct 2026 00:37:28 GMT
+
+Number of Pages: 7
+
+Markdown Content:
+# AccentCL: Robust Accent Classification with Incremental Expansion 
+
+Mu-Ruei Tseng, Waris Quamer, Ghady Nasrallah & Ricardo Gutierrez-Osuna 
+
+Department of Computer Science and Engineering Texas A&M University 
+
+College Station, TX 77840, USA 
+
+{mtseng, quamer.waris, ghadynasrallah, rgutier }@tamu.edu 
+
+Abstract —Accent classifiers are typically trained with a fixed label inventory and cannot accommodate new accent categories as new data becomes available. Moreover, accented speech corpora often exhibit substantial class imbalance and/or domain shift due to differences in recording conditions across corpora. We present AccentCL, a class-incremental learning framework for English accent classification that is robust to class imbalance and cross-corpus domain shift. AccentCL extracts multi-layer representations from a frozen Whisper-Large-v3 encoder, opti-mized with an imbalance-aware cross-entropy loss to reduce bias toward the majority accent classes and a domain mean alignment loss that minimizes distributional mean shift across training corpora. The label space is then expanded via replay-based continual learning, using the frozen base model for knowledge retention and an old-to-new margin loss to reduce overprediction on newly added classes. On a five-class accent classification task, AccentCL achieves 77.1% balanced accuracy and a 76.9% macro-averaged F1 score. We further evaluate the model’s ability to incrementally incorporate two new accent categories: Spanish-accented and Chinese-accented English. When adding Spanish-accented English to the pretrained model, AccentCL attains an F1 of 83.3% on the new class while retaining 77.3% balanced accuracy on the base classes. When subsequently adding Chinese-accented English, it achieves 61.8% F1 on the new class while preserving 77.6% balanced accuracy on the previously learned classes. These results show that AccentCL enables robust regional accent classification while allowing new accent categories to be added without full retraining. 
+
+Index Terms —accent classification, continual learning 
+
+I. I NTRODUCTION 
+
+The ability to identify regional or non-native varieties of speech enables a range of applications, including speaker population analysis, evaluation of accented speech synthe-sis/conversion systems [1], [2], and measurement of perfor-mance disparities in downstream speech models [3]. Further, accent-related variation carries acoustic and phonetic cues (e.g., in pronunciation, rhythm, and prosody) that can affect the performance of automatic speech recognition, voice conver-sion, and spoken language understanding systems. As speech 
+
+This work was supported by the Intelligence Advanced Research Projects Activity (IARPA) via Department of Interior/Interior Business Center (DOI/IBC) contract number 140D0424C0066. The U.S. Government is au-thorized to reproduce and distribute reprints for Governmental purposes notwithstanding any copyright annotation thereon. Disclaimer: The views and conclusions contained herein are those of the authors and should not be interpreted as necessarily representing the official policies or endorsements, either expressed or implied, of IARPA, DOI/IBC, or the U.S. Government. Project page: https://psi-tamu.github.io/AccentCL/ 
+
+technologies are increasingly deployed across diverse speaker populations, developing accent classifiers that are both robust and extensible has become an important research direction. Recent accent classifiers [4], [5] benefit from large pre-trained speech encoders and public speech corpora, but often rely on strong assumptions about the underlying data. First, accent labels are typically defined along political or national boundaries (e.g., American vs. Canadian English) rather than geographic or cultural lines, even though intra-national accent variation can be substantial — differences between Southern and Northeastern US accents, for instance, are often more pro-nounced than those between American and Canadian English. Second, accent label distributions tend to be long-tailed, with some categories represented by substantially fewer samples than others. Third, training samples are frequently pooled across multiple corpora that differ in recording conditions, speaker demographics, and collection protocols, introducing corpus-level domain shift. Finally, these models do not allow new accent categories to be added after a classifier has already been deployed. Retraining from scratch to accommodate new classes is computationally costly and often impractical when the original training data are no longer available or when only limited replay of old-class samples can be retained. We propose A CCENT CL, a framework for robust, class-incremental English accent classification. AccentCL first trains an accent classifier by merging closely related fine-grained ac-cent labels into broader regional groups that reflect geographic influences, reducing ambiguity arising from acoustically simi-lar or inconsistently annotated labels. The classifier operates on multi-layer representations extracted from a frozen Whisper-Large-v3 encoder and is trained with class-prior adjustment and corpus-mean alignment to improve robustness to class im-balance and cross-corpus domain shift, respectively. AccentCL then expands the label space by incorporating new accent classes, using a small replay memory of previously learned accents stratified across corpora. During continual training, the updated model is regularized against the frozen base classifier for knowledge retention and uses an old-to-new margin loss to reduce overprediction of newly added classes on samples from previously learned accents. Together, these components allow the classifier to learn new accent categories while preserving performance on previously learned ones. Our main contributions are: arXiv:2610.07426v1 [cs.CL] 5 Oct 2026 Input Speech                                
+
+> Log-Mel Spectrogram
+> Whisper-large-v3 encoder
+> Feature Projection
+> Transformer Block 1
+> Transformer Block 32
+> Transformer Block ℓ𝑖
+> …
+> Transformer Block ℓ𝑗
+> …
+> 𝐻 ∈ ℝ 𝑇×𝐿×𝑑 ′
+> Multi-layer feature fusion
+> (layer-wise projection + concat)
+> Attentive Stats Pooling +
+> MLP
+> 𝐴𝑐𝑐𝑒𝑛𝑡 𝐸𝑚𝑏𝑒𝑑𝑑𝑖𝑛𝑔 ∈ ℝ 𝑑
+> Classifier Head
+> 𝑊 𝑏𝑎𝑠𝑒 ∈ ℝ 𝑛 𝑏𝑎𝑠𝑒 ×𝑑
+> Phase 1: Base Training
+> 𝑙𝑜𝑔𝑖𝑡𝑠 𝑎 𝑏𝑎𝑠𝑒
+> Domain Mean Alignment ( ℒ𝑎𝑙𝑖𝑔𝑛 )
+> Training Objectives: ℒ𝑏𝑎𝑠𝑒 = ℒ 𝐶𝐿𝑆 + 𝛽 𝑎𝑙𝑖𝑔𝑛 ℒ𝑎𝑙𝑖𝑔𝑛
+> Accent
+> label 𝑦
+> Source label 𝑑 ∈
+> {𝐴, 𝐵, 𝐶 … }
+> Source A
+> mean emb 𝜇 𝑦,𝐴
+> Source B
+> mean emb 𝜇 𝑦,𝐵
+> class mean emb 𝜇 𝑦
+> Retention Loss ( ℒ𝑟𝑒𝑡 )
+> Classifier
+> Old Classifier Head
+> 𝑊 𝑜𝑙𝑑 ∈ ℝ 𝑛 𝑜𝑙𝑑 ×𝑑
+> Phase 2: Continual Expansion
+> New Classifier Head
+> 𝑤 𝑛𝑒𝑤 ∈ ℝ 1×𝑑
+> l𝑜𝑔𝑖𝑡𝑠 𝑎 𝑜𝑙𝑑
+> l𝑜𝑔𝑖𝑡 𝑎 𝑛𝑒𝑤
+> Training Objectives:
+> ℒ𝐶𝐿 = ℒ 𝐶𝐿𝑆 + 𝛽 𝑎𝑙𝑖𝑔𝑛 ℒ𝑎𝑙𝑖𝑔𝑛 + 𝛽 𝑟𝑒𝑡 ℒ𝑟𝑒𝑡 + 𝛽 𝑜𝑙𝑑 −𝑛𝑒𝑤 ℒ𝑜𝑙𝑑−𝑛𝑒𝑤
+> 𝑝 𝑏𝑎𝑠𝑒 = 𝑠𝑜𝑓𝑡𝑚𝑎𝑥 ( 𝑎 𝑏𝑎𝑠𝑒
+> 𝜏 )
+> ℒ𝑟𝑒𝑡 =𝜏 2
+> 𝐵 𝑚𝑒𝑚
+> ෍
+> 𝑖∈𝐵 𝑚𝑒𝑚
+> D𝐾𝐿 (𝑝 𝑖
+> 𝑏𝑎𝑠𝑒 ||𝑝 𝑖
+> 𝑜𝑙𝑑 )
+> Old-to-new Margin Loss ( ℒ𝑜𝑙𝑑−𝑛𝑒𝑤 )
+> 𝑎 𝑜𝑙𝑑,𝑦 − 𝑎 𝑛𝑒𝑤 > 𝑚𝑎𝑟𝑔𝑖𝑛
+> Assume an old sample w ith accent y,
+> w e want:
+> 𝑝 𝑜𝑙𝑑 = 𝑠𝑜𝑓𝑡𝑚𝑎𝑥 ( 𝑎 𝑜𝑙𝑑
+> 𝜏 )
+
+Fig. 1. Model architecture of AccentCL. A frozen Whisper-Large-v3 encoder produces multi-layer features that are fused into an accent embedding. Phase 1 trains the regional classifier with domain mean alignment, and Phase 2 expands it with replay, retention, and an old-to-new margin loss. 
+
+• We formulate English accent classification as a robust class-incremental learning problem, one that must con-tend with ambiguous accent boundaries, class imbalance, domain heterogeneity, and limited replay. 
+
+• We show that multi-layer representations from a frozen speech foundation model can be adapted for robust regional accent classification through imbalance-aware training and class-conditional domain mean alignment. 
+
+• We introduce a replay-based continual training objective that combines domain-stratified memory, frozen-model retention, and an old-to-new margin loss, enabling new accent classes to be added while preserving performance on old ones. II. R ELATED WORK 
+
+A. Accent classification with speech foundation models 
+
+Accent classification aims to identify a speaker’s regional or non-native accent from speech. Recent systems com-monly build on pretrained speech representations, including wav2vec 2.0 [6], XLS-R [7], WavLM [8], and Whisper [9]. These models yield contextual frame-level representations that capture acoustic, phonetic, and speaker-related informa-tion [10], which can then be aggregated via utterance-level pooling and passed to a classification head. CommonAccent [4] is a pretrained English accent clas-sifier trained on CommonVoice [11] with a fixed 16-class accent inventory, but its single-domain training data and fine-grained label space may limit how well it generalizes to other domains. In our evaluation, many low-resource and out-of-domain accents are confused with related labels or absorbed into dominant classes, which motivates our use of a regional label mapping together with domain-aware training. Voxlect [5] introduces a larger mixed-corpus benchmark for English dialect and regional language classification, evaluating several speech foundation models with LoRA fine-tuning; its strongest configuration, based on Whisper-Large-v3, serves as a strong reference model for accent-related classification. However, Voxlect remains a fixed-label classifier and is not built to accommodate new accent categories after training. AccentCL addresses this limitation by first training a robust regional accent classifier and then extending it through class-incremental learning. Our model also draws on the layer-wise structure of speech foundation models: prior work shows that different encoder layers capture different types of infor-mation, including acoustic, phonetic, speaker, and linguistic properties [8]. Since accent cues span pronunciation, phoneme realization, rhythm, and prosody, AccentCL aggregates repre-sentations across multiple Whisper encoder layers rather than relying on the final layer alone. 
+
+B. Class-Incremental Learning 
+
+Class-incremental learning addresses the problem of extend-ing a model with new classes while preserving performance on previously learned ones. Unlike task-incremental learning [12], the model must predict over a unified label space at test time, which makes this setting especially prone to catastrophic forgetting and bias toward recently added classes. Existing methods typically reduce forgetting through replay, which mixes stored old-class examples with new-class data, or through regularization and distillation, which encourage the updated model to stay close to the previous model [13]–[16]. This line of work is directly relevant to accent classification, since new accent categories may need to be introduced after a classifier has already been trained. However, fine-tuning directly on the new accent can bias the classifier toward that class and degrade previously learned accents. AccentCL supports incremental accent-class expansion by combining new-accent data with memory of previous accents drawn from multiple corpora. During training, it preserves the earlier model’s behavior on old-accent examples and suppresses the tendency to misclassify old accents as the newly added class, limiting degradation on earlier learned accents. III. P ROBLEM FORMULATION 
+
+We study accent classification as a robust class-incremental learning problem. Given an accent classifier trained on a set of “old” accent classes Yold , the goal is to add a “new” accent class ynew while preserving performance on the old classes. Before each incremental step, we construct a replay memory Dmem from the previously learned classes. During incremental training, the updated classifier fθ is trained on 
+
+Dtrain = Dnew ∪ D mem , where Dnew contains training ut-terances from the newly added accent class. Each training example is represented as (xi, y i, d i), where xi is an utterance, 
+
+yi ∈ Y is the accent label, and di is the domain/corpus label. The objective is to learn a function fθ that recognizes the new accent class, retains performance on old classes, and remains robust across heterogeneous speech corpora. IV. M ETHOD 
+
+A. Phase 1: Base regional accent classifier 
+
+The base classifier provides recognition capabilities on the “old” accents before expanding to new classes. We define an accent label space Ybase by collapsing the 16 fine-grained accent categories in CommonAccent [4] into 5 broad accent categories: North American (American and Canadian), British Isles (British, Irish, Scottish, and Welsh), Australasian (Aus-tralian and New Zealand), South Asian (Indian), and Southeast Asian (Malaysian and Singaporean). This grouping preserves broad regional structure while avoiding unreliable distinctions between fine-grained labels with limited training data. 
+
+a) Multi-layer accent encoder: Given an input waveform 
+
+x, we use the encoder of a pretrained Whisper-Large-v3 model [9] as the acoustic feature extractor. We train only the downstream projection, pooling, and classification modules. Motivated by prior findings that intermediate layers of speech foundation models retain useful acoustic and phonetic infor-mation [8], we extract hidden states from multiple Whisper encoder layers rather than using only the final layer. Namely, we select encoder layers S = {16 , 20 , 24 , 28 }, an evenly spaced middle-to-late subset chosen to cover multiple representation depths while limiting computation. For each layer ℓ ∈ S , let H(ℓ) = {h(ℓ) 
+
+> t
+
+}Tt=1 denote the corresponding frame-level hidden sequence. We apply a layer-specific pro-jection head qℓ(·) to reduce the encoder’s hidden dimension and map all selected layers to the same dimensionality: 
+
+˜h(ℓ) 
+
+> t
+
+= qℓ
+
+
+
+h(ℓ)
+
+> t
+
+
+
+, ˜h(ℓ) 
+
+> t
+
+∈ RP , (1) where P = 256 in our implementation. Each projection head consists of layer normalization followed by a linear projection, a ReLU activation, and dropout. The projected layer representations are then concatenated at each frame to form a multi-level accent representation, i.e. ut = Concat ℓ∈S 
+
+˜h(ℓ)
+
+> t
+
+
+
+, where ut ∈ R|S| P . The re-sulting sequence {ut}Tt=1 is passed to the attentive statistics pooling [17], which computes attention-weighted mean and standard-deviation statistics over time. The pooled representa-tion is fed into an MLP to obtain a compact accent embedding, which is then passed to a linear classifier to predict the regional accent label. 
+
+b) Training objective: For each training example 
+
+(xi, y i, d i), the model produces logits ai and an accent embed-ding zi. To account for class imbalance, we use logit-adjusted cross-entropy [18]. Let π ∈ R|Y base | be the empirical class-prior vector in the training set. The classification loss is: 
+
+Lcls = 1
+
+B
+
+X
+
+> i∈B
+
+ℓCE (ai + τ log π, y i), (2) where τ controls the strength of the logit adjustment. Setting 
+
+τ = 0 recovers standard cross-entropy. We also regularize the learned accent embedding space with a domain mean alignment (DMA) loss. Since the same regional accent may appear in multiple datasets with different recording conditions, speaker pools, or corpus collection pro-tocols, this term encourages embeddings to remain consistent across sources while preserving accent-class separation. For accent class y and domain d, let μy,d denote the mean embedding of samples, and let μy denote the mean embedding of all samples with label y in the mini-batch. The alignment loss is computed over active class-domain groups: 
+
+Lalign = 1
+
+|G| 
+
+X
+
+> (y,d )∈G
+
+∥μy,d − μy ∥22 , (3) where G is the set of active class-domain groups in the mini-batch, defined as groups with at least m samples whose accent class is represented in at least two domains. We set m = 2 in our experiments. The final base-training objective is Lbase =
+
+Lcls + βalign Lalign , where βalign controls the strength of the alignment term. 
+
+B. Phase 2: Continual expansion 
+
+To add a new accent class, we expand the classifier head of the base model fbase from |Y old | outputs to |Y old | + 1 outputs. The classifier’s weights for the old classes are copied from 
+
+fbase , while the new-class weights are randomly initialized. The expanded model, denoted by fθ , is then trained on the union of the new-class data and the replay memory, i.e. 
+
+Dtrain = Dnew ∪ D mem .
+
+a) Domain-stratified replay memory: For class-incremental training, we construct a fixed replay memory from the old accent classes. Let Yold denote the old label space. For each old class k ∈ Yold , we select 
+
+Kk = min  K, |D old  
+
+> k
+
+| utterances, where K is the maximum number of replay samples per class and Dold  
+
+> k
+
+denotes the old-training utterances with label k. Within each class, we stratify sampling by domain/corpus. We divide the Kk selections as evenly as possible across the domains represented in Dold 
+
+> k
+
+and sample without replacement from each domain. If adomain has too few utterances, the remaining samples are drawn at random from the unused utterances of the same class. The resulting class-specific memories are combined to form Dmem = S 
+
+> k∈Y old
+
+Dk
+
+> mem
+
+. This yields a replay memory that is balanced across old accent classes while maintaining source diversity within each class. 
+
+b) Retention-aware continual training: Let Y = Yold ∪{ynew } denote the expanded label space, where ynew is the newly added accent class. Given utterance xi, the expanded model produces logits ai = fθ (xi) ∈ R|Y| . The primary objective is cross-entropy LCE over the expanded label space. To reduce forgetting on old accents, we keep a frozen copy of the base model fbase and use it as a teacher on replay memory samples. Let Bmem ⊆ B denote the old-class replay samples in the mini-batch, and let Cold = |Y old |. Since the expanded classifier contains an additional new-class output, we restrict its logits to the old label space when computing the retention loss. For replay sample i, let aold  
+
+> i
+
+= ai[Yold ]
+
+and abase  
+
+> i
+
+= fbase (xi) ∈ RCold denote the old-class logits of the expanded model and the logits produced by the frozen base model, respectively. We use temperature-scaled knowl-edge distillation [19] to preserve the base model’s old-class prediction distribution: 
+
+pbase  
+
+> i
+
+= softmax 
+
+ abase 
+
+> i
+
+τ
+
+
+
+, pold  
+
+> i
+
+= softmax 
+
+ aold 
+
+> i
+
+τ
+
+
+
+,
+
+(4) where τ is the distillation temperature. The retention loss is defined as: 
+
+Lret = τ 2 1
+
+|B mem |
+
+X
+
+> i∈B mem
+
+DKL 
+
+ pbase  
+
+> i
+
+∥ pold 
+
+> i
+
+ . (5) This loss encourages the expanded model to preserve the frozen base model’s old-accent decision structure on replay samples, while the supervised cross-entropy loss allows the model to learn the newly added accent. Because Lret ignores the newly added class logit, an old re-play sample can still receive a high new-class score even when its old-class logits are preserved. Complementary to retention, we add an old-to-new margin loss that directly suppresses new-class overprediction on replay memory samples. For each replay sample, the loss encourages the true old-class logit to exceed the new-class logit by a margin m:
+
+Lold ,new = 1
+
+|B mem |
+
+X
+
+> i∈B mem
+
+max (0 , a i,y new − ai,y i + m) .
+
+(6) The final continual-training objective is: LCL = LCE +
+
+βalign Lalign + βret Lret + βold ,new Lold ,new . Here, βalign , βret ,and βold ,new control the strengths of domain alignment, reten-tion, and old-to-new margin regularization, respectively. V. E XPERIMENTAL SETUP 
+
+a) Datasets: We construct our accent classification dataset from multiple English speech corpora, including Com-monVoice [11], GLOBE [20], AESRC [21], UK-Ireland [22], EdAcc [23], L2ARCTIC [24], ARCTIC [25], EmiliaYO-DAS [26], VoxPopuli [27], and EMIME [28]. We assign each utterance to a regional accent group following our collapsed accent label mapping. The full dataset includes North Ameri-can (NA), British Isles (BI), Australasian (AUS), South Asian (SA), Southeast Asian (SEA), Spanish (SPA), and Chinese (CHN) accent groups. All splits are constructed at the speaker level to prevent speaker overlap among the training, validation, and test sets. Because several corpora contain many utterances from the same speaker, we also limit speaker dominance during train-ing. For each accent group, we first cap each speaker at 50 utterances. We then limit the total number of utterances per accent group to 50,000. To preserve training dataset diversity, we sample across the datasets available for each accent group. This prevents the training subset from being dominated by a small number of frequent speakers or large corpora, while keeping variation in recording conditions across datasets. The resulting training data distribution is shown in Figure 2. 0 20 40 60 80 100  
+
+> Dataset composition within each accent (%)
+> Chinese Spanish Southeast Asian South Asian Australasian British Isles North American
+> 3,565 9,349 3,338 21,462 17,244 28,244 21,378
+> # utt.
+> Dataset EdAcc CommonVoice GLOBE UK-Ireland AESRC L2ARCTIC ARCTIC EmiliaYODAS voxpopuli EMIME
+> Fig. 2. Training dataset composition by accent group. Bars show source-dataset percentages, and right-side numbers indicate utterance counts.
+
+b) Model training: We train AccentCL sequentially. All models are trained for 10 epochs with a batch size of 40 using AdamW and cosine learning-rate annealing. All reported results use a single fixed seed of 42. First, we train the base regional accent classifier with a frozen Whisper-Large-v3 encoder and update only the downstream projection layers, attentive statistics pooling module, MLP, and classifier head. The base model uses an initial learning rate of 1 × 10 −3,domain mean alignment weight βalign = 20 , and logit ad-justment temperature τ = 1 .0. We select the base checkpoint using validation macro-F1. We then perform continual training by adding Spanish-accented English as a new class. The classifier head is ex-panded by copying the old-class weights and initializing a new output unit. The expanded model is trained with new-class data and source-stratified replay memory from the old classes. We set the replay budget to K = 2 ,000 utterances per old accent class, corresponding to approximately 10% of the original training data. Continual training uses an initial learning rate of 1 × 10 −4, βalign = 20 , retention temperature 
+
+τ = 2 , and retention weight βret = 1 .0. The margin loss uses 
+
+βold ,new = 0 .2 and margin m = 0 .3.We repeat the same procedure to add Chinese-accented English on top of the base-plus-Spanish model. For continual TABLE I REGIONAL ACCENT CLASSIFICATION RESULTS ON THE SHARED 5-CLASS REGIONAL LABEL SPACE . P REDICTIONS FROM COMMON ACCENT AND 
+
+VOXLECT ARE MAPPED TO THE SAME REGIONAL LABEL SPACE FOR EVALUATION . F OR MODELS WITH A LARGER OUTPUT LABEL SPACE , PREDICTIONS OUTSIDE THE EVALUATED 5-CLASS LABEL SET ARE RETAINED AND COUNTED AS ERRORS . A LL METRICS ARE REPORTED IN PERCENTAGES .                                                
+
+> Method All Acc (↑)All Bal Acc (↑)All Macro-F1 (↑)OOD Acc (↑)OOD Bal Acc (↑)OOD Macro-F1 (↑)CommonAccent [4] 56.0 48.3 48.6 79.0 53.6 58.2 Voxlect [5] 64.8 65.8 68.1 83.8 77.5 82.6
+> AccentCL base 76.0 77.1 76.9 89.7 79.6 83.0
+> w/o logit adjustment 75.8 76.0 76.9 87.6 77.6 80.1 w/o DMA 75.7 77.7 75.8 84.8 72.8 75.9 w/o logit adjustment & DMA 75.6 76.0 76.5 81.9 65.1 69.2
+
+training stages, checkpoint selection uses the harmonic mean between old-class macro-F1 and new-class F1: 
+
+Hold ,new = 2F old macro F new 
+
+F old macro + F new + ϵ , (7) which balances old-class retention and new-class learning, instead of selecting models that perform well on only one side of the incremental task. 
+
+c) Baselines: We compare AccentCL against two ex-isting accent classification systems: CommonAccent [4] is a wav2vec2-XLSR-based English accent classifier trained on CommonVoice. Voxlect [5] evaluates several architectures for English dialect classification and reports the best performance with Whisper-Large-v3. We therefore use its Whisper-Large-v3 variant as the Voxlect baseline. Since CommonAccent, Voxlect, and AccentCL use different output label spaces, all models are evaluated under the shared regional accent label mapping described in Section V-0a. Predictions outside the evaluated label set are retained and counted as errors. For class-incremental experiments, we also report Frozen Base 
+
+model before adding each new class. This gives the original performance on the old classes and is used as reference for measuring forgetting. We also include joint retraining on all available data as an upper bound and naive new-class-only fine-tuning with cross-entropy and no replay as a lower bound. 
+
+d) Evaluation metrics: We report accuracy, balanced accuracy, and macro-F1 for regional accent classification. Balanced accuracy is computed as the mean per-class recall. Macro-F1 is the unweighted average of class-wise F1 scores. We report results under two evaluation settings. All evaluates all test utterances from our constructed benchmark whose labels fall within the target regional label set. OOD evaluates source-held-out generalization on Speech Accent Archive [29] and IDEA [30], neither of which is used as a training source for any model. For class-incremental learning, we report new-class F1 and old-class balanced accuracy, where old classes are those learned before the current incremental step. To measure forget-ting, we compute the per-class accuracy change between the expanded model and the model before adding the new accent, i.e. δk = Acc after  
+
+> k
+
+− Acc before  
+
+> k
+
+. We then report the average forgetting over all old classes and the worst-class change: 
+
+∆avg = 1
+
+|Y old |
+
+X
+
+> k∈Y old
+
+min(0 , δ k), ∆worst = min 
+
+> k∈Y old
+
+δk.
+
+(8) More negative values indicate stronger forgetting. VI. R ESULTS 
+
+A. Robust regional accent classification 
+
+Table I reports the performance of the 5-class base regional accent classifier. We evaluate each model on the full test set and on a source-held-out subset to assess generalization across recording sources. On the full evaluation set, AccentCL base achieves an accuracy of 76.0% , balanced accuracy of 77.1% ,and macro-F1 of 76.9% . Compared with the mapped Voxlect baseline, AccentCL base improves accuracy by +11.2 points, balanced accuracy by +11.3 points, and macro-F1 by +8.8 
+
+points. These results show that the proposed regional classi-fier provides stronger overall and class-balanced performance under the shared five-class accent label space. On the source-held-out subset, AccentCL base achieves an OOD accuracy of 89.7% , balanced accuracy of 79.6% ,and macro-F1 of 83.0% . Compared with Voxlect, AccentCL improves OOD accuracy by +5.9 points, balanced accuracy by +2.1 points, and macro-F1 by +0.4 points. Although the OOD macro-F1 gain is modest, AccentCL maintains strong class-balanced performance while improving overall accuracy on held-out recording sources. Ablation results in Table I further show that both logit adjustment and DMA improve OOD robustness, with DMA having the larger individual effect and their combination providing the strongest generalization to unseen recording sources. 
+
+TABLE II CLASS -INCREMENTAL ACCENT LEARNING RESULTS AND ABLATIONS .OLD BA CC . IS COMPUTED OVER THE CLASSES LEARNED BEFORE EACH INCREMENTAL STEP . ∆avg AND ∆worst DENOTE OLD -CLASS ACCURACY CHANGES RELATIVE TO THE OLD MODEL .                                                          
+
+> Method New F1 ↑Old BAcc ↑∆avg ↑∆worst ↑
+> Base model: 5 regional classes
+> Frozen Base –77.1 ––
+> Step 1: 5→6, adding Spanish-accented English
+> Voxlect 52.7 66.0 ––Replay only 81.4 76.2 -1.6 -4.4 (BI) Replay + retention 82.8 77.1 -0.7 -3.6 (BI)
+> Replay + margin 82.2 76.1 -1.8 -4.6 (BI) AccentCL 83.3 77.3 -0.8 -3.9 (BI)
+> Step 2: 6→7, adding Chinese-accented English
+> Voxlect –63.7 ––Replay only 41.9 75.1 -3.7 -7.5 (SPA) Replay + retention 48.5 75.9 -2.9 -5.7 (SPA) Replay + margin 59.9 77.1 -1.4 -3.8 (NA)
+> AccentCL 61.8 77.6 -1.7 -4.2 (NA)
+
+B. Class-incremental accent expansion 
+
+We next evaluate whether the regional accent inventory can be expanded without retraining the full model from scratch. Starting from the five-class base model, we incrementally add two accent classes: first Spanish-accented English , and then Chinese-accented English , yielding a class-incremental sequence of 5 → 6 → 7 classes. 
+
+a) Incremental performance: Table II reports the class-incremental results. Voxlect is included as a fixed-label ref-erence model rather than a continual-learning baseline. After adding Spanish-accented English, AccentCL achieves the best new-class F1 ( 83.3 ) and old-class balanced accuracy ( 77.3% ), while showing only a small average old-class drop (-0.8 
+
+points). The retention-only variant gives the smallest forgetting in this step, suggesting that matching the previous classifier’s predictions helps preserve the performance of the original five regional classes. After adding Chinese-accented English, AccentCL again obtains the best new-class F1 ( 61.8 ) and old-class balanced accuracy ( 77.6% ). The margin-only variant has the smallest degradation on old classes in this step, indicating that reducing confusions between old accents and the new class is important when adding Chinese-accented English. Overall, the ablations show that retention and the margin loss contribute to the two expansion steps. Combining both gives ACCENT CL the most consistent balance between learning the new accent and maintaining performance on old accents. As lower and upper bounds, naive new-class-only fine-tuning and full joint retraining achieve 15.0/0.3 and 89.3/77.7 New F1/Old BAcc, respectively, for the 5 → 6 step, and 5.7/5.7 and 70.3/80.0 for the 6 → 7 step. These results show that naive fine-tuning suffers severe catastrophic forgetting, while AccentCL approaches full joint retraining using only limited replay. 
+
+b) Qualitative analysis: Figure 3 compares per-class recall for Voxlect and AccentCL after adding Spanish-accented English. We evaluate on the held-out speakers from corpora used by both models. AccentCL shows higher recall for the newly added Spanish-accented English class and for old regional classes, which is consistent with the gains in Table II. NA BI AUS SA SEA SPA Out NA BI AUS SA SEA SPA             
+
+> True label
+> 0.67 0.08 0.07 0.06 0.80 0.08 0.11 0.75 0.08 0.93 0.12 0.68 0.10 0.21 0.17 0.08 0.38 0.11
+> (a) Voxlect
+> NA BI AUS SA SEA SPA
+> 0.74 0.09 0.05 0.07 0.85 0.09 0.86 0.93 0.08 0.84 0.11 0.21 0.06 0.61
+> (b) AccentCL
+> Predicted label
+> Fig. 3. Per-class recall matrices for Voxlect & AccentCL after adding Spanish-accented English. Out denotes predictions outside the evaluated labels.
+
+Fig. 4 shows t-SNE visualizations of learned embedding spaces. Compared with Voxlect, AccentCL forms clearer ac-cent groups with weaker domain shifts. For example, Aus-tralasian samples in VoxLect are split into several clusters from different domains, while AccentCL keeps them more com-pact. Some domain shifts remain, suggesting that AccentCL reduces, but does not fully remove, variation across corpora. Voxlect AccentCL  
+
+> Fig. 4. t-SNE of Voxlect (top) and AccentCL embeddings (bottom) after adding Spanish-accented English. Points are colored by accent label (left) and by domain (right).
+
+VII. D ISCUSSION 
+
+We proposed A CCENT CL, a framework for English ac-cent classification that supports class-incremental expansion. By combining data from new accents with replay memory stratified by dataset, AccentCL adds Spanish- and Chinese-accented English without retraining on the full old dataset. In our setting, only about 10% of the old training data is retained as replay memory and still maintains balanced accuracy on old accent classes across incremental steps. The ablation results show that retention and old-to-new margin regularization provide complementary benefits. Re-tention preserves the previous classifier’s behavior while the margin loss reduces confusion between old accents and the newly added class. New-class F1, balanced accuracy on old classes, and worst-class forgetting further show that AccentCL balances learning new accents with retaining old accents. A limitation of the current study is that continual learning is evaluated over only two expansion steps, using a single class order and random seed. Future work will examine robustness across additional expansion sequences and random seeds. Compared with the Voxlect state-of-the-art baseline, Ac-centCL achieves stronger regional accent classification and better adaptation to the expanded label space. These results show that AccentCL provides a practical pipeline for continu-ally expanding accent classifiers to future accent categories without retraining from scratch or substantially degrading previously learned classes. ACKNOWLEDGMENTS 
+
+Generative AI tools were used only for editing to improve clarity and presentation. All experimental design, implemen-tation, data analysis, and result interpretation were performed by the authors. REFERENCES [1] X. Zhang, X. Zhang, K. Peng, Z. Tang, V. Manohar, Y. Liu, J. Hwang, D. Li, Y. Wang, J. Chan, Y. Huang, Z. Wu, and M. Ma, “Vevo: Control-lable zero-shot voice imitation with self-supervised disentanglement,” in 
+
+ICLR . OpenReview.net, 2025. [2] W. Quamer, M.-R. Tseng, G. Nasrallah, and R. Gutierrez-Osuna, “Phonos: Phonetic neutralization for online streaming applications,” 
+
+arXiv preprint arXiv:2603.27001 , 2026. [3] K. Prinos, N. Patwari, and C. A. Power, “Speaking of accent: A content analysis of accent misconceptions in asr research,” in Proceedings of the 2024 ACM Conference on Fairness, Accountability, and Transparency ,2024, pp. 1245–1254. [4] J. Zuluaga-Gomez, S. Ahmed, D. Visockas, and C. Subakan, “Commonaccent: Exploring large acoustic pretrained models for accent classification based on common voice,” Interspeech 2023 , 2023. [Online]. Available: https://arxiv.org/abs/2305.18283 [5] T. Feng, K. Huang, A. Xu, X. Shi, T. Lertpetchpun, J. Lee, Y. Lee, D. Byrd, and S. Narayanan, “Voxlect: A speech foundation model benchmark for modeling dialects and regional languages around the globe,” in Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining V. 1 , 2026, pp. 2640–2651. [6] A. Baevski, Y. Zhou, A. Mohamed, and M. Auli, “wav2vec 2.0: A framework for self-supervised learning of speech representations,” 
+
+Advances in neural information processing systems , vol. 33, pp. 12 449– 12 460, 2020. [7] A. Babu, C. Wang, A. Tjandra, K. Lakhotia, Q. Xu, N. Goyal, K. Singh, P. Von Platen, Y. Saraf, J. Pino et al. , “Xls-r: Self-supervised cross-lingual speech representation learning at scale,” arXiv preprint arXiv:2111.09296 , 2021. [8] S. Chen, C. Wang, Z. Chen, Y. Wu, S. Liu, Z. Chen, J. Li, N. Kanda, T. Yoshioka, X. Xiao et al. , “Wavlm: Large-scale self-supervised pre-training for full stack speech processing,” IEEE Journal of Selected Topics in Signal Processing , vol. 16, no. 6, pp. 1505–1518, 2022. [9] A. Radford, J. W. Kim, T. Xu, G. Brockman, C. McLeavey, and I. Sutskever, “Robust speech recognition via large-scale weak supervision,” 2022. [Online]. Available: https://arxiv.org/abs/2212.04356 [10] M. Yang, R. C. M. C. Shekar, O. Kang, and J. H. L. Hansen, “What Can an Accent Identifier Learn? Probing Phonetic and Prosodic Information in a Wav2vec2-based Accent Identification Model,” in Interspeech 2023 ,2023, pp. 1923–1927. [11] R. Ardila, M. Branson, K. Davis, M. Kohler, J. Meyer, M. Henretty, R. Morais, L. Saunders, F. Tyers, and G. Weber, “Common voice: A massively-multilingual speech corpus,” in Proceedings of the twelfth language resources and evaluation conference , 2020, pp. 4218–4222. [12] G. M. Van de Ven and A. S. Tolias, “Three scenarios for continual learning,” arXiv preprint arXiv:1904.07734 , 2019. [13] J. Kirkpatrick, R. Pascanu, N. Rabinowitz, J. Veness, G. Desjardins, A. A. Rusu, K. Milan, J. Quan, T. Ramalho, A. Grabska-Barwinska 
+
+et al. , “Overcoming catastrophic forgetting in neural networks,” Pro-ceedings of the national academy of sciences , vol. 114, no. 13, pp. 3521–3526, 2017. [14] Z. Li and D. Hoiem, “Learning without forgetting,” IEEE transactions on pattern analysis and machine intelligence , vol. 40, no. 12, pp. 2935– 2947, 2017. [15] S.-A. Rebuffi, A. Kolesnikov, G. Sperl, and C. H. Lampert, “icarl: Incremental classifier and representation learning,” in Proceedings of the IEEE conference on Computer Vision and Pattern Recognition , 2017, pp. 2001–2010. [16] G. Li, W. Yu, Y. Yao, W. Tong, Y. Liang, Q. Lin, and T. Yang, “A retention-centric framework for continual learning with guaranteed model developmental safety,” arXiv preprint arXiv:2410.03955 , 2024. [17] K. Okabe, T. Koshinaka, and K. Shinoda, “Attentive Statistics Pooling for Deep Speaker Embedding,” in Interspeech 2018 , 2018, pp. 2252– 2256. [18] A. K. Menon, S. Jayasumana, A. S. Rawat, H. Jain, A. Veit, and S. Kumar, “Long-tail learning via logit adjustment,” arXiv preprint arXiv:2007.07314 , 2020. [19] G. Hinton, O. Vinyals, and J. Dean, “Distilling the knowledge in a neural network,” arXiv preprint arXiv:1503.02531 , 2015. [20] W. Wang, Y. Song, and S. Jha, “GLOBE: A High-quality English Corpus with Global Accents for Zero-shot Speaker Adaptive Text-to-Speech,” in Interspeech 2024 , 2024, pp. 1365–1369. [21] X. Shi, F. Yu, Y. Lu, Y. Liang, Q. Feng, D. Wang, Y. Qian, and L. Xie, “The accented english speech recognition challenge 2020: open datasets, tracks, baselines, results and methods,” in ICASSP 2021-2021 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) . IEEE, 2021, pp. 6918–6922. [22] I. Demirsahin, O. Kjartansson, A. Gutkin, and C. Rivera, “Open-source Multi-speaker Corpora of the English Accents in the British Isles,” in Proceedings of The 12th Language Resources and Evaluation Conference (LREC) . Marseille, France: European Language Resources Association (ELRA), May 2020, pp. 6532–6541. [Online]. Available: https://www.aclweb.org/anthology/2020.lrec-1.804 [23] R. Sanabria, N. Bogoychev, N. Markl, A. Carmantini, O. Klejch, and P. Bell, “The edinburgh international accents of english corpus: Towards the democratization of english asr,” in ICASSP 2023-2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) . IEEE, 2023, pp. 1–5. [24] G. Zhao, S. Sonsaat, A. Silpachai, I. Lucic, E. Chukharev-Hudilainen, J. Levis, and R. Gutierrez-Osuna, “L2-arctic: A non-native english speech corpus,” in Proc. Interspeech 2018 , 2018, pp. 2783–2787. [25] J. Kominek and A. W. Black, “The cmu arctic speech databases,” in 
+
+Proc. SSW 2004 , 2004, pp. 223–224. [26] H. He, Z. Shang, C. Wang, X. Li, Y. Gu, H. Hua, L. Liu, C. Yang, J. Li, P. Shi et al. , “Emilia: A large-scale, extensive, multilingual, and diverse dataset for speech generation,” IEEE Transactions on Audio, Speech and Language Processing , 2025. [27] C. Wang, M. Riviere, A. Lee, A. Wu, C. Talnikar, D. Haziza, M. Williamson, J. Pino, and E. Dupoux, “Voxpopuli: A large-scale multilingual speech corpus for representation learning, semi-supervised learning and interpretation,” in Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th Interna-tional Joint Conference on Natural Language Processing (Volume 1: Long Papers) , 2021, pp. 993–1003. [28] M. Wester, “The emime bilingual database,” The University of Edin-burgh, Tech. Rep., 2010. [29] S. H. Weinberger and S. A. Kunath, “The speech accent archive: towards a typology of english accents.” Language & Computers , vol. 73, no. 1, 2011. [30] P. Meier and S. Muller, “Idea: International dialects of english archive,” 
+
+Accessed May , vol. 17, p. 2005, 1998.
